@@ -568,27 +568,48 @@ return 0;
 }
 
 async function initSupabase() {
-setConnBar('connecting', 'Chargement…');
-// Essayer Google Sheets d'abord
-const nb = await loadFromSheets();
-if (nb > 0) {
-setConnBar('connected', 'Connecté — Google Sheets — ' + nb + ' tranches');
-document.getElementById('mode-badge').className = 'mode-badge ' + (IS_READONLY ? 'badge-read' : 'badge-edit');
-document.getElementById('mode-badge').textContent = IS_READONLY ? '👁 Lecture' : '✏ Édition';
-setSyncPill('ok', 'Google Sheets');
-if (IS_READONLY) {
-document.getElementById('readonly-banner').classList.add('show');
-document.body.classList.add('readonly-mode');
-setInterval(async () => { await loadFromSheets(); render(); }, 15000);
-}
-render();
-return;
-}
-// Fallback données locales
-setConnBar('connected', 'Planning — données locales');
-setSyncPill('ok', 'Local');
-render();
-return;
+  setConnBar('connecting', 'Chargement...');
+  try {
+    // Lire depuis CSV Google Sheets (lecture publique)
+    const res = await fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vRoI_ySau7t8ZnVKYnTctBTGH49wQ2bIsKQ8_Y87QjpMfFdLcxiyLY_baKmSGtRRqhVau1wBrkIrNTP/pub?gid=175636692&single=true&output=csv');
+    if (!res.ok) throw new Error('CSV ' + res.status);
+    const text = await res.text();
+    const lines = text.split('\n').filter(l => l.trim());
+    if (lines.length < 2) throw new Error('Vide');
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+    const get = (cols, h) => { const j = headers.indexOf(h); return j>=0?(cols[j]||'').trim().replace(/^"|"$/g,''):''; };
+    const tranches = {b1:[],b2:[],b3:[],men:[]};
+    for (let i=1; i<lines.length; i++) {
+      const cols = lines[i].split(',');
+      const atId = get(cols,'atelier_id');
+      if (!atId || !tranches[atId]) continue;
+      const t = {
+        _dbId: get(cols,'id'), id: get(cols,'id'),
+        tranche: get(cols,'nom'), comment: get(cols,'commentaire'),
+        debut: get(cols,'date_debut'), duree: parseInt(get(cols,'duree_jours'))||1,
+        besoin: get(cols,'date_besoin')||null, ordre: parseInt(get(cols,'ordre'))||i,
+        lockDebut: get(cols,'lock_debut')==='TRUE', lockFin: get(cols,'lock_fin')==='TRUE',
+        lockFinDate: get(cols,'lock_fin_date')||null, parallel: get(cols,'parallel')==='TRUE',
+      };
+      if (t.tranche) tranches[atId].push(t);
+    }
+    for (const atId in tranches) tranches[atId].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
+    state.tranches = tranches;
+    const total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
+    setConnBar('connected', 'Google Sheets — ' + total + ' tranches');
+    document.getElementById('mode-badge').className = 'mode-badge badge-edit';
+    document.getElementById('mode-badge').textContent = 'Edition';
+    setSyncPill('ok', 'Synchronise');
+    render();
+    if (!window._refreshInterval) {
+      window._refreshInterval = setInterval(initSupabase, 15000);
+    }
+  } catch(e) {
+    console.warn('Sheets CSV error:', e.message);
+    setConnBar('connected', 'Donnees locales');
+    setSyncPill('ok', 'Local');
+    render();
+  }
 }
 
 async function loadFromSupabase() {
@@ -685,22 +706,33 @@ await loadFromSupabase();
 //  SAUVEGARDE DANS SUPABASE
 // ═══════════════════════════════════════════════════════════════
 async function saveToSupabase(atId) {
-if (!_sbConnected || IS_READONLY) { saveLS(); return; }
-setSyncPill('saving', 'Enregistrement…');
-try {
-const tranches = state.tranches[atId] || [];
-for (const t of tranches) {
-const dbRow = trancheToDb(t, atId);
-const result = await sbUpsert('tranches', dbRow);
-if (result && result[0]) t._dbId = result[0].id;
-}
-saveLS(); // backup local
-setSyncPill('ok', 'Enregistré — ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}));
-} catch(e) {
-setSyncPill('error', 'Erreur sauvegarde');
-console.error('Erreur sauvegarde Supabase:', e);
-saveLS();
-}
+  saveLS();
+  setSyncPill('saving', 'Enregistrement...');
+  try {
+    const allTranches = [];
+    for (const aid of ['b1','b2','b3','men']) {
+      (state.tranches[aid]||[]).forEach(t => allTranches.push({
+        id: t._dbId||t.id||'', atelier_id: aid,
+        nom: t.tranche||'', commentaire: t.comment||'',
+        date_debut: t.debut||'', duree_jours: t.duree||1,
+        date_besoin: t.besoin||'', ordre: t.ordre||0,
+        lock_debut: t.lockDebut?'TRUE':'FALSE', lock_fin: t.lockFin?'TRUE':'FALSE',
+        lock_fin_date: t.lockFinDate||'', parallel: t.parallel?'TRUE':'FALSE',
+      }));
+    }
+    const res = await fetch('https://script.google.com/macros/s/AKfycbzBtgzwODBl1DWD4iev3QU3ABirEptVX5E0wVrqWEU3Jq_gdsjERzBoIhBRVluX41c/exec', {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'saveTranches', tranches: allTranches})
+    });
+    const r = await res.json();
+    if (r.ok) {
+      setSyncPill('ok', 'Enregistre ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+    } else throw new Error(r.error);
+  } catch(e) {
+    console.warn('Save error:', e.message);
+    setSyncPill('error', 'Erreur - local OK');
+  }
 }
 
 async function deleteFromSupabase(dbId) {
