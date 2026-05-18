@@ -319,7 +319,7 @@ transition:all .3s;
 </div>
 <div class="form-group">
 <label>Durée (jours travaillés)</label>
-<input type="number" id="f-duree" min="0.5" step="0.5" value="5"/>
+<input type="number" id="f-duree" min="1" value="5"/>
 </div>
 </div>
 <div class="form-group">
@@ -619,7 +619,7 @@ async function initApp() {
       const t = {
         _dbId: get(cols,'id'), id: get(cols,'id'),
         tranche: get(cols,'nom'), comment: get(cols,'commentaire'),
-        debut: get(cols,'date_debut'), duree: parseFloat(get(cols,'duree_jours'))||1,
+        debut: get(cols,'date_debut'), duree: parseInt(get(cols,'duree_jours'))||1,
         besoin: get(cols,'date_besoin')||null, ordre: parseInt(get(cols,'ordre'))||i,
         lockDebut: get(cols,'lock_debut')==='TRUE', lockFin: get(cols,'lock_fin')==='TRUE',
         lockFinDate: get(cols,'lock_fin_date')||null, parallel: get(cols,'parallel')==='TRUE',
@@ -979,7 +979,7 @@ function renderTableRows(rows, atId, tbody) {
         <td><input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'comment',this.value)"/></td>
         <td><input type="date" value="${t.debut}" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'debut',this.value)" style="width:128px"/></td>
         <td><span class="normal-date">${fmtDate(dateFin(t,atId))}</span></td>
-        <td><input type="number" value="${t.duree}" min="0.5" step="0.5" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'duree',+this.value)" style="width:58px"/></td>
+        <td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'duree',+this.value)" style="width:58px"/></td>
         <td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'besoin',this.value)" style="width:128px"/></td>
         <td>${statusBadge(t,atId,{})}</td>
         <td style="display:flex;gap:4px">
@@ -1023,7 +1023,7 @@ ondrop="dropRow(event,'${atId}',${i});this.classList.remove('drag-over')">
 <td>${IS_READONLY?`<div style="padding:3px 0;font-size:13px;color:var(--text2)">${esc(t.comment||'')}</div>`:`<input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${i},'comment',this.value)"/>`}</td>
 <td><input type="date" value="${t.debut}" onchange="updT('${atId}',${i},'debut',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
 <td><span class="normal-date">${fmtDate(fin)}</span></td>
-<td><input type="number" value="${t.duree}" min="0.5" step="0.5" onchange="updT('${atId}',${i},'duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:58px"/></td>
+<td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}',${i},'duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:58px"/></td>
 <td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${i},'besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
 <td>${statusBadge(t,atId,{})}</td>
 ${IS_READONLY?'':`
@@ -1429,7 +1429,7 @@ document.getElementById('f-debut').style.borderColor='';
 const data={
 tranche:document.getElementById('f-tranche').value||'(sans nom)',
 comment:document.getElementById('f-comment').value,
-debut:debutVal,duree:Math.max(0.5,+document.getElementById('f-duree').value||0.5),
+debut:debutVal,duree:Math.max(1,+document.getElementById('f-duree').value||1),
 besoin:document.getElementById('f-besoin').value||null,
 lockDebut:document.getElementById('f-lockDebut').checked,
 lockFin,lockFinDate:lockFin?document.getElementById('f-lockFinDate').value:null,
