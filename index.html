@@ -705,7 +705,7 @@ await loadFromSupabase();
 // ═══════════════════════════════════════════════════════════════
 //  SAUVEGARDE DANS SUPABASE
 // ═══════════════════════════════════════════════════════════════
-async function saveToSupabase(atId) {
+async function saveToSheets(atId) {
   saveLS();
   setSyncPill('saving', 'Enregistrement...');
   try {
