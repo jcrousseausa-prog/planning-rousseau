@@ -263,12 +263,15 @@ transition:all .3s;
 
 <header>
 <div class="logo">Planning Production <span>/ Ateliers</span></div>
+<div id="toast-msg" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:8px 20px;border-radius:8px;font-size:13px;font-weight:500;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;white-space:nowrap"></div>
 <div class="header-actions">
 <div class="view-toggle">
 <button class="vbtn active" id="vbtn-table" onclick="setView('table')">Tableau</button>
 <button class="vbtn" id="vbtn-gantt"  onclick="setView('gantt')">Gantt</button>
 </div>
-<button class="btn btn-purple" onclick="openSyncModal()">⇅ Tableau pilotage</button>
+<button class="btn" onclick="undo()" title="Annuler (Ctrl+Z)" style="font-size:16px;padding:5px 10px">↩</button>
+    <button class="btn" onclick="redo()" title="Rétablir (Ctrl+Y)" style="font-size:16px;padding:5px 10px">↪</button>
+    <button class="btn btn-purple" onclick="openSyncModal()">⇅ Tableau pilotage</button>
 <button class="btn" data-edit-only onclick="exportJSON()">💾 Sauvegarder</button>
 <button class="btn" onclick="exportCSV()">Exporter CSV</button>
 <button class="btn" onclick="openChargeModal()" style="background:#EAFAF1;color:#1E8449;border-color:#A9DFBF;font-weight:600">📋 Charge équipes</button>
@@ -316,7 +319,7 @@ transition:all .3s;
 </div>
 <div class="form-group">
 <label>Durée (jours travaillés)</label>
-<input type="number" id="f-duree" min="1" value="5"/>
+<input type="number" id="f-duree" min="0.5" step="0.5" value="5"/>
 </div>
 </div>
 <div class="form-group">
@@ -458,6 +461,48 @@ nextId:{b1:20,b2:20,b3:1,men:20}, gsUrl:'',
 tranches:{b1:[],b2:[],b3:[],men:[]},
 };
 let _editAtId = null;
+let _history = [];
+let _historyIndex = -1;
+const MAX_HISTORY = 30;
+
+function saveHistory() {
+  const snapshot = JSON.stringify(state.tranches);
+  // Supprimer les états futurs si on est revenu en arrière
+  if (_historyIndex < _history.length - 1) {
+    _history = _history.slice(0, _historyIndex + 1);
+  }
+  _history.push(snapshot);
+  if (_history.length > MAX_HISTORY) _history.shift();
+  _historyIndex = _history.length - 1;
+}
+
+function undo() {
+  if (_historyIndex <= 0) { showToastMsg('Aucune action à annuler'); return; }
+  _historyIndex--;
+  state.tranches = JSON.parse(_history[_historyIndex]);
+  setSyncPill('saving', 'Annulation…');
+  render();
+  for (const atId of ['b1','b2','b3','men']) scheduleSave(atId);
+  showToastMsg('↩ Action annulée');
+}
+
+function redo() {
+  if (_historyIndex >= _history.length - 1) { showToastMsg('Aucune action à rétablir'); return; }
+  _historyIndex++;
+  state.tranches = JSON.parse(_history[_historyIndex]);
+  setSyncPill('saving', 'Rétablissement…');
+  render();
+  for (const atId of ['b1','b2','b3','men']) scheduleSave(atId);
+  showToastMsg('↪ Action rétablie');
+}
+
+function showToastMsg(msg) {
+  const t = document.getElementById('toast-msg');
+  if (!t) return;
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 2000);
+}
 let _drag = null;
 let dragRow = null;
 let _ganttScroll = null;
@@ -574,7 +619,7 @@ async function initApp() {
       const t = {
         _dbId: get(cols,'id'), id: get(cols,'id'),
         tranche: get(cols,'nom'), comment: get(cols,'commentaire'),
-        debut: get(cols,'date_debut'), duree: parseInt(get(cols,'duree_jours'))||1,
+        debut: get(cols,'date_debut'), duree: parseFloat(get(cols,'duree_jours'))||1,
         besoin: get(cols,'date_besoin')||null, ordre: parseInt(get(cols,'ordre'))||i,
         lockDebut: get(cols,'lock_debut')==='TRUE', lockFin: get(cols,'lock_fin')==='TRUE',
         lockFinDate: get(cols,'lock_fin_date')||null, parallel: get(cols,'parallel')==='TRUE',
@@ -906,6 +951,44 @@ ${ATELIERS.map(a=>`<option value="${a.id}"${a.id===atId?' selected':''}>${a.labe
 
 // ── TABLE ──
 let _dragRow = null;
+function onSearchInput(val) {
+  _tableSearch = val;
+  // Re-render uniquement le tbody, pas tout le tableau
+  const q = val.trim().toLowerCase();
+  const atId = state.atelier;
+  const tr = state.tranches[atId] || [];
+  const sorted = [...tr].sort((a,b) => a.ordre - b.ordre);
+  const rows = q ? sorted.filter(t => t.tranche.toLowerCase().includes(q) || (t.comment||'').toLowerCase().includes(q)) : sorted;
+  const tbody = document.getElementById('planning-tbody');
+  if (!tbody) { renderTable(); return; }
+  // Garder le focus sur le champ
+  const input = document.getElementById('table-search-input');
+  const selStart = input ? input.selectionStart : 0;
+  const selEnd = input ? input.selectionEnd : 0;
+  renderTableRows(rows, atId, tbody);
+  if (input) { input.focus(); input.setSelectionRange(selStart, selEnd); }
+}
+
+function renderTableRows(rows, atId, tbody) {
+  const avCls = av => av>=100?'prog-green':av>0?'prog-blue':'prog-orange';
+  tbody.innerHTML = rows.length === 0 
+    ? `<tr><td colspan="9" class="empty-state">Aucun résultat</td></tr>`
+    : rows.map((t,i) => `<tr class="row-article">
+        <td><span class="drag-handle">⠿</span></td>
+        <td><input type="text" value="${esc(t.tranche)}" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'tranche',this.value)"/></td>
+        <td><input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'comment',this.value)"/></td>
+        <td><input type="date" value="${t.debut}" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'debut',this.value)" style="width:128px"/></td>
+        <td><span class="normal-date">${fmtDate(dateFin(t,atId))}</span></td>
+        <td><input type="number" value="${t.duree}" min="0.5" step="0.5" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'duree',+this.value)" style="width:58px"/></td>
+        <td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'besoin',this.value)" style="width:128px"/></td>
+        <td>${statusBadge(t,atId,{})}</td>
+        <td style="display:flex;gap:4px">
+          <button class="btn btn-sm" onclick="openEditModal('${atId}',${state.tranches[atId].indexOf(t)})">✎</button>
+          <button class="btn btn-sm btn-danger" onclick="removeTranche('${atId}',${state.tranches[atId].indexOf(t)})">✕</button>
+        </td>
+      </tr>`).join('');
+}
+
 function renderTable() {
 const atId=state.atelier;
 const tr=state.tranches[atId]||[];
@@ -940,7 +1023,7 @@ ondrop="dropRow(event,'${atId}',${i});this.classList.remove('drag-over')">
 <td>${IS_READONLY?`<div style="padding:3px 0;font-size:13px;color:var(--text2)">${esc(t.comment||'')}</div>`:`<input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${i},'comment',this.value)"/>`}</td>
 <td><input type="date" value="${t.debut}" onchange="updT('${atId}',${i},'debut',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
 <td><span class="normal-date">${fmtDate(fin)}</span></td>
-<td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}',${i},'duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:58px"/></td>
+<td><input type="number" value="${t.duree}" min="0.5" step="0.5" onchange="updT('${atId}',${i},'duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:58px"/></td>
 <td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${i},'besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
 <td>${statusBadge(t,atId,{})}</td>
 ${IS_READONLY?'':`
@@ -1272,6 +1355,7 @@ function addFermeture(){const d=document.getElementById('ferm-date-input').value
 function removeFermeture(d,at){state.fermetures=state.fermetures.filter(f=>!(f.date===d&&f.atelier===at));scheduleSave(state.atelier);render();}
 
 function updT(atId,idx,field,val){
+  saveHistory();
 if(IS_READONLY)return;
 const t=state.tranches[atId][idx];if(!t)return;
 t[field]=val;
@@ -1345,7 +1429,7 @@ document.getElementById('f-debut').style.borderColor='';
 const data={
 tranche:document.getElementById('f-tranche').value||'(sans nom)',
 comment:document.getElementById('f-comment').value,
-debut:debutVal,duree:Math.max(1,+document.getElementById('f-duree').value||1),
+debut:debutVal,duree:Math.max(0.5,+document.getElementById('f-duree').value||0.5),
 besoin:document.getElementById('f-besoin').value||null,
 lockDebut:document.getElementById('f-lockDebut').checked,
 lockFin,lockFinDate:lockFin?document.getElementById('f-lockFinDate').value:null,
