@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Production — Rousseau Construction</title>
+<title>Planning Production — Ateliers</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
@@ -263,15 +263,12 @@ transition:all .3s;
 
 <header>
 <div class="logo">Planning Production <span>/ Ateliers</span></div>
-<div id="toast-msg" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:8px 20px;border-radius:8px;font-size:13px;font-weight:500;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;white-space:nowrap"></div>
 <div class="header-actions">
 <div class="view-toggle">
 <button class="vbtn active" id="vbtn-table" onclick="setView('table')">Tableau</button>
 <button class="vbtn" id="vbtn-gantt"  onclick="setView('gantt')">Gantt</button>
 </div>
-<button class="btn" onclick="undo()" title="Annuler (Ctrl+Z)" style="font-size:16px;padding:5px 10px">↩</button>
-    <button class="btn" onclick="redo()" title="Rétablir (Ctrl+Y)" style="font-size:16px;padding:5px 10px">↪</button>
-    <button class="btn btn-purple" onclick="openSyncModal()">⇅ Tableau pilotage</button>
+<button class="btn btn-purple" onclick="openSyncModal()">⇅ Tableau pilotage</button>
 <button class="btn" data-edit-only onclick="exportJSON()">💾 Sauvegarder</button>
 <button class="btn" onclick="exportCSV()">Exporter CSV</button>
 <button class="btn" onclick="openChargeModal()" style="background:#EAFAF1;color:#1E8449;border-color:#A9DFBF;font-weight:600">📋 Charge équipes</button>
@@ -361,11 +358,11 @@ transition:all .3s;
 <div class="modal" style="width:640px">
 <h2>⇅ Synchronisation Tableau de Pilotage</h2>
 <div class="modal-section" style="border-color:var(--blue-border);background:var(--blue-bg)">
-<h3 style="color:var(--blue)">🔄 Connexion Google Sheets</h3>
+<h3 style="color:var(--blue)">🔄 Connexion Supabase</h3>
 <div id="supabase-status-detail" class="info-box" style="margin-bottom:.5rem"></div>
 <div style="display:flex;gap:8px;flex-wrap:wrap">
 <button class="btn btn-sim" onclick="testConnection()">🔌 Tester la connexion</button>
-<button class="btn btn-primary" onclick="importFromLocalStorage()">⬆ Importer données locales → Google Sheets</button>
+<button class="btn btn-primary" onclick="importFromLocalStorage()">⬆ Importer données locales → Supabase</button>
 </div>
 <div id="import-ls-result" style="margin-top:.75rem;font-size:13px"></div>
 </div>
@@ -430,6 +427,8 @@ transition:all .3s;
 // ═══════════════════════════════════════════════════════════════
 //  CONFIGURATION SUPABASE
 // ═══════════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://umkrmneaqkleyoutazlh.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVta3JtbmVhcWtsZXlvdXRhemxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTkyNDIsImV4cCI6MjA5NDA3NTI0Mn0.UwT7L3m39oJ2yXpdnaAPeMN-NnqQbWEMLZatI34s6Dk';
 
 // Mode lecture seule : ajouter ?readonly dans l'URL pour l'activer
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzBtgzwODBl1DWD4iev3QU3ABirEptVX5E0wVrqWEU3Jq_gdsjERzBoIhBRVluX41c/exec';
@@ -461,48 +460,6 @@ nextId:{b1:20,b2:20,b3:1,men:20}, gsUrl:'',
 tranches:{b1:[],b2:[],b3:[],men:[]},
 };
 let _editAtId = null;
-let _history = [];
-let _historyIndex = -1;
-const MAX_HISTORY = 30;
-
-function saveHistory() {
-  const snapshot = JSON.stringify(state.tranches);
-  // Supprimer les états futurs si on est revenu en arrière
-  if (_historyIndex < _history.length - 1) {
-    _history = _history.slice(0, _historyIndex + 1);
-  }
-  _history.push(snapshot);
-  if (_history.length > MAX_HISTORY) _history.shift();
-  _historyIndex = _history.length - 1;
-}
-
-function undo() {
-  if (_historyIndex <= 0) { showToastMsg('Aucune action à annuler'); return; }
-  _historyIndex--;
-  state.tranches = JSON.parse(_history[_historyIndex]);
-  setSyncPill('saving', 'Annulation…');
-  render();
-  for (const atId of ['b1','b2','b3','men']) scheduleSave(atId);
-  showToastMsg('↩ Action annulée');
-}
-
-function redo() {
-  if (_historyIndex >= _history.length - 1) { showToastMsg('Aucune action à rétablir'); return; }
-  _historyIndex++;
-  state.tranches = JSON.parse(_history[_historyIndex]);
-  setSyncPill('saving', 'Rétablissement…');
-  render();
-  for (const atId of ['b1','b2','b3','men']) scheduleSave(atId);
-  showToastMsg('↪ Action rétablie');
-}
-
-function showToastMsg(msg) {
-  const t = document.getElementById('toast-msg');
-  if (!t) return;
-  t.textContent = msg;
-  t.style.opacity = '1';
-  setTimeout(() => { t.style.opacity = '0'; }, 2000);
-}
 let _drag = null;
 let dragRow = null;
 let _ganttScroll = null;
@@ -512,21 +469,43 @@ let _sbConnected = false;
 let _sbChannel = null;
 let _saveTimeout = null;
 
-;
+// ═══════════════════════════════════════════════════════════════
+//  HELPERS SUPABASE (fetch natif, pas de lib)
+// ═══════════════════════════════════════════════════════════════
+async function sbFetch(path, options={}) {
+const url = `${SUPABASE_URL}/rest/v1/${path}`;
+const headers = {
+'apikey': SUPABASE_KEY,
+'Authorization': `Bearer ${SUPABASE_KEY}`,
+'Content-Type': 'application/json',
+'Accept': 'application/json',
+'Prefer': 'return=representation',
+...options.headers
+};
 const res = await fetch(url, {...options, headers});
 if (!res.ok) {
 const err = await res.text();
-throw new Error(`Erreur ${res.status}: ${err}`);
+throw new Error(`Supabase ${res.status}: ${err}`);
 }
 const text = await res.text();
 return text ? JSON.parse(text) : [];
+}
 
+async function sbSelect(table, query='') {
+return sbFetch(`${table}?${query}&order=ordre.asc`);
+}
 
+async function sbUpsert(table, data) {
+return sbFetch(table, {
+method:'POST',
+headers:{'Prefer':'resolution=merge-duplicates,return=representation'},
+body: JSON.stringify(data)
+});
+}
 
-
-
-
-
+async function sbDelete(table, id) {
+return sbFetch(`${table}?id=eq.${id}`, {method:'DELETE'});
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  CONNEXION & CHARGEMENT
@@ -591,13 +570,11 @@ return 0;
 async function initApp() {
   setConnBar('connecting', 'Chargement...');
   try {
-    // Lire depuis CSV Google Sheets (lecture publique)
     const res = await fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vRoI_ySau7t8ZnVKYnTctBTGH49wQ2bIsKQ8_Y87QjpMfFdLcxiyLY_baKmSGtRRqhVau1wBrkIrNTP/pub?gid=175636692&single=true&output=csv');
-    if (!res.ok) throw new Error('CSV ' + res.status);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
     const lines = text.split('\n').filter(l => l.trim());
     if (lines.length < 2) throw new Error('Vide');
-    // Détecter le séparateur (tabulation ou virgule)
     const sep = lines[0].includes('\t') ? '\t' : ',';
     const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
     const get = (cols, h) => { const j = headers.indexOf(h); return j>=0?(cols[j]||'').trim().replace(/^"|"$/g,''):''; };
@@ -628,14 +605,51 @@ async function initApp() {
       window._refreshInterval = setInterval(initApp, 15000);
     }
   } catch(e) {
-    console.warn('Sheets CSV error:', e.message);
+    console.warn('Sheets error:', e.message);
     setConnBar('connected', 'Donnees locales');
     setSyncPill('ok', 'Local');
     render();
   }
 }
+async function initSupabase() { initApp(); }
 
-
+async function loadFromSupabase() {
+try {
+// Charger calendrier
+const configs = await sbSelect('calendrier_config');
+if (configs && configs.length) {
+configs.forEach(c => { state.joursOff[c.atelier_id] = c.jours_off; });
+}
+const ferms = await sbSelect('fermetures');
+if (ferms && ferms.length) {
+state.fermetures = ferms.map(f => ({date: f.date_ferm, atelier: f.atelier_id}));
+}
+// Charger tranches — sans order pour éviter erreur si colonne manquante
+const tranches = await sbFetch('tranches?select=*');
+console.log('Tranches chargées depuis Supabase:', tranches ? tranches.length : 0);
+if (tranches && tranches.length) {
+state.tranches = {b1:[],b2:[],b3:[],men:[]};
+tranches.forEach(t => {
+const atId = t.atelier_id;
+if (!state.tranches[atId]) state.tranches[atId] = [];
+state.tranches[atId].push(dbToTranche(t));
+});
+// Trier par ordre
+for (const atId in state.tranches) {
+state.tranches[atId].sort((a,b) => (a.ordre||0) - (b.ordre||0));
+}
+} else {
+console.log('Aucune tranche en base, chargement localStorage');
+loadLS();
+}
+render();
+setSyncPill('ok', 'Synchronisé — ' + fmtDate(today()));
+} catch(e) {
+console.error('Erreur chargement Supabase:', e);
+loadLS();
+render();
+}
+}
 
 function dbToTranche(row) {
 return {
@@ -676,42 +690,56 @@ return obj;
 // ═══════════════════════════════════════════════════════════════
 //  REALTIME (Supabase Realtime via WebSocket)
 // ═══════════════════════════════════════════════════════════════
-
+function subscribeRealtime() {
+if (!_sbConnected) return;
+// Polling léger toutes les 10s pour les utilisateurs en lecture
+// (Realtime complet nécessite la lib JS — on simule avec polling)
+setInterval(async () => {
+if (IS_READONLY || document.hidden) {
+try {
+await loadFromSupabase();
+} catch(e) {}
+}
+}, IS_READONLY ? 8000 : 30000);
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  SAUVEGARDE DANS SUPABASE
 // ═══════════════════════════════════════════════════════════════
-async function saveToSheets(atId) {
+async function saveToSupabase(atId) {
   saveLS();
   setSyncPill('saving', 'Enregistrement...');
+  const allTranches = [];
+  for (const aid of ['b1','b2','b3','men']) {
+    (state.tranches[aid]||[]).forEach(t => allTranches.push({
+      id: t._dbId||t.id||'', atelier_id: aid,
+      nom: t.tranche||'', commentaire: t.comment||'',
+      date_debut: t.debut||'', duree_jours: t.duree||1,
+      date_besoin: t.besoin||'', ordre: t.ordre||0,
+      lock_debut: t.lockDebut?'TRUE':'FALSE', lock_fin: t.lockFin?'TRUE':'FALSE',
+      lock_fin_date: t.lockFinDate||'', parallel: t.parallel?'TRUE':'FALSE',
+    }));
+  }
   try {
-    const allTranches = [];
-    for (const aid of ['b1','b2','b3','men']) {
-      (state.tranches[aid]||[]).forEach(t => allTranches.push({
-        id: t._dbId||t.id||'', atelier_id: aid,
-        nom: t.tranche||'', commentaire: t.comment||'',
-        date_debut: t.debut||'', duree_jours: t.duree||1,
-        date_besoin: t.besoin||'', ordre: t.ordre||0,
-        lock_debut: t.lockDebut?'TRUE':'FALSE', lock_fin: t.lockFin?'TRUE':'FALSE',
-        lock_fin_date: t.lockFinDate||'', parallel: t.parallel?'TRUE':'FALSE',
-      }));
-    }
     const res = await fetch('https://script.google.com/macros/s/AKfycbzBtgzwODBl1DWD4iev3QU3ABirEptVX5E0wVrqWEU3Jq_gdsjERzBoIhBRVluX41c/exec', {
       method: 'POST',
       headers: {'Content-Type': 'text/plain'},
       body: JSON.stringify({action: 'saveTranches', tranches: allTranches})
     });
     const r = await res.json();
-    if (r.ok) {
-      setSyncPill('ok', 'Enregistre ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-    } else throw new Error(r.error);
+    if (r.ok) setSyncPill('ok', 'Enregistre ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+    else throw new Error(r.error);
   } catch(e) {
     console.warn('Save error:', e.message);
     setSyncPill('error', 'Erreur - local OK');
   }
 }
+function saveToSheets(atId) { return saveToSupabase(atId); }
 
-
+async function deleteFromSupabase(dbId) {
+if (!_sbConnected || IS_READONLY || !dbId) return;
+try { await sbDelete('tranches', dbId); } catch(e) { console.warn('Delete error:', e); }
+}
 
 // Debounce : attend 800ms d'inactivité avant de sauvegarder
 function scheduleSave(atId) {
@@ -722,7 +750,30 @@ _saveTimeout = setTimeout(() => saveToSheets(atId), 800);
 // ═══════════════════════════════════════════════════════════════
 //  IMPORT DEPUIS LOCALSTORAGE VERS SUPABASE
 // ═══════════════════════════════════════════════════════════════
-
+async function importFromLocalStorage() {
+const resultEl = document.getElementById('import-ls-result');
+const saved = localStorage.getItem('planning_state');
+if (!saved) {
+resultEl.innerHTML = '<div class="warn-box">Aucune donnée locale trouvée.</div>';
+return;
+}
+resultEl.innerHTML = '<div class="info-box">⟳ Import en cours…</div>';
+try {
+const data = JSON.parse(saved);
+let count = 0;
+for (const atId in data.tranches) {
+const tranches = data.tranches[atId] || [];
+for (const t of tranches) {
+await sbUpsert('tranches', trancheToDb(t, atId));
+count++;
+}
+}
+resultEl.innerHTML = `<div class="info-box" style="background:var(--green-bg);border-color:var(--green-border);color:var(--green)">✓ ${count} tranches importées depuis le cache local vers Supabase.</div>`;
+await loadFromSupabase();
+} catch(e) {
+resultEl.innerHTML = `<div class="warn-box">Erreur : ${esc(e.message)}</div>`;
+}
+}
 
 async function testConnection() {
 const el = document.getElementById('supabase-status-detail');
@@ -941,44 +992,6 @@ ${ATELIERS.map(a=>`<option value="${a.id}"${a.id===atId?' selected':''}>${a.labe
 
 // ── TABLE ──
 let _dragRow = null;
-function onSearchInput(val) {
-  _tableSearch = val;
-  // Re-render uniquement le tbody, pas tout le tableau
-  const q = val.trim().toLowerCase();
-  const atId = state.atelier;
-  const tr = state.tranches[atId] || [];
-  const sorted = [...tr].sort((a,b) => a.ordre - b.ordre);
-  const rows = q ? sorted.filter(t => t.tranche.toLowerCase().includes(q) || (t.comment||'').toLowerCase().includes(q)) : sorted;
-  const tbody = document.getElementById('planning-tbody');
-  if (!tbody) { renderTable(); return; }
-  // Garder le focus sur le champ
-  const input = document.getElementById('table-search-input');
-  const selStart = input ? input.selectionStart : 0;
-  const selEnd = input ? input.selectionEnd : 0;
-  renderTableRows(rows, atId, tbody);
-  if (input) { input.focus(); input.setSelectionRange(selStart, selEnd); }
-}
-
-function renderTableRows(rows, atId, tbody) {
-  const avCls = av => av>=100?'prog-green':av>0?'prog-blue':'prog-orange';
-  tbody.innerHTML = rows.length === 0 
-    ? `<tr><td colspan="9" class="empty-state">Aucun résultat</td></tr>`
-    : rows.map((t,i) => `<tr class="row-article">
-        <td><span class="drag-handle">⠿</span></td>
-        <td><input type="text" value="${esc(t.tranche)}" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'tranche',this.value)"/></td>
-        <td><input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'comment',this.value)"/></td>
-        <td><input type="date" value="${t.debut}" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'debut',this.value)" style="width:128px"/></td>
-        <td><span class="normal-date">${fmtDate(dateFin(t,atId))}</span></td>
-        <td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'duree',+this.value)" style="width:58px"/></td>
-        <td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${state.tranches[atId].indexOf(t)},'besoin',this.value)" style="width:128px"/></td>
-        <td>${statusBadge(t,atId,{})}</td>
-        <td style="display:flex;gap:4px">
-          <button class="btn btn-sm" onclick="openEditModal('${atId}',${state.tranches[atId].indexOf(t)})">✎</button>
-          <button class="btn btn-sm btn-danger" onclick="removeTranche('${atId}',${state.tranches[atId].indexOf(t)})">✕</button>
-        </td>
-      </tr>`).join('');
-}
-
 function renderTable() {
 const atId=state.atelier;
 const tr=state.tranches[atId]||[];
@@ -1345,7 +1358,6 @@ function addFermeture(){const d=document.getElementById('ferm-date-input').value
 function removeFermeture(d,at){state.fermetures=state.fermetures.filter(f=>!(f.date===d&&f.atelier===at));scheduleSave(state.atelier);render();}
 
 function updT(atId,idx,field,val){
-  saveHistory();
 if(IS_READONLY)return;
 const t=state.tranches[atId][idx];if(!t)return;
 t[field]=val;
@@ -1356,7 +1368,7 @@ keepGanttPos();scheduleSave(atId);render();
 async function removeTranche(atId,idx){
 if(IS_READONLY)return;
 const t=state.tranches[atId][idx];
-
+if(t&&t._dbId)await deleteFromSupabase(t._dbId);
 state.tranches[atId].splice(idx,1);
 keepGanttPos();scheduleSave(atId);render();
 }
@@ -1469,9 +1481,9 @@ for(const atId in data.tranches)(data.tranches[atId]||[]).forEach(normalizeTranc
 state.tranches=data.tranches;state.joursOff=data.joursOff||state.joursOff;
 state.fermetures=(data.fermetures||[]).map(f=>typeof f==='string'?{date:f,atelier:'all'}:f);
 state.nextId=data.nextId||state.nextId;
-// Mettre à jour Google Sheets
+// Uploader vers Supabase
 for(const atId in state.tranches)scheduleSave(atId);
-render();alert('✓ Sauvegarde restaurée.');
+render();alert('✓ Sauvegarde restaurée et envoyée vers Supabase.');
 }catch(err){alert('Erreur : '+err.message);}
 input.value='';
 };
@@ -1644,13 +1656,9 @@ fermetures: (_snap.fermetures||[]).map(f => typeof f==='string' ? {date:f,atelie
 nextId:     _snap.nextId     || state.nextId,
 });
 })();
-loadLS(); // Écrase avec cache local si plus récent
-try {
-render();
-} catch(e) {
-try { localStorage.removeItem('planning_state'); } catch(_) {}
-render();
-}
+try { loadLS(); } catch(_) {}
+try { render(); } catch(e) { render(); }
+setTimeout(initApp, 100);
 </script>
 </body>
 </html>
