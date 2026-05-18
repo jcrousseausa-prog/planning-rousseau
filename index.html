@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planning Production — Ateliers</title>
+<title>Planning Production — Rousseau Construction</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
@@ -244,7 +244,7 @@ transition:all .3s;
 
 <div class="conn-bar connected" id="conn-bar">
 <div class="conn-dot"></div>
-<span id="conn-text">Connexion à Supabase…</span>
+<span id="conn-text">Google Sheets</span>
 <div class="conn-right">
 <span class="conn-users" id="conn-users"></span>
 <span class="mode-badge" id="mode-badge"></span>
@@ -358,11 +358,11 @@ transition:all .3s;
 <div class="modal" style="width:640px">
 <h2>⇅ Synchronisation Tableau de Pilotage</h2>
 <div class="modal-section" style="border-color:var(--blue-border);background:var(--blue-bg)">
-<h3 style="color:var(--blue)">🔄 Connexion Supabase</h3>
+<h3 style="color:var(--blue)">🔄 Connexion Google Sheets</h3>
 <div id="supabase-status-detail" class="info-box" style="margin-bottom:.5rem"></div>
 <div style="display:flex;gap:8px;flex-wrap:wrap">
 <button class="btn btn-sim" onclick="testConnection()">🔌 Tester la connexion</button>
-<button class="btn btn-primary" onclick="importFromLocalStorage()">⬆ Importer données locales → Supabase</button>
+<button class="btn btn-primary" onclick="importFromLocalStorage()">⬆ Importer données locales → Google Sheets</button>
 </div>
 <div id="import-ls-result" style="margin-top:.75rem;font-size:13px"></div>
 </div>
@@ -427,8 +427,6 @@ transition:all .3s;
 // ═══════════════════════════════════════════════════════════════
 //  CONFIGURATION SUPABASE
 // ═══════════════════════════════════════════════════════════════
-const SUPABASE_URL = 'https://umkrmneaqkleyoutazlh.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVta3JtbmVhcWtsZXlvdXRhemxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTkyNDIsImV4cCI6MjA5NDA3NTI0Mn0.UwT7L3m39oJ2yXpdnaAPeMN-NnqQbWEMLZatI34s6Dk';
 
 // Mode lecture seule : ajouter ?readonly dans l'URL pour l'activer
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzBtgzwODBl1DWD4iev3QU3ABirEptVX5E0wVrqWEU3Jq_gdsjERzBoIhBRVluX41c/exec';
@@ -472,7 +470,7 @@ let _saveTimeout = null;
 // ═══════════════════════════════════════════════════════════════
 //  HELPERS SUPABASE (fetch natif, pas de lib)
 // ═══════════════════════════════════════════════════════════════
-async function sbFetch(path, options={}) {
+) {
 const url = `${SUPABASE_URL}/rest/v1/${path}`;
 const headers = {
 'apikey': SUPABASE_KEY,
@@ -485,27 +483,17 @@ const headers = {
 const res = await fetch(url, {...options, headers});
 if (!res.ok) {
 const err = await res.text();
-throw new Error(`Supabase ${res.status}: ${err}`);
+throw new Error(`Erreur ${res.status}: ${err}`);
 }
 const text = await res.text();
 return text ? JSON.parse(text) : [];
 }
 
-async function sbSelect(table, query='') {
-return sbFetch(`${table}?${query}&order=ordre.asc`);
-}
 
-async function sbUpsert(table, data) {
-return sbFetch(table, {
-method:'POST',
-headers:{'Prefer':'resolution=merge-duplicates,return=representation'},
-body: JSON.stringify(data)
-});
-}
 
-async function sbDelete(table, id) {
-return sbFetch(`${table}?id=eq.${id}`, {method:'DELETE'});
-}
+
+
+
 
 // ═══════════════════════════════════════════════════════════════
 //  CONNEXION & CHARGEMENT
@@ -567,7 +555,7 @@ return 0;
 }
 }
 
-async function initSupabase() {
+async function initApp() {
   setConnBar('connecting', 'Chargement...');
   try {
     // Lire depuis CSV Google Sheets (lecture publique)
@@ -602,7 +590,7 @@ async function initSupabase() {
     setSyncPill('ok', 'Synchronise');
     render();
     if (!window._refreshInterval) {
-      window._refreshInterval = setInterval(initSupabase, 15000);
+      window._refreshInterval = setInterval(initApp, 15000);
     }
   } catch(e) {
     console.warn('Sheets CSV error:', e.message);
@@ -612,43 +600,7 @@ async function initSupabase() {
   }
 }
 
-async function loadFromSupabase() {
-try {
-// Charger calendrier
-const configs = await sbSelect('calendrier_config');
-if (configs && configs.length) {
-configs.forEach(c => { state.joursOff[c.atelier_id] = c.jours_off; });
-}
-const ferms = await sbSelect('fermetures');
-if (ferms && ferms.length) {
-state.fermetures = ferms.map(f => ({date: f.date_ferm, atelier: f.atelier_id}));
-}
-// Charger tranches — sans order pour éviter erreur si colonne manquante
-const tranches = await sbFetch('tranches?select=*');
-console.log('Tranches chargées depuis Supabase:', tranches ? tranches.length : 0);
-if (tranches && tranches.length) {
-state.tranches = {b1:[],b2:[],b3:[],men:[]};
-tranches.forEach(t => {
-const atId = t.atelier_id;
-if (!state.tranches[atId]) state.tranches[atId] = [];
-state.tranches[atId].push(dbToTranche(t));
-});
-// Trier par ordre
-for (const atId in state.tranches) {
-state.tranches[atId].sort((a,b) => (a.ordre||0) - (b.ordre||0));
-}
-} else {
-console.log('Aucune tranche en base, chargement localStorage');
-loadLS();
-}
-render();
-setSyncPill('ok', 'Synchronisé — ' + fmtDate(today()));
-} catch(e) {
-console.error('Erreur chargement Supabase:', e);
-loadLS();
-render();
-}
-}
+
 
 function dbToTranche(row) {
 return {
@@ -689,18 +641,7 @@ return obj;
 // ═══════════════════════════════════════════════════════════════
 //  REALTIME (Supabase Realtime via WebSocket)
 // ═══════════════════════════════════════════════════════════════
-function subscribeRealtime() {
-if (!_sbConnected) return;
-// Polling léger toutes les 10s pour les utilisateurs en lecture
-// (Realtime complet nécessite la lib JS — on simule avec polling)
-setInterval(async () => {
-if (IS_READONLY || document.hidden) {
-try {
-await loadFromSupabase();
-} catch(e) {}
-}
-}, IS_READONLY ? 8000 : 30000);
-}
+
 
 // ═══════════════════════════════════════════════════════════════
 //  SAUVEGARDE DANS SUPABASE
@@ -735,10 +676,7 @@ async function saveToSheets(atId) {
   }
 }
 
-async function deleteFromSupabase(dbId) {
-if (!_sbConnected || IS_READONLY || !dbId) return;
-try { await sbDelete('tranches', dbId); } catch(e) { console.warn('Delete error:', e); }
-}
+
 
 // Debounce : attend 800ms d'inactivité avant de sauvegarder
 function scheduleSave(atId) {
@@ -749,30 +687,7 @@ _saveTimeout = setTimeout(() => saveToSheets(atId), 800);
 // ═══════════════════════════════════════════════════════════════
 //  IMPORT DEPUIS LOCALSTORAGE VERS SUPABASE
 // ═══════════════════════════════════════════════════════════════
-async function importFromLocalStorage() {
-const resultEl = document.getElementById('import-ls-result');
-const saved = localStorage.getItem('planning_state');
-if (!saved) {
-resultEl.innerHTML = '<div class="warn-box">Aucune donnée locale trouvée.</div>';
-return;
-}
-resultEl.innerHTML = '<div class="info-box">⟳ Import en cours…</div>';
-try {
-const data = JSON.parse(saved);
-let count = 0;
-for (const atId in data.tranches) {
-const tranches = data.tranches[atId] || [];
-for (const t of tranches) {
-await sbUpsert('tranches', trancheToDb(t, atId));
-count++;
-}
-}
-resultEl.innerHTML = `<div class="info-box" style="background:var(--green-bg);border-color:var(--green-border);color:var(--green)">✓ ${count} tranches importées depuis le cache local vers Supabase.</div>`;
-await loadFromSupabase();
-} catch(e) {
-resultEl.innerHTML = `<div class="warn-box">Erreur : ${esc(e.message)}</div>`;
-}
-}
+
 
 async function testConnection() {
 const el = document.getElementById('supabase-status-detail');
@@ -1367,7 +1282,7 @@ keepGanttPos();scheduleSave(atId);render();
 async function removeTranche(atId,idx){
 if(IS_READONLY)return;
 const t=state.tranches[atId][idx];
-if(t&&t._dbId)await deleteFromSupabase(t._dbId);
+
 state.tranches[atId].splice(idx,1);
 keepGanttPos();scheduleSave(atId);render();
 }
@@ -1480,9 +1395,9 @@ for(const atId in data.tranches)(data.tranches[atId]||[]).forEach(normalizeTranc
 state.tranches=data.tranches;state.joursOff=data.joursOff||state.joursOff;
 state.fermetures=(data.fermetures||[]).map(f=>typeof f==='string'?{date:f,atelier:'all'}:f);
 state.nextId=data.nextId||state.nextId;
-// Uploader vers Supabase
+// Mettre à jour Google Sheets
 for(const atId in state.tranches)scheduleSave(atId);
-render();alert('✓ Sauvegarde restaurée et envoyée vers Supabase.');
+render();alert('✓ Sauvegarde restaurée.');
 }catch(err){alert('Erreur : '+err.message);}
 input.value='';
 };
