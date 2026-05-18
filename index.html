@@ -609,11 +609,13 @@ async function initApp() {
     const text = await res.text();
     const lines = text.split('\n').filter(l => l.trim());
     if (lines.length < 2) throw new Error('Vide');
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+    // Détecter le séparateur (tabulation ou virgule)
+    const sep = lines[0].includes('\t') ? '\t' : ',';
+    const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
     const get = (cols, h) => { const j = headers.indexOf(h); return j>=0?(cols[j]||'').trim().replace(/^"|"$/g,''):''; };
     const tranches = {b1:[],b2:[],b3:[],men:[]};
     for (let i=1; i<lines.length; i++) {
-      const cols = lines[i].split(',');
+      const cols = lines[i].split(sep);
       const atId = get(cols,'atelier_id');
       if (!atId || !tranches[atId]) continue;
       const t = {
