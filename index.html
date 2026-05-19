@@ -602,10 +602,11 @@ async function initApp() {
     render();
     if (!window._refreshInterval) {
       window._refreshInterval = setInterval(() => {
-        // Ne pas rafraîchir si une sauvegarde est en cours ou si l'utilisateur vient de modifier
+        // Ne pas rafraîchir si modification récente (30s) ou sauvegarde récente (3min)
         if (window._lastEdit && Date.now() - window._lastEdit < 30000) return;
+        if (window._lastSave && Date.now() - window._lastSave < 180000) return;
         initApp();
-      }, 30000); // toutes les 30s au lieu de 15s
+      }, 30000);
     }
   } catch(e) {
     console.warn('Sheets error:', e.message);
@@ -730,7 +731,10 @@ async function saveToSupabase(atId) {
       body: JSON.stringify({action: 'saveTranches', tranches: allTranches})
     });
     const r = await res.json();
-    if (r.ok) setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+    if (r.ok) {
+      setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+      window._lastSave = Date.now(); // CSV pas encore à jour pendant ~2min
+    }
     else throw new Error(r.error);
   } catch(e) {
     console.warn('Save error:', e.message);
