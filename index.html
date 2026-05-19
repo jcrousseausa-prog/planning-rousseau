@@ -828,10 +828,8 @@ try {
 const s = localStorage.getItem('planning_state');
 if (!s) return;
 const saved = JSON.parse(s);
-if (saved.tranches) {
-for (const atId in saved.tranches) { (saved.tranches[atId]||[]).forEach(normalizeTranche); }
-state.tranches = saved.tranches;
-}
+// Ne pas charger les tranches depuis localStorage — elles viennent de Google Sheets
+// if (saved.tranches) { state.tranches = saved.tranches; }
 if (saved.joursOff)   state.joursOff   = saved.joursOff;
 if (saved.fermetures) state.fermetures = saved.fermetures.map(f => typeof f==='string'?{date:f,atelier:'all'}:f);
 if (saved.nextId)     state.nextId     = saved.nextId;
