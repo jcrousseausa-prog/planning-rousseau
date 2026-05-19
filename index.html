@@ -717,7 +717,7 @@ async function saveToSupabase(atId) {
       date_besoin: t.besoin||'', ordre: t.ordre||0,
       lock_debut: t.lockDebut?'TRUE':'FALSE', lock_fin: t.lockFin?'TRUE':'FALSE',
       lock_fin_date: t.lockFinDate||'', parallel: t.parallel?'TRUE':'FALSE',
-    })));
+    }));
   }
   try {
     const res = await fetch('https://script.google.com/macros/s/AKfycbzBtgzwODBl1DWD4iev3QU3ABirEptVX5E0wVrqWEU3Jq_gdsjERzBoIhBRVluX41c/exec', {
