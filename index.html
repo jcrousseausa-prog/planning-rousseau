@@ -691,13 +691,7 @@ function subscribeRealtime() {
 if (!_sbConnected) return;
 // Polling léger toutes les 10s pour les utilisateurs en lecture
 // (Realtime complet nécessite la lib JS — on simule avec polling)
-setInterval(async () => {
-if (IS_READONLY || document.hidden) {
-try {
-await loadFromSupabase();
-} catch(e) {}
-}
-}, IS_READONLY ? 8000 : 30000);
+
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1020,20 +1014,20 @@ ondragover="event.preventDefault();this.classList.add('drag-over')"
 ondragleave="this.classList.remove('drag-over')"
 ondrop="dropRow(event,'${atId}',${i});this.classList.remove('drag-over')">
 <td><span class="drag-handle">${q||IS_READONLY?i+1:'⠿'}</span></td>
-<td>${IS_READONLY?`<div style="padding:3px 0">${esc(t.tranche)}</div>`:`<input type="text" value="${esc(t.tranche)}" onchange="updT('${atId}',${i},'tranche',this.value)"/>`}</td>
-<td>${IS_READONLY?`<div style="padding:3px 0;font-size:13px;color:var(--text2)">${esc(t.comment||'')}</div>`:`<input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${i},'comment',this.value)"/>`}</td>
-<td><input type="date" value="${t.debut}" onchange="updT('${atId}',${i},'debut',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
+<td>${IS_READONLY?`<div style="padding:3px 0">${esc(t.tranche)}</div>`:`<input type="text" value="${esc(t.tranche)}" onchange="updT('${atId}','${t._dbId||t.id}','tranche',this.value)"/>`}</td>
+<td>${IS_READONLY?`<div style="padding:3px 0;font-size:13px;color:var(--text2)">${esc(t.comment||'')}</div>`:`<input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}','${t._dbId||t.id}','comment',this.value)"/>`}</td>
+<td><input type="date" value="${t.debut}" onchange="updT('${atId}','${t._dbId||t.id}','debut',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
 <td><span class="normal-date">${fmtDate(fin)}</span></td>
-<td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}',${i},'duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:58px"/></td>
-<td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${i},'besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
+<td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}','${t._dbId||t.id}','duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:58px"/></td>
+<td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}','${t._dbId||t.id}','besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
 <td>${statusBadge(t,atId,{})}</td>
 ${IS_READONLY?'':`
 <td style="text-align:center"><button onclick="toggleFlag('${atId}',${i},'lockDebut')" style="border:none;background:none;cursor:pointer;font-size:14px;opacity:${t.lockDebut?1:.3}">🔒</button></td>
 <td style="text-align:center"><button onclick="toggleFlag('${atId}',${i},'lockFin')" style="border:none;background:none;cursor:pointer;font-size:14px;opacity:${t.lockFin?1:.3}">🔒</button></td>
 <td style="text-align:center"><button onclick="toggleFlag('${atId}',${i},'parallel')" style="border:none;background:none;cursor:pointer;font-size:15px;opacity:${t.parallel?1:.3}">⇉</button></td>
 <td style="display:flex;gap:4px">
-<button class="btn btn-sm" onclick="openEditModal('${atId}',${i})">✎</button>
-<button class="btn btn-sm btn-danger" onclick="removeTranche('${atId}',${i})">✕</button>
+<button class="btn btn-sm" onclick="openEditModal('${atId}','${t._dbId||t.id}')">✎</button>
+<button class="btn btn-sm btn-danger" onclick="removeTranche('${atId}','${t._dbId||t.id}')">✕</button>
 </td>`}
 </tr>`;
 });
@@ -1355,18 +1349,20 @@ function toggleJour(atId,i){const off=state.joursOff[atId]||[];state.joursOff[at
 function addFermeture(){const d=document.getElementById('ferm-date-input').value;const at=document.getElementById('ferm-atelier-select').value;if(!d)return;if(state.fermetures.some(f=>f.date===d&&f.atelier===at))return;state.fermetures=[...state.fermetures,{date:d,atelier:at}].sort((a,b)=>a.date.localeCompare(b.date));scheduleSave(state.atelier);render();}
 function removeFermeture(d,at){state.fermetures=state.fermetures.filter(f=>!(f.date===d&&f.atelier===at));scheduleSave(state.atelier);render();}
 
-function updT(atId,idx,field,val){
+function updT(atId,id,field,val){
 if(IS_READONLY)return;
+const idx=state.tranches[atId].findIndex(t=>(t._dbId||t.id)===id||String(t._dbId||t.id)===String(id));
 const t=state.tranches[atId][idx];if(!t)return;
 t[field]=val;
 if(field==='debut'||field==='duree')rechainAtelier(atId);
 keepGanttPos();scheduleSave(atId);render();
 }
 
-async function removeTranche(atId,idx){
+async function removeTranche(atId,id){
 if(IS_READONLY)return;
+const idx=state.tranches[atId].findIndex(t=>(t._dbId||t.id)===id||String(t._dbId||t.id)===String(id));
+if(idx<0)return;
 const t=state.tranches[atId][idx];
-if(t&&t._dbId)await deleteFromSupabase(t._dbId);
 state.tranches[atId].splice(idx,1);
 keepGanttPos();scheduleSave(atId);render();
 }
@@ -1402,8 +1398,11 @@ document.getElementById('f-atelier').onchange=function(){};
 document.getElementById('edit-modal').style.display='flex';
 }
 
-function openEditModal(atId,idx){
-_editAtId=atId;state.editId=idx;
+function openEditModal(atId,id){
+_editAtId=atId;
+// Chercher par ID plutôt que par index
+const idx = state.tranches[atId].findIndex(t=>(t._dbId||t.id)===id || String(t._dbId||t.id)===String(id));
+state.editId=idx;
 const t=state.tranches[atId][idx];
 document.getElementById('modal-title').textContent='Modifier la tranche';
 document.getElementById('f-atelier').innerHTML=buildAtelierOptions(atId);
@@ -1629,15 +1628,4 @@ html+=`</div>`;
 }
 html+=`<div class="ch-stat-row"><div class="ch-stat"><b>${joursOccupes.size}</b>j chargés</div><div class="ch-stat"><b>${joursDispos}</b>j disponibles</div><div style="flex:1;display:flex;align-items:center;gap:8px;min-width:100px"><div class="charge-bar-bg" style="flex:1;height:10px"><div class="charge-bar-fill" style="width:${Math.min(pct,100)}%;background:${pctColor}"></div></div><span style="font-size:12px;font-weight:700;font-family:'Courier New',monospace;color:${pctColor}">${pct}%</span></div></div></div>`;
 }
-document.getElementById('charge-content').innerHTML=html;
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  INIT
-// ═══════════════════════════════════════════════════════════════
-// ═══ DONNÉES INTÉGRÉES (sauvegarde du 2026-05-11) ═══
-
-setTimeout(initApp, 100);
-</script>
-</body>
-</html>
+document.getElementById('charge-content
