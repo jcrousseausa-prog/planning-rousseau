@@ -597,16 +597,15 @@ async function initApp() {
     state.tranches = tranches;
     const total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
     setConnBar('connected', 'Google Sheets — ' + total + ' tranches');
-    document.getElementById('mode-badge').className = 'mode-badge badge-edit';
-    document.getElementById('mode-badge').textContent = 'Edition';
-    setSyncPill('ok', 'Synchronise');
+    document.getElementById('conn-text').textContent = 'Google Sheets — ' + total + ' tranches';
+    setSyncPill('ok', 'Synchronisé');
     render();
     if (!window._refreshInterval) {
       window._refreshInterval = setInterval(initApp, 15000);
     }
   } catch(e) {
     console.warn('Sheets error:', e.message);
-    setConnBar('connected', 'Donnees locales');
+    setConnBar('connected', 'Données locales');
     setSyncPill('ok', 'Local');
     render();
   }
@@ -718,7 +717,7 @@ async function saveToSupabase(atId) {
       date_besoin: t.besoin||'', ordre: t.ordre||0,
       lock_debut: t.lockDebut?'TRUE':'FALSE', lock_fin: t.lockFin?'TRUE':'FALSE',
       lock_fin_date: t.lockFinDate||'', parallel: t.parallel?'TRUE':'FALSE',
-    }));
+    })));
   }
   try {
     const res = await fetch('https://script.google.com/macros/s/AKfycbzBtgzwODBl1DWD4iev3QU3ABirEptVX5E0wVrqWEU3Jq_gdsjERzBoIhBRVluX41c/exec', {
@@ -727,7 +726,7 @@ async function saveToSupabase(atId) {
       body: JSON.stringify({action: 'saveTranches', tranches: allTranches})
     });
     const r = await res.json();
-    if (r.ok) setSyncPill('ok', 'Enregistre ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+    if (r.ok) setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
     else throw new Error(r.error);
   } catch(e) {
     console.warn('Save error:', e.message);
@@ -1637,8 +1636,8 @@ document.getElementById('charge-content').innerHTML=html;
 // ═══════════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════════
+// ═══ DONNÉES INTÉGRÉES (sauvegarde du 2026-05-11) ═══
 
-try { render(); } catch(e) { render(); }
 setTimeout(initApp, 100);
 </script>
 </body>
