@@ -601,7 +601,11 @@ async function initApp() {
     setSyncPill('ok', 'Synchronisé');
     render();
     if (!window._refreshInterval) {
-      window._refreshInterval = setInterval(initApp, 15000);
+      window._refreshInterval = setInterval(() => {
+        // Ne pas rafraîchir si une sauvegarde est en cours ou si l'utilisateur vient de modifier
+        if (window._lastEdit && Date.now() - window._lastEdit < 30000) return;
+        initApp();
+      }, 30000); // toutes les 30s au lieu de 15s
     }
   } catch(e) {
     console.warn('Sheets error:', e.message);
