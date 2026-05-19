@@ -545,7 +545,7 @@ if (!atId || !tranches[atId]) continue;
 const t = {
 _dbId: get(cols,'id'), id: get(cols,'id'),
 tranche: get(cols,'nom'), comment: get(cols,'commentaire'),
-debut: get(cols,'date_debut')||'',
+debut: get(cols,'date_debut'),
 duree: parseInt(get(cols,'duree_jours')) || 1,
 besoin: get(cols,'date_besoin') || null,
 ordre: parseInt(get(cols,'ordre')) || i,
@@ -597,10 +597,8 @@ async function initApp() {
     state.tranches = tranches;
     const total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
     setConnBar('connected', 'Google Sheets — ' + total + ' tranches');
-    document.getElementById('conn-text').textContent = 'Google Sheets — ' + total + ' tranches';
     setSyncPill('ok', 'Synchronisé');
     render();
-    // Pas de rafraîchissement automatique — F5 pour voir les mises à jour
   } catch(e) {
     console.warn('Sheets error:', e.message);
     setConnBar('connected', 'Données locales');
@@ -822,8 +820,7 @@ try {
 const s = localStorage.getItem('planning_state');
 if (!s) return;
 const saved = JSON.parse(s);
-// Ne pas charger les tranches depuis localStorage — elles viennent de Google Sheets
-// if (saved.tranches) { state.tranches = saved.tranches; }
+// Tranches gérées par Google Sheets uniquement
 if (saved.joursOff)   state.joursOff   = saved.joursOff;
 if (saved.fermetures) state.fermetures = saved.fermetures.map(f => typeof f==='string'?{date:f,atelier:'all'}:f);
 if (saved.nextId)     state.nextId     = saved.nextId;
@@ -1014,20 +1011,20 @@ ondragover="event.preventDefault();this.classList.add('drag-over')"
 ondragleave="this.classList.remove('drag-over')"
 ondrop="dropRow(event,'${atId}',${i});this.classList.remove('drag-over')">
 <td><span class="drag-handle">${q||IS_READONLY?i+1:'⠿'}</span></td>
-<td>${IS_READONLY?`<div style="padding:3px 0">${esc(t.tranche)}</div>`:`<input type="text" value="${esc(t.tranche)}" onchange="updT('${atId}','${t._dbId||t.id}','tranche',this.value)"/>`}</td>
-<td>${IS_READONLY?`<div style="padding:3px 0;font-size:13px;color:var(--text2)">${esc(t.comment||'')}</div>`:`<input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}','${t._dbId||t.id}','comment',this.value)"/>`}</td>
-<td><input type="date" value="${t.debut}" onchange="updT('${atId}','${t._dbId||t.id}','debut',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
+<td>${IS_READONLY?`<div style="padding:3px 0">${esc(t.tranche)}</div>`:`<input type="text" value="${esc(t.tranche)}" onchange="updT('${atId}',${i},'tranche',this.value)"/>`}</td>
+<td>${IS_READONLY?`<div style="padding:3px 0;font-size:13px;color:var(--text2)">${esc(t.comment||'')}</div>`:`<input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${i},'comment',this.value)"/>`}</td>
+<td><input type="date" value="${t.debut}" onchange="updT('${atId}',${i},'debut',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
 <td><span class="normal-date">${fmtDate(fin)}</span></td>
-<td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}','${t._dbId||t.id}','duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:58px"/></td>
-<td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}','${t._dbId||t.id}','besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
+<td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}',${i},'duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:58px"/></td>
+<td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${i},'besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
 <td>${statusBadge(t,atId,{})}</td>
 ${IS_READONLY?'':`
 <td style="text-align:center"><button onclick="toggleFlag('${atId}',${i},'lockDebut')" style="border:none;background:none;cursor:pointer;font-size:14px;opacity:${t.lockDebut?1:.3}">🔒</button></td>
 <td style="text-align:center"><button onclick="toggleFlag('${atId}',${i},'lockFin')" style="border:none;background:none;cursor:pointer;font-size:14px;opacity:${t.lockFin?1:.3}">🔒</button></td>
 <td style="text-align:center"><button onclick="toggleFlag('${atId}',${i},'parallel')" style="border:none;background:none;cursor:pointer;font-size:15px;opacity:${t.parallel?1:.3}">⇉</button></td>
 <td style="display:flex;gap:4px">
-<button class="btn btn-sm" onclick="openEditModal('${atId}','${t._dbId||t.id}')">✎</button>
-<button class="btn btn-sm btn-danger" onclick="removeTranche('${atId}','${t._dbId||t.id}')">✕</button>
+<button class="btn btn-sm" onclick="openEditModal('${atId}',${i})">✎</button>
+<button class="btn btn-sm btn-danger" onclick="removeTranche('${atId}',${i})">✕</button>
 </td>`}
 </tr>`;
 });
@@ -1351,18 +1348,17 @@ function removeFermeture(d,at){state.fermetures=state.fermetures.filter(f=>!(f.d
 
 function updT(atId,id,field,val){
 if(IS_READONLY)return;
-const idx=state.tranches[atId].findIndex(t=>(t._dbId||t.id)===id||String(t._dbId||t.id)===String(id));
+const idx=typeof id==='number'?id:state.tranches[atId].findIndex(t=>(t._dbId||t.id)===id||String(t._dbId||t.id)===String(id));
 const t=state.tranches[atId][idx];if(!t)return;
 t[field]=val;
 if(field==='debut'||field==='duree')rechainAtelier(atId);
 keepGanttPos();scheduleSave(atId);render();
 }
 
-async function removeTranche(atId,id){
+async function removeTranche(atId,idx){
 if(IS_READONLY)return;
-const idx=state.tranches[atId].findIndex(t=>(t._dbId||t.id)===id||String(t._dbId||t.id)===String(id));
-if(idx<0)return;
 const t=state.tranches[atId][idx];
+if(t&&t._dbId)await deleteFromSupabase(t._dbId);
 state.tranches[atId].splice(idx,1);
 keepGanttPos();scheduleSave(atId);render();
 }
@@ -1398,11 +1394,8 @@ document.getElementById('f-atelier').onchange=function(){};
 document.getElementById('edit-modal').style.display='flex';
 }
 
-function openEditModal(atId,id){
-_editAtId=atId;
-// Chercher par ID plutôt que par index
-const idx = state.tranches[atId].findIndex(t=>(t._dbId||t.id)===id || String(t._dbId||t.id)===String(id));
-state.editId=idx;
+function openEditModal(atId,idx){
+_editAtId=atId;state.editId=idx;
 const t=state.tranches[atId][idx];
 document.getElementById('modal-title').textContent='Modifier la tranche';
 document.getElementById('f-atelier').innerHTML=buildAtelierOptions(atId);
@@ -1628,4 +1621,16 @@ html+=`</div>`;
 }
 html+=`<div class="ch-stat-row"><div class="ch-stat"><b>${joursOccupes.size}</b>j chargés</div><div class="ch-stat"><b>${joursDispos}</b>j disponibles</div><div style="flex:1;display:flex;align-items:center;gap:8px;min-width:100px"><div class="charge-bar-bg" style="flex:1;height:10px"><div class="charge-bar-fill" style="width:${Math.min(pct,100)}%;background:${pctColor}"></div></div><span style="font-size:12px;font-weight:700;font-family:'Courier New',monospace;color:${pctColor}">${pct}%</span></div></div></div>`;
 }
-document.getElementById('charge-content
+document.getElementById('charge-content').innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+// ═══ DONNÉES INTÉGRÉES (sauvegarde du 2026-05-11) ═══
+
+setTimeout(initApp, 100);
+
+</script>
+</body>
+</html>
