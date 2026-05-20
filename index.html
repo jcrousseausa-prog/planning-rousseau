@@ -1019,6 +1019,8 @@ let html=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:.75r
 <div style="position:relative;flex:1;max-width:360px">
 <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px;pointer-events:none">🔍</span>
 <input type="text" id="table-search-input" value="${esc(_tableSearch)}" placeholder="Rechercher une tranche…"
+oninput="onSearchInput(this)"
+style="width:100%...
 style="width:100%;padding:7px 10px 7px 32px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)"/>
 </div>
 </div>
