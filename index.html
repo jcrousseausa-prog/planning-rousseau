@@ -569,6 +569,7 @@ return 0;
 
 async function initApp() {
   setConnBar('connecting', 'Chargement...');
+  loadLS(); // Restaurer fermetures + joursOff depuis localStorage
   try {
     const res = await fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vRoI_ySau7t8ZnVKYnTctBTGH49wQ2bIsKQ8_Y87QjpMfFdLcxiyLY_baKmSGtRRqhVau1wBrkIrNTP/pub?gid=175636692&single=true&output=csv');
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -713,7 +714,7 @@ async function saveToSupabase(atId) {
     const res = await fetch('https://script.google.com/macros/s/AKfycbzBtgzwODBl1DWD4iev3QU3ABirEptVX5E0wVrqWEU3Jq_gdsjERzBoIhBRVluX41c/exec', {
       method: 'POST',
       headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({action: 'saveTranches', tranches: allTranches})
+      body: JSON.stringify({action: 'saveTranches', tranches: allTranches, fermetures: state.fermetures, joursOff: state.joursOff})
     });
     const r = await res.json();
     if (r.ok) setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
@@ -1343,8 +1344,19 @@ function setView(v){state.view=v;document.getElementById('vbtn-table').classList
 function setAtelier(id){state.atelier=id;state.ganttShowAll=false;_tableSearch='';render();}
 function setGanttAll(b){state.ganttShowAll=b;render();}
 function toggleJour(atId,i){const off=state.joursOff[atId]||[];state.joursOff[atId]=off.includes(i)?off.filter(x=>x!==i):[...off,i];scheduleSave(atId);render();}
-function addFermeture(){const d=document.getElementById('ferm-date-input').value;const at=document.getElementById('ferm-atelier-select').value;if(!d)return;if(state.fermetures.some(f=>f.date===d&&f.atelier===at))return;state.fermetures=[...state.fermetures,{date:d,atelier:at}].sort((a,b)=>a.date.localeCompare(b.date));scheduleSave(state.atelier);render();}
-function removeFermeture(d,at){state.fermetures=state.fermetures.filter(f=>!(f.date===d&&f.atelier===at));scheduleSave(state.atelier);render();}
+function addFermeture(){
+  if(!state.joursOpen){state.joursOpen=true;renderJoursPanel();}
+  const dEl=document.getElementById('ferm-date-input');
+  const atEl=document.getElementById('ferm-atelier-select');
+  if(!dEl||!atEl)return;
+  const d=dEl.value;const at=atEl.value;
+  if(!d){dEl.style.borderColor='var(--red)';dEl.focus();return;}
+  dEl.style.borderColor='';
+  if(state.fermetures.some(f=>f.date===d&&f.atelier===at))return;
+  state.fermetures=[...state.fermetures,{date:d,atelier:at}].sort((a,b)=>a.date.localeCompare(b.date));
+  dEl.value='';
+  scheduleSave(state.atelier);render();
+}
 
 function updT(atId,id,field,val){
 if(IS_READONLY)return;
