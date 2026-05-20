@@ -1346,29 +1346,6 @@ function setAtelier(id){state.atelier=id;state.ganttShowAll=false;_tableSearch='
 function setGanttAll(b){state.ganttShowAll=b;render();}
 function toggleJour(atId,i){const off=state.joursOff[atId]||[];state.joursOff[atId]=off.includes(i)?off.filter(x=>x!==i):[...off,i];scheduleSave(atId);render();}
 function addFermeture(){
-function addFermetureSemaine(){
-  if(!state.joursOpen){state.joursOpen=true;renderJoursPanel();}
-  const dEl=document.getElementById('ferm-date-input');
-  const atEl=document.getElementById('ferm-atelier-select');
-  if(!dEl||!atEl)return;
-  const d=dEl.value;const at=atEl.value;
-  if(!d){dEl.style.borderColor='var(--red)';dEl.focus();return;}
-  dEl.style.borderColor='';
-  // Trouver le lundi de la semaine
-  const dt=new Date(d);
-  const dow=dt.getDay()||7;
-  dt.setDate(dt.getDate()-(dow-1));
-  // Ajouter lundi à vendredi
-  for(let i=0;i<5;i++){
-    const ds=new Date(dt);ds.setDate(dt.getDate()+i);
-    const s=ds.toISOString().slice(0,10);
-    if(!state.fermetures.some(f=>f.date===s&&f.atelier===at))
-      state.fermetures.push({date:s,atelier:at});
-  }
-  state.fermetures.sort((a,b)=>a.date.localeCompare(b.date));
-  dEl.value='';
-  scheduleSave(state.atelier);render();
-}
   if(!state.joursOpen){state.joursOpen=true;renderJoursPanel();}
   const dEl=document.getElementById('ferm-date-input');
   const atEl=document.getElementById('ferm-atelier-select');
@@ -1381,6 +1358,28 @@ function addFermetureSemaine(){
   dEl.value='';
   scheduleSave(state.atelier);render();
 }
+function addFermetureSemaine(){
+  if(!state.joursOpen){state.joursOpen=true;renderJoursPanel();}
+  const dEl=document.getElementById('ferm-date-input');
+  const atEl=document.getElementById('ferm-atelier-select');
+  if(!dEl||!atEl)return;
+  const d=dEl.value;const at=atEl.value;
+  if(!d){dEl.style.borderColor='var(--red)';dEl.focus();return;}
+  dEl.style.borderColor='';
+  const dt=new Date(d);
+  const dow=dt.getDay()||7;
+  dt.setDate(dt.getDate()-(dow-1));
+  for(let i=0;i<5;i++){
+    const ds=new Date(dt);ds.setDate(dt.getDate()+i);
+    const s=ds.toISOString().slice(0,10);
+    if(!state.fermetures.some(f=>f.date===s&&f.atelier===at))
+      state.fermetures.push({date:s,atelier:at});
+  }
+  state.fermetures.sort((a,b)=>a.date.localeCompare(b.date));
+  dEl.value='';
+  scheduleSave(state.atelier);render();
+}
+function removeFermeture(d,at){state.fermetures=state.fermetures.filter(f=>!(f.date===d&&f.atelier===at));scheduleSave(state.atelier);render();}
 
 function updT(atId,id,field,val){
 if(IS_READONLY)return;
