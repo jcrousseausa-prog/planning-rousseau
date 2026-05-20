@@ -598,6 +598,32 @@ async function initApp() {
     state.tranches = tranches;
     const total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
     setConnBar('connected', 'Google Sheets — ' + total + ' tranches');
+   // Charger fermetures + joursOff depuis Apps Script
+    try {
+      const rc = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain'},
+        body: JSON.stringify({action: 'getCalendrier'})
+      });
+      const cal = await rc.json();
+      if (cal.ok && cal.data) {
+        if (cal.data.fermetures?.length) state.fermetures = cal.data.fermetures;
+        if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
+      }
+    } catch(ce) { console.warn('Calendrier non chargé:', ce.message); }
+    // Charger fermetures + joursOff depuis Apps Script
+    try {
+      const rc = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain'},
+        body: JSON.stringify({action: 'getCalendrier'})
+      });
+      const cal = await rc.json();
+      if (cal.ok && cal.data) {
+        if (cal.data.fermetures?.length) state.fermetures = cal.data.fermetures;
+        if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
+      }
+    } catch(ce) { console.warn('Calendrier non chargé:', ce.message); }
     setSyncPill('ok', 'Synchronisé');
     render();
   } catch(e) {
