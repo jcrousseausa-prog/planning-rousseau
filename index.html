@@ -971,7 +971,8 @@ ${JOURS_LABELS.map((j,i)=>`<button style="padding:4px 10px;border:1px solid ${of
 <option value="all">Tous ateliers</option>
 ${ATELIERS.map(a=>`<option value="${a.id}"${a.id===atId?' selected':''}>${a.label}</option>`).join('')}
 </select>
-<button class="btn btn-sm btn-warning" onclick="addFermeture()">+ Ajouter</button>
+<button class="btn btn-sm btn-warning" onclick="addFermeture()">+ Jour</button>
+<button class="btn btn-sm btn-warning" onclick="addFermetureSemaine()">+ Semaine</button>
 </div>
 <div style="display:flex;flex-wrap:wrap;gap:5px">${chips||'<span style="font-size:12px;color:var(--text3)">Aucune fermeture</span>'}</div>
 </div>
@@ -1345,6 +1346,29 @@ function setAtelier(id){state.atelier=id;state.ganttShowAll=false;_tableSearch='
 function setGanttAll(b){state.ganttShowAll=b;render();}
 function toggleJour(atId,i){const off=state.joursOff[atId]||[];state.joursOff[atId]=off.includes(i)?off.filter(x=>x!==i):[...off,i];scheduleSave(atId);render();}
 function addFermeture(){
+function addFermetureSemaine(){
+  if(!state.joursOpen){state.joursOpen=true;renderJoursPanel();}
+  const dEl=document.getElementById('ferm-date-input');
+  const atEl=document.getElementById('ferm-atelier-select');
+  if(!dEl||!atEl)return;
+  const d=dEl.value;const at=atEl.value;
+  if(!d){dEl.style.borderColor='var(--red)';dEl.focus();return;}
+  dEl.style.borderColor='';
+  // Trouver le lundi de la semaine
+  const dt=new Date(d);
+  const dow=dt.getDay()||7;
+  dt.setDate(dt.getDate()-(dow-1));
+  // Ajouter lundi à vendredi
+  for(let i=0;i<5;i++){
+    const ds=new Date(dt);ds.setDate(dt.getDate()+i);
+    const s=ds.toISOString().slice(0,10);
+    if(!state.fermetures.some(f=>f.date===s&&f.atelier===at))
+      state.fermetures.push({date:s,atelier:at});
+  }
+  state.fermetures.sort((a,b)=>a.date.localeCompare(b.date));
+  dEl.value='';
+  scheduleSave(state.atelier);render();
+}
   if(!state.joursOpen){state.joursOpen=true;renderJoursPanel();}
   const dEl=document.getElementById('ferm-date-input');
   const atEl=document.getElementById('ferm-atelier-select');
