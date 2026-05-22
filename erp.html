@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP — Tableau de Pilotage</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+:root {
+  --bg: #F7F6F2; --surface: #FFFFFF; --border: #E2E0D8; --border2: #C8C5BA;
+  --text: #1A1916; --text2: #6B6860; --text3: #A09D96;
+  --red: #C0392B; --red-bg: #FDECEA; --red-border: #F5B7B1;
+  --green: #1E8449; --green-bg: #EAFAF1; --green-border: #A9DFBF;
+  --orange: #D68910; --orange-bg: #FEF9E7; --orange-border: #FAD7A0;
+  --blue: #1A5276; --blue-bg: #EAF2FB; --blue-border: #AED6F1;
+  --purple: #6C3483; --purple-bg: #F4ECF7; --purple-border: #D2B4DE;
+  --sidebar-w: 260px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 13px; min-height: 100vh; display: flex; flex-direction: column; }
+
+/* HEADER */
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: .75rem 1.25rem; display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
+.logo { font-size: 16px; font-weight: 600; letter-spacing: -.02em; }
+.logo span { color: var(--text3); font-weight: 400; }
+.header-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.sync-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+.sync-pill.saving { background: var(--orange-bg); color: var(--orange); border-color: var(--orange-border); }
+.sync-pill.error { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+.sync-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.sync-pill.saving .sync-dot { animation: blink .6s infinite; }
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:.3} }
+
+/* LAYOUT */
+.app-body { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 49px); }
+
+/* SIDEBAR */
+.sidebar { width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+.sidebar-head { padding: .75rem; border-bottom: 1px solid var(--border); }
+.sidebar-search { width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 12px; background: var(--bg); color: var(--text); }
+.sidebar-search:focus { outline: none; border-color: var(--text); }
+.sidebar-list { flex: 1; overflow-y: auto; padding: .4rem 0; }
+.sidebar-item { display: flex; align-items: center; gap: 8px; padding: 7px 14px; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--text2); transition: background .12s; border-left: 3px solid transparent; }
+.sidebar-item:hover { background: var(--bg); color: var(--text); }
+.sidebar-item.active { background: var(--blue-bg); color: var(--blue); border-left-color: var(--blue); }
+.sidebar-item .count { margin-left: auto; font-size: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 1px 6px; color: var(--text3); }
+.sidebar-add-btn { margin: .5rem .75rem; padding: 7px; border: 1px dashed var(--border2); border-radius: 8px; background: none; font-family: inherit; font-size: 12px; color: var(--text3); cursor: pointer; width: calc(100% - 1.5rem); text-align: center; }
+.sidebar-add-btn:hover { background: var(--bg); color: var(--text); border-color: var(--text3); }
+
+/* MAIN */
+.main { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; }
+.main-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text3); font-size: 14px; }
+
+/* CHANTIER HEADER */
+.chantier-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap; }
+.chantier-title { font-size: 18px; font-weight: 600; }
+.chantier-actions { margin-left: auto; display: flex; gap: 6px; }
+
+/* TRANCHE BLOC */
+.tranche-bloc { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: .85rem; overflow: hidden; }
+.tranche-head { display: flex; align-items: center; gap: 8px; padding: 9px 14px; cursor: pointer; background: var(--surface); border-bottom: 1px solid transparent; transition: background .12s; user-select: none; }
+.tranche-head:hover { background: var(--bg); }
+.tranche-head.open { border-bottom-color: var(--border); }
+.tranche-chevron { font-size: 12px; color: var(--text3); transition: transform .2s; flex-shrink: 0; }
+.tranche-chevron.open { transform: rotate(90deg); }
+.tranche-name { font-size: 13px; font-weight: 600; flex: 1; }
+.tranche-meta { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.tranche-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+/* PHASE BLOC */
+.phases-wrap { padding: .6rem .75rem; }
+.phase-bloc { border: 1px solid var(--border); border-radius: 8px; margin-bottom: .6rem; overflow: hidden; }
+.phase-head { display: flex; align-items: center; gap: 7px; padding: 6px 10px; cursor: pointer; background: var(--bg); border-bottom: 1px solid transparent; user-select: none; }
+.phase-head:hover { background: #ECEAE2; }
+.phase-head.open { border-bottom-color: var(--border); }
+.phase-chevron { font-size: 11px; color: var(--text3); transition: transform .2s; }
+.phase-chevron.open { transform: rotate(90deg); }
+.phase-name { font-size: 12px; font-weight: 600; color: var(--text2); flex: 1; }
+.phase-actions { display: flex; gap: 3px; }
+
+/* ARTICLES TABLE */
+.articles-wrap { overflow-x: auto; }
+.articles-table { width: 100%; border-collapse: collapse; min-width: 900px; }
+.articles-table th { background: var(--bg); font-size: 10px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.articles-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.articles-table tr:last-child td { border-bottom: none; }
+.articles-table input[type=text], .articles-table input[type=date], .articles-table input[type=number] {
+  width: 100%; padding: 3px 6px; border: 1px solid transparent; border-radius: 4px;
+  background: transparent; color: var(--text); font-family: inherit; font-size: 12px;
+}
+.articles-table input:hover { border-color: var(--border); }
+.articles-table input:focus { outline: none; border-color: var(--blue); background: var(--blue-bg); }
+.articles-table select { width: 100%; padding: 3px 4px; border: 1px solid transparent; border-radius: 4px; background: transparent; font-family: inherit; font-size: 11px; cursor: pointer; }
+.articles-table select:focus { outline: none; border-color: var(--blue); }
+.articles-table .col-libelle { min-width: 160px; }
+.articles-table .col-op { min-width: 130px; }
+.articles-table .col-num { width: 70px; }
+.articles-table .col-date { width: 110px; }
+.articles-table .col-av { width: 80px; }
+.articles-table .col-statut { width: 100px; }
+.articles-table .col-del { width: 30px; text-align: center; }
+
+/* AVANCEMENT */
+.av-wrap { display: flex; align-items: center; gap: 4px; }
+.av-bar-bg { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; min-width: 30px; }
+.av-bar-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+.av-val { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text2); width: 28px; text-align: right; flex-shrink: 0; }
+
+/* STATUT */
+.statut-badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.statut-planifie { background: var(--bg); color: var(--text3); border: 1px solid var(--border); }
+.statut-en_cours { background: var(--blue-bg); color: var(--blue); border: 1px solid var(--blue-border); }
+.statut-termine { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+.statut-bloque { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+.statut-attente { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }
+
+/* BTNS */
+.btn { padding: 5px 11px; border: 1px solid var(--border2); border-radius: 7px; background: var(--surface); color: var(--text); cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 500; transition: background .12s; white-space: nowrap; }
+.btn:hover { background: var(--bg); }
+.btn-primary { background: var(--text); color: #fff; border-color: var(--text); }
+.btn-primary:hover { background: #333; }
+.btn-sm { padding: 3px 8px; font-size: 11px; border-radius: 5px; }
+.btn-xs { padding: 1px 6px; font-size: 10px; border-radius: 4px; }
+.btn-danger { color: var(--red); border-color: var(--red-border); background: var(--red-bg); }
+.btn-ghost { border-color: transparent; background: transparent; color: var(--text3); }
+.btn-ghost:hover { background: var(--bg); color: var(--text); border-color: var(--border); }
+.icon-btn { border: none; background: none; cursor: pointer; color: var(--text3); font-size: 13px; padding: 2px 4px; border-radius: 4px; }
+.icon-btn:hover { background: var(--bg); color: var(--text); }
+.icon-btn.del:hover { background: var(--red-bg); color: var(--red); }
+
+/* ADD ARTICLE ROW */
+.add-article-row { padding: 5px 8px; }
+.add-article-row button { font-size: 11px; color: var(--text3); background: none; border: none; cursor: pointer; padding: 3px 6px; border-radius: 4px; }
+.add-article-row button:hover { background: var(--bg); color: var(--blue); }
+
+/* ADD PHASE BTN */
+.add-phase-row { padding: 4px 10px 8px; }
+
+/* BADGE */
+.badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.badge-blue { background: var(--blue-bg); color: var(--blue); border: 1px solid var(--blue-border); }
+.badge-green { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+
+/* MODAL */
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+.modal { background: var(--surface); border-radius: 14px; padding: 1.5rem; width: 460px; max-width: 95vw; }
+.modal h2 { font-size: 15px; font-weight: 600; margin-bottom: 1rem; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 1.25rem; }
+.form-group { margin-bottom: .85rem; }
+.form-group label { display: block; font-size: 11px; font-weight: 600; color: var(--text2); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .05em; }
+.form-group input, .form-group select { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); font-family: inherit; font-size: 13px; }
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--blue); }
+
+/* TOAST */
+#toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--text); color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 500; z-index: 999; opacity: 0; transform: translateY(10px); transition: all .25s; pointer-events: none; }
+#toast.show { opacity: 1; transform: translateY(0); }
+
+/* METRICS BAR */
+.metrics-bar { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
+.metric-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; display: flex; flex-direction: column; gap: 1px; }
+.metric-chip-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; }
+.metric-chip-val { font-size: 16px; font-weight: 600; font-family: 'DM Mono', monospace; }
+
+/* LINK PLANNING */
+.planning-link { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--blue); background: var(--blue-bg); border: 1px solid var(--blue-border); border-radius: 4px; padding: 1px 6px; text-decoration: none; }
+.planning-link:hover { background: var(--blue); color: #fff; }
+
+/* SCROLLBAR */
+.sidebar-list::-webkit-scrollbar, .main::-webkit-scrollbar { width: 6px; }
+.sidebar-list::-webkit-scrollbar-thumb, .main::-webkit-scrollbar-thumb { background: #C8C5BA; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ERP Rousseau <span>/ Tableau de Pilotage</span></div>
+  <div class="header-right">
+    <a href="index.html" style="font-size:12px;color:var(--text2);text-decoration:none;border:1px solid var(--border);padding:4px 10px;border-radius:7px;">← Planning</a>
+    <span class="sync-pill" id="sync-pill" style="display:none">
+      <span class="sync-dot"></span>
+      <span id="sync-text">Synchronisé</span>
+    </span>
+  </div>
+</header>
+
+<div class="app-body">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-head">
+      <input type="text" class="sidebar-search" placeholder="🔍 Rechercher un chantier…" oninput="filterSidebar(this.value)" id="sidebar-search"/>
+    </div>
+    <div class="sidebar-list" id="sidebar-list"></div>
+    <button class="sidebar-add-btn" onclick="openAddChantier()">+ Nouveau chantier</button>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main" id="main-area">
+    <div class="main-empty">← Sélectionnez un chantier</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- MODAL CHANTIER -->
+<div class="modal-bg" id="modal-chantier" style="display:none">
+  <div class="modal">
+    <h2 id="modal-chantier-title">Nouveau chantier</h2>
+    <div class="form-group">
+      <label>Nom du chantier</label>
+      <input type="text" id="f-chantier-nom" placeholder="Ex: HAUTE GOURNIERE"/>
+    </div>
+    <div class="form-group">
+      <label>Conducteur</label>
+      <input type="text" id="f-chantier-conduc" placeholder="Ex: CG"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-chantier')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveChantier()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL TRANCHE -->
+<div class="modal-bg" id="modal-tranche" style="display:none">
+  <div class="modal">
+    <h2 id="modal-tranche-title">Nouvelle tranche</h2>
+    <div class="form-group">
+      <label>Nom de la tranche</label>
+      <input type="text" id="f-tranche-nom" placeholder="Ex: ORIG FOB EXT R+4"/>
+    </div>
+    <div class="form-group">
+      <label>Conducteur / BE</label>
+      <input type="text" id="f-tranche-conduc" placeholder="Ex: CG"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-tranche')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveTranche()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PHASE -->
+<div class="modal-bg" id="modal-phase" style="display:none">
+  <div class="modal">
+    <h2>Nouvelle phase</h2>
+    <div class="form-group">
+      <label>Numéro</label>
+      <input type="text" id="f-phase-num" placeholder="Ex: Ph01"/>
+    </div>
+    <div class="form-group">
+      <label>Nom de la phase</label>
+      <input type="text" id="f-phase-nom" placeholder="Ex: Murs, Charpente, Bardage…"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-phase')">Annuler</button>
+      <button class="btn btn-primary" onclick="savePhase()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════════════
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzBtgzwODBl1DWD4iev3QU3ABirEptVX5E0wVrqWEU3Jq_gdsjERzBoIhBRVluX41c/exec';
+
+// ═══════════════════════════════════════════════════════════════
+//  DONNÉES INITIALES — 34 chantiers, 431 tranches
+// ═══════════════════════════════════════════════════════════════
+const INIT_CHANTIERS = [
+  {id:"c001",nom:"ORIGINALE (Halles Mans)",conduc:""},
+  {id:"c002",nom:"H44 COUFFE",conduc:""},
+  {id:"c003",nom:"POD JALLAIS",conduc:""},
+  {id:"c004",nom:"POD MARCE",conduc:""},
+  {id:"c005",nom:"ENJOY",conduc:""},
+  {id:"c006",nom:"BLoc",conduc:""},
+  {id:"c007",nom:"BLOCS",conduc:""},
+  {id:"c008",nom:"HAUTE GOURNIERE",conduc:""},
+  {id:"c009",nom:"GUYNEMER",conduc:""},
+  {id:"c010",nom:"H44-CHATEAUBRIANT",conduc:""},
+  {id:"c011",nom:"H44 - VAY",conduc:""},
+  {id:"c012",nom:"ECHAPPE",conduc:""},
+  {id:"c013",nom:"SH - GAUTHIOT LAMY",conduc:""},
+  {id:"c014",nom:"SCI ALLFOR",conduc:""},
+  {id:"c015",nom:"DELAUNEY",conduc:""},
+  {id:"c016",nom:"POUSSCOOP",conduc:""},
+  {id:"c017",nom:"MAITRE CUBE - MLH Avrillé",conduc:""},
+  {id:"c018",nom:"NOVALLIANCE",conduc:""},
+  {id:"c019",nom:"LINO VENTURA",conduc:""},
+  {id:"c020",nom:"HYROME",conduc:""},
+  {id:"c021",nom:"EPONA",conduc:""},
+  {id:"c022",nom:"POD CANDE",conduc:""},
+  {id:"c023",nom:"POD DURTAL",conduc:""},
+  {id:"c024",nom:"POD - LONGUÉ-JUMELLES",conduc:""},
+  {id:"c025",nom:"POD - ST ETIENNE",conduc:""},
+  {id:"c026",nom:"BEL VIA",conduc:""},
+  {id:"c027",nom:"VERDANIA",conduc:""},
+  {id:"c028",nom:"VILLA SEB",conduc:""},
+  {id:"c029",nom:"DETALLANTE",conduc:""},
+  {id:"c030",nom:"BLANCHECOTTE",conduc:""},
+  {id:"c031",nom:"GANDEMER",conduc:""},
+  {id:"c032",nom:"ROU PREAU",conduc:""},
+  {id:"c033",nom:"PANORAMA",conduc:""},
+  {id:"c034",nom:"LYCEE LE FRESNE",conduc:""}
+];
+
+// ═══════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════
+let state = {
+  chantiers: [],   // [{id, nom, conduc}]
+  tranches: [],    // [{id, chantier_id, nom, conduc}]
+  phases: [],      // [{id, tranche_id, num, nom}]
+  articles: [],    // [{id, phase_id, libelle, operation, qte_m2, qte_m3, date_ctvx, date_sortie_be, date_sortie_prod, budget_heures, avancement, statut}]
+};
+
+let currentChantierId = null;
+let _modalCtx = {};
+let _saveTimeout = null;
+let _sidebarFilter = '';
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+// ═══════════════════════════════════════════════════════════════
+//  PERSISTENCE
+// ═══════════════════════════════════════════════════════════════
+function saveLS() {
+  try { localStorage.setItem('erp_state', JSON.stringify(state)); } catch(e) {}
+}
+
+function loadLS() {
+  try {
+    const s = localStorage.getItem('erp_state');
+    if (s) { state = JSON.parse(s); return true; }
+  } catch(e) {}
+  return false;
+}
+
+function scheduleSave() {
+  if (_saveTimeout) clearTimeout(_saveTimeout);
+  setSyncPill('saving', 'Enregistrement...');
+  _saveTimeout = setTimeout(() => saveToSheets(), 2000);
+}
+
+async function saveToSheets() {
+  saveLS();
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'saveERP', data: state})
+    });
+    const r = await res.json();
+    if (r.ok) setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+    else throw new Error(r.error || 'Erreur');
+  } catch(e) {
+    setSyncPill('error', 'Local OK');
+    console.warn('Save error:', e.message);
+  }
+}
+
+async function loadFromSheets() {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'getERP'})
+    });
+    const r = await res.json();
+    if (r.ok && r.data) {
+      state = r.data;
+      saveLS();
+      return true;
+    }
+  } catch(e) { console.warn('Load error:', e.message); }
+  return false;
+}
+
+function setSyncPill(mode, text) {
+  const pill = document.getElementById('sync-pill');
+  pill.style.display = 'inline-flex';
+  pill.className = 'sync-pill' + (mode === 'ok' ? '' : ' ' + mode);
+  document.getElementById('sync-text').textContent = text;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+
+const INIT_TRANCHES = [
+  {id:"t1000",chantier_id:"c001",nom:"ORIG FOB EXT R+4",conduc:""},
+  {id:"t1001",chantier_id:"c001",nom:"ORIG FOB EXT R+5",conduc:""},
+  {id:"t1002",chantier_id:"c001",nom:"ORIG FOB EXT R+6",conduc:""},
+  {id:"t1003",chantier_id:"c001",nom:"ORIG FOB EXT R+7",conduc:""},
+  {id:"t1004",chantier_id:"c001",nom:"ORIG FOB EXT R+8",conduc:""},
+  {id:"t1005",chantier_id:"c002",nom:"Bloc H44 COUFFE",conduc:""},
+  {id:"t1006",chantier_id:"c003",nom:"BLOC POD JALLAIS",conduc:""},
+  {id:"t1007",chantier_id:"c004",nom:"BLOC POD MARCE",conduc:""},
+  {id:"t1008",chantier_id:"c005",nom:"ENJOY local vélo",conduc:""},
+  {id:"t1009",chantier_id:"c005",nom:"ENJOY A1 - balcon structure équipée + caisson terrasse",conduc:""},
+  {id:"t1010",chantier_id:"c005",nom:"ENJOY A1 - envoi traitement bois balcon",conduc:""},
+  {id:"t1011",chantier_id:"c005",nom:"ENJOY A2 - balcon structure équipée + caisson terrasse",conduc:""},
+  {id:"t1012",chantier_id:"c006",nom:"Bloc - Vay",conduc:""},
+  {id:"t1013",chantier_id:"c006",nom:"Bloc - Chateaubriant A",conduc:""},
+  {id:"t1014",chantier_id:"c006",nom:"Bloc - Chateaubriant B",conduc:""},
+  {id:"t1015",chantier_id:"c006",nom:"Bloc - Chateaubriant C",conduc:""},
+  {id:"t1016",chantier_id:"c006",nom:"Bloc - Chateaubriant D",conduc:""},
+  {id:"t1017",chantier_id:"c007",nom:"Bloc-NOVALLIANCE-FOB",conduc:""},
+  {id:"t1018",chantier_id:"c007",nom:"BLoc -HAUTE GOURNIERE-MOB 1/4",conduc:""},
+  {id:"t1019",chantier_id:"c007",nom:"BLoc -HAUTE GOURNIERE-MOB 2/4",conduc:""},
+  {id:"t1020",chantier_id:"c007",nom:"BLoc -HAUTE GOURNIERE-MOB 3/4",conduc:""},
+  {id:"t1021",chantier_id:"c007",nom:"BLoc -HAUTE GOURNIERE-MOB 4/4",conduc:""},
+  {id:"t1022",chantier_id:"c007",nom:"Bloc - Epona- MOB",conduc:""},
+  {id:"t1023",chantier_id:"c007",nom:"Bloc - Verdania - MOB",conduc:""},
+  {id:"t1024",chantier_id:"c007",nom:"Bloc - GUYNEMER - MOB 1/3",conduc:""},
+  {id:"t1025",chantier_id:"c007",nom:"Bloc - GUYNEMER - MOB 2/3",conduc:""},
+  {id:"t1026",chantier_id:"c007",nom:"Bloc - GUYNEMER - MOB 3/3",conduc:""},
+  {id:"t1027",chantier_id:"c007",nom:"BLoc - PODELIHA SAINT ETIENNE DU BOIS - MOB",conduc:""},
+  {id:"t1028",chantier_id:"c007",nom:"BLoc - SALLE LINO VENTURA - MOB",conduc:""},
+  {id:"t1029",chantier_id:"c007",nom:"Bloc - HYROME - MOB",conduc:""},
+  {id:"t1030",chantier_id:"c007",nom:"BLoc - Bel VIA - MOB - 1/5",conduc:""},
+  {id:"t1031",chantier_id:"c007",nom:"BLoc - Bel VIA - MOB - 2/5",conduc:""},
+  {id:"t1032",chantier_id:"c007",nom:"BLoc - Bel VIA - MOB - 3/5",conduc:""},
+  {id:"t1033",chantier_id:"c007",nom:"BLoc - Bel VIA - MOB - 4/5",conduc:""},
+  {id:"t1034",chantier_id:"c007",nom:"BLoc - Bel VIA - MOB - 5/5",conduc:""},
+  {id:"t1035",chantier_id:"c008",nom:"1 - HAUTE GOURNIERE - TZ - INSTALLATION CHANTIER",conduc:""},
+  {id:"t1036",chantier_id:"c008",nom:"2 - HAUTE GOURNIERE - A - CHARPENTE",conduc:""},
+  {id:"t1037",chantier_id:"c008",nom:"3 - HAUTE GOURNIERE - B - CHARPENTE",conduc:""},
+  {id:"t1038",chantier_id:"c008",nom:"4 - HAUTE GOURNIERE - C - CHARPENTE",conduc:""},
+  {id:"t1039",chantier_id:"c008",nom:"5 - HAUTE GOURNIERE - C - MURS",conduc:""},
+  {id:"t1040",chantier_id:"c008",nom:"6 - HAUTE GOURNIERE - C - MURS",conduc:""},
+  {id:"t1041",chantier_id:"c008",nom:"7 - HAUTE GOURNIERE - C - MURS",conduc:""},
+  {id:"t1042",chantier_id:"c008",nom:"8 - HAUTE GOURNIERE - C - TERRASSES",conduc:""},
+  {id:"t1043",chantier_id:"c008",nom:"9 - HAUTE GOURNIERE - C - BARDAGE",conduc:""},
+  {id:"t1044",chantier_id:"c008",nom:"10 - HAUTE GOURNIERE - C - BARDAGE",conduc:""},
+  {id:"t1045",chantier_id:"c008",nom:"11 - HAUTE GOURNIERE - C - TERRASSES",conduc:""},
+  {id:"t1046",chantier_id:"c008",nom:"12 - HAUTE GOURNIERE - C - TERRASSES",conduc:""},
+  {id:"t1047",chantier_id:"c008",nom:"13 - HAUTE GOURNIERE - C - TERRASSES",conduc:""},
+  {id:"t1048",chantier_id:"c008",nom:"14 - HAUTE GOURNIERE - C - BARDAGE",conduc:""},
+  {id:"t1049",chantier_id:"c008",nom:"15 - HAUTE GOURNIERE - E 1&2 - CHARPENTE",conduc:""},
+  {id:"t1050",chantier_id:"c008",nom:"16 - HAUTE GOURNIERE - E 3&4 - CHARPENTE",conduc:""},
+  {id:"t1051",chantier_id:"c008",nom:"17 - HAUTE GOURNIERE - E 3&4 - MURS",conduc:""},
+  {id:"t1052",chantier_id:"c008",nom:"18 - HAUTE GOURNIERE - E 3&4 - MURS",conduc:""},
+  {id:"t1053",chantier_id:"c008",nom:"19 - HAUTE GOURNIERE - E 3&4 - MURS",conduc:""},
+  {id:"t1054",chantier_id:"c008",nom:"20 - HAUTE GOURNIERE - E 3&4 - TERRASSES",conduc:""},
+  {id:"t1055",chantier_id:"c008",nom:"21 - HAUTE GOURNIERE - E 3&4 - BARDAGE",conduc:""},
+  {id:"t1056",chantier_id:"c008",nom:"22 - HAUTE GOURNIERE - E 3&4 - BARDAGE",conduc:""},
+  {id:"t1057",chantier_id:"c008",nom:"23 - HAUTE GOURNIERE - E 3&4 - TERRASSES",conduc:""},
+  {id:"t1058",chantier_id:"c008",nom:"24 - HAUTE GOURNIERE - E 3&4 - TERRASSES",conduc:""},
+  {id:"t1059",chantier_id:"c008",nom:"25 - HAUTE GOURNIERE - E 3&4 - TERRASSES",conduc:""},
+  {id:"t1060",chantier_id:"c008",nom:"26 - HAUTE GOURNIERE - E 3&4 - BARDAGE",conduc:""},
+  {id:"t1061",chantier_id:"c008",nom:"27 - HAUTE GOURNIERE - E 7, 8 & 9 - CHARPENTE",conduc:""},
+  {id:"t1062",chantier_id:"c008",nom:"28 - HAUTE GOURNIERE - E 5&6 - CHARPENTE",conduc:""},
+  {id:"t1063",chantier_id:"c008",nom:"29 - HAUTE GOURNIERE - E 5&6 - MURS",conduc:""},
+  {id:"t1064",chantier_id:"c008",nom:"30 - HAUTE GOURNIERE - E 5&6 - MURS",conduc:""},
+  {id:"t1065",chantier_id:"c008",nom:"31 - HAUTE GOURNIERE - E 5&6 - MURS",conduc:""},
+  {id:"t1066",chantier_id:"c008",nom:"32 - HAUTE GOURNIERE - E 5&6 - TERRASSES",conduc:""},
+  {id:"t1067",chantier_id:"c008",nom:"33 - HAUTE GOURNIERE - E 5&6 - BARDAGE",conduc:""},
+  {id:"t1068",chantier_id:"c008",nom:"34 - HAUTE GOURNIERE - E 5&6 - BARDAGE",conduc:""},
+  {id:"t1069",chantier_id:"c008",nom:"35 - HAUTE GOURNIERE - E 5&6 - TERRASSES",conduc:""},
+  {id:"t1070",chantier_id:"c008",nom:"36 - HAUTE GOURNIERE - E 5&6 - TERRASSES",conduc:""},
+  {id:"t1071",chantier_id:"c008",nom:"37 - HAUTE GOURNIERE - E 5&6 - TERRASSES",conduc:""},
+  {id:"t1072",chantier_id:"c008",nom:"38 - HAUTE GOURNIERE - E LV - CHARPENTE",conduc:""},
+  {id:"t1073",chantier_id:"c008",nom:"39 - HAUTE GOURNIERE - E LV - CHARPENTE",conduc:""},
+  {id:"t1074",chantier_id:"c008",nom:"40 - HAUTE GOURNIERE - E LV - MURS",conduc:""},
+  {id:"t1075",chantier_id:"c008",nom:"41 - HAUTE GOURNIERE - E LV - BARDAGE",conduc:""},
+  {id:"t1076",chantier_id:"c008",nom:"42 - HAUTE GOURNIERE - D 1à8 - CHARPENTE",conduc:""},
+  {id:"t1077",chantier_id:"c008",nom:"43 - HAUTE GOURNIERE - D 1à8 - MURS",conduc:""},
+  {id:"t1078",chantier_id:"c008",nom:"44 - HAUTE GOURNIERE - D 1à8 - MURS",conduc:""},
+  {id:"t1079",chantier_id:"c008",nom:"45 - HAUTE GOURNIERE - D 1à8 - MURS",conduc:""},
+  {id:"t1080",chantier_id:"c008",nom:"46 - HAUTE GOURNIERE - D 1à8 - CAISSONS",conduc:""},
+  {id:"t1081",chantier_id:"c008",nom:"47 - HAUTE GOURNIERE - D 1à8 - MURS",conduc:""},
+  {id:"t1082",chantier_id:"c008",nom:"48 - HAUTE GOURNIERE - D 1à8 - MURS",conduc:""},
+  {id:"t1083",chantier_id:"c008",nom:"49 - HAUTE GOURNIERE - D 1à8 - BARDAGE",conduc:""},
+  {id:"t1084",chantier_id:"c008",nom:"50 - HAUTE GOURNIERE - D 1à8 - BARDAGE",conduc:""},
+  {id:"t1085",chantier_id:"c008",nom:"51 - HAUTE GOURNIERE - D 1à8 - CHARPENTE",conduc:""},
+  {id:"t1086",chantier_id:"c008",nom:"52 - HAUTE GOURNIERE - D 1à8 - BARDAGE",conduc:""},
+  {id:"t1087",chantier_id:"c008",nom:"53 - HAUTE GOURNIERE - D LV - MURS",conduc:""},
+  {id:"t1088",chantier_id:"c008",nom:"54 - HAUTE GOURNIERE - D LV - CHARPENTE",conduc:""},
+  {id:"t1089",chantier_id:"c008",nom:"55 - HAUTE GOURNIERE - D LV - BARDAGE",conduc:""},
+  {id:"t1090",chantier_id:"c008",nom:"56 - HAUTE GOURNIERE - F 1&2 - CHARPENTE",conduc:""},
+  {id:"t1091",chantier_id:"c008",nom:"57 - HAUTE GOURNIERE - F 1&2 - MURS",conduc:""},
+  {id:"t1092",chantier_id:"c008",nom:"58 - HAUTE GOURNIERE - F 1&2 - MURS",conduc:""},
+  {id:"t1093",chantier_id:"c008",nom:"59 - HAUTE GOURNIERE - F 1&2 - CAISSONS",conduc:""},
+  {id:"t1094",chantier_id:"c008",nom:"60 - HAUTE GOURNIERE - F 1&2 - MURS",conduc:""},
+  {id:"t1095",chantier_id:"c008",nom:"61 - HAUTE GOURNIERE - F 1&2 - BARDAGE",conduc:""},
+  {id:"t1096",chantier_id:"c008",nom:"62 - HAUTE GOURNIERE - F 1&2 - BARDAGE",conduc:""},
+  {id:"t1097",chantier_id:"c008",nom:"63 - HAUTE GOURNIERE - F 3à8 - CHARPENTE",conduc:""},
+  {id:"t1098",chantier_id:"c008",nom:"64 - HAUTE GOURNIERE - F 3à8 - MURS",conduc:""},
+  {id:"t1099",chantier_id:"c008",nom:"65 - HAUTE GOURNIERE - F 3à8 - MURS",conduc:""},
+  {id:"t1100",chantier_id:"c008",nom:"66 - HAUTE GOURNIERE - F 3à8 - CAISSONS",conduc:""},
+  {id:"t1101",chantier_id:"c008",nom:"67 - HAUTE GOURNIERE - F 3à8 - MURS",conduc:""},
+  {id:"t1102",chantier_id:"c008",nom:"68 - HAUTE GOURNIERE - F 3à8 - BARDAGE",conduc:""},
+  {id:"t1103",chantier_id:"c008",nom:"69 - HAUTE GOURNIERE - F 3à8 - BARDAGE",conduc:""},
+  {id:"t1104",chantier_id:"c008",nom:"70 - HAUTE GOURNIERE - G 1à5 - CHARPENTE",conduc:""},
+  {id:"t1105",chantier_id:"c008",nom:"71 - HAUTE GOURNIERE - G 1à5 - MURS",conduc:""},
+  {id:"t1106",chantier_id:"c008",nom:"72 - HAUTE GOURNIERE - G 1à5 - MURS",conduc:""},
+  {id:"t1107",chantier_id:"c008",nom:"73 - HAUTE GOURNIERE - G 1à5 - CAISSONS",conduc:""},
+  {id:"t1108",chantier_id:"c008",nom:"74 - HAUTE GOURNIERE - G 1à5 - MURS",conduc:""},
+  {id:"t1109",chantier_id:"c008",nom:"75 - HAUTE GOURNIERE - G 1à5 - BARDAGE",conduc:""},
+  {id:"t1110",chantier_id:"c008",nom:"76 - HAUTE GOURNIERE - G 1à5 - BARDAGE",conduc:""},
+  {id:"t1111",chantier_id:"c008",nom:"77 - HAUTE GOURNIERE - G LV - MURS",conduc:""},
+  {id:"t1112",chantier_id:"c008",nom:"78 - HAUTE GOURNIERE - G LV - CHARPENTE",conduc:""},
+  {id:"t1113",chantier_id:"c008",nom:"79 - HAUTE GOURNIERE - G LV - MURS",conduc:""},
+  {id:"t1114",chantier_id:"c008",nom:"80 - HAUTE GOURNIERE - G LV - BARDAGE",conduc:""},
+  {id:"t1115",chantier_id:"c009",nom:"1 - GUYNEMER - TZ - INSTALLATION CHANTIER",conduc:""},
+  {id:"t1116",chantier_id:"c009",nom:"2 - GUYNEMER - BAT C - MURS",conduc:""},
+  {id:"t1117",chantier_id:"c009",nom:"3 - GUYNEMER - BAT C - MURS",conduc:""},
+  {id:"t1118",chantier_id:"c009",nom:"4 - GUYNEMER - BAT C - MURS",conduc:""},
+  {id:"t1119",chantier_id:"c009",nom:"5 - GUYNEMER - BAT C - MURS",conduc:""},
+  {id:"t1120",chantier_id:"c009",nom:"6 - GUYNEMER - BAT C - CHARPENTE",conduc:""},
+  {id:"t1121",chantier_id:"c009",nom:"7 - GUYNEMER - BAT C - CHARPENTE",conduc:""},
+  {id:"t1122",chantier_id:"c009",nom:"8 - GUYNEMER - BAT C - MURS",conduc:""},
+  {id:"t1123",chantier_id:"c009",nom:"9 - GUYNEMER - BAT C - MURS",conduc:""},
+  {id:"t1124",chantier_id:"c009",nom:"10 - GUYNEMER - BAT C - BALCONS / COURSIVES",conduc:""},
+  {id:"t1125",chantier_id:"c009",nom:"11 - GUYNEMER - BAT C - BARDAGE",conduc:""},
+  {id:"t1126",chantier_id:"c009",nom:"12 - GUYNEMER - BAT C - BARDAGE",conduc:""},
+  {id:"t1127",chantier_id:"c009",nom:"13 - GUYNEMER - BAT C - BALCONS / COURSIVES",conduc:""},
+  {id:"t1128",chantier_id:"c009",nom:"14 - GUYNEMER - BAT C - BARDAGE",conduc:""},
+  {id:"t1129",chantier_id:"c009",nom:"15 - GUYNEMER - BAT C - TERRASSES",conduc:""},
+  {id:"t1130",chantier_id:"c009",nom:"16 - GUYNEMER - BAT C - BARDAGE",conduc:""},
+  {id:"t1131",chantier_id:"c009",nom:"17 - GUYNEMER - BAT C - BARDAGE",conduc:""},
+  {id:"t1132",chantier_id:"c009",nom:"18 - GUYNEMER - BAT B - MURS",conduc:""},
+  {id:"t1133",chantier_id:"c009",nom:"19 - GUYNEMER - BAT B - MURS",conduc:""},
+  {id:"t1134",chantier_id:"c009",nom:"20 - GUYNEMER - BAT B - MURS",conduc:""},
+  {id:"t1135",chantier_id:"c009",nom:"21 - GUYNEMER - BAT B - BARDAGE",conduc:""},
+  {id:"t1136",chantier_id:"c009",nom:"22 - GUYNEMER - BAT B - CHARPENTE",conduc:""},
+  {id:"t1137",chantier_id:"c009",nom:"23 - GUYNEMER - BAT B - CHARPENTE",conduc:""},
+  {id:"t1138",chantier_id:"c009",nom:"24 - GUYNEMER - BAT B - MURS",conduc:""},
+  {id:"t1139",chantier_id:"c009",nom:"25 - GUYNEMER - BAT B - MURS",conduc:""},
+  {id:"t1140",chantier_id:"c009",nom:"26 - GUYNEMER - BAT B - BALCONS / COURSIVES",conduc:""},
+  {id:"t1141",chantier_id:"c009",nom:"27 - GUYNEMER - BAT B - BARDAGE",conduc:""},
+  {id:"t1142",chantier_id:"c009",nom:"28 - GUYNEMER - BAT B - BARDAGE",conduc:""},
+  {id:"t1143",chantier_id:"c009",nom:"29 - GUYNEMER - BAT B - BALCONS / COURSIVES",conduc:""},
+  {id:"t1144",chantier_id:"c009",nom:"30 - GUYNEMER - BAT B - BARDAGE",conduc:""},
+  {id:"t1145",chantier_id:"c009",nom:"31 - GUYNEMER - BAT B - TERRASSES",conduc:""},
+  {id:"t1146",chantier_id:"c009",nom:"32 - GUYNEMER - BAT B - BARDAGE",conduc:""},
+  {id:"t1147",chantier_id:"c009",nom:"33 - GUYNEMER - BAT B - BARDAGE",conduc:""},
+  {id:"t1148",chantier_id:"c009",nom:"34 - GUYNEMER - BAT A - MURS",conduc:""},
+  {id:"t1149",chantier_id:"c009",nom:"35 - GUYNEMER - BAT A - MURS",conduc:""},
+  {id:"t1150",chantier_id:"c009",nom:"36 - GUYNEMER - BAT A - MURS",conduc:""},
+  {id:"t1151",chantier_id:"c009",nom:"37 - GUYNEMER - BAT A - BARDAGE",conduc:""},
+  {id:"t1152",chantier_id:"c009",nom:"38 - GUYNEMER - BAT A - MURS",conduc:""},
+  {id:"t1153",chantier_id:"c009",nom:"39 - GUYNEMER - BAT A - MURS",conduc:""},
+  {id:"t1154",chantier_id:"c009",nom:"40 - GUYNEMER - BAT A - BALCONS / COURSIVES",conduc:""},
+  {id:"t1155",chantier_id:"c009",nom:"41 - GUYNEMER - BAT A - CHARPENTE",conduc:""},
+  {id:"t1156",chantier_id:"c009",nom:"42 - GUYNEMER - BAT A - BARDAGE",conduc:""},
+  {id:"t1157",chantier_id:"c009",nom:"43 - GUYNEMER - BAT A - BALCONS / COURSIVES",conduc:""},
+  {id:"t1158",chantier_id:"c009",nom:"44 - GUYNEMER - BAT A - BARDAGE",conduc:""},
+  {id:"t1159",chantier_id:"c009",nom:"45 - GUYNEMER - BAT A - TERRASSES",conduc:""},
+  {id:"t1160",chantier_id:"c009",nom:"46 - GUYNEMER - BAT A - CHARPENTE",conduc:""},
+  {id:"t1161",chantier_id:"c009",nom:"47 - GUYNEMER - BAT A - BARDAGE",conduc:""},
+  {id:"t1162",chantier_id:"c009",nom:"48 - GUYNEMER - BAT A - BARDAGE",conduc:""},
+  {id:"t1163",chantier_id:"c009",nom:"49 - GUYNEMER - BAT A - BARDAGE",conduc:""},
+  {id:"t1164",chantier_id:"c009",nom:"50 - GUYNEMER - BAT A - BARDAGE",conduc:""},
+  {id:"t1165",chantier_id:"c009",nom:"51 - GUYNEMER - BAT A - BARDAGE",conduc:""},
+  {id:"t1166",chantier_id:"c009",nom:"52 - GUYNEMER - GARAGE - CHARPENTE",conduc:""},
+  {id:"t1167",chantier_id:"c009",nom:"53 - GUYNEMER - GARAGE - CHARPENTE",conduc:""},
+  {id:"t1168",chantier_id:"c009",nom:"54 - GUYNEMER - GARAGE - CHARPENTE",conduc:""},
+  {id:"t1169",chantier_id:"c009",nom:"55 - GUYNEMER - GARAGE - BARDAGE",conduc:""},
+  {id:"t1170",chantier_id:"c009",nom:"GUYNEMER - BAT C - MOB",conduc:""},
+  {id:"t1171",chantier_id:"c009",nom:"GUYNEMER - BAT C - CHARPENTE",conduc:""},
+  {id:"t1172",chantier_id:"c009",nom:"GUYNEMER - BAT C - BALCONS",conduc:""},
+  {id:"t1173",chantier_id:"c009",nom:"GUYNEMER - BAT B - MOB",conduc:""},
+  {id:"t1174",chantier_id:"c009",nom:"GUYNEMER - BAT B - CHARPENTE",conduc:""},
+  {id:"t1175",chantier_id:"c009",nom:"GUYNEMER - BAT B - BALCONS",conduc:""},
+  {id:"t1176",chantier_id:"c009",nom:"GUYNEMER - BAT A - MOB",conduc:""},
+  {id:"t1177",chantier_id:"c009",nom:"GUYNEMER - BAT A - CHARPENTE",conduc:""},
+  {id:"t1178",chantier_id:"c009",nom:"GUYNEMER - BAT A - BALCONS",conduc:""},
+  {id:"t1179",chantier_id:"c009",nom:"GUYNEMER - GARAGE",conduc:""},
+  {id:"t1180",chantier_id:"c009",nom:"GUYNEMER PROTO",conduc:""},
+  {id:"t1181",chantier_id:"c010",nom:"H44-CHATEAUBRIANT - IMP + CNA + PIGNON",conduc:""},
+  {id:"t1182",chantier_id:"c010",nom:"H44-CHATEAUBRIANT - A",conduc:""},
+  {id:"t1183",chantier_id:"c010",nom:"H44-CHATEAUBRIANT - B",conduc:""},
+  {id:"t1184",chantier_id:"c010",nom:"H44-CHATEAUBRIANT - C",conduc:""},
+  {id:"t1185",chantier_id:"c010",nom:"H44-CHATEAUBRIANT - D",conduc:""},
+  {id:"t1186",chantier_id:"c010",nom:"H44-CHATEAUBRIANT - AB - COURISVE & BALCON",conduc:""},
+  {id:"t1187",chantier_id:"c010",nom:"H44-CHATEAUBRIANT - CD - COURISVE & BALCON",conduc:""},
+  {id:"t1188",chantier_id:"c010",nom:"H44-CHATEAUBRIANT - LOCAL POUBELLE",conduc:""},
+  {id:"t1189",chantier_id:"c011",nom:"H44 - VAY - IMP + CNA R+1",conduc:""},
+  {id:"t1190",chantier_id:"c011",nom:"H44 - VAY - MOB PIGNON",conduc:""},
+  {id:"t1191",chantier_id:"c011",nom:"H44 - VAY - MOB RDC + PO",conduc:""},
+  {id:"t1192",chantier_id:"c011",nom:"H44 - VAY - CP + CT",conduc:""},
+  {id:"t1193",chantier_id:"c011",nom:"H44 - VAY - MOB R+1",conduc:""},
+  {id:"t1194",chantier_id:"c011",nom:"H44 - VAY - COURSIVE & BALCON",conduc:""},
+  {id:"t1195",chantier_id:"c012",nom:"48 - ECHAPPE - B2CO - MURS - R+3 Imp, MOB & Finition",conduc:""},
+  {id:"t1196",chantier_id:"c012",nom:"55 - ECHAPPE - B2CO - MURS - Attique Imp, MOB & Finition",conduc:""},
+  {id:"t1197",chantier_id:"c012",nom:"60 - ECHAPPE - B2CO - CHARPENTE - Charpente",conduc:""},
+  {id:"t1198",chantier_id:"c012",nom:"62 - ECHAPPE - B2CO - BALCONS / COURSIVES - Balcons bois & habillages cuve",conduc:""},
+  {id:"t1199",chantier_id:"c012",nom:"95 - ECHAPPE - B2CO - MURS - MOB Séparatif - 32u",conduc:""},
+  {id:"t1200",chantier_id:"c012",nom:"ECHAPPE - ENVOI TRAITEMENT B2CO BALCONS",conduc:""},
+  {id:"t1201",chantier_id:"c012",nom:"ECHAPPE B2CO - MOB R+2",conduc:""},
+  {id:"t1202",chantier_id:"c012",nom:"ECHAPPE B2CO - MOB R+3",conduc:""},
+  {id:"t1203",chantier_id:"c012",nom:"ECHAPPE B2CO - MOB Attique",conduc:""},
+  {id:"t1204",chantier_id:"c012",nom:"ECHAPPE B1 - MODULE RECUPATEUR D'EAU",conduc:""},
+  {id:"t1205",chantier_id:"c012",nom:"ECHAPPE B1 ENVOI TRAITEMENT BALCON BOIS",conduc:""},
+  {id:"t1206",chantier_id:"c012",nom:"ECHAPPE - B2CO LOCAL VELO",conduc:""},
+  {id:"t1207",chantier_id:"c012",nom:"ECHAPPE B1 - BALCONS BOIS",conduc:""},
+  {id:"t1208",chantier_id:"c012",nom:"ECHAPPE B1 - LOCAUX VELOS",conduc:""},
+  {id:"t1209",chantier_id:"c012",nom:"ECHAPPE B2 MI - CP R+1",conduc:""},
+  {id:"t1210",chantier_id:"c012",nom:"ECHAPPE B2 MI - COURSIVE + LV",conduc:""},
+  {id:"t1211",chantier_id:"c012",nom:"ECHAPPE B2 MI - CNA",conduc:""},
+  {id:"t1212",chantier_id:"c012",nom:"ECHAPPE B2CO - CNA",conduc:""},
+  {id:"t1213",chantier_id:"c012",nom:"ECHAPPE B3CO - COURSIVE BETON",conduc:""},
+  {id:"t1214",chantier_id:"c012",nom:"ECHAPPE B3CO - FOB R+1",conduc:""},
+  {id:"t1215",chantier_id:"c012",nom:"ECHAPPE B3CO - FOB R+2",conduc:""},
+  {id:"t1216",chantier_id:"c012",nom:"ECHAPPE B3CO - FOB R+3",conduc:""},
+  {id:"t1217",chantier_id:"c012",nom:"ECHAPPE B3CO - FOB Attique",conduc:""},
+  {id:"t1218",chantier_id:"c012",nom:"ECHAPPE B3CO - FOB RDC",conduc:""},
+  {id:"t1219",chantier_id:"c012",nom:"ECHAPPE B3CO - CNA CHARP",conduc:""},
+  {id:"t1220",chantier_id:"c012",nom:"ECHAPPE - ENVOI TRAITEMENT B3CO BALCONS",conduc:""},
+  {id:"t1221",chantier_id:"c012",nom:"ECHAPPE B3CO - Imp",conduc:""},
+  {id:"t1222",chantier_id:"c012",nom:"ECHAPPE B3CO - BALCONS BOIS",conduc:""},
+  {id:"t1223",chantier_id:"c012",nom:"ECHAPPE B3CO - MODULE RECUPERATEUR D'EAU",conduc:""},
+  {id:"t1224",chantier_id:"c012",nom:"ECHAPPE B3 MI - CNA",conduc:""},
+  {id:"t1225",chantier_id:"c012",nom:"ECHAPPE B3 MI - MOB",conduc:""},
+  {id:"t1226",chantier_id:"c012",nom:"ECHAPPE B3 MI - IMP",conduc:""},
+  {id:"t1227",chantier_id:"c012",nom:"ECHAPPE B3 MI - CP RDC",conduc:""},
+  {id:"t1228",chantier_id:"c012",nom:"ECHAPPE B3 MI - CP R+1",conduc:""},
+  {id:"t1229",chantier_id:"c012",nom:"ECHAPPE B3 MI - COURSIVE + LV",conduc:""},
+  {id:"t1230",chantier_id:"c012",nom:"ECHAPPE B3 MI ENVOI TRAITEMENT COURSIVE + LV",conduc:""},
+  {id:"t1231",chantier_id:"c012",nom:"ECHAPPE B2MI ENVOI TRAITEMENT COURSIVE + LV",conduc:""},
+  {id:"t1232",chantier_id:"c012",nom:"ECHAPPE - ENVOI TRAITEMENT B3CO COURSIVE",conduc:""},
+  {id:"t1233",chantier_id:"c012",nom:"ECHAPPE B3CO - CP Terrasse",conduc:""},
+  {id:"t1234",chantier_id:"c012",nom:"42 - ECHAPPE - B2CO - MURS - R+2 Imp, MOB & Finition",conduc:""},
+  {id:"t1235",chantier_id:"c012",nom:"52 - ECHAPPE - B2CO - BALCONS / COURSIVES - R+3 Coursives",conduc:""},
+  {id:"t1236",chantier_id:"c012",nom:"59 - ECHAPPE - B2CO - BALCONS / COURSIVES - Attique Coursives",conduc:""},
+  {id:"t1237",chantier_id:"c012",nom:"79 - ECHAPPE - B3MI - MURS - MI12/15 - RDC Imp, MOB & Finition",conduc:""},
+  {id:"t1238",chantier_id:"c012",nom:"ECHAPPE B1A - BALCONS",conduc:""},
+  {id:"t1239",chantier_id:"c012",nom:"ECHAPPE - B2CO LOCAL VELO - ENVOI TRAITEMENT",conduc:""},
+  {id:"t1240",chantier_id:"c012",nom:"ECHAPPE B2CO - BAR",conduc:""},
+  {id:"t1241",chantier_id:"c013",nom:"SH - GAUTHIOT LAMY - M1/M2 - CP + FERMES + CNA",conduc:""},
+  {id:"t1242",chantier_id:"c013",nom:"SH - GAUTHIOT LAMY - M3/M4 - CP + FERMES + CNA",conduc:""},
+  {id:"t1243",chantier_id:"c013",nom:"SH - GAUTHIOT LAMY - CNA R+1",conduc:""},
+  {id:"t1244",chantier_id:"c014",nom:"ALLFOR-vente directe-CA",conduc:""},
+  {id:"t1245",chantier_id:"c015",nom:"DELAUNEY-vente directe-CA",conduc:""},
+  {id:"t1246",chantier_id:"c016",nom:"POUSSCOOP G - PO+CV fermettes",conduc:""},
+  {id:"t1247",chantier_id:"c016",nom:"POUSSCOOP G - DIV",conduc:""},
+  {id:"t1248",chantier_id:"c016",nom:"POUSSCOOP H - PO+CV fermettes",conduc:""},
+  {id:"t1249",chantier_id:"c016",nom:"POUSSCOOP H - DIV",conduc:""},
+  {id:"t1250",chantier_id:"c016",nom:"POUSSCOOP D - IMP+MOB+BAR maisons",conduc:""},
+  {id:"t1251",chantier_id:"c016",nom:"POUSSCOOP D - IMP+MOB+BAR annexes",conduc:""},
+  {id:"t1252",chantier_id:"c016",nom:"POUSSCOOP D - PO+CP plancher",conduc:""},
+  {id:"t1253",chantier_id:"c016",nom:"POUSSCOOP D - PO+CV sous fermettes",conduc:""},
+  {id:"t1254",chantier_id:"c016",nom:"POUSSCOOP D - CNA annexes",conduc:""},
+  {id:"t1255",chantier_id:"c016",nom:"POUSSCOOP C - IMP+MOB+BAR maisons",conduc:""},
+  {id:"t1256",chantier_id:"c016",nom:"POUSSCOOP C - IMP+MOB+BAR annexes",conduc:""},
+  {id:"t1257",chantier_id:"c016",nom:"POUSSCOOP C - PO+CP plancher",conduc:""},
+  {id:"t1258",chantier_id:"c016",nom:"POUSSCOOP C - PO+CV sous fermettes",conduc:""},
+  {id:"t1259",chantier_id:"c016",nom:"POUSSCOOP C - PO+CT charpente",conduc:""},
+  {id:"t1260",chantier_id:"c016",nom:"POUSSCOOP C - CNA annexes",conduc:""},
+  {id:"t1261",chantier_id:"c016",nom:"POUSSCOOP B - IMP+MOB+BAR maisons",conduc:""},
+  {id:"t1262",chantier_id:"c016",nom:"POUSSCOOP B - IMP+MOB+BAR annexes",conduc:""},
+  {id:"t1263",chantier_id:"c016",nom:"POUSSCOOP B - PO+CP plancher",conduc:""},
+  {id:"t1264",chantier_id:"c016",nom:"POUSSCOOP B - PO+CV sous fermettes",conduc:""},
+  {id:"t1265",chantier_id:"c016",nom:"POUSSCOOP B - PO+CT charpente",conduc:""},
+  {id:"t1266",chantier_id:"c016",nom:"POUSSCOOP B - CNA annexes",conduc:""},
+  {id:"t1267",chantier_id:"c016",nom:"POUSSCOOP A - IMP+MOB+BAR maisons",conduc:""},
+  {id:"t1268",chantier_id:"c016",nom:"POUSSCOOP A - IMP+MOB+BAR annexes",conduc:""},
+  {id:"t1269",chantier_id:"c016",nom:"POUSSCOOP A - PO+CP plancher",conduc:""},
+  {id:"t1270",chantier_id:"c016",nom:"POUSSCOOP A - PO+CV sous fermettes",conduc:""},
+  {id:"t1271",chantier_id:"c016",nom:"POUSSCOOP A - PO+CT charpente",conduc:""},
+  {id:"t1272",chantier_id:"c016",nom:"POUSSCOOP A - CNA annexes",conduc:""},
+  {id:"t1273",chantier_id:"c017",nom:"MCA-A-CP+CNA Balcons",conduc:""},
+  {id:"t1274",chantier_id:"c017",nom:"MCA-A-IMP+CNA",conduc:""},
+  {id:"t1275",chantier_id:"c017",nom:"MCA-A-Bois traitement",conduc:""},
+  {id:"t1276",chantier_id:"c017",nom:"MCA-B-MOB R+1+PO",conduc:""},
+  {id:"t1277",chantier_id:"c017",nom:"MCA-B-MOB R+2+PO",conduc:""},
+  {id:"t1278",chantier_id:"c017",nom:"MCA-B-MOB R+3+PO",conduc:""},
+  {id:"t1279",chantier_id:"c017",nom:"MCA-B-CP+CT R+1",conduc:""},
+  {id:"t1280",chantier_id:"c017",nom:"MCA-B-CP+CT R+2",conduc:""},
+  {id:"t1281",chantier_id:"c017",nom:"MCA-B-CP+CT R+3",conduc:""},
+  {id:"t1282",chantier_id:"c017",nom:"MCA-B-CNA+MOB+CP+PO Balcons",conduc:""},
+  {id:"t1283",chantier_id:"c017",nom:"MCA-B-ENVOI TRAITEMENT",conduc:""},
+  {id:"t1284",chantier_id:"c017",nom:"MCA-6MI",conduc:""},
+  {id:"t1285",chantier_id:"c017",nom:"MCA-6MI IMP",conduc:""},
+  {id:"t1286",chantier_id:"c018",nom:"1 - NOVALLIANCE - SOUS DALLE - MURS",conduc:""},
+  {id:"t1287",chantier_id:"c018",nom:"2 - NOVALLIANCE - SOUS DALLE - MURS",conduc:""},
+  {id:"t1288",chantier_id:"c018",nom:"3 - NOVALLIANCE - SOUS DALLE - MURS",conduc:""},
+  {id:"t1289",chantier_id:"c018",nom:"4 - NOVALLIANCE - SOUS DALLE - MURS",conduc:""},
+  {id:"t1290",chantier_id:"c018",nom:"5 - NOVALLIANCE - TZ - MURS",conduc:""},
+  {id:"t1291",chantier_id:"c018",nom:"6 - NOVALLIANCE - TZ - MURS",conduc:""},
+  {id:"t1292",chantier_id:"c018",nom:"7 - NOVALLIANCE - TZ - MURS",conduc:""},
+  {id:"t1293",chantier_id:"c018",nom:"8 - NOVALLIANCE - TZ - MURS",conduc:""},
+  {id:"t1294",chantier_id:"c018",nom:"10 - NOVALLIANCE - ASPIRATION - MURS",conduc:""},
+  {id:"t1295",chantier_id:"c018",nom:"11 - NOVALLIANCE - ASPIRATION - BARDAGE",conduc:""},
+  {id:"t1296",chantier_id:"c019",nom:"1 - LINO VENTURA - TZ - MURS",conduc:""},
+  {id:"t1297",chantier_id:"c019",nom:"2 - LINO VENTURA - TZ - CHARPENTE",conduc:""},
+  {id:"t1298",chantier_id:"c019",nom:"3 - LINO VENTURA - TZ - INSTALLATION CHANTIER",conduc:""},
+  {id:"t1299",chantier_id:"c019",nom:"4 - LINO VENTURA - SALLE - INSTALLATION CHANTIER",conduc:""},
+  {id:"t1300",chantier_id:"c019",nom:"5 - LINO VENTURA - SALLE - CHARPENTE",conduc:""},
+  {id:"t1301",chantier_id:"c019",nom:"6 - LINO VENTURA - SALLE - CHARPENTE",conduc:""},
+  {id:"t1302",chantier_id:"c019",nom:"7 - LINO VENTURA - SALLE - CHARPENTE",conduc:""},
+  {id:"t1303",chantier_id:"c019",nom:"8 - LINO VENTURA - SALLE - CHARPENTE",conduc:""},
+  {id:"t1304",chantier_id:"c019",nom:"9 - LINO VENTURA - SALLE - CHARPENTE",conduc:""},
+  {id:"t1305",chantier_id:"c019",nom:"10 - LINO VENTURA - SALLE - CHARPENTE",conduc:""},
+  {id:"t1306",chantier_id:"c019",nom:"11 - LINO VENTURA - SALLE - CHARPENTE",conduc:""},
+  {id:"t1307",chantier_id:"c019",nom:"12 - LINO VENTURA - SALLE - CHARPENTE",conduc:""},
+  {id:"t1308",chantier_id:"c019",nom:"13 - LINO VENTURA - SALLE - CHARPENTE",conduc:""},
+  {id:"t1309",chantier_id:"c019",nom:"14 - LINO VENTURA - SALLE - CHARPENTE",conduc:""},
+  {id:"t1310",chantier_id:"c019",nom:"15 - LINO VENTURA - SALLE - CHARPENTE",conduc:""},
+  {id:"t1311",chantier_id:"c019",nom:"16 - LINO VENTURA - HALL - CHARPENTE",conduc:""},
+  {id:"t1312",chantier_id:"c019",nom:"17 - LINO VENTURA - HALL - CHARPENTE",conduc:""},
+  {id:"t1313",chantier_id:"c019",nom:"18 - LINO VENTURA - TZ - MURS",conduc:""},
+  {id:"t1314",chantier_id:"c019",nom:"19 - LINO VENTURA - TZ - MURS",conduc:""},
+  {id:"t1315",chantier_id:"c019",nom:"20 - LINO VENTURA - TZ - CHARPENTE",conduc:""},
+  {id:"t1316",chantier_id:"c019",nom:"21 - LINO VENTURA - TZ - MURS",conduc:""},
+  {id:"t1317",chantier_id:"c019",nom:"22 - LINO VENTURA - HALL - CHARPENTE",conduc:""},
+  {id:"t1318",chantier_id:"c019",nom:"23 - LINO VENTURA - HALL - CHARPENTE",conduc:""},
+  {id:"t1319",chantier_id:"c019",nom:"24 - LINO VENTURA - SALLE - CHARPENTE",conduc:""},
+  {id:"t1320",chantier_id:"c019",nom:"25 - LINO VENTURA - TZ - MURS",conduc:""},
+  {id:"t1321",chantier_id:"c019",nom:"26 - LINO VENTURA - TZ - MURS",conduc:""},
+  {id:"t1322",chantier_id:"c019",nom:"27 - LINO VENTURA - HALL - CAISSONS",conduc:""},
+  {id:"t1323",chantier_id:"c019",nom:"28 - LINO VENTURA - HALL - CAISSONS",conduc:""},
+  {id:"t1324",chantier_id:"c019",nom:"29 - LINO VENTURA - HALL - CAISSONS",conduc:""},
+  {id:"t1325",chantier_id:"c019",nom:"30 - LINO VENTURA - HALL - CAISSONS",conduc:""},
+  {id:"t1326",chantier_id:"c019",nom:"31 - LINO VENTURA - TZ - CHARPENTE",conduc:""},
+  {id:"t1327",chantier_id:"c019",nom:"32 - LINO VENTURA - TZ - CHARPENTE",conduc:""},
+  {id:"t1328",chantier_id:"c019",nom:"33 - LINO VENTURA - TZ - CHARPENTE",conduc:""},
+  {id:"t1329",chantier_id:"c019",nom:"34 - LINO VENTURA - TZ - MURS",conduc:""},
+  {id:"t1330",chantier_id:"c019",nom:"35 - LINO VENTURA - TZ - BARDAGE",conduc:""},
+  {id:"t1331",chantier_id:"c019",nom:"36 - LINO VENTURA - TZ - BARDAGE",conduc:""},
+  {id:"t1332",chantier_id:"c019",nom:"37 - LINO VENTURA - TZ - BARDAGE",conduc:""},
+  {id:"t1333",chantier_id:"c019",nom:"38 - LINO VENTURA - TZ - BARDAGE",conduc:""},
+  {id:"t1334",chantier_id:"c019",nom:"39 - LINO VENTURA - TZ - BARDAGE",conduc:""},
+  {id:"t1335",chantier_id:"c020",nom:"1 - HYROME - TZ - INSTALLATION CHANTIER",conduc:""},
+  {id:"t1336",chantier_id:"c020",nom:"2 - HYROME - TZ - MURS",conduc:""},
+  {id:"t1337",chantier_id:"c020",nom:"3 - HYROME - TZ - MURS",conduc:""},
+  {id:"t1338",chantier_id:"c020",nom:"4 - HYROME - TZ - MURS",conduc:""},
+  {id:"t1339",chantier_id:"c020",nom:"5 - HYROME - TZ - CHARPENTE",conduc:""},
+  {id:"t1340",chantier_id:"c020",nom:"6 - HYROME - TZ - CHARPENTE",conduc:""},
+  {id:"t1341",chantier_id:"c020",nom:"7 - HYROME - TZ - CHARPENTE",conduc:""},
+  {id:"t1342",chantier_id:"c020",nom:"8 - HYROME - TZ - CHARPENTE",conduc:""},
+  {id:"t1343",chantier_id:"c020",nom:"9 - HYROME - TZ - CHARPENTE",conduc:""},
+  {id:"t1344",chantier_id:"c020",nom:"10 - HYROME - TZ - MURS",conduc:""},
+  {id:"t1345",chantier_id:"c020",nom:"11 - HYROME - TZ - MURS",conduc:""},
+  {id:"t1346",chantier_id:"c020",nom:"12 - HYROME - TZ - MURS",conduc:""},
+  {id:"t1347",chantier_id:"c020",nom:"13 - HYROME - TZ - MURS",conduc:""},
+  {id:"t1348",chantier_id:"c020",nom:"14 - HYROME - TZ - MURS",conduc:""},
+  {id:"t1349",chantier_id:"c021",nom:"1 - EPONA - C2 - CHARPENTE",conduc:""},
+  {id:"t1350",chantier_id:"c021",nom:"2 - EPONA - C2 - CHARPENTE",conduc:""},
+  {id:"t1351",chantier_id:"c021",nom:"3 - EPONA - C2 - BARDAGE",conduc:""},
+  {id:"t1352",chantier_id:"c021",nom:"4 - EPONA - C5 - CHARPENTE",conduc:""},
+  {id:"t1353",chantier_id:"c021",nom:"5 - EPONA - C5 - CHARPENTE",conduc:""},
+  {id:"t1354",chantier_id:"c021",nom:"6 - EPONA - C5 - BARDAGE",conduc:""},
+  {id:"t1355",chantier_id:"c021",nom:"7 - EPONA - C2 - CHARPENTE",conduc:""},
+  {id:"t1356",chantier_id:"c021",nom:"8 - EPONA - C5 - CHARPENTE",conduc:""},
+  {id:"t1357",chantier_id:"c021",nom:"9 - EPONA - C1 - BALCONS / COURSIVES",conduc:""},
+  {id:"t1358",chantier_id:"c021",nom:"10 - EPONA - C1 - BALCONS / COURSIVES",conduc:""},
+  {id:"t1359",chantier_id:"c021",nom:"11 - EPONA - C1 - BALCONS / COURSIVES",conduc:""},
+  {id:"t1360",chantier_id:"c021",nom:"12 - EPONA - C1 - CHARPENTE",conduc:""},
+  {id:"t1361",chantier_id:"c021",nom:"13 - EPONA - C1 - BARDAGE",conduc:""},
+  {id:"t1362",chantier_id:"c021",nom:"14 - EPONA - C1 - TERRASSES",conduc:""},
+  {id:"t1363",chantier_id:"c021",nom:"15 - EPONA - C4 - BALCONS / COURSIVES",conduc:""},
+  {id:"t1364",chantier_id:"c021",nom:"16 - EPONA - C4 - BALCONS / COURSIVES",conduc:""},
+  {id:"t1365",chantier_id:"c021",nom:"17 - EPONA - C4 - BALCONS / COURSIVES",conduc:""},
+  {id:"t1366",chantier_id:"c021",nom:"18 - EPONA - C4 - CHARPENTE",conduc:""},
+  {id:"t1367",chantier_id:"c021",nom:"19 - EPONA - C4 - BARDAGE",conduc:""},
+  {id:"t1368",chantier_id:"c021",nom:"20 - EPONA - C4 - TERRASSES",conduc:""},
+  {id:"t1369",chantier_id:"c021",nom:"21 - EPONA - C1 LV - MURS",conduc:""},
+  {id:"t1370",chantier_id:"c021",nom:"22 - EPONA - C1 LV - MURS",conduc:""},
+  {id:"t1371",chantier_id:"c021",nom:"23 - EPONA - C1 LV - BARDAGE",conduc:""},
+  {id:"t1372",chantier_id:"c021",nom:"24 - EPONA - C4 LV - MURS",conduc:""},
+  {id:"t1373",chantier_id:"c021",nom:"25 - EPONA - C4 LV - MURS",conduc:""},
+  {id:"t1374",chantier_id:"c021",nom:"26 - EPONA - C4 LV - BARDAGE",conduc:""},
+  {id:"t1375",chantier_id:"c022",nom:"POD CANDE A IMP + CNA",conduc:""},
+  {id:"t1376",chantier_id:"c022",nom:"POD CANDE A MOB + PO",conduc:""},
+  {id:"t1377",chantier_id:"c022",nom:"POD CANDE A CP + CT",conduc:""},
+  {id:"t1378",chantier_id:"c022",nom:"POD CANDE B IMP + CNA",conduc:""},
+  {id:"t1379",chantier_id:"c022",nom:"POD CANDE B MOB + PO",conduc:""},
+  {id:"t1380",chantier_id:"c022",nom:"POD CANDE B CP + CT",conduc:""},
+  {id:"t1381",chantier_id:"c022",nom:"POD CANDE C IMP + CNA",conduc:""},
+  {id:"t1382",chantier_id:"c022",nom:"POD CANDE C MOB + PO",conduc:""},
+  {id:"t1383",chantier_id:"c022",nom:"POD CANDE C CP + CT",conduc:""},
+  {id:"t1384",chantier_id:"c023",nom:"POD DUR A STR EXT",conduc:""},
+  {id:"t1385",chantier_id:"c023",nom:"POD DUR B STR EXT",conduc:""},
+  {id:"t1386",chantier_id:"c024",nom:"POD - LONGUÉ-JUMELLES - A - MOB PIGNON",conduc:""},
+  {id:"t1387",chantier_id:"c024",nom:"POD - LONGUÉ-JUMELLES - A - MOB RDC",conduc:""},
+  {id:"t1388",chantier_id:"c024",nom:"POD - LONGUÉ-JUMELLES - A - CT",conduc:""},
+  {id:"t1389",chantier_id:"c024",nom:"POD - LONGUÉ-JUMELLES - A - IMP + CNA R+1",conduc:""},
+  {id:"t1390",chantier_id:"c024",nom:"POD - LONGUÉ-JUMELLES - B - CT",conduc:""},
+  {id:"t1391",chantier_id:"c024",nom:"POD - LONGUÉ-JUMELLES - B - MOB PIGNON",conduc:""},
+  {id:"t1392",chantier_id:"c024",nom:"POD - LONGUÉ-JUMELLES - B - MOB RDC",conduc:""},
+  {id:"t1393",chantier_id:"c024",nom:"POD - LONGUÉ-JUMELLES - B - IMP + CNA R+1",conduc:""},
+  {id:"t1394",chantier_id:"c025",nom:"POD - ST ETIENNE Co - MOB PIGNON",conduc:""},
+  {id:"t1395",chantier_id:"c025",nom:"POD - ST ETIENNE Co - PO + CP",conduc:""},
+  {id:"t1396",chantier_id:"c025",nom:"POD - ST ETIENNE Co - MOB RDC / R+1",conduc:""},
+  {id:"t1397",chantier_id:"c025",nom:"POD - ST ETIENNE Co - CT",conduc:""},
+  {id:"t1398",chantier_id:"c025",nom:"POD - ST ETIENNE Co - IMP + CNA R+1",conduc:""},
+  {id:"t1399",chantier_id:"c025",nom:"POD - ST ETIENNE Co - BALCON/COURSIVE",conduc:""},
+  {id:"t1400",chantier_id:"c025",nom:"POD - ST ETIENNE Indiv - CT",conduc:""},
+  {id:"t1401",chantier_id:"c025",nom:"POD - ST ETIENNE Indiv - MOB PIGNON",conduc:""},
+  {id:"t1402",chantier_id:"c025",nom:"POD - ST ETIENNE Indiv - MOB",conduc:""},
+  {id:"t1403",chantier_id:"c025",nom:"POD - ST ETIENNE Indiv - IMP + CNA R+1",conduc:""},
+  {id:"t1404",chantier_id:"c026",nom:"BELVIA - M1 - CP RDC + PO",conduc:""},
+  {id:"t1405",chantier_id:"c026",nom:"BELVIA - M2 - MOB LOCAL OM +CNA",conduc:""},
+  {id:"t1406",chantier_id:"c026",nom:"BELVIA - M3 - CP RDC + PO",conduc:""},
+  {id:"t1407",chantier_id:"c026",nom:"BELVIA - M4 - CNA APPENTITS",conduc:""},
+  {id:"t1408",chantier_id:"c026",nom:"BELVIA - M5 - CNA APPENTITS",conduc:""},
+  {id:"t1409",chantier_id:"c026",nom:"BELVIA - M6 - CP RDC + PO",conduc:""},
+  {id:"t1410",chantier_id:"c026",nom:"BELVIA - M7 - CA R+1",conduc:""},
+  {id:"t1411",chantier_id:"c026",nom:"BELVIA - M8 - CP RDC + PO",conduc:""},
+  {id:"t1412",chantier_id:"c026",nom:"BELVIA - M9 - CP RDC + PO",conduc:""},
+  {id:"t1413",chantier_id:"c026",nom:"BELVIA - M10 - CA R+2",conduc:""},
+  {id:"t1414",chantier_id:"c026",nom:"BELVIA - M11 - CNA APPENTITS",conduc:""},
+  {id:"t1415",chantier_id:"c026",nom:"BELVIA - M12 - MOB LOCAL OM +CNA",conduc:""},
+  {id:"t1416",chantier_id:"c026",nom:"BELVIA - M13 - CA R+1",conduc:""},
+  {id:"t1417",chantier_id:"c026",nom:"BELVIA - M14 - CP RDC + PO",conduc:""},
+  {id:"t1418",chantier_id:"c027",nom:"VERDANIA - MOB",conduc:""},
+  {id:"t1419",chantier_id:"c027",nom:"VERDANIA - CHARPENTE",conduc:""},
+  {id:"t1420",chantier_id:"c028",nom:"VILLA SEB - IMP & MOB",conduc:""},
+  {id:"t1421",chantier_id:"c028",nom:"VILLA SEB - CHARPENTE",conduc:""},
+  {id:"t1422",chantier_id:"c029",nom:"DETALLANTE - MOB",conduc:""},
+  {id:"t1423",chantier_id:"c030",nom:"BLANCHECOTTE - MOB",conduc:""},
+  {id:"t1424",chantier_id:"c030",nom:"BLANCHECOTTE - CP",conduc:""},
+  {id:"t1425",chantier_id:"c031",nom:"GANDEMER",conduc:""},
+  {id:"t1426",chantier_id:"c032",nom:"ROU PREAU",conduc:""},
+  {id:"t1427",chantier_id:"c033",nom:"PANORAMA - BRISE SOLEIL",conduc:""},
+  {id:"t1428",chantier_id:"c033",nom:"PANORAMA - BALCONS",conduc:""},
+  {id:"t1429",chantier_id:"c034",nom:"LE FRESNE - Terrasse",conduc:""},
+  {id:"t1430",chantier_id:"c034",nom:"LE FRESNE PORCHE Entrée - MOB",conduc:""}
+];
+
+async function init() {
+  const hasLocal = loadLS();
+  if (!hasLocal || state.chantiers.length === 0) {
+    // Premier lancement — pré-remplir avec les vraies données
+    state.chantiers = INIT_CHANTIERS.map(c => ({...c}));
+    state.tranches = INIT_TRANCHES.map(t => ({...t}));
+    saveLS();
+  }
+  // Essayer de charger depuis Sheets
+  const ok = await loadFromSheets();
+  if (!ok && state.chantiers.length === 0) {
+    state.chantiers = INIT_CHANTIERS.map(c => ({...c}));
+    state.tranches = INIT_TRANCHES.map(t => ({...t}));
+    saveLS();
+  }
+  renderSidebar();
+  setSyncPill('ok', 'Synchronisé');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SIDEBAR
+// ═══════════════════════════════════════════════════════════════
+function filterSidebar(q) { _sidebarFilter = q.trim().toLowerCase(); renderSidebar(); }
+
+function renderSidebar() {
+  const list = document.getElementById('sidebar-list');
+  const filtered = state.chantiers.filter(c =>
+    !_sidebarFilter || c.nom.toLowerCase().includes(_sidebarFilter)
+  );
+  list.innerHTML = filtered.map(c => {
+    const nbTranches = state.tranches.filter(t => t.chantier_id === c.id).length;
+    return `<div class="sidebar-item${c.id === currentChantierId ? ' active' : ''}" onclick="selectChantier('${c.id}')">
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.nom)}</span>
+      ${nbTranches ? `<span class="count">${nbTranches}</span>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function selectChantier(id) {
+  currentChantierId = id;
+  renderSidebar();
+  renderMain();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN RENDER
+// ═══════════════════════════════════════════════════════════════
+function renderMain() {
+  const main = document.getElementById('main-area');
+  if (!currentChantierId) {
+    main.innerHTML = '<div class="main-empty">← Sélectionnez un chantier</div>';
+    return;
+  }
+  const chantier = state.chantiers.find(c => c.id === currentChantierId);
+  if (!chantier) return;
+
+  const tranches = state.tranches.filter(t => t.chantier_id === currentChantierId);
+
+  // Métriques
+  const allArticles = state.articles.filter(a => {
+    const phase = state.phases.find(p => p.id === a.phase_id);
+    if (!phase) return false;
+    const tranche = state.tranches.find(t => t.id === phase.tranche_id);
+    return tranche && tranche.chantier_id === currentChantierId;
+  });
+  const nbArticles = allArticles.length;
+  const avMoyen = nbArticles ? Math.round(allArticles.reduce((s,a) => s + (+a.avancement||0), 0) / nbArticles) : 0;
+  const nbTermines = allArticles.filter(a => a.statut === 'termine').length;
+  const nbEnCours = allArticles.filter(a => a.statut === 'en_cours').length;
+
+  let html = `<div class="chantier-header">
+    <div class="chantier-title">${esc(chantier.nom)}</div>
+    ${chantier.conduc ? `<span class="badge badge-blue">${esc(chantier.conduc)}</span>` : ''}
+    <div class="chantier-actions">
+      <button class="btn btn-sm" onclick="openEditChantier('${chantier.id}')">✎ Modifier</button>
+      <button class="btn btn-sm btn-primary" onclick="openAddTranche('${chantier.id}')">+ Tranche</button>
+    </div>
+  </div>
+  <div class="metrics-bar">
+    <div class="metric-chip"><span class="metric-chip-label">Tranches</span><span class="metric-chip-val">${tranches.length}</span></div>
+    <div class="metric-chip"><span class="metric-chip-label">Articles</span><span class="metric-chip-val">${nbArticles}</span></div>
+    <div class="metric-chip"><span class="metric-chip-label">Avancement</span><span class="metric-chip-val" style="color:${avMoyen>=100?'var(--green)':avMoyen>0?'var(--blue)':'var(--text3)'}">${avMoyen}%</span></div>
+    <div class="metric-chip"><span class="metric-chip-label">En cours</span><span class="metric-chip-val" style="color:var(--blue)">${nbEnCours}</span></div>
+    <div class="metric-chip"><span class="metric-chip-label">Terminés</span><span class="metric-chip-val" style="color:var(--green)">${nbTermines}</span></div>
+  </div>`;
+
+  if (!tranches.length) {
+    html += `<div style="text-align:center;padding:2rem;color:var(--text3);font-size:13px">Aucune tranche — cliquez sur "+ Tranche"</div>`;
+  } else {
+    tranches.forEach(tranche => {
+      html += renderTranche(tranche);
+    });
+  }
+
+  main.innerHTML = html;
+
+  // Restaurer états ouverts
+  document.querySelectorAll('.tranche-body[data-id]').forEach(el => {
+    if (localStorage.getItem('t_open_' + el.dataset.id) === '1') {
+      el.style.display = 'block';
+      const head = document.querySelector('.tranche-head[data-id="' + el.dataset.id + '"]');
+      if (head) { head.classList.add('open'); head.querySelector('.tranche-chevron').classList.add('open'); }
+    }
+  });
+  document.querySelectorAll('.phase-body[data-id]').forEach(el => {
+    if (localStorage.getItem('p_open_' + el.dataset.id) === '1') {
+      el.style.display = 'block';
+      const head = document.querySelector('.phase-head[data-id="' + el.dataset.id + '"]');
+      if (head) { head.classList.add('open'); head.querySelector('.phase-chevron').classList.add('open'); }
+    }
+  });
+}
+
+function renderTranche(tranche) {
+  const phases = state.phases.filter(p => p.tranche_id === tranche.id);
+  const allArts = state.articles.filter(a => phases.some(p => p.id === a.phase_id));
+  const avMoyen = allArts.length ? Math.round(allArts.reduce((s,a) => s + (+a.avancement||0), 0) / allArts.length) : 0;
+  const planningLink = `<a class="planning-link" href="index.html" title="Voir dans le planning">📅 Planning</a>`;
+
+  return `<div class="tranche-bloc">
+    <div class="tranche-head" data-id="${tranche.id}" onclick="toggleTranche('${tranche.id}')">
+      <span class="tranche-chevron" id="tchev-${tranche.id}">▶</span>
+      <span class="tranche-name">${esc(tranche.nom)}</span>
+      ${tranche.conduc ? `<span class="badge badge-blue" style="font-size:10px">${esc(tranche.conduc)}</span>` : ''}
+      ${allArts.length ? `<span style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace">${avMoyen}%</span>` : ''}
+      ${planningLink}
+      <div class="tranche-actions" onclick="event.stopPropagation()">
+        <button class="btn btn-xs" onclick="openEditTranche('${tranche.id}')">✎</button>
+        <button class="btn btn-xs" onclick="openAddPhase('${tranche.id}')">+ Phase</button>
+        <button class="icon-btn del btn-xs" onclick="deleteTranche('${tranche.id}')">✕</button>
+      </div>
+    </div>
+    <div class="tranche-body" data-id="${tranche.id}" style="display:none">
+      <div class="phases-wrap">
+        ${phases.length ? phases.map(p => renderPhase(p)).join('') : '<div style="font-size:12px;color:var(--text3);padding:.5rem 0">Aucune phase — cliquez sur "+ Phase"</div>'}
+        <div class="add-phase-row">
+          <button class="btn btn-xs btn-ghost" onclick="openAddPhase('${tranche.id}')">+ Ajouter une phase</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderPhase(phase) {
+  const articles = state.articles.filter(a => a.phase_id === phase.id);
+  return `<div class="phase-bloc">
+    <div class="phase-head" data-id="${phase.id}" onclick="togglePhase('${phase.id}')">
+      <span class="phase-chevron" id="pchev-${phase.id}">▶</span>
+      ${phase.num ? `<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700">${esc(phase.num)}</span>` : ''}
+      <span class="phase-name">${esc(phase.nom)}</span>
+      <span style="font-size:10px;color:var(--text3)">${articles.length} article${articles.length!==1?'s':''}</span>
+      <div class="phase-actions" onclick="event.stopPropagation()">
+        <button class="icon-btn btn-xs" onclick="openEditPhase('${phase.id}')">✎</button>
+        <button class="icon-btn del btn-xs" onclick="deletePhase('${phase.id}')">✕</button>
+      </div>
+    </div>
+    <div class="phase-body" data-id="${phase.id}" style="display:none">
+      <div class="articles-wrap">
+        <table class="articles-table">
+          <thead><tr>
+            <th class="col-libelle">Libellé / BL</th>
+            <th class="col-op">Opération</th>
+            <th class="col-num">m²</th>
+            <th class="col-num">m³</th>
+            <th class="col-date">CTVX</th>
+            <th class="col-date">Sortie BE</th>
+            <th class="col-date">Sortie Prod</th>
+            <th class="col-num">Budget h</th>
+            <th class="col-av">Avancement</th>
+            <th class="col-statut">Statut</th>
+            <th class="col-del"></th>
+          </tr></thead>
+          <tbody id="art-body-${phase.id}">
+            ${articles.map(a => renderArticleRow(a)).join('')}
+          </tbody>
+        </table>
+        <div class="add-article-row">
+          <button onclick="addArticle('${phase.id}')">+ Ajouter un article</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderArticleRow(a) {
+  const av = +a.avancement || 0;
+  const avColor = av >= 100 ? 'var(--green)' : av > 0 ? 'var(--blue)' : 'var(--border2)';
+  const statuts = ['planifie','en_cours','termine','bloque','attente'];
+  const statutLabels = {'planifie':'Planifié','en_cours':'En cours','termine':'Terminé','bloque':'Bloqué','attente':'Attente'};
+  return `<tr id="art-row-${a.id}">
+    <td class="col-libelle"><input type="text" value="${esc(a.libelle||'')}" placeholder="Libellé…" onchange="updArt('${a.id}','libelle',this.value)"/></td>
+    <td class="col-op"><input type="text" value="${esc(a.operation||'')}" placeholder="Opération…" onchange="updArt('${a.id}','operation',this.value)"/></td>
+    <td class="col-num"><input type="number" value="${a.qte_m2||''}" placeholder="0" min="0" step="0.1" onchange="updArt('${a.id}','qte_m2',this.value)"/></td>
+    <td class="col-num"><input type="number" value="${a.qte_m3||''}" placeholder="0" min="0" step="0.01" onchange="updArt('${a.id}','qte_m3',this.value)"/></td>
+    <td class="col-date"><input type="date" value="${a.date_ctvx||''}" onchange="updArt('${a.id}','date_ctvx',this.value)"/></td>
+    <td class="col-date"><input type="date" value="${a.date_sortie_be||''}" onchange="updArt('${a.id}','date_sortie_be',this.value)"/></td>
+    <td class="col-date"><input type="date" value="${a.date_sortie_prod||''}" onchange="updArt('${a.id}','date_sortie_prod',this.value)"/></td>
+    <td class="col-num"><input type="number" value="${a.budget_heures||''}" placeholder="0" min="0" step="0.5" onchange="updArt('${a.id}','budget_heures',this.value)"/></td>
+    <td class="col-av">
+      <div class="av-wrap">
+        <div class="av-bar-bg"><div class="av-bar-fill" style="width:${Math.min(av,100)}%;background:${avColor}"></div></div>
+        <input type="number" value="${av}" min="0" max="100" style="width:38px;border:none;background:none;font-size:10px;font-family:'DM Mono',monospace;text-align:right;color:var(--text2);padding:0" onchange="updArt('${a.id}','avancement',this.value);rerenderAvBar(this,'${a.id}')"/>
+        <span style="font-size:10px;color:var(--text3)">%</span>
+      </div>
+    </td>
+    <td class="col-statut">
+      <select onchange="updArt('${a.id}','statut',this.value)">
+        ${statuts.map(s => `<option value="${s}"${a.statut===s?' selected':''}>${statutLabels[s]}</option>`).join('')}
+      </select>
+    </td>
+    <td class="col-del"><button class="icon-btn del" onclick="deleteArticle('${a.id}')">✕</button></td>
+  </tr>`;
+}
+
+function rerenderAvBar(input, artId) {
+  const av = Math.min(Math.max(0, +input.value || 0), 100);
+  const row = document.getElementById('art-row-' + artId);
+  if (!row) return;
+  const fill = row.querySelector('.av-bar-fill');
+  if (fill) {
+    const color = av >= 100 ? 'var(--green)' : av > 0 ? 'var(--blue)' : 'var(--border2)';
+    fill.style.width = av + '%';
+    fill.style.background = color;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TOGGLE
+// ═══════════════════════════════════════════════════════════════
+function toggleTranche(id) {
+  const body = document.querySelector('.tranche-body[data-id="' + id + '"]');
+  const head = document.querySelector('.tranche-head[data-id="' + id + '"]');
+  const chev = document.getElementById('tchev-' + id);
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  head?.classList.toggle('open', !open);
+  chev?.classList.toggle('open', !open);
+  localStorage.setItem('t_open_' + id, open ? '0' : '1');
+}
+
+function togglePhase(id) {
+  const body = document.querySelector('.phase-body[data-id="' + id + '"]');
+  const head = document.querySelector('.phase-head[data-id="' + id + '"]');
+  const chev = document.getElementById('pchev-' + id);
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  head?.classList.toggle('open', !open);
+  chev?.classList.toggle('open', !open);
+  localStorage.setItem('p_open_' + id, open ? '0' : '1');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CHANTIER CRUD
+// ═══════════════════════════════════════════════════════════════
+function openAddChantier() {
+  _modalCtx = {type: 'add'};
+  document.getElementById('modal-chantier-title').textContent = 'Nouveau chantier';
+  document.getElementById('f-chantier-nom').value = '';
+  document.getElementById('f-chantier-conduc').value = '';
+  document.getElementById('modal-chantier').style.display = 'flex';
+}
+
+function openEditChantier(id) {
+  const c = state.chantiers.find(x => x.id === id);
+  if (!c) return;
+  _modalCtx = {type: 'edit', id};
+  document.getElementById('modal-chantier-title').textContent = 'Modifier le chantier';
+  document.getElementById('f-chantier-nom').value = c.nom;
+  document.getElementById('f-chantier-conduc').value = c.conduc || '';
+  document.getElementById('modal-chantier').style.display = 'flex';
+}
+
+function saveChantier() {
+  const nom = document.getElementById('f-chantier-nom').value.trim();
+  const conduc = document.getElementById('f-chantier-conduc').value.trim();
+  if (!nom) return;
+  if (_modalCtx.type === 'add') {
+    const c = {id: uid(), nom, conduc};
+    state.chantiers.push(c);
+    currentChantierId = c.id;
+  } else {
+    const c = state.chantiers.find(x => x.id === _modalCtx.id);
+    if (c) { c.nom = nom; c.conduc = conduc; }
+  }
+  closeModal('modal-chantier');
+  scheduleSave();
+  renderSidebar();
+  renderMain();
+  toast('Chantier enregistré');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TRANCHE CRUD
+// ═══════════════════════════════════════════════════════════════
+function openAddTranche(chantierId) {
+  _modalCtx = {type: 'add', chantierId};
+  document.getElementById('modal-tranche-title').textContent = 'Nouvelle tranche';
+  document.getElementById('f-tranche-nom').value = '';
+  document.getElementById('f-tranche-conduc').value = '';
+  document.getElementById('modal-tranche').style.display = 'flex';
+}
+
+function openEditTranche(id) {
+  const t = state.tranches.find(x => x.id === id);
+  if (!t) return;
+  _modalCtx = {type: 'edit', id};
+  document.getElementById('modal-tranche-title').textContent = 'Modifier la tranche';
+  document.getElementById('f-tranche-nom').value = t.nom;
+  document.getElementById('f-tranche-conduc').value = t.conduc || '';
+  document.getElementById('modal-tranche').style.display = 'flex';
+}
+
+function saveTranche() {
+  const nom = document.getElementById('f-tranche-nom').value.trim();
+  const conduc = document.getElementById('f-tranche-conduc').value.trim();
+  if (!nom) return;
+  if (_modalCtx.type === 'add') {
+    state.tranches.push({id: uid(), chantier_id: _modalCtx.chantierId, nom, conduc});
+  } else {
+    const t = state.tranches.find(x => x.id === _modalCtx.id);
+    if (t) { t.nom = nom; t.conduc = conduc; }
+  }
+  closeModal('modal-tranche');
+  scheduleSave();
+  renderSidebar();
+  renderMain();
+  toast('Tranche enregistrée');
+}
+
+function deleteTranche(id) {
+  if (!confirm('Supprimer cette tranche et toutes ses phases/articles ?')) return;
+  const phases = state.phases.filter(p => p.tranche_id === id);
+  phases.forEach(p => { state.articles = state.articles.filter(a => a.phase_id !== p.id); });
+  state.phases = state.phases.filter(p => p.tranche_id !== id);
+  state.tranches = state.tranches.filter(t => t.id !== id);
+  scheduleSave();
+  renderSidebar();
+  renderMain();
+  toast('Tranche supprimée');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PHASE CRUD
+// ═══════════════════════════════════════════════════════════════
+function openAddPhase(trancheId) {
+  _modalCtx = {type: 'add', trancheId};
+  const existing = state.phases.filter(p => p.tranche_id === trancheId);
+  document.getElementById('f-phase-num').value = 'Ph' + String(existing.length + 1).padStart(2,'0');
+  document.getElementById('f-phase-nom').value = '';
+  document.getElementById('modal-phase').style.display = 'flex';
+}
+
+function openEditPhase(id) {
+  const p = state.phases.find(x => x.id === id);
+  if (!p) return;
+  _modalCtx = {type: 'edit', id};
+  document.getElementById('f-phase-num').value = p.num || '';
+  document.getElementById('f-phase-nom').value = p.nom;
+  document.getElementById('modal-phase').style.display = 'flex';
+}
+
+function savePhase() {
+  const num = document.getElementById('f-phase-num').value.trim();
+  const nom = document.getElementById('f-phase-nom').value.trim();
+  if (!nom) return;
+  if (_modalCtx.type === 'add') {
+    const phase = {id: uid(), tranche_id: _modalCtx.trancheId, num, nom};
+    state.phases.push(phase);
+  } else {
+    const p = state.phases.find(x => x.id === _modalCtx.id);
+    if (p) { p.num = num; p.nom = nom; }
+  }
+  closeModal('modal-phase');
+  scheduleSave();
+  renderMain();
+  toast('Phase enregistrée');
+}
+
+function deletePhase(id) {
+  if (!confirm('Supprimer cette phase et tous ses articles ?')) return;
+  state.articles = state.articles.filter(a => a.phase_id !== id);
+  state.phases = state.phases.filter(p => p.id !== id);
+  scheduleSave();
+  renderMain();
+  toast('Phase supprimée');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ARTICLE CRUD
+// ═══════════════════════════════════════════════════════════════
+function addArticle(phaseId) {
+  const art = {
+    id: uid(), phase_id: phaseId,
+    libelle: '', operation: '',
+    qte_m2: '', qte_m3: '',
+    date_ctvx: '', date_sortie_be: '', date_sortie_prod: '',
+    budget_heures: '', avancement: '0', statut: 'planifie'
+  };
+  state.articles.push(art);
+  // Ajouter la ligne directement sans re-render complet
+  const tbody = document.getElementById('art-body-' + phaseId);
+  if (tbody) {
+    tbody.insertAdjacentHTML('beforeend', renderArticleRow(art));
+    const inputs = tbody.querySelectorAll('input[type=text]');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }
+  scheduleSave();
+}
+
+function updArt(id, field, val) {
+  const art = state.articles.find(a => a.id === id);
+  if (art) { art[field] = val; scheduleSave(); }
+}
+
+function deleteArticle(id) {
+  state.articles = state.articles.filter(a => a.id !== id);
+  const row = document.getElementById('art-row-' + id);
+  if (row) row.remove();
+  scheduleSave();
+  toast('Article supprimé');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════════════
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// Fermer modals en cliquant dehors
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg) bg.style.display = 'none'; });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  START
+// ═══════════════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
