@@ -858,7 +858,10 @@ if (saved.gsUrl)      state.gsUrl      = saved.gsUrl;
 // ═══════════════════════════════════════════════════════════════
 //  DATE HELPERS
 // ═══════════════════════════════════════════════════════════════
-function today() { return new Date().toISOString().slice(0,10); }
+function today(){
+  const n=new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+}
 function dow(d) { const x=new Date(d).getDay(); return x===0?6:x-1; }
 function isOff(d, atId) {
 const off = state.joursOff[atId]||[];
@@ -1138,7 +1141,7 @@ const minD=new Date(Math.min(...timestamps));const maxD=new Date(Math.max(...tim
 minD.setDate(minD.getDate()-2);maxD.setDate(maxD.getDate()+5);
 const days=[];let cur=new Date(minD);
 while(cur<=maxD){
-const ds=cur.toISOString().slice(0,10);
+  const ds=`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
 const dow0=cur.getDay();const dIdx=dow0===0?6:dow0-1;
 days.push({date:ds,weekend:dIdx>=5,ferie:FERIES_FR.includes(ds),isToday:ds===today()});
 cur.setDate(cur.getDate()+1);
