@@ -1425,14 +1425,11 @@ keepGanttPos();scheduleSave(atId);render();
 }
 
 async function removeTranche(atId,idOrIdx){
-if(IS_READONLY)return;
-const idx=typeof idOrIdx==='number'?idOrIdx:state.tranches[atId].findIndex(t=>(t._dbId||t.id)==idOrIdx);
-if(idx<0)return;
-const t=state.tranches[atId][idx];
-if(t&&t._dbId)await deleteFromSupabase(t._dbId);
-state.tranches[atId].splice(idx,1);
-keepGanttPos();scheduleSave(atId);render();
-}
+  if(IS_READONLY)return;
+  const idx=typeof idOrIdx==='number'?idOrIdx:state.tranches[atId].findIndex(t=>(t._dbId||t.id)==idOrIdx);
+  if(idx<0)return;
+  const t=state.tranches[atId][idx];
+  if(!confirm(`Supprimer "${t.tranche}" ?`))return;
 
 function toggleFlag(atId,idx,flag){
 if(IS_READONLY)return;
