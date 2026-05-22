@@ -1428,7 +1428,7 @@ async function removeTranche(atId,idOrIdx){
   const idx=typeof idOrIdx==='number'?idOrIdx:state.tranches[atId].findIndex(t=>(t._dbId||t.id)==idOrIdx);
   if(idx<0)return;
   const t=state.tranches[atId][idx];
-  if(!confirm(`Supprimer "${t.tranche}" ?`))return;
+   if(!confirm(`Supprimer "${t.tranche}" ?`))return;
   if(t&&t._dbId)await deleteFromSupabase(t._dbId);
   state.tranches[atId].splice(idx,1);
   keepGanttPos();scheduleSave(atId);render();
