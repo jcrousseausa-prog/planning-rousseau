@@ -598,19 +598,7 @@ async function initApp() {
     state.tranches = tranches;
     const total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
     setConnBar('connected', 'Google Sheets — ' + total + ' tranches');
-   // Charger fermetures + joursOff depuis Apps Script
-    try {
-      const rc = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: {'Content-Type': 'text/plain'},
-        body: JSON.stringify({action: 'getCalendrier'})
-      });
-      const cal = await rc.json();
-      if (cal.ok && cal.data) {
-        if (cal.data.fermetures?.length) state.fermetures = cal.data.fermetures;
-        if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
-      }
-    } catch(ce) { console.warn('Calendrier non chargé:', ce.message); }
+  
     // Charger fermetures + joursOff depuis Apps Script
     try {
       const rc = await fetch(APPS_SCRIPT_URL, {
@@ -637,6 +625,21 @@ async function initSupabase() { initApp(); }
 
 async function loadFromSupabase() {
 try {
+  // Charger fermetures + joursOff depuis Apps Script
+    if (!state.fermetures.length) {
+      try {
+        const rc = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain'},
+          body: JSON.stringify({action: 'getCalendrier'})
+        });
+        const cal = await rc.json();
+        if (cal.ok && cal.data) {
+          if (cal.data.fermetures?.length) state.fermetures = cal.data.fermetures;
+          if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
+        }
+      } catch(ce) { console.warn('Calendrier non chargé:', ce.message); }
+    }
 // Charger calendrier
 const configs = await sbSelect('calendrier_config');
 if (configs && configs.length) {
@@ -760,7 +763,7 @@ try { await sbDelete('tranches', dbId); } catch(e) { console.warn('Delete error:
 // Debounce : attend 800ms d'inactivité avant de sauvegarder
 function scheduleSave(atId) {
 if (_saveTimeout) clearTimeout(_saveTimeout);
-_saveTimeout = setTimeout(() => saveToSheets(atId), 800);
+_saveTimeout = setTimeout(() => saveToSheets(atId), 2000);
 }
 
 // ═══════════════════════════════════════════════════════════════
