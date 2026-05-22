@@ -23,7 +23,10 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:.
 .logo{font-size:16px;font-weight:600;letter-spacing:-.02em}
 .logo em{color:var(--text3);font-style:normal;font-weight:400}
 .header-right{display:flex;gap:8px;margin-left:auto;align-items:center;flex-wrap:wrap}
-.sync-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+.rt-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.rt-label{font-size:11px;color:var(--green);font-weight:500}
+.sync-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);transition:all .3s}
 .sync-pill.saving{background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)}
 .sync-pill.error{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
 .sync-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
@@ -33,6 +36,8 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:.
 .app-tab{padding:10px 15px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s}
 .app-tab:hover{color:var(--text)}
 .app-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.notif-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red);margin-left:4px;vertical-align:middle}
+.new-badge{display:inline-block;background:var(--green);color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle;text-transform:uppercase;letter-spacing:.04em}
 main{padding:16px 20px;max-width:1600px;margin:0 auto}
 .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px}
 .metric{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
@@ -44,31 +49,32 @@ main{padding:16px 20px;max-width:1600px;margin:0 auto}
 .search-wrap{position:relative;flex:1;max-width:320px}
 .search-wrap input{width:100%;padding:7px 10px 7px 32px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)}
 .search-wrap input:focus{outline:none;border-color:var(--blue)}
-.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px;pointer-events:none}
 .btn{padding:7px 13px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px;font-weight:500;transition:background .15s;white-space:nowrap}
 .btn:hover{background:var(--bg)}
 .btn-primary{background:var(--blue);color:#fff;border-color:var(--blue)}.btn-primary:hover{background:#153f6e}
 .btn-green{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
 .btn-orange{background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)}
 .btn-red{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.btn-purple{background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)}
 .btn-sm{padding:3px 9px;font-size:11px;border-radius:6px}
 .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;overflow-x:auto}
 table{width:100%;border-collapse:collapse;min-width:980px}
 th{background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
 td{padding:7px 11px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:13px}
 tr:last-child td{border-bottom:none}
-.row-chantier td{background:#EAF1FB;font-weight:600;font-size:13px}
+.row-chantier td{background:#EAF1FB;font-weight:600}
 .row-chantier:hover td{background:#DDEAF8;cursor:pointer}
-.row-tranche td{background:var(--surface2);padding-left:28px!important}
+.row-tranche td{background:var(--surface2);padding-left:26px!important}
 .row-tranche:hover td{background:#F0EFE8;cursor:pointer}
-.row-phase td{background:var(--surface);padding-left:44px!important;font-size:12px}
+.row-phase td{background:var(--surface);padding-left:42px!important;font-size:12px}
 .row-phase:hover td{background:#F5F4F0;cursor:pointer}
-.row-article td{background:#FAFAF8;padding-left:60px!important;font-size:12px;color:var(--text2)}
+.row-article td{background:#FAFAF8;padding-left:58px!important;font-size:12px;color:var(--text2)}
 .row-article:hover td{background:#F0EFE8}
-.row-add td{background:#F9F9F7;padding-left:60px!important}
-.row-add-phase td{background:#F5F4F0;padding-left:44px!important}
-.row-add-tranche td{background:#EAF1FB;padding-left:28px!important}
-.chevron{display:inline-block;font-size:9px;color:var(--text3);margin-right:5px;transition:transform .18s;cursor:pointer;user-select:none}
+.row-add td{background:#F8F8F5;padding-left:58px!important;border-bottom:1px solid var(--border)}
+.row-add-ph td{background:#F4F4F2;padding-left:42px!important;border-bottom:1px solid var(--border)}
+.row-add-tr td{background:#EEF3FB;padding-left:26px!important;border-bottom:1px solid var(--border)}
+.chevron{display:inline-block;font-size:9px;color:var(--text3);margin-right:5px;transition:transform .18s;user-select:none}
 .chevron.open{transform:rotate(90deg)}
 .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;white-space:nowrap;gap:3px}
 .badge-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
@@ -77,28 +83,57 @@ tr:last-child td{border-bottom:none}
 .badge-blue{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border)}
 .badge-purple{background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple-border)}
 .badge-gray{background:var(--bg);color:var(--text2);border:1px solid var(--border)}
+.badge-teal{background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-border)}
 .prog{display:flex;align-items:center;gap:6px;min-width:80px}
-.prog-bar{flex:1;height:5px;border-radius:3px;background:var(--bg);overflow:hidden;min-width:40px}
+.prog-bar{flex:1;height:5px;border-radius:3px;background:var(--border);overflow:hidden;min-width:36px}
 .prog-fill{height:100%;border-radius:3px;transition:width .3s}
-.prog-blue{background:#1A4F8A}.prog-green{background:#1A6640}.prog-orange{background:#B85C0A}
+.prog-blue{background:var(--blue)}.prog-green{background:var(--green)}.prog-orange{background:var(--orange)}
 .prog-label{font-size:11px;font-family:'DM Mono',monospace;color:var(--text2);min-width:28px}
 .dp{font-size:10px;padding:2px 7px;border-radius:5px;font-family:'DM Mono',monospace;font-weight:500;white-space:nowrap}
 .dp-orange{background:var(--orange-bg);color:var(--orange)}
 .dp-blue{background:var(--blue-bg);color:var(--blue)}
 .dp-green{background:var(--green-bg);color:var(--green)}
 .dp-red{background:var(--red-bg);color:var(--red)}
-.screen{display:none}.screen.active{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.screen.active{animation:fadeIn .18s ease}
-.inline-edit{border:1px solid transparent;border-radius:4px;padding:2px 5px;font-family:inherit;font-size:12px;background:transparent;color:var(--text);width:100%;min-width:60px}
-.inline-edit:hover{border-color:var(--border)}
-.inline-edit:focus{outline:none;border-color:var(--blue);background:var(--blue-bg)}
-.inline-select{border:1px solid transparent;border-radius:4px;padding:2px 4px;font-family:inherit;font-size:11px;background:transparent;cursor:pointer}
-.inline-select:hover{border-color:var(--border)}
-.inline-select:focus{outline:none;border-color:var(--blue)}
+.dp-purple{background:var(--purple-bg);color:var(--purple)}
+.emp{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--purple-bg);color:var(--purple);font-weight:700;font-family:'DM Mono',monospace;border:1px solid var(--purple-border)}
+/* CDE */
+.cde-list{display:flex;flex-direction:column;gap:8px}
+.cde-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.cde-header{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer}
+.cde-header:hover{background:var(--surface2)}
+.cde-body{border-top:1px solid var(--border);padding:12px 14px;background:var(--surface2)}
+.cde-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.cde-meta .k{color:var(--text3);display:block;margin-bottom:2px;font-size:10px}
+.cde-meta .v{font-weight:600;color:var(--text);font-size:12px}
+.lignes-table{width:100%;border-collapse:collapse;font-size:12px}
+.lignes-table th{background:var(--bg);padding:5px 8px;text-align:left;border-bottom:1px solid var(--border);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text2)}
+.lignes-table td{padding:5px 8px;border-bottom:1px solid var(--border)}
+.lignes-table tr:last-child td{border-bottom:none}
+.lignes-table td.r{text-align:right;font-family:'DM Mono',monospace}
+.ecart-bad{color:var(--red);font-weight:600}.ecart-ok{color:var(--green);font-weight:600}
+/* STOCK */
+.stock-table{width:100%;border-collapse:collapse}
+.stock-table th{background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.stock-table td{padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+.stock-table tr:last-child td{border-bottom:none}
+.stock-table tr:hover td{background:#FAFAF8}
+.stock-table tr.sorti td{opacity:.45}
+/* BL */
+.bl-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px}
+.bl-header{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer}
+.bl-header:hover{background:var(--surface2)}
+.bl-body{border-top:1px solid var(--border);padding:14px;background:var(--surface2)}
+/* CHARGE */
+.charge-block{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px}
+.charge-head{padding:10px 14px;color:#fff;font-weight:600;font-size:13px;display:flex;align-items:center;gap:10px}
+.charge-week-title{padding:5px 14px;background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);border-bottom:1px solid var(--border)}
+.charge-line{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border)}
+.charge-line:last-child{border-bottom:none}
+.charge-line:hover{background:var(--bg)}
+/* MODAL */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:center;justify-content:center;padding:16px}
 .modal-bg.show{display:flex}
-.modal{background:var(--surface);border-radius:14px;padding:20px;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.18)}
+.modal{background:var(--surface);border-radius:14px;padding:20px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.18)}
 .modal h2{font-size:15px;font-weight:600;margin-bottom:14px}
 .modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 .field{margin-bottom:12px}
@@ -106,15 +141,41 @@ tr:last-child td{border-bottom:none}
 .field input,.field select,.field textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)}
 .field input:focus,.field select:focus{outline:none;border-color:var(--blue)}
 .field-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.info-box{background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--blue);margin-bottom:10px}
+.warn-box{background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--orange);margin-bottom:10px}
+/* BL PRINT */
+.bl-print-wrap{background:#fff;border:1px solid var(--border);border-radius:8px;padding:16px;font-size:12px}
+.bl-print-title{text-align:center;font-size:15px;font-weight:700;border:1px solid #888;padding:4px;margin-bottom:10px;letter-spacing:.1em}
+.bl-print-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.bl-print-box{border:1px solid #888;padding:7px;font-size:11px;line-height:1.5;border-radius:3px}
+.bl-print-box strong{display:block;margin-bottom:3px;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+table.bl-lignes{width:100%;border-collapse:collapse;font-size:11px}
+table.bl-lignes th{background:#f0f0f0;padding:4px 7px;border:1px solid #888;text-align:left;font-size:10px;text-transform:uppercase}
+table.bl-lignes td{padding:4px 7px;border:1px solid #ccc;min-height:20px}
+table.bl-lignes td.r{text-align:right}
+.bl-sigs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.bl-sig-box{border:1px solid #888;border-radius:3px;padding:7px;min-height:55px;font-size:10px;font-weight:700}
+.screen{display:none}.screen.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.screen.active{animation:fadeIn .18s ease}
 #toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--text);color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:500;z-index:999;opacity:0;transform:translateY(10px);transition:all .25s;pointer-events:none}
 #toast.show{opacity:1;transform:translateY(0)}
+.toggle-check{appearance:none;width:16px;height:16px;border:1.5px solid var(--border2);border-radius:4px;cursor:pointer;position:relative;background:var(--surface);flex-shrink:0}
+.toggle-check:checked{background:var(--green);border-color:var(--green)}
+.toggle-check:checked::after{content:'✓';position:absolute;top:-1px;left:2px;font-size:11px;color:#fff;font-weight:700}
+@media print{
+  header,.app-tabs,.toolbar,#bl-actions{display:none!important}
+  body{background:#fff}
+}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">ERP Rousseau <em>/ Tableau de Pilotage</em></div>
+  <div class="logo">ERP Rousseau <em>/ Production</em></div>
   <div class="header-right">
+    <div class="rt-dot"></div><span class="rt-label" id="rt-label">Prêt</span>
     <a href="index.html" style="font-size:12px;color:var(--text2);text-decoration:none;border:1px solid var(--border);padding:4px 10px;border-radius:7px">← Planning</a>
     <span class="sync-pill" id="sync-pill" style="display:none">
       <span class="sync-dot"></span>
@@ -125,6 +186,9 @@ tr:last-child td{border-bottom:none}
 
 <div class="app-tabs">
   <button class="app-tab active" id="tab-planning" onclick="showScreen('planning')">Planning production</button>
+  <button class="app-tab" id="tab-achats" onclick="showScreen('achats')">Commandes fournisseurs<span class="notif-dot"></span></button>
+  <button class="app-tab" id="tab-stock" onclick="showScreen('stock')">Stock<span class="new-badge">NEW</span></button>
+  <button class="app-tab" id="tab-bl" onclick="showScreen('bl')">Bons de livraison<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-charge" onclick="showScreen('charge')">Charge équipes</button>
 </div>
 
@@ -140,6 +204,7 @@ tr:last-child td{border-bottom:none}
     </div>
     <button class="btn" onclick="toggleAll(true)">Tout déplier</button>
     <button class="btn" onclick="toggleAll(false)">Tout replier</button>
+    <button class="btn btn-orange" onclick="syncCTVX()" title="Synchroniser les dates CTVX depuis l'onglet DATES du fichier pilote">⇅ Sync CTVX</button>
     <button class="btn btn-primary" onclick="openAddChantier()">+ Chantier</button>
   </div>
   <div class="table-wrap">
@@ -148,26 +213,72 @@ tr:last-child td{border-bottom:none}
         <th style="width:20px"></th>
         <th>Chantier / Tranche / Phase / Article</th>
         <th>Opération</th>
-        <th style="width:80px">m²</th>
-        <th style="width:80px">m³</th>
-        <th style="width:100px">CTVX</th>
-        <th style="width:100px">Sortie BE</th>
-        <th style="width:100px">Sortie Prod</th>
-        <th style="width:80px">Budget h</th>
+        <th style="width:72px">m²</th>
+        <th style="width:72px">m³</th>
+        <th style="width:98px">CTVX</th>
+        <th style="width:98px">Sortie BE</th>
+        <th style="width:98px">Sortie Prod</th>
+        <th style="width:72px">Budget h</th>
         <th style="width:100px">Avancement</th>
-        <th style="width:95px">Statut</th>
-        <th style="width:60px"></th>
+        <th style="width:90px">Statut</th>
+        <th style="width:68px"></th>
       </tr></thead>
       <tbody id="planning-tbody"></tbody>
     </table>
   </div>
 </div>
 
+<!-- ══ ACHATS ══ -->
+<div class="screen" id="screen-achats">
+  <div class="metrics" id="achats-metrics"></div>
+  <div class="toolbar">
+    <select class="btn" id="fil-cde-statut" onchange="renderCdes()"><option value="">Tous statuts</option><option>Brouillon</option><option>Validée</option><option>Envoyée</option><option>Réception partielle</option><option>Reçue</option><option>Litige</option></select>
+    <button class="btn btn-primary" style="margin-left:auto" onclick="openModal('add-cde')">+ Commande</button>
+  </div>
+  <div class="cde-list" id="cde-list"></div>
+</div>
+
+<!-- ══ STOCK ══ -->
+<div class="screen" id="screen-stock">
+  <div class="metrics" id="stock-metrics"></div>
+  <div class="toolbar">
+    <select class="btn" id="stock-fil-statut" onchange="renderStock()"><option value="">Tous statuts</option><option value="en_stock">En stock</option><option value="sorti">Sorti</option><option value="reserve">Réservé</option></select>
+    <select class="btn" id="stock-fil-type" onchange="renderStock()"><option value="">MP + PF</option><option value="PF">Produits finis</option><option value="MP">Matières premières</option></select>
+    <button class="btn btn-primary" style="margin-left:auto" onclick="openModal('add-stock')">+ Entrée stock</button>
+  </div>
+  <div class="table-wrap">
+    <table class="stock-table">
+      <thead><tr>
+        <th>Emplacement</th><th>Désignation</th><th>Chantier / Tranche</th>
+        <th>Type</th><th>Quantité</th><th>Statut</th><th>Entré le</th><th>Sorti le / BL</th><th></th>
+      </tr></thead>
+      <tbody id="stock-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ BONS DE LIVRAISON ══ -->
+<div class="screen" id="screen-bl">
+  <div class="metrics" id="bl-metrics"></div>
+  <div class="toolbar">
+    <select class="btn"><option>Tous statuts</option><option>Brouillon</option><option>Validé</option></select>
+    <button class="btn btn-primary" style="margin-left:auto" onclick="openGenBL()">+ Générer un BL</button>
+  </div>
+  <div id="bl-list"></div>
+</div>
+
 <!-- ══ CHARGE ══ -->
 <div class="screen" id="screen-charge">
-  <div style="padding:2rem;text-align:center;color:var(--text3)">
-    La vue Charge équipes sera connectée au Planning Production.<br>
-    <a href="index.html" style="color:var(--blue);font-weight:500">← Voir la Charge dans le Planning Production</a>
+  <div class="toolbar">
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Du</label>
+    <input type="date" id="charge-debut" style="padding:6px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px" onchange="renderCharge()"/>
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">pendant</label>
+    <select id="charge-sem" style="padding:6px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px" onchange="renderCharge()">
+      <option value="2">2 semaines</option><option value="4">4 semaines</option><option value="6">6 semaines</option>
+    </select>
+  </div>
+  <div id="charge-list" style="margin-top:12px">
+    <div class="info-box">La charge équipes est liée au Planning Production (index.html). Les tranches actives y sont planifiées par atelier.</div>
   </div>
 </div>
 
@@ -175,1029 +286,1234 @@ tr:last-child td{border-bottom:none}
 
 <div id="toast"></div>
 
+<!-- MODAL GÉNÉRIQUE -->
+<div class="modal-bg" id="modal" onclick="if(event.target===this)closeModal('modal')">
+  <div class="modal"><h2 id="modal-title"></h2><div id="modal-body"></div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('modal')">Annuler</button><button class="btn btn-primary" onclick="saveGenericModal()">Enregistrer</button></div>
+  </div>
+</div>
+
 <!-- MODAL CHANTIER -->
-<div class="modal-bg" id="modal-chantier" onclick="if(event.target===this)closeModal('modal-chantier')">
+<div class="modal-bg" id="modal-ch" onclick="if(event.target===this)closeModal('modal-ch')">
   <div class="modal">
     <h2 id="mc-title">Nouveau chantier</h2>
     <div class="field"><label>Nom du chantier</label><input type="text" id="mc-nom" placeholder="Ex: HAUTE GOURNIERE"/></div>
     <div class="field"><label>Conducteur</label><input type="text" id="mc-conduc" placeholder="Ex: CG"/></div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-chantier')">Annuler</button>
+      <button class="btn" onclick="closeModal('modal-ch')">Annuler</button>
       <button class="btn btn-primary" onclick="saveChantier()">Enregistrer</button>
     </div>
   </div>
 </div>
 
 <!-- MODAL TRANCHE -->
-<div class="modal-bg" id="modal-tranche" onclick="if(event.target===this)closeModal('modal-tranche')">
+<div class="modal-bg" id="modal-tr" onclick="if(event.target===this)closeModal('modal-tr')">
   <div class="modal">
     <h2 id="mt-title">Nouvelle tranche</h2>
     <div class="field"><label>Nom de la tranche</label><input type="text" id="mt-nom" placeholder="Ex: ORIG FOB EXT R+4"/></div>
     <div class="field"><label>Conducteur / BE</label><input type="text" id="mt-conduc" placeholder="Ex: CG"/></div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-tranche')">Annuler</button>
+      <button class="btn" onclick="closeModal('modal-tr')">Annuler</button>
       <button class="btn btn-primary" onclick="saveTranche()">Enregistrer</button>
     </div>
   </div>
 </div>
 
 <!-- MODAL PHASE -->
-<div class="modal-bg" id="modal-phase" onclick="if(event.target===this)closeModal('modal-phase')">
+<div class="modal-bg" id="modal-ph" onclick="if(event.target===this)closeModal('modal-ph')">
   <div class="modal">
-    <h2>Phase</h2>
+    <h2 id="mph-title">Phase</h2>
     <div class="field-2">
-      <div class="field"><label>Numéro</label><input type="text" id="mp-num" placeholder="Ph01"/></div>
-      <div class="field"><label>Nom</label><input type="text" id="mp-nom" placeholder="Murs, Charpente…"/></div>
+      <div class="field"><label>Numéro</label><input type="text" id="mph-num" placeholder="Ph01"/></div>
+      <div class="field"><label>Nom</label><input type="text" id="mph-nom" placeholder="Murs, Charpente…"/></div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-phase')">Annuler</button>
+      <button class="btn" onclick="closeModal('modal-ph')">Annuler</button>
       <button class="btn btn-primary" onclick="savePhase()">Enregistrer</button>
     </div>
   </div>
 </div>
 
 <!-- MODAL ARTICLE -->
-<div class="modal-bg" id="modal-article" onclick="if(event.target===this)closeModal('modal-article')">
+<div class="modal-bg" id="modal-art" onclick="if(event.target===this)closeModal('modal-art')">
   <div class="modal">
-    <h2 id="ma-title">Article</h2>
-    <div class="field"><label>Libellé / BL</label><input type="text" id="ma-libelle" placeholder="Ex: 1 rack MOB 1 à 4"/></div>
-    <div class="field"><label>Opération</label><input type="text" id="ma-operation" placeholder="Ex: Taille des MOB (trait. cl.2)"/></div>
+    <h2 id="mart-title">Article</h2>
+    <div class="field"><label>Libellé / BL</label><input type="text" id="mart-lib" placeholder="Ex: 1 rack MOB 1 à 4"/></div>
+    <div class="field"><label>Opération</label><input type="text" id="mart-op" placeholder="Ex: Taille des MOB (trait. cl.2)"/></div>
     <div class="field-2">
-      <div class="field"><label>Quantité m²</label><input type="number" id="ma-m2" step="0.01" min="0" placeholder="0"/></div>
-      <div class="field"><label>Quantité m³</label><input type="number" id="ma-m3" step="0.001" min="0" placeholder="0"/></div>
+      <div class="field"><label>m²</label><input type="number" id="mart-m2" step="0.01" min="0"/></div>
+      <div class="field"><label>m³</label><input type="number" id="mart-m3" step="0.001" min="0"/></div>
     </div>
     <div class="field-2">
-      <div class="field"><label>Date CTVX</label><input type="date" id="ma-ctvx"/></div>
-      <div class="field"><label>Sortie BE</label><input type="date" id="ma-sbe"/></div>
+      <div class="field"><label>Date CTVX</label><input type="date" id="mart-ctvx"/></div>
+      <div class="field"><label>Sortie BE</label><input type="date" id="mart-sbe"/></div>
     </div>
     <div class="field-2">
-      <div class="field"><label>Sortie Prod</label><input type="date" id="ma-sprod"/></div>
-      <div class="field"><label>Budget heures</label><input type="number" id="ma-bh" step="0.5" min="0" placeholder="0"/></div>
+      <div class="field"><label>Sortie Prod</label><input type="date" id="mart-sprod"/></div>
+      <div class="field"><label>Budget heures</label><input type="number" id="mart-bh" step="0.5" min="0"/></div>
     </div>
     <div class="field-2">
-      <div class="field"><label>Avancement %</label><input type="number" id="ma-av" min="0" max="100" value="0"/></div>
+      <div class="field"><label>Avancement %</label><input type="number" id="mart-av" min="0" max="100" value="0"/></div>
       <div class="field"><label>Statut</label>
-        <select id="ma-statut">
-          <option value="planifie">Planifié</option>
-          <option value="en_cours">En cours</option>
-          <option value="termine">Terminé</option>
-          <option value="bloque">Bloqué</option>
-          <option value="attente">Attente</option>
+        <select id="mart-statut">
+          <option value="planifie">Planifié</option><option value="en_cours">En cours</option>
+          <option value="termine">Terminé</option><option value="bloque">Bloqué</option>
+          <option value="attente">Attente BE</option>
         </select>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-article')">Annuler</button>
+      <button class="btn" onclick="closeModal('modal-art')">Annuler</button>
       <button class="btn btn-primary" onclick="saveArticle()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RÉCEPTION -->
+<div class="modal-bg" id="recv-modal" onclick="if(event.target===this)closeRecv()">
+  <div class="modal"><h2>Réception — pointage BL fournisseur</h2><div id="recv-body"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeRecv()">Annuler</button>
+      <button class="btn btn-orange" onclick="closeRecv()">Émettre réserve</button>
+      <button class="btn btn-green" onclick="closeRecv()">Valider réception</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GÉNÉRATION BL -->
+<div class="modal-bg" id="gen-bl-modal" onclick="if(event.target===this)closeGenBL()">
+  <div class="modal" style="width:600px">
+    <h2>Générer un bon de livraison</h2>
+    <div id="gen-bl-body"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeGenBL()">Annuler</button>
+      <button class="btn btn-primary" onclick="confirmGenBL()">Créer le BL (brouillon)</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL IMPRESSION BL -->
+<div class="modal-bg" id="print-bl-modal" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="modal" style="width:640px;max-width:98vw">
+    <h2 id="print-bl-title">Bon de livraison</h2>
+    <div id="print-bl-body"></div>
+    <div class="modal-footer" id="bl-actions">
+      <button class="btn" onclick="document.getElementById('print-bl-modal').classList.remove('show')">Fermer</button>
+      <button class="btn btn-orange" onclick="validateBL()">Valider + marquer sorti</button>
+      <button class="btn btn-primary" onclick="window.print()">🖨 Imprimer / PDF</button>
     </div>
   </div>
 </div>
 
 <script>
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzBtgzwODBl1DWD4iev3QU3ABirEptVX5E0wVrqWEU3Jq_gdsjERzBoIhBRVluX41c/exec';
-
-// ═══ STATE ═══════════════════════════════════════════════════════════════
-let state = {
-  chantiers: [],  // {id, nom, conduc, open}
-  tranches:  [],  // {id, cid, nom, conduc, open, budget, passe, pct}
-  phases:    [],  // {id, tid, num, nom, open, budget, passe, pct}
-  articles:  [],  // {id, pid, libelle, operation, qte_m2, qte_m3, date_ctvx, date_sortie_be, date_sortie_prod, budget_heures, avancement, statut}
-};
-let _modalCtx = {};
-let _search = '';
-let _saveTimeout = null;
-
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
+const DATES_CSV_URL = 'https://docs.google.com/spreadsheets/d/1HdbsNfFae6GYzNDxUGLbzHZ6cxg5GXVb1jAIss7y-JE/pub?gid=0&single=true&output=csv';
 
 // ═══ INIT DATA ═══════════════════════════════════════════════════════════
-const INIT_PLANNING = [
-    {type:"chantier",id:"c001",nom:"ORIGINALE (Halles Mans)",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1000",cid:"c001",nom:"ORIG FOB EXT R+4",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1001",cid:"c001",nom:"ORIG FOB EXT R+5",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1002",cid:"c001",nom:"ORIG FOB EXT R+6",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1003",cid:"c001",nom:"ORIG FOB EXT R+7",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1004",cid:"c001",nom:"ORIG FOB EXT R+8",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c002",nom:"H44 COUFFE",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1005",cid:"c002",nom:"Bloc H44 COUFFE",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c003",nom:"POD JALLAIS",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1006",cid:"c003",nom:"BLOC POD JALLAIS",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c004",nom:"POD MARCE",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1007",cid:"c004",nom:"BLOC POD MARCE",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c005",nom:"ENJOY",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1008",cid:"c005",nom:"ENJOY local vélo",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1009",cid:"c005",nom:"ENJOY A1 - balcon structure équipée + caisson terrasse",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1010",cid:"c005",nom:"ENJOY A1 - envoi traitement bois balcon",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1011",cid:"c005",nom:"ENJOY A2 - balcon structure équipée + caisson terrasse",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c006",nom:"BLoc",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1012",cid:"c006",nom:"Bloc - Vay",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1013",cid:"c006",nom:"Bloc - Chateaubriant A",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1014",cid:"c006",nom:"Bloc - Chateaubriant B",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1015",cid:"c006",nom:"Bloc - Chateaubriant C",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1016",cid:"c006",nom:"Bloc - Chateaubriant D",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c007",nom:"BLOCS",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1017",cid:"c007",nom:"Bloc-NOVALLIANCE-FOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1018",cid:"c007",nom:"BLoc -HAUTE GOURNIERE-MOB 1/4",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1019",cid:"c007",nom:"BLoc -HAUTE GOURNIERE-MOB 2/4",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1020",cid:"c007",nom:"BLoc -HAUTE GOURNIERE-MOB 3/4",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1021",cid:"c007",nom:"BLoc -HAUTE GOURNIERE-MOB 4/4",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1022",cid:"c007",nom:"Bloc - Epona- MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1023",cid:"c007",nom:"Bloc - Verdania - MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1024",cid:"c007",nom:"Bloc - GUYNEMER - MOB 1/3",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1025",cid:"c007",nom:"Bloc - GUYNEMER - MOB 2/3",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1026",cid:"c007",nom:"Bloc - GUYNEMER - MOB 3/3",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1027",cid:"c007",nom:"BLoc - PODELIHA SAINT ETIENNE DU BOIS - MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1028",cid:"c007",nom:"BLoc - SALLE LINO VENTURA - MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1029",cid:"c007",nom:"Bloc - HYROME - MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1030",cid:"c007",nom:"BLoc - Bel VIA - MOB - 1/5",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1031",cid:"c007",nom:"BLoc - Bel VIA - MOB - 2/5",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1032",cid:"c007",nom:"BLoc - Bel VIA - MOB - 3/5",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1033",cid:"c007",nom:"BLoc - Bel VIA - MOB - 4/5",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1034",cid:"c007",nom:"BLoc - Bel VIA - MOB - 5/5",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c008",nom:"HAUTE GOURNIERE",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1035",cid:"c008",nom:"1 - HAUTE GOURNIERE - TZ - INSTALLATION CHANTIER",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1036",cid:"c008",nom:"2 - HAUTE GOURNIERE - A - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1037",cid:"c008",nom:"3 - HAUTE GOURNIERE - B - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1038",cid:"c008",nom:"4 - HAUTE GOURNIERE - C - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1039",cid:"c008",nom:"5 - HAUTE GOURNIERE - C - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1040",cid:"c008",nom:"6 - HAUTE GOURNIERE - C - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1041",cid:"c008",nom:"7 - HAUTE GOURNIERE - C - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1042",cid:"c008",nom:"8 - HAUTE GOURNIERE - C - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1043",cid:"c008",nom:"9 - HAUTE GOURNIERE - C - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1044",cid:"c008",nom:"10 - HAUTE GOURNIERE - C - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1045",cid:"c008",nom:"11 - HAUTE GOURNIERE - C - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1046",cid:"c008",nom:"12 - HAUTE GOURNIERE - C - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1047",cid:"c008",nom:"13 - HAUTE GOURNIERE - C - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1048",cid:"c008",nom:"14 - HAUTE GOURNIERE - C - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1049",cid:"c008",nom:"15 - HAUTE GOURNIERE - E 1&2 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1050",cid:"c008",nom:"16 - HAUTE GOURNIERE - E 3&4 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1051",cid:"c008",nom:"17 - HAUTE GOURNIERE - E 3&4 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1052",cid:"c008",nom:"18 - HAUTE GOURNIERE - E 3&4 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1053",cid:"c008",nom:"19 - HAUTE GOURNIERE - E 3&4 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1054",cid:"c008",nom:"20 - HAUTE GOURNIERE - E 3&4 - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1055",cid:"c008",nom:"21 - HAUTE GOURNIERE - E 3&4 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1056",cid:"c008",nom:"22 - HAUTE GOURNIERE - E 3&4 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1057",cid:"c008",nom:"23 - HAUTE GOURNIERE - E 3&4 - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1058",cid:"c008",nom:"24 - HAUTE GOURNIERE - E 3&4 - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1059",cid:"c008",nom:"25 - HAUTE GOURNIERE - E 3&4 - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1060",cid:"c008",nom:"26 - HAUTE GOURNIERE - E 3&4 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1061",cid:"c008",nom:"27 - HAUTE GOURNIERE - E 7, 8 & 9 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1062",cid:"c008",nom:"28 - HAUTE GOURNIERE - E 5&6 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1063",cid:"c008",nom:"29 - HAUTE GOURNIERE - E 5&6 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1064",cid:"c008",nom:"30 - HAUTE GOURNIERE - E 5&6 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1065",cid:"c008",nom:"31 - HAUTE GOURNIERE - E 5&6 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1066",cid:"c008",nom:"32 - HAUTE GOURNIERE - E 5&6 - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1067",cid:"c008",nom:"33 - HAUTE GOURNIERE - E 5&6 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1068",cid:"c008",nom:"34 - HAUTE GOURNIERE - E 5&6 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1069",cid:"c008",nom:"35 - HAUTE GOURNIERE - E 5&6 - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1070",cid:"c008",nom:"36 - HAUTE GOURNIERE - E 5&6 - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1071",cid:"c008",nom:"37 - HAUTE GOURNIERE - E 5&6 - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1072",cid:"c008",nom:"38 - HAUTE GOURNIERE - E LV - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1073",cid:"c008",nom:"39 - HAUTE GOURNIERE - E LV - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1074",cid:"c008",nom:"40 - HAUTE GOURNIERE - E LV - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1075",cid:"c008",nom:"41 - HAUTE GOURNIERE - E LV - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1076",cid:"c008",nom:"42 - HAUTE GOURNIERE - D 1à8 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1077",cid:"c008",nom:"43 - HAUTE GOURNIERE - D 1à8 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1078",cid:"c008",nom:"44 - HAUTE GOURNIERE - D 1à8 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1079",cid:"c008",nom:"45 - HAUTE GOURNIERE - D 1à8 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1080",cid:"c008",nom:"46 - HAUTE GOURNIERE - D 1à8 - CAISSONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1081",cid:"c008",nom:"47 - HAUTE GOURNIERE - D 1à8 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1082",cid:"c008",nom:"48 - HAUTE GOURNIERE - D 1à8 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1083",cid:"c008",nom:"49 - HAUTE GOURNIERE - D 1à8 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1084",cid:"c008",nom:"50 - HAUTE GOURNIERE - D 1à8 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1085",cid:"c008",nom:"51 - HAUTE GOURNIERE - D 1à8 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1086",cid:"c008",nom:"52 - HAUTE GOURNIERE - D 1à8 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1087",cid:"c008",nom:"53 - HAUTE GOURNIERE - D LV - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1088",cid:"c008",nom:"54 - HAUTE GOURNIERE - D LV - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1089",cid:"c008",nom:"55 - HAUTE GOURNIERE - D LV - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1090",cid:"c008",nom:"56 - HAUTE GOURNIERE - F 1&2 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1091",cid:"c008",nom:"57 - HAUTE GOURNIERE - F 1&2 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1092",cid:"c008",nom:"58 - HAUTE GOURNIERE - F 1&2 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1093",cid:"c008",nom:"59 - HAUTE GOURNIERE - F 1&2 - CAISSONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1094",cid:"c008",nom:"60 - HAUTE GOURNIERE - F 1&2 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1095",cid:"c008",nom:"61 - HAUTE GOURNIERE - F 1&2 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1096",cid:"c008",nom:"62 - HAUTE GOURNIERE - F 1&2 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1097",cid:"c008",nom:"63 - HAUTE GOURNIERE - F 3à8 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1098",cid:"c008",nom:"64 - HAUTE GOURNIERE - F 3à8 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1099",cid:"c008",nom:"65 - HAUTE GOURNIERE - F 3à8 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1100",cid:"c008",nom:"66 - HAUTE GOURNIERE - F 3à8 - CAISSONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1101",cid:"c008",nom:"67 - HAUTE GOURNIERE - F 3à8 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1102",cid:"c008",nom:"68 - HAUTE GOURNIERE - F 3à8 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1103",cid:"c008",nom:"69 - HAUTE GOURNIERE - F 3à8 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1104",cid:"c008",nom:"70 - HAUTE GOURNIERE - G 1à5 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1105",cid:"c008",nom:"71 - HAUTE GOURNIERE - G 1à5 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1106",cid:"c008",nom:"72 - HAUTE GOURNIERE - G 1à5 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1107",cid:"c008",nom:"73 - HAUTE GOURNIERE - G 1à5 - CAISSONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1108",cid:"c008",nom:"74 - HAUTE GOURNIERE - G 1à5 - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1109",cid:"c008",nom:"75 - HAUTE GOURNIERE - G 1à5 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1110",cid:"c008",nom:"76 - HAUTE GOURNIERE - G 1à5 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1111",cid:"c008",nom:"77 - HAUTE GOURNIERE - G LV - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1112",cid:"c008",nom:"78 - HAUTE GOURNIERE - G LV - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1113",cid:"c008",nom:"79 - HAUTE GOURNIERE - G LV - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1114",cid:"c008",nom:"80 - HAUTE GOURNIERE - G LV - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c009",nom:"GUYNEMER",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1115",cid:"c009",nom:"1 - GUYNEMER - TZ - INSTALLATION CHANTIER",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1116",cid:"c009",nom:"2 - GUYNEMER - BAT C - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1117",cid:"c009",nom:"3 - GUYNEMER - BAT C - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1118",cid:"c009",nom:"4 - GUYNEMER - BAT C - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1119",cid:"c009",nom:"5 - GUYNEMER - BAT C - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1120",cid:"c009",nom:"6 - GUYNEMER - BAT C - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1121",cid:"c009",nom:"7 - GUYNEMER - BAT C - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1122",cid:"c009",nom:"8 - GUYNEMER - BAT C - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1123",cid:"c009",nom:"9 - GUYNEMER - BAT C - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1124",cid:"c009",nom:"10 - GUYNEMER - BAT C - BALCONS / COURSIVES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1125",cid:"c009",nom:"11 - GUYNEMER - BAT C - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1126",cid:"c009",nom:"12 - GUYNEMER - BAT C - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1127",cid:"c009",nom:"13 - GUYNEMER - BAT C - BALCONS / COURSIVES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1128",cid:"c009",nom:"14 - GUYNEMER - BAT C - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1129",cid:"c009",nom:"15 - GUYNEMER - BAT C - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1130",cid:"c009",nom:"16 - GUYNEMER - BAT C - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1131",cid:"c009",nom:"17 - GUYNEMER - BAT C - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1132",cid:"c009",nom:"18 - GUYNEMER - BAT B - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1133",cid:"c009",nom:"19 - GUYNEMER - BAT B - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1134",cid:"c009",nom:"20 - GUYNEMER - BAT B - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1135",cid:"c009",nom:"21 - GUYNEMER - BAT B - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1136",cid:"c009",nom:"22 - GUYNEMER - BAT B - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1137",cid:"c009",nom:"23 - GUYNEMER - BAT B - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1138",cid:"c009",nom:"24 - GUYNEMER - BAT B - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1139",cid:"c009",nom:"25 - GUYNEMER - BAT B - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1140",cid:"c009",nom:"26 - GUYNEMER - BAT B - BALCONS / COURSIVES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1141",cid:"c009",nom:"27 - GUYNEMER - BAT B - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1142",cid:"c009",nom:"28 - GUYNEMER - BAT B - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1143",cid:"c009",nom:"29 - GUYNEMER - BAT B - BALCONS / COURSIVES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1144",cid:"c009",nom:"30 - GUYNEMER - BAT B - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1145",cid:"c009",nom:"31 - GUYNEMER - BAT B - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1146",cid:"c009",nom:"32 - GUYNEMER - BAT B - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1147",cid:"c009",nom:"33 - GUYNEMER - BAT B - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1148",cid:"c009",nom:"34 - GUYNEMER - BAT A - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1149",cid:"c009",nom:"35 - GUYNEMER - BAT A - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1150",cid:"c009",nom:"36 - GUYNEMER - BAT A - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1151",cid:"c009",nom:"37 - GUYNEMER - BAT A - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1152",cid:"c009",nom:"38 - GUYNEMER - BAT A - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1153",cid:"c009",nom:"39 - GUYNEMER - BAT A - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1154",cid:"c009",nom:"40 - GUYNEMER - BAT A - BALCONS / COURSIVES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1155",cid:"c009",nom:"41 - GUYNEMER - BAT A - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1156",cid:"c009",nom:"42 - GUYNEMER - BAT A - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1157",cid:"c009",nom:"43 - GUYNEMER - BAT A - BALCONS / COURSIVES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1158",cid:"c009",nom:"44 - GUYNEMER - BAT A - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1159",cid:"c009",nom:"45 - GUYNEMER - BAT A - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1160",cid:"c009",nom:"46 - GUYNEMER - BAT A - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1161",cid:"c009",nom:"47 - GUYNEMER - BAT A - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1162",cid:"c009",nom:"48 - GUYNEMER - BAT A - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1163",cid:"c009",nom:"49 - GUYNEMER - BAT A - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1164",cid:"c009",nom:"50 - GUYNEMER - BAT A - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1165",cid:"c009",nom:"51 - GUYNEMER - BAT A - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1166",cid:"c009",nom:"52 - GUYNEMER - GARAGE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1167",cid:"c009",nom:"53 - GUYNEMER - GARAGE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1168",cid:"c009",nom:"54 - GUYNEMER - GARAGE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1169",cid:"c009",nom:"55 - GUYNEMER - GARAGE - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1170",cid:"c009",nom:"GUYNEMER - BAT C - MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1171",cid:"c009",nom:"GUYNEMER - BAT C - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1172",cid:"c009",nom:"GUYNEMER - BAT C - BALCONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1173",cid:"c009",nom:"GUYNEMER - BAT B - MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1174",cid:"c009",nom:"GUYNEMER - BAT B - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1175",cid:"c009",nom:"GUYNEMER - BAT B - BALCONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1176",cid:"c009",nom:"GUYNEMER - BAT A - MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1177",cid:"c009",nom:"GUYNEMER - BAT A - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1178",cid:"c009",nom:"GUYNEMER - BAT A - BALCONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1179",cid:"c009",nom:"GUYNEMER - GARAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1180",cid:"c009",nom:"GUYNEMER PROTO",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c010",nom:"H44-CHATEAUBRIANT",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1181",cid:"c010",nom:"H44-CHATEAUBRIANT - IMP + CNA + PIGNON",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1182",cid:"c010",nom:"H44-CHATEAUBRIANT - A",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1183",cid:"c010",nom:"H44-CHATEAUBRIANT - B",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1184",cid:"c010",nom:"H44-CHATEAUBRIANT - C",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1185",cid:"c010",nom:"H44-CHATEAUBRIANT - D",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1186",cid:"c010",nom:"H44-CHATEAUBRIANT - AB - COURISVE & BALCON",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1187",cid:"c010",nom:"H44-CHATEAUBRIANT - CD - COURISVE & BALCON",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1188",cid:"c010",nom:"H44-CHATEAUBRIANT - LOCAL POUBELLE",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c011",nom:"H44 - VAY",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1189",cid:"c011",nom:"H44 - VAY - IMP + CNA R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1190",cid:"c011",nom:"H44 - VAY - MOB PIGNON",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1191",cid:"c011",nom:"H44 - VAY - MOB RDC + PO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1192",cid:"c011",nom:"H44 - VAY - CP + CT",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1193",cid:"c011",nom:"H44 - VAY - MOB R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1194",cid:"c011",nom:"H44 - VAY - COURSIVE & BALCON",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c012",nom:"ECHAPPE",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1195",cid:"c012",nom:"48 - ECHAPPE - B2CO - MURS - R+3 Imp, MOB & Finition",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1196",cid:"c012",nom:"55 - ECHAPPE - B2CO - MURS - Attique Imp, MOB & Finition",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1197",cid:"c012",nom:"60 - ECHAPPE - B2CO - CHARPENTE - Charpente",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1198",cid:"c012",nom:"62 - ECHAPPE - B2CO - BALCONS / COURSIVES - Balcons bois & habillages cuve",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1199",cid:"c012",nom:"95 - ECHAPPE - B2CO - MURS - MOB Séparatif - 32u",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1200",cid:"c012",nom:"ECHAPPE - ENVOI TRAITEMENT B2CO BALCONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1201",cid:"c012",nom:"ECHAPPE B2CO - MOB R+2",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1202",cid:"c012",nom:"ECHAPPE B2CO - MOB R+3",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1203",cid:"c012",nom:"ECHAPPE B2CO - MOB Attique",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1204",cid:"c012",nom:"ECHAPPE B1 - MODULE RECUPATEUR D'EAU",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1205",cid:"c012",nom:"ECHAPPE B1 ENVOI TRAITEMENT BALCON BOIS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1206",cid:"c012",nom:"ECHAPPE - B2CO LOCAL VELO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1207",cid:"c012",nom:"ECHAPPE B1 - BALCONS BOIS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1208",cid:"c012",nom:"ECHAPPE B1 - LOCAUX VELOS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1209",cid:"c012",nom:"ECHAPPE B2 MI - CP R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1210",cid:"c012",nom:"ECHAPPE B2 MI - COURSIVE + LV",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1211",cid:"c012",nom:"ECHAPPE B2 MI - CNA",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1212",cid:"c012",nom:"ECHAPPE B2CO - CNA",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1213",cid:"c012",nom:"ECHAPPE B3CO - COURSIVE BETON",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1214",cid:"c012",nom:"ECHAPPE B3CO - FOB R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1215",cid:"c012",nom:"ECHAPPE B3CO - FOB R+2",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1216",cid:"c012",nom:"ECHAPPE B3CO - FOB R+3",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1217",cid:"c012",nom:"ECHAPPE B3CO - FOB Attique",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1218",cid:"c012",nom:"ECHAPPE B3CO - FOB RDC",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1219",cid:"c012",nom:"ECHAPPE B3CO - CNA CHARP",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1220",cid:"c012",nom:"ECHAPPE - ENVOI TRAITEMENT B3CO BALCONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1221",cid:"c012",nom:"ECHAPPE B3CO - Imp",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1222",cid:"c012",nom:"ECHAPPE B3CO - BALCONS BOIS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1223",cid:"c012",nom:"ECHAPPE B3CO - MODULE RECUPERATEUR D'EAU",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1224",cid:"c012",nom:"ECHAPPE B3 MI - CNA",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1225",cid:"c012",nom:"ECHAPPE B3 MI - MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1226",cid:"c012",nom:"ECHAPPE B3 MI - IMP",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1227",cid:"c012",nom:"ECHAPPE B3 MI - CP RDC",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1228",cid:"c012",nom:"ECHAPPE B3 MI - CP R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1229",cid:"c012",nom:"ECHAPPE B3 MI - COURSIVE + LV",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1230",cid:"c012",nom:"ECHAPPE B3 MI ENVOI TRAITEMENT COURSIVE + LV",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1231",cid:"c012",nom:"ECHAPPE B2MI ENVOI TRAITEMENT COURSIVE + LV",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1232",cid:"c012",nom:"ECHAPPE - ENVOI TRAITEMENT B3CO COURSIVE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1233",cid:"c012",nom:"ECHAPPE B3CO - CP Terrasse",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1234",cid:"c012",nom:"42 - ECHAPPE - B2CO - MURS - R+2 Imp, MOB & Finition",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1235",cid:"c012",nom:"52 - ECHAPPE - B2CO - BALCONS / COURSIVES - R+3 Coursives",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1236",cid:"c012",nom:"59 - ECHAPPE - B2CO - BALCONS / COURSIVES - Attique Coursives",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1237",cid:"c012",nom:"79 - ECHAPPE - B3MI - MURS - MI12/15 - RDC Imp, MOB & Finition",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1238",cid:"c012",nom:"ECHAPPE B1A - BALCONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1239",cid:"c012",nom:"ECHAPPE - B2CO LOCAL VELO - ENVOI TRAITEMENT",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1240",cid:"c012",nom:"ECHAPPE B2CO - BAR",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c013",nom:"SH - GAUTHIOT LAMY",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1241",cid:"c013",nom:"SH - GAUTHIOT LAMY - M1/M2 - CP + FERMES + CNA",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1242",cid:"c013",nom:"SH - GAUTHIOT LAMY - M3/M4 - CP + FERMES + CNA",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1243",cid:"c013",nom:"SH - GAUTHIOT LAMY - CNA R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c014",nom:"SCI ALLFOR",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1244",cid:"c014",nom:"ALLFOR-vente directe-CA",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c015",nom:"DELAUNEY",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1245",cid:"c015",nom:"DELAUNEY-vente directe-CA",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c016",nom:"POUSSCOOP",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1246",cid:"c016",nom:"POUSSCOOP G - PO+CV fermettes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1247",cid:"c016",nom:"POUSSCOOP G - DIV",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1248",cid:"c016",nom:"POUSSCOOP H - PO+CV fermettes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1249",cid:"c016",nom:"POUSSCOOP H - DIV",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1250",cid:"c016",nom:"POUSSCOOP D - IMP+MOB+BAR maisons",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1251",cid:"c016",nom:"POUSSCOOP D - IMP+MOB+BAR annexes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1252",cid:"c016",nom:"POUSSCOOP D - PO+CP plancher",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1253",cid:"c016",nom:"POUSSCOOP D - PO+CV sous fermettes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1254",cid:"c016",nom:"POUSSCOOP D - CNA annexes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1255",cid:"c016",nom:"POUSSCOOP C - IMP+MOB+BAR maisons",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1256",cid:"c016",nom:"POUSSCOOP C - IMP+MOB+BAR annexes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1257",cid:"c016",nom:"POUSSCOOP C - PO+CP plancher",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1258",cid:"c016",nom:"POUSSCOOP C - PO+CV sous fermettes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1259",cid:"c016",nom:"POUSSCOOP C - PO+CT charpente",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1260",cid:"c016",nom:"POUSSCOOP C - CNA annexes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1261",cid:"c016",nom:"POUSSCOOP B - IMP+MOB+BAR maisons",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1262",cid:"c016",nom:"POUSSCOOP B - IMP+MOB+BAR annexes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1263",cid:"c016",nom:"POUSSCOOP B - PO+CP plancher",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1264",cid:"c016",nom:"POUSSCOOP B - PO+CV sous fermettes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1265",cid:"c016",nom:"POUSSCOOP B - PO+CT charpente",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1266",cid:"c016",nom:"POUSSCOOP B - CNA annexes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1267",cid:"c016",nom:"POUSSCOOP A - IMP+MOB+BAR maisons",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1268",cid:"c016",nom:"POUSSCOOP A - IMP+MOB+BAR annexes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1269",cid:"c016",nom:"POUSSCOOP A - PO+CP plancher",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1270",cid:"c016",nom:"POUSSCOOP A - PO+CV sous fermettes",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1271",cid:"c016",nom:"POUSSCOOP A - PO+CT charpente",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1272",cid:"c016",nom:"POUSSCOOP A - CNA annexes",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c017",nom:"MAITRE CUBE - MLH Avrillé",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1273",cid:"c017",nom:"MCA-A-CP+CNA Balcons",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1274",cid:"c017",nom:"MCA-A-IMP+CNA",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1275",cid:"c017",nom:"MCA-A-Bois traitement",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1276",cid:"c017",nom:"MCA-B-MOB R+1+PO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1277",cid:"c017",nom:"MCA-B-MOB R+2+PO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1278",cid:"c017",nom:"MCA-B-MOB R+3+PO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1279",cid:"c017",nom:"MCA-B-CP+CT R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1280",cid:"c017",nom:"MCA-B-CP+CT R+2",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1281",cid:"c017",nom:"MCA-B-CP+CT R+3",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1282",cid:"c017",nom:"MCA-B-CNA+MOB+CP+PO Balcons",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1283",cid:"c017",nom:"MCA-B-ENVOI TRAITEMENT",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1284",cid:"c017",nom:"MCA-6MI",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1285",cid:"c017",nom:"MCA-6MI IMP",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c018",nom:"NOVALLIANCE",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1286",cid:"c018",nom:"1 - NOVALLIANCE - SOUS DALLE - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1287",cid:"c018",nom:"2 - NOVALLIANCE - SOUS DALLE - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1288",cid:"c018",nom:"3 - NOVALLIANCE - SOUS DALLE - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1289",cid:"c018",nom:"4 - NOVALLIANCE - SOUS DALLE - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1290",cid:"c018",nom:"5 - NOVALLIANCE - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1291",cid:"c018",nom:"6 - NOVALLIANCE - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1292",cid:"c018",nom:"7 - NOVALLIANCE - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1293",cid:"c018",nom:"8 - NOVALLIANCE - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1294",cid:"c018",nom:"10 - NOVALLIANCE - ASPIRATION - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1295",cid:"c018",nom:"11 - NOVALLIANCE - ASPIRATION - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c019",nom:"LINO VENTURA",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1296",cid:"c019",nom:"1 - LINO VENTURA - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1297",cid:"c019",nom:"2 - LINO VENTURA - TZ - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1298",cid:"c019",nom:"3 - LINO VENTURA - TZ - INSTALLATION CHANTIER",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1299",cid:"c019",nom:"4 - LINO VENTURA - SALLE - INSTALLATION CHANTIER",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1300",cid:"c019",nom:"5 - LINO VENTURA - SALLE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1301",cid:"c019",nom:"6 - LINO VENTURA - SALLE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1302",cid:"c019",nom:"7 - LINO VENTURA - SALLE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1303",cid:"c019",nom:"8 - LINO VENTURA - SALLE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1304",cid:"c019",nom:"9 - LINO VENTURA - SALLE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1305",cid:"c019",nom:"10 - LINO VENTURA - SALLE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1306",cid:"c019",nom:"11 - LINO VENTURA - SALLE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1307",cid:"c019",nom:"12 - LINO VENTURA - SALLE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1308",cid:"c019",nom:"13 - LINO VENTURA - SALLE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1309",cid:"c019",nom:"14 - LINO VENTURA - SALLE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1310",cid:"c019",nom:"15 - LINO VENTURA - SALLE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1311",cid:"c019",nom:"16 - LINO VENTURA - HALL - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1312",cid:"c019",nom:"17 - LINO VENTURA - HALL - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1313",cid:"c019",nom:"18 - LINO VENTURA - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1314",cid:"c019",nom:"19 - LINO VENTURA - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1315",cid:"c019",nom:"20 - LINO VENTURA - TZ - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1316",cid:"c019",nom:"21 - LINO VENTURA - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1317",cid:"c019",nom:"22 - LINO VENTURA - HALL - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1318",cid:"c019",nom:"23 - LINO VENTURA - HALL - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1319",cid:"c019",nom:"24 - LINO VENTURA - SALLE - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1320",cid:"c019",nom:"25 - LINO VENTURA - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1321",cid:"c019",nom:"26 - LINO VENTURA - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1322",cid:"c019",nom:"27 - LINO VENTURA - HALL - CAISSONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1323",cid:"c019",nom:"28 - LINO VENTURA - HALL - CAISSONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1324",cid:"c019",nom:"29 - LINO VENTURA - HALL - CAISSONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1325",cid:"c019",nom:"30 - LINO VENTURA - HALL - CAISSONS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1326",cid:"c019",nom:"31 - LINO VENTURA - TZ - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1327",cid:"c019",nom:"32 - LINO VENTURA - TZ - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1328",cid:"c019",nom:"33 - LINO VENTURA - TZ - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1329",cid:"c019",nom:"34 - LINO VENTURA - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1330",cid:"c019",nom:"35 - LINO VENTURA - TZ - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1331",cid:"c019",nom:"36 - LINO VENTURA - TZ - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1332",cid:"c019",nom:"37 - LINO VENTURA - TZ - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1333",cid:"c019",nom:"38 - LINO VENTURA - TZ - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1334",cid:"c019",nom:"39 - LINO VENTURA - TZ - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c020",nom:"HYROME",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1335",cid:"c020",nom:"1 - HYROME - TZ - INSTALLATION CHANTIER",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1336",cid:"c020",nom:"2 - HYROME - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1337",cid:"c020",nom:"3 - HYROME - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1338",cid:"c020",nom:"4 - HYROME - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1339",cid:"c020",nom:"5 - HYROME - TZ - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1340",cid:"c020",nom:"6 - HYROME - TZ - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1341",cid:"c020",nom:"7 - HYROME - TZ - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1342",cid:"c020",nom:"8 - HYROME - TZ - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1343",cid:"c020",nom:"9 - HYROME - TZ - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1344",cid:"c020",nom:"10 - HYROME - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1345",cid:"c020",nom:"11 - HYROME - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1346",cid:"c020",nom:"12 - HYROME - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1347",cid:"c020",nom:"13 - HYROME - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1348",cid:"c020",nom:"14 - HYROME - TZ - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c021",nom:"EPONA",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1349",cid:"c021",nom:"1 - EPONA - C2 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1350",cid:"c021",nom:"2 - EPONA - C2 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1351",cid:"c021",nom:"3 - EPONA - C2 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1352",cid:"c021",nom:"4 - EPONA - C5 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1353",cid:"c021",nom:"5 - EPONA - C5 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1354",cid:"c021",nom:"6 - EPONA - C5 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1355",cid:"c021",nom:"7 - EPONA - C2 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1356",cid:"c021",nom:"8 - EPONA - C5 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1357",cid:"c021",nom:"9 - EPONA - C1 - BALCONS / COURSIVES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1358",cid:"c021",nom:"10 - EPONA - C1 - BALCONS / COURSIVES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1359",cid:"c021",nom:"11 - EPONA - C1 - BALCONS / COURSIVES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1360",cid:"c021",nom:"12 - EPONA - C1 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1361",cid:"c021",nom:"13 - EPONA - C1 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1362",cid:"c021",nom:"14 - EPONA - C1 - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1363",cid:"c021",nom:"15 - EPONA - C4 - BALCONS / COURSIVES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1364",cid:"c021",nom:"16 - EPONA - C4 - BALCONS / COURSIVES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1365",cid:"c021",nom:"17 - EPONA - C4 - BALCONS / COURSIVES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1366",cid:"c021",nom:"18 - EPONA - C4 - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1367",cid:"c021",nom:"19 - EPONA - C4 - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1368",cid:"c021",nom:"20 - EPONA - C4 - TERRASSES",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1369",cid:"c021",nom:"21 - EPONA - C1 LV - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1370",cid:"c021",nom:"22 - EPONA - C1 LV - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1371",cid:"c021",nom:"23 - EPONA - C1 LV - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1372",cid:"c021",nom:"24 - EPONA - C4 LV - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1373",cid:"c021",nom:"25 - EPONA - C4 LV - MURS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1374",cid:"c021",nom:"26 - EPONA - C4 LV - BARDAGE",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c022",nom:"POD CANDE",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1375",cid:"c022",nom:"POD CANDE A IMP + CNA",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1376",cid:"c022",nom:"POD CANDE A MOB + PO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1377",cid:"c022",nom:"POD CANDE A CP + CT",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1378",cid:"c022",nom:"POD CANDE B IMP + CNA",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1379",cid:"c022",nom:"POD CANDE B MOB + PO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1380",cid:"c022",nom:"POD CANDE B CP + CT",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1381",cid:"c022",nom:"POD CANDE C IMP + CNA",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1382",cid:"c022",nom:"POD CANDE C MOB + PO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1383",cid:"c022",nom:"POD CANDE C CP + CT",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c023",nom:"POD DURTAL",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1384",cid:"c023",nom:"POD DUR A STR EXT",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1385",cid:"c023",nom:"POD DUR B STR EXT",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c024",nom:"POD - LONGUÉ-JUMELLES",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1386",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - A - MOB PIGNON",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1387",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - A - MOB RDC",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1388",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - A - CT",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1389",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - A - IMP + CNA R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1390",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - B - CT",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1391",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - B - MOB PIGNON",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1392",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - B - MOB RDC",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1393",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - B - IMP + CNA R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c025",nom:"POD - ST ETIENNE",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1394",cid:"c025",nom:"POD - ST ETIENNE Co - MOB PIGNON",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1395",cid:"c025",nom:"POD - ST ETIENNE Co - PO + CP",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1396",cid:"c025",nom:"POD - ST ETIENNE Co - MOB RDC / R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1397",cid:"c025",nom:"POD - ST ETIENNE Co - CT",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1398",cid:"c025",nom:"POD - ST ETIENNE Co - IMP + CNA R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1399",cid:"c025",nom:"POD - ST ETIENNE Co - BALCON/COURSIVE",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1400",cid:"c025",nom:"POD - ST ETIENNE Indiv - CT",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1401",cid:"c025",nom:"POD - ST ETIENNE Indiv - MOB PIGNON",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1402",cid:"c025",nom:"POD - ST ETIENNE Indiv - MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1403",cid:"c025",nom:"POD - ST ETIENNE Indiv - IMP + CNA R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c026",nom:"BEL VIA",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1404",cid:"c026",nom:"BELVIA - M1 - CP RDC + PO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1405",cid:"c026",nom:"BELVIA - M2 - MOB LOCAL OM +CNA",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1406",cid:"c026",nom:"BELVIA - M3 - CP RDC + PO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1407",cid:"c026",nom:"BELVIA - M4 - CNA APPENTITS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1408",cid:"c026",nom:"BELVIA - M5 - CNA APPENTITS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1409",cid:"c026",nom:"BELVIA - M6 - CP RDC + PO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1410",cid:"c026",nom:"BELVIA - M7 - CA R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1411",cid:"c026",nom:"BELVIA - M8 - CP RDC + PO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1412",cid:"c026",nom:"BELVIA - M9 - CP RDC + PO",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1413",cid:"c026",nom:"BELVIA - M10 - CA R+2",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1414",cid:"c026",nom:"BELVIA - M11 - CNA APPENTITS",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1415",cid:"c026",nom:"BELVIA - M12 - MOB LOCAL OM +CNA",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1416",cid:"c026",nom:"BELVIA - M13 - CA R+1",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1417",cid:"c026",nom:"BELVIA - M14 - CP RDC + PO",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c027",nom:"VERDANIA",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1418",cid:"c027",nom:"VERDANIA - MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1419",cid:"c027",nom:"VERDANIA - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c028",nom:"VILLA SEB",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1420",cid:"c028",nom:"VILLA SEB - IMP & MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1421",cid:"c028",nom:"VILLA SEB - CHARPENTE",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c029",nom:"DETALLANTE",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1422",cid:"c029",nom:"DETALLANTE - MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c030",nom:"BLANCHECOTTE",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1423",cid:"c030",nom:"BLANCHECOTTE - MOB",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1424",cid:"c030",nom:"BLANCHECOTTE - CP",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c031",nom:"GANDEMER",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1425",cid:"c031",nom:"GANDEMER",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c032",nom:"ROU PREAU",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1426",cid:"c032",nom:"ROU PREAU",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c033",nom:"PANORAMA",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1427",cid:"c033",nom:"PANORAMA - BRISE SOLEIL",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1428",cid:"c033",nom:"PANORAMA - BALCONS",open:false,budget:0,passe:0,pct:0},
-    {type:"chantier",id:"c034",nom:"LYCEE LE FRESNE",conduc:"",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1429",cid:"c034",nom:"LE FRESNE - Terrasse",open:false,budget:0,passe:0,pct:0},
-    {type:"tranche",id:"t1430",cid:"c034",nom:"LE FRESNE PORCHE Entrée - MOB",open:false,budget:0,passe:0,pct:0}
-  ];
+const INIT_DATA = 
+[
+  {type:"chantier",id:"c001",nom:"ORIGINALE (Halles Mans)",conduc:"",open:false},
+  {type:"tranche",id:"t1000",cid:"c001",nom:"ORIG FOB EXT R+4",open:false},
+  {type:"tranche",id:"t1001",cid:"c001",nom:"ORIG FOB EXT R+5",open:false},
+  {type:"tranche",id:"t1002",cid:"c001",nom:"ORIG FOB EXT R+6",open:false},
+  {type:"tranche",id:"t1003",cid:"c001",nom:"ORIG FOB EXT R+7",open:false},
+  {type:"tranche",id:"t1004",cid:"c001",nom:"ORIG FOB EXT R+8",open:false},
+  {type:"chantier",id:"c002",nom:"H44 COUFFE",conduc:"",open:false},
+  {type:"tranche",id:"t1005",cid:"c002",nom:"Bloc H44 COUFFE",open:false},
+  {type:"chantier",id:"c003",nom:"POD JALLAIS",conduc:"",open:false},
+  {type:"tranche",id:"t1006",cid:"c003",nom:"BLOC POD JALLAIS",open:false},
+  {type:"chantier",id:"c004",nom:"POD MARCE",conduc:"",open:false},
+  {type:"tranche",id:"t1007",cid:"c004",nom:"BLOC POD MARCE",open:false},
+  {type:"chantier",id:"c005",nom:"ENJOY",conduc:"",open:false},
+  {type:"tranche",id:"t1008",cid:"c005",nom:"ENJOY local vélo",open:false},
+  {type:"tranche",id:"t1009",cid:"c005",nom:"ENJOY A1 - balcon structure équipée + caisson terrasse",open:false},
+  {type:"tranche",id:"t1010",cid:"c005",nom:"ENJOY A1 - envoi traitement bois balcon",open:false},
+  {type:"tranche",id:"t1011",cid:"c005",nom:"ENJOY A2 - balcon structure équipée + caisson terrasse",open:false},
+  {type:"chantier",id:"c006",nom:"BLoc",conduc:"",open:false},
+  {type:"tranche",id:"t1012",cid:"c006",nom:"Bloc - Vay",open:false},
+  {type:"tranche",id:"t1013",cid:"c006",nom:"Bloc - Chateaubriant A",open:false},
+  {type:"tranche",id:"t1014",cid:"c006",nom:"Bloc - Chateaubriant B",open:false},
+  {type:"tranche",id:"t1015",cid:"c006",nom:"Bloc - Chateaubriant C",open:false},
+  {type:"tranche",id:"t1016",cid:"c006",nom:"Bloc - Chateaubriant D",open:false},
+  {type:"chantier",id:"c007",nom:"BLOCS",conduc:"",open:false},
+  {type:"tranche",id:"t1017",cid:"c007",nom:"Bloc-NOVALLIANCE-FOB",open:false},
+  {type:"tranche",id:"t1018",cid:"c007",nom:"BLoc -HAUTE GOURNIERE-MOB 1/4",open:false},
+  {type:"tranche",id:"t1019",cid:"c007",nom:"BLoc -HAUTE GOURNIERE-MOB 2/4",open:false},
+  {type:"tranche",id:"t1020",cid:"c007",nom:"BLoc -HAUTE GOURNIERE-MOB 3/4",open:false},
+  {type:"tranche",id:"t1021",cid:"c007",nom:"BLoc -HAUTE GOURNIERE-MOB 4/4",open:false},
+  {type:"tranche",id:"t1022",cid:"c007",nom:"Bloc - Epona- MOB",open:false},
+  {type:"tranche",id:"t1023",cid:"c007",nom:"Bloc - Verdania - MOB",open:false},
+  {type:"tranche",id:"t1024",cid:"c007",nom:"Bloc - GUYNEMER - MOB 1/3",open:false},
+  {type:"tranche",id:"t1025",cid:"c007",nom:"Bloc - GUYNEMER - MOB 2/3",open:false},
+  {type:"tranche",id:"t1026",cid:"c007",nom:"Bloc - GUYNEMER - MOB 3/3",open:false},
+  {type:"tranche",id:"t1027",cid:"c007",nom:"BLoc - PODELIHA SAINT ETIENNE DU BOIS - MOB",open:false},
+  {type:"tranche",id:"t1028",cid:"c007",nom:"BLoc - SALLE LINO VENTURA - MOB",open:false},
+  {type:"tranche",id:"t1029",cid:"c007",nom:"Bloc - HYROME - MOB",open:false},
+  {type:"tranche",id:"t1030",cid:"c007",nom:"BLoc - Bel VIA - MOB - 1/5",open:false},
+  {type:"tranche",id:"t1031",cid:"c007",nom:"BLoc - Bel VIA - MOB - 2/5",open:false},
+  {type:"tranche",id:"t1032",cid:"c007",nom:"BLoc - Bel VIA - MOB - 3/5",open:false},
+  {type:"tranche",id:"t1033",cid:"c007",nom:"BLoc - Bel VIA - MOB - 4/5",open:false},
+  {type:"tranche",id:"t1034",cid:"c007",nom:"BLoc - Bel VIA - MOB - 5/5",open:false},
+  {type:"chantier",id:"c008",nom:"HAUTE GOURNIERE",conduc:"",open:false},
+  {type:"tranche",id:"t1035",cid:"c008",nom:"1 - HAUTE GOURNIERE - TZ - INSTALLATION CHANTIER",open:false},
+  {type:"tranche",id:"t1036",cid:"c008",nom:"2 - HAUTE GOURNIERE - A - CHARPENTE",open:false},
+  {type:"tranche",id:"t1037",cid:"c008",nom:"3 - HAUTE GOURNIERE - B - CHARPENTE",open:false},
+  {type:"tranche",id:"t1038",cid:"c008",nom:"4 - HAUTE GOURNIERE - C - CHARPENTE",open:false},
+  {type:"tranche",id:"t1039",cid:"c008",nom:"5 - HAUTE GOURNIERE - C - MURS",open:false},
+  {type:"tranche",id:"t1040",cid:"c008",nom:"6 - HAUTE GOURNIERE - C - MURS",open:false},
+  {type:"tranche",id:"t1041",cid:"c008",nom:"7 - HAUTE GOURNIERE - C - MURS",open:false},
+  {type:"tranche",id:"t1042",cid:"c008",nom:"8 - HAUTE GOURNIERE - C - TERRASSES",open:false},
+  {type:"tranche",id:"t1043",cid:"c008",nom:"9 - HAUTE GOURNIERE - C - BARDAGE",open:false},
+  {type:"tranche",id:"t1044",cid:"c008",nom:"10 - HAUTE GOURNIERE - C - BARDAGE",open:false},
+  {type:"tranche",id:"t1045",cid:"c008",nom:"11 - HAUTE GOURNIERE - C - TERRASSES",open:false},
+  {type:"tranche",id:"t1046",cid:"c008",nom:"12 - HAUTE GOURNIERE - C - TERRASSES",open:false},
+  {type:"tranche",id:"t1047",cid:"c008",nom:"13 - HAUTE GOURNIERE - C - TERRASSES",open:false},
+  {type:"tranche",id:"t1048",cid:"c008",nom:"14 - HAUTE GOURNIERE - C - BARDAGE",open:false},
+  {type:"tranche",id:"t1049",cid:"c008",nom:"15 - HAUTE GOURNIERE - E 1&2 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1050",cid:"c008",nom:"16 - HAUTE GOURNIERE - E 3&4 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1051",cid:"c008",nom:"17 - HAUTE GOURNIERE - E 3&4 - MURS",open:false},
+  {type:"tranche",id:"t1052",cid:"c008",nom:"18 - HAUTE GOURNIERE - E 3&4 - MURS",open:false},
+  {type:"tranche",id:"t1053",cid:"c008",nom:"19 - HAUTE GOURNIERE - E 3&4 - MURS",open:false},
+  {type:"tranche",id:"t1054",cid:"c008",nom:"20 - HAUTE GOURNIERE - E 3&4 - TERRASSES",open:false},
+  {type:"tranche",id:"t1055",cid:"c008",nom:"21 - HAUTE GOURNIERE - E 3&4 - BARDAGE",open:false},
+  {type:"tranche",id:"t1056",cid:"c008",nom:"22 - HAUTE GOURNIERE - E 3&4 - BARDAGE",open:false},
+  {type:"tranche",id:"t1057",cid:"c008",nom:"23 - HAUTE GOURNIERE - E 3&4 - TERRASSES",open:false},
+  {type:"tranche",id:"t1058",cid:"c008",nom:"24 - HAUTE GOURNIERE - E 3&4 - TERRASSES",open:false},
+  {type:"tranche",id:"t1059",cid:"c008",nom:"25 - HAUTE GOURNIERE - E 3&4 - TERRASSES",open:false},
+  {type:"tranche",id:"t1060",cid:"c008",nom:"26 - HAUTE GOURNIERE - E 3&4 - BARDAGE",open:false},
+  {type:"tranche",id:"t1061",cid:"c008",nom:"27 - HAUTE GOURNIERE - E 7, 8 & 9 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1062",cid:"c008",nom:"28 - HAUTE GOURNIERE - E 5&6 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1063",cid:"c008",nom:"29 - HAUTE GOURNIERE - E 5&6 - MURS",open:false},
+  {type:"tranche",id:"t1064",cid:"c008",nom:"30 - HAUTE GOURNIERE - E 5&6 - MURS",open:false},
+  {type:"tranche",id:"t1065",cid:"c008",nom:"31 - HAUTE GOURNIERE - E 5&6 - MURS",open:false},
+  {type:"tranche",id:"t1066",cid:"c008",nom:"32 - HAUTE GOURNIERE - E 5&6 - TERRASSES",open:false},
+  {type:"tranche",id:"t1067",cid:"c008",nom:"33 - HAUTE GOURNIERE - E 5&6 - BARDAGE",open:false},
+  {type:"tranche",id:"t1068",cid:"c008",nom:"34 - HAUTE GOURNIERE - E 5&6 - BARDAGE",open:false},
+  {type:"tranche",id:"t1069",cid:"c008",nom:"35 - HAUTE GOURNIERE - E 5&6 - TERRASSES",open:false},
+  {type:"tranche",id:"t1070",cid:"c008",nom:"36 - HAUTE GOURNIERE - E 5&6 - TERRASSES",open:false},
+  {type:"tranche",id:"t1071",cid:"c008",nom:"37 - HAUTE GOURNIERE - E 5&6 - TERRASSES",open:false},
+  {type:"tranche",id:"t1072",cid:"c008",nom:"38 - HAUTE GOURNIERE - E LV - CHARPENTE",open:false},
+  {type:"tranche",id:"t1073",cid:"c008",nom:"39 - HAUTE GOURNIERE - E LV - CHARPENTE",open:false},
+  {type:"tranche",id:"t1074",cid:"c008",nom:"40 - HAUTE GOURNIERE - E LV - MURS",open:false},
+  {type:"tranche",id:"t1075",cid:"c008",nom:"41 - HAUTE GOURNIERE - E LV - BARDAGE",open:false},
+  {type:"tranche",id:"t1076",cid:"c008",nom:"42 - HAUTE GOURNIERE - D 1à8 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1077",cid:"c008",nom:"43 - HAUTE GOURNIERE - D 1à8 - MURS",open:false},
+  {type:"tranche",id:"t1078",cid:"c008",nom:"44 - HAUTE GOURNIERE - D 1à8 - MURS",open:false},
+  {type:"tranche",id:"t1079",cid:"c008",nom:"45 - HAUTE GOURNIERE - D 1à8 - MURS",open:false},
+  {type:"tranche",id:"t1080",cid:"c008",nom:"46 - HAUTE GOURNIERE - D 1à8 - CAISSONS",open:false},
+  {type:"tranche",id:"t1081",cid:"c008",nom:"47 - HAUTE GOURNIERE - D 1à8 - MURS",open:false},
+  {type:"tranche",id:"t1082",cid:"c008",nom:"48 - HAUTE GOURNIERE - D 1à8 - MURS",open:false},
+  {type:"tranche",id:"t1083",cid:"c008",nom:"49 - HAUTE GOURNIERE - D 1à8 - BARDAGE",open:false},
+  {type:"tranche",id:"t1084",cid:"c008",nom:"50 - HAUTE GOURNIERE - D 1à8 - BARDAGE",open:false},
+  {type:"tranche",id:"t1085",cid:"c008",nom:"51 - HAUTE GOURNIERE - D 1à8 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1086",cid:"c008",nom:"52 - HAUTE GOURNIERE - D 1à8 - BARDAGE",open:false},
+  {type:"tranche",id:"t1087",cid:"c008",nom:"53 - HAUTE GOURNIERE - D LV - MURS",open:false},
+  {type:"tranche",id:"t1088",cid:"c008",nom:"54 - HAUTE GOURNIERE - D LV - CHARPENTE",open:false},
+  {type:"tranche",id:"t1089",cid:"c008",nom:"55 - HAUTE GOURNIERE - D LV - BARDAGE",open:false},
+  {type:"tranche",id:"t1090",cid:"c008",nom:"56 - HAUTE GOURNIERE - F 1&2 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1091",cid:"c008",nom:"57 - HAUTE GOURNIERE - F 1&2 - MURS",open:false},
+  {type:"tranche",id:"t1092",cid:"c008",nom:"58 - HAUTE GOURNIERE - F 1&2 - MURS",open:false},
+  {type:"tranche",id:"t1093",cid:"c008",nom:"59 - HAUTE GOURNIERE - F 1&2 - CAISSONS",open:false},
+  {type:"tranche",id:"t1094",cid:"c008",nom:"60 - HAUTE GOURNIERE - F 1&2 - MURS",open:false},
+  {type:"tranche",id:"t1095",cid:"c008",nom:"61 - HAUTE GOURNIERE - F 1&2 - BARDAGE",open:false},
+  {type:"tranche",id:"t1096",cid:"c008",nom:"62 - HAUTE GOURNIERE - F 1&2 - BARDAGE",open:false},
+  {type:"tranche",id:"t1097",cid:"c008",nom:"63 - HAUTE GOURNIERE - F 3à8 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1098",cid:"c008",nom:"64 - HAUTE GOURNIERE - F 3à8 - MURS",open:false},
+  {type:"tranche",id:"t1099",cid:"c008",nom:"65 - HAUTE GOURNIERE - F 3à8 - MURS",open:false},
+  {type:"tranche",id:"t1100",cid:"c008",nom:"66 - HAUTE GOURNIERE - F 3à8 - CAISSONS",open:false},
+  {type:"tranche",id:"t1101",cid:"c008",nom:"67 - HAUTE GOURNIERE - F 3à8 - MURS",open:false},
+  {type:"tranche",id:"t1102",cid:"c008",nom:"68 - HAUTE GOURNIERE - F 3à8 - BARDAGE",open:false},
+  {type:"tranche",id:"t1103",cid:"c008",nom:"69 - HAUTE GOURNIERE - F 3à8 - BARDAGE",open:false},
+  {type:"tranche",id:"t1104",cid:"c008",nom:"70 - HAUTE GOURNIERE - G 1à5 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1105",cid:"c008",nom:"71 - HAUTE GOURNIERE - G 1à5 - MURS",open:false},
+  {type:"tranche",id:"t1106",cid:"c008",nom:"72 - HAUTE GOURNIERE - G 1à5 - MURS",open:false},
+  {type:"tranche",id:"t1107",cid:"c008",nom:"73 - HAUTE GOURNIERE - G 1à5 - CAISSONS",open:false},
+  {type:"tranche",id:"t1108",cid:"c008",nom:"74 - HAUTE GOURNIERE - G 1à5 - MURS",open:false},
+  {type:"tranche",id:"t1109",cid:"c008",nom:"75 - HAUTE GOURNIERE - G 1à5 - BARDAGE",open:false},
+  {type:"tranche",id:"t1110",cid:"c008",nom:"76 - HAUTE GOURNIERE - G 1à5 - BARDAGE",open:false},
+  {type:"tranche",id:"t1111",cid:"c008",nom:"77 - HAUTE GOURNIERE - G LV - MURS",open:false},
+  {type:"tranche",id:"t1112",cid:"c008",nom:"78 - HAUTE GOURNIERE - G LV - CHARPENTE",open:false},
+  {type:"tranche",id:"t1113",cid:"c008",nom:"79 - HAUTE GOURNIERE - G LV - MURS",open:false},
+  {type:"tranche",id:"t1114",cid:"c008",nom:"80 - HAUTE GOURNIERE - G LV - BARDAGE",open:false},
+  {type:"chantier",id:"c009",nom:"GUYNEMER",conduc:"",open:false},
+  {type:"tranche",id:"t1115",cid:"c009",nom:"1 - GUYNEMER - TZ - INSTALLATION CHANTIER",open:false},
+  {type:"tranche",id:"t1116",cid:"c009",nom:"2 - GUYNEMER - BAT C - MURS",open:false},
+  {type:"tranche",id:"t1117",cid:"c009",nom:"3 - GUYNEMER - BAT C - MURS",open:false},
+  {type:"tranche",id:"t1118",cid:"c009",nom:"4 - GUYNEMER - BAT C - MURS",open:false},
+  {type:"tranche",id:"t1119",cid:"c009",nom:"5 - GUYNEMER - BAT C - MURS",open:false},
+  {type:"tranche",id:"t1120",cid:"c009",nom:"6 - GUYNEMER - BAT C - CHARPENTE",open:false},
+  {type:"tranche",id:"t1121",cid:"c009",nom:"7 - GUYNEMER - BAT C - CHARPENTE",open:false},
+  {type:"tranche",id:"t1122",cid:"c009",nom:"8 - GUYNEMER - BAT C - MURS",open:false},
+  {type:"tranche",id:"t1123",cid:"c009",nom:"9 - GUYNEMER - BAT C - MURS",open:false},
+  {type:"tranche",id:"t1124",cid:"c009",nom:"10 - GUYNEMER - BAT C - BALCONS / COURSIVES",open:false},
+  {type:"tranche",id:"t1125",cid:"c009",nom:"11 - GUYNEMER - BAT C - BARDAGE",open:false},
+  {type:"tranche",id:"t1126",cid:"c009",nom:"12 - GUYNEMER - BAT C - BARDAGE",open:false},
+  {type:"tranche",id:"t1127",cid:"c009",nom:"13 - GUYNEMER - BAT C - BALCONS / COURSIVES",open:false},
+  {type:"tranche",id:"t1128",cid:"c009",nom:"14 - GUYNEMER - BAT C - BARDAGE",open:false},
+  {type:"tranche",id:"t1129",cid:"c009",nom:"15 - GUYNEMER - BAT C - TERRASSES",open:false},
+  {type:"tranche",id:"t1130",cid:"c009",nom:"16 - GUYNEMER - BAT C - BARDAGE",open:false},
+  {type:"tranche",id:"t1131",cid:"c009",nom:"17 - GUYNEMER - BAT C - BARDAGE",open:false},
+  {type:"tranche",id:"t1132",cid:"c009",nom:"18 - GUYNEMER - BAT B - MURS",open:false},
+  {type:"tranche",id:"t1133",cid:"c009",nom:"19 - GUYNEMER - BAT B - MURS",open:false},
+  {type:"tranche",id:"t1134",cid:"c009",nom:"20 - GUYNEMER - BAT B - MURS",open:false},
+  {type:"tranche",id:"t1135",cid:"c009",nom:"21 - GUYNEMER - BAT B - BARDAGE",open:false},
+  {type:"tranche",id:"t1136",cid:"c009",nom:"22 - GUYNEMER - BAT B - CHARPENTE",open:false},
+  {type:"tranche",id:"t1137",cid:"c009",nom:"23 - GUYNEMER - BAT B - CHARPENTE",open:false},
+  {type:"tranche",id:"t1138",cid:"c009",nom:"24 - GUYNEMER - BAT B - MURS",open:false},
+  {type:"tranche",id:"t1139",cid:"c009",nom:"25 - GUYNEMER - BAT B - MURS",open:false},
+  {type:"tranche",id:"t1140",cid:"c009",nom:"26 - GUYNEMER - BAT B - BALCONS / COURSIVES",open:false},
+  {type:"tranche",id:"t1141",cid:"c009",nom:"27 - GUYNEMER - BAT B - BARDAGE",open:false},
+  {type:"tranche",id:"t1142",cid:"c009",nom:"28 - GUYNEMER - BAT B - BARDAGE",open:false},
+  {type:"tranche",id:"t1143",cid:"c009",nom:"29 - GUYNEMER - BAT B - BALCONS / COURSIVES",open:false},
+  {type:"tranche",id:"t1144",cid:"c009",nom:"30 - GUYNEMER - BAT B - BARDAGE",open:false},
+  {type:"tranche",id:"t1145",cid:"c009",nom:"31 - GUYNEMER - BAT B - TERRASSES",open:false},
+  {type:"tranche",id:"t1146",cid:"c009",nom:"32 - GUYNEMER - BAT B - BARDAGE",open:false},
+  {type:"tranche",id:"t1147",cid:"c009",nom:"33 - GUYNEMER - BAT B - BARDAGE",open:false},
+  {type:"tranche",id:"t1148",cid:"c009",nom:"34 - GUYNEMER - BAT A - MURS",open:false},
+  {type:"tranche",id:"t1149",cid:"c009",nom:"35 - GUYNEMER - BAT A - MURS",open:false},
+  {type:"tranche",id:"t1150",cid:"c009",nom:"36 - GUYNEMER - BAT A - MURS",open:false},
+  {type:"tranche",id:"t1151",cid:"c009",nom:"37 - GUYNEMER - BAT A - BARDAGE",open:false},
+  {type:"tranche",id:"t1152",cid:"c009",nom:"38 - GUYNEMER - BAT A - MURS",open:false},
+  {type:"tranche",id:"t1153",cid:"c009",nom:"39 - GUYNEMER - BAT A - MURS",open:false},
+  {type:"tranche",id:"t1154",cid:"c009",nom:"40 - GUYNEMER - BAT A - BALCONS / COURSIVES",open:false},
+  {type:"tranche",id:"t1155",cid:"c009",nom:"41 - GUYNEMER - BAT A - CHARPENTE",open:false},
+  {type:"tranche",id:"t1156",cid:"c009",nom:"42 - GUYNEMER - BAT A - BARDAGE",open:false},
+  {type:"tranche",id:"t1157",cid:"c009",nom:"43 - GUYNEMER - BAT A - BALCONS / COURSIVES",open:false},
+  {type:"tranche",id:"t1158",cid:"c009",nom:"44 - GUYNEMER - BAT A - BARDAGE",open:false},
+  {type:"tranche",id:"t1159",cid:"c009",nom:"45 - GUYNEMER - BAT A - TERRASSES",open:false},
+  {type:"tranche",id:"t1160",cid:"c009",nom:"46 - GUYNEMER - BAT A - CHARPENTE",open:false},
+  {type:"tranche",id:"t1161",cid:"c009",nom:"47 - GUYNEMER - BAT A - BARDAGE",open:false},
+  {type:"tranche",id:"t1162",cid:"c009",nom:"48 - GUYNEMER - BAT A - BARDAGE",open:false},
+  {type:"tranche",id:"t1163",cid:"c009",nom:"49 - GUYNEMER - BAT A - BARDAGE",open:false},
+  {type:"tranche",id:"t1164",cid:"c009",nom:"50 - GUYNEMER - BAT A - BARDAGE",open:false},
+  {type:"tranche",id:"t1165",cid:"c009",nom:"51 - GUYNEMER - BAT A - BARDAGE",open:false},
+  {type:"tranche",id:"t1166",cid:"c009",nom:"52 - GUYNEMER - GARAGE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1167",cid:"c009",nom:"53 - GUYNEMER - GARAGE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1168",cid:"c009",nom:"54 - GUYNEMER - GARAGE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1169",cid:"c009",nom:"55 - GUYNEMER - GARAGE - BARDAGE",open:false},
+  {type:"tranche",id:"t1170",cid:"c009",nom:"GUYNEMER - BAT C - MOB",open:false},
+  {type:"tranche",id:"t1171",cid:"c009",nom:"GUYNEMER - BAT C - CHARPENTE",open:false},
+  {type:"tranche",id:"t1172",cid:"c009",nom:"GUYNEMER - BAT C - BALCONS",open:false},
+  {type:"tranche",id:"t1173",cid:"c009",nom:"GUYNEMER - BAT B - MOB",open:false},
+  {type:"tranche",id:"t1174",cid:"c009",nom:"GUYNEMER - BAT B - CHARPENTE",open:false},
+  {type:"tranche",id:"t1175",cid:"c009",nom:"GUYNEMER - BAT B - BALCONS",open:false},
+  {type:"tranche",id:"t1176",cid:"c009",nom:"GUYNEMER - BAT A - MOB",open:false},
+  {type:"tranche",id:"t1177",cid:"c009",nom:"GUYNEMER - BAT A - CHARPENTE",open:false},
+  {type:"tranche",id:"t1178",cid:"c009",nom:"GUYNEMER - BAT A - BALCONS",open:false},
+  {type:"tranche",id:"t1179",cid:"c009",nom:"GUYNEMER - GARAGE",open:false},
+  {type:"tranche",id:"t1180",cid:"c009",nom:"GUYNEMER PROTO",open:false},
+  {type:"chantier",id:"c010",nom:"H44-CHATEAUBRIANT",conduc:"",open:false},
+  {type:"tranche",id:"t1181",cid:"c010",nom:"H44-CHATEAUBRIANT - IMP + CNA + PIGNON",open:false},
+  {type:"tranche",id:"t1182",cid:"c010",nom:"H44-CHATEAUBRIANT - A",open:false},
+  {type:"tranche",id:"t1183",cid:"c010",nom:"H44-CHATEAUBRIANT - B",open:false},
+  {type:"tranche",id:"t1184",cid:"c010",nom:"H44-CHATEAUBRIANT - C",open:false},
+  {type:"tranche",id:"t1185",cid:"c010",nom:"H44-CHATEAUBRIANT - D",open:false},
+  {type:"tranche",id:"t1186",cid:"c010",nom:"H44-CHATEAUBRIANT - AB - COURISVE & BALCON",open:false},
+  {type:"tranche",id:"t1187",cid:"c010",nom:"H44-CHATEAUBRIANT - CD - COURISVE & BALCON",open:false},
+  {type:"tranche",id:"t1188",cid:"c010",nom:"H44-CHATEAUBRIANT - LOCAL POUBELLE",open:false},
+  {type:"chantier",id:"c011",nom:"H44 - VAY",conduc:"",open:false},
+  {type:"tranche",id:"t1189",cid:"c011",nom:"H44 - VAY - IMP + CNA R+1",open:false},
+  {type:"tranche",id:"t1190",cid:"c011",nom:"H44 - VAY - MOB PIGNON",open:false},
+  {type:"tranche",id:"t1191",cid:"c011",nom:"H44 - VAY - MOB RDC + PO",open:false},
+  {type:"tranche",id:"t1192",cid:"c011",nom:"H44 - VAY - CP + CT",open:false},
+  {type:"tranche",id:"t1193",cid:"c011",nom:"H44 - VAY - MOB R+1",open:false},
+  {type:"tranche",id:"t1194",cid:"c011",nom:"H44 - VAY - COURSIVE & BALCON",open:false},
+  {type:"chantier",id:"c012",nom:"ECHAPPE",conduc:"",open:false},
+  {type:"tranche",id:"t1195",cid:"c012",nom:"48 - ECHAPPE - B2CO - MURS - R+3 Imp, MOB & Finition",open:false},
+  {type:"tranche",id:"t1196",cid:"c012",nom:"55 - ECHAPPE - B2CO - MURS - Attique Imp, MOB & Finition",open:false},
+  {type:"tranche",id:"t1197",cid:"c012",nom:"60 - ECHAPPE - B2CO - CHARPENTE - Charpente",open:false},
+  {type:"tranche",id:"t1198",cid:"c012",nom:"62 - ECHAPPE - B2CO - BALCONS / COURSIVES - Balcons bois & habillages cuve",open:false},
+  {type:"tranche",id:"t1199",cid:"c012",nom:"95 - ECHAPPE - B2CO - MURS - MOB Séparatif - 32u",open:false},
+  {type:"tranche",id:"t1200",cid:"c012",nom:"ECHAPPE - ENVOI TRAITEMENT B2CO BALCONS",open:false},
+  {type:"tranche",id:"t1201",cid:"c012",nom:"ECHAPPE B2CO - MOB R+2",open:false},
+  {type:"tranche",id:"t1202",cid:"c012",nom:"ECHAPPE B2CO - MOB R+3",open:false},
+  {type:"tranche",id:"t1203",cid:"c012",nom:"ECHAPPE B2CO - MOB Attique",open:false},
+  {type:"tranche",id:"t1204",cid:"c012",nom:"ECHAPPE B1 - MODULE RECUPATEUR D'EAU",open:false},
+  {type:"tranche",id:"t1205",cid:"c012",nom:"ECHAPPE B1 ENVOI TRAITEMENT BALCON BOIS",open:false},
+  {type:"tranche",id:"t1206",cid:"c012",nom:"ECHAPPE - B2CO LOCAL VELO",open:false},
+  {type:"tranche",id:"t1207",cid:"c012",nom:"ECHAPPE B1 - BALCONS BOIS",open:false},
+  {type:"tranche",id:"t1208",cid:"c012",nom:"ECHAPPE B1 - LOCAUX VELOS",open:false},
+  {type:"tranche",id:"t1209",cid:"c012",nom:"ECHAPPE B2 MI - CP R+1",open:false},
+  {type:"tranche",id:"t1210",cid:"c012",nom:"ECHAPPE B2 MI - COURSIVE + LV",open:false},
+  {type:"tranche",id:"t1211",cid:"c012",nom:"ECHAPPE B2 MI - CNA",open:false},
+  {type:"tranche",id:"t1212",cid:"c012",nom:"ECHAPPE B2CO - CNA",open:false},
+  {type:"tranche",id:"t1213",cid:"c012",nom:"ECHAPPE B3CO - COURSIVE BETON",open:false},
+  {type:"tranche",id:"t1214",cid:"c012",nom:"ECHAPPE B3CO - FOB R+1",open:false},
+  {type:"tranche",id:"t1215",cid:"c012",nom:"ECHAPPE B3CO - FOB R+2",open:false},
+  {type:"tranche",id:"t1216",cid:"c012",nom:"ECHAPPE B3CO - FOB R+3",open:false},
+  {type:"tranche",id:"t1217",cid:"c012",nom:"ECHAPPE B3CO - FOB Attique",open:false},
+  {type:"tranche",id:"t1218",cid:"c012",nom:"ECHAPPE B3CO - FOB RDC",open:false},
+  {type:"tranche",id:"t1219",cid:"c012",nom:"ECHAPPE B3CO - CNA CHARP",open:false},
+  {type:"tranche",id:"t1220",cid:"c012",nom:"ECHAPPE - ENVOI TRAITEMENT B3CO BALCONS",open:false},
+  {type:"tranche",id:"t1221",cid:"c012",nom:"ECHAPPE B3CO - Imp",open:false},
+  {type:"tranche",id:"t1222",cid:"c012",nom:"ECHAPPE B3CO - BALCONS BOIS",open:false},
+  {type:"tranche",id:"t1223",cid:"c012",nom:"ECHAPPE B3CO - MODULE RECUPERATEUR D'EAU",open:false},
+  {type:"tranche",id:"t1224",cid:"c012",nom:"ECHAPPE B3 MI - CNA",open:false},
+  {type:"tranche",id:"t1225",cid:"c012",nom:"ECHAPPE B3 MI - MOB",open:false},
+  {type:"tranche",id:"t1226",cid:"c012",nom:"ECHAPPE B3 MI - IMP",open:false},
+  {type:"tranche",id:"t1227",cid:"c012",nom:"ECHAPPE B3 MI - CP RDC",open:false},
+  {type:"tranche",id:"t1228",cid:"c012",nom:"ECHAPPE B3 MI - CP R+1",open:false},
+  {type:"tranche",id:"t1229",cid:"c012",nom:"ECHAPPE B3 MI - COURSIVE + LV",open:false},
+  {type:"tranche",id:"t1230",cid:"c012",nom:"ECHAPPE B3 MI ENVOI TRAITEMENT COURSIVE + LV",open:false},
+  {type:"tranche",id:"t1231",cid:"c012",nom:"ECHAPPE B2MI ENVOI TRAITEMENT COURSIVE + LV",open:false},
+  {type:"tranche",id:"t1232",cid:"c012",nom:"ECHAPPE - ENVOI TRAITEMENT B3CO COURSIVE",open:false},
+  {type:"tranche",id:"t1233",cid:"c012",nom:"ECHAPPE B3CO - CP Terrasse",open:false},
+  {type:"tranche",id:"t1234",cid:"c012",nom:"42 - ECHAPPE - B2CO - MURS - R+2 Imp, MOB & Finition",open:false},
+  {type:"tranche",id:"t1235",cid:"c012",nom:"52 - ECHAPPE - B2CO - BALCONS / COURSIVES - R+3 Coursives",open:false},
+  {type:"tranche",id:"t1236",cid:"c012",nom:"59 - ECHAPPE - B2CO - BALCONS / COURSIVES - Attique Coursives",open:false},
+  {type:"tranche",id:"t1237",cid:"c012",nom:"79 - ECHAPPE - B3MI - MURS - MI12/15 - RDC Imp, MOB & Finition",open:false},
+  {type:"tranche",id:"t1238",cid:"c012",nom:"ECHAPPE B1A - BALCONS",open:false},
+  {type:"tranche",id:"t1239",cid:"c012",nom:"ECHAPPE - B2CO LOCAL VELO - ENVOI TRAITEMENT",open:false},
+  {type:"tranche",id:"t1240",cid:"c012",nom:"ECHAPPE B2CO - BAR",open:false},
+  {type:"chantier",id:"c013",nom:"SH - GAUTHIOT LAMY",conduc:"",open:false},
+  {type:"tranche",id:"t1241",cid:"c013",nom:"SH - GAUTHIOT LAMY - M1/M2 - CP + FERMES + CNA",open:false},
+  {type:"tranche",id:"t1242",cid:"c013",nom:"SH - GAUTHIOT LAMY - M3/M4 - CP + FERMES + CNA",open:false},
+  {type:"tranche",id:"t1243",cid:"c013",nom:"SH - GAUTHIOT LAMY - CNA R+1",open:false},
+  {type:"chantier",id:"c014",nom:"SCI ALLFOR",conduc:"",open:false},
+  {type:"tranche",id:"t1244",cid:"c014",nom:"ALLFOR-vente directe-CA",open:false},
+  {type:"chantier",id:"c015",nom:"DELAUNEY",conduc:"",open:false},
+  {type:"tranche",id:"t1245",cid:"c015",nom:"DELAUNEY-vente directe-CA",open:false},
+  {type:"chantier",id:"c016",nom:"POUSSCOOP",conduc:"",open:false},
+  {type:"tranche",id:"t1246",cid:"c016",nom:"POUSSCOOP G - PO+CV fermettes",open:false},
+  {type:"tranche",id:"t1247",cid:"c016",nom:"POUSSCOOP G - DIV",open:false},
+  {type:"tranche",id:"t1248",cid:"c016",nom:"POUSSCOOP H - PO+CV fermettes",open:false},
+  {type:"tranche",id:"t1249",cid:"c016",nom:"POUSSCOOP H - DIV",open:false},
+  {type:"tranche",id:"t1250",cid:"c016",nom:"POUSSCOOP D - IMP+MOB+BAR maisons",open:false},
+  {type:"tranche",id:"t1251",cid:"c016",nom:"POUSSCOOP D - IMP+MOB+BAR annexes",open:false},
+  {type:"tranche",id:"t1252",cid:"c016",nom:"POUSSCOOP D - PO+CP plancher",open:false},
+  {type:"tranche",id:"t1253",cid:"c016",nom:"POUSSCOOP D - PO+CV sous fermettes",open:false},
+  {type:"tranche",id:"t1254",cid:"c016",nom:"POUSSCOOP D - CNA annexes",open:false},
+  {type:"tranche",id:"t1255",cid:"c016",nom:"POUSSCOOP C - IMP+MOB+BAR maisons",open:false},
+  {type:"tranche",id:"t1256",cid:"c016",nom:"POUSSCOOP C - IMP+MOB+BAR annexes",open:false},
+  {type:"tranche",id:"t1257",cid:"c016",nom:"POUSSCOOP C - PO+CP plancher",open:false},
+  {type:"tranche",id:"t1258",cid:"c016",nom:"POUSSCOOP C - PO+CV sous fermettes",open:false},
+  {type:"tranche",id:"t1259",cid:"c016",nom:"POUSSCOOP C - PO+CT charpente",open:false},
+  {type:"tranche",id:"t1260",cid:"c016",nom:"POUSSCOOP C - CNA annexes",open:false},
+  {type:"tranche",id:"t1261",cid:"c016",nom:"POUSSCOOP B - IMP+MOB+BAR maisons",open:false},
+  {type:"tranche",id:"t1262",cid:"c016",nom:"POUSSCOOP B - IMP+MOB+BAR annexes",open:false},
+  {type:"tranche",id:"t1263",cid:"c016",nom:"POUSSCOOP B - PO+CP plancher",open:false},
+  {type:"tranche",id:"t1264",cid:"c016",nom:"POUSSCOOP B - PO+CV sous fermettes",open:false},
+  {type:"tranche",id:"t1265",cid:"c016",nom:"POUSSCOOP B - PO+CT charpente",open:false},
+  {type:"tranche",id:"t1266",cid:"c016",nom:"POUSSCOOP B - CNA annexes",open:false},
+  {type:"tranche",id:"t1267",cid:"c016",nom:"POUSSCOOP A - IMP+MOB+BAR maisons",open:false},
+  {type:"tranche",id:"t1268",cid:"c016",nom:"POUSSCOOP A - IMP+MOB+BAR annexes",open:false},
+  {type:"tranche",id:"t1269",cid:"c016",nom:"POUSSCOOP A - PO+CP plancher",open:false},
+  {type:"tranche",id:"t1270",cid:"c016",nom:"POUSSCOOP A - PO+CV sous fermettes",open:false},
+  {type:"tranche",id:"t1271",cid:"c016",nom:"POUSSCOOP A - PO+CT charpente",open:false},
+  {type:"tranche",id:"t1272",cid:"c016",nom:"POUSSCOOP A - CNA annexes",open:false},
+  {type:"chantier",id:"c017",nom:"MAITRE CUBE - MLH Avrillé",conduc:"",open:false},
+  {type:"tranche",id:"t1273",cid:"c017",nom:"MCA-A-CP+CNA Balcons",open:false},
+  {type:"tranche",id:"t1274",cid:"c017",nom:"MCA-A-IMP+CNA",open:false},
+  {type:"tranche",id:"t1275",cid:"c017",nom:"MCA-A-Bois traitement",open:false},
+  {type:"tranche",id:"t1276",cid:"c017",nom:"MCA-B-MOB R+1+PO",open:false},
+  {type:"tranche",id:"t1277",cid:"c017",nom:"MCA-B-MOB R+2+PO",open:false},
+  {type:"tranche",id:"t1278",cid:"c017",nom:"MCA-B-MOB R+3+PO",open:false},
+  {type:"tranche",id:"t1279",cid:"c017",nom:"MCA-B-CP+CT R+1",open:false},
+  {type:"tranche",id:"t1280",cid:"c017",nom:"MCA-B-CP+CT R+2",open:false},
+  {type:"tranche",id:"t1281",cid:"c017",nom:"MCA-B-CP+CT R+3",open:false},
+  {type:"tranche",id:"t1282",cid:"c017",nom:"MCA-B-CNA+MOB+CP+PO Balcons",open:false},
+  {type:"tranche",id:"t1283",cid:"c017",nom:"MCA-B-ENVOI TRAITEMENT",open:false},
+  {type:"tranche",id:"t1284",cid:"c017",nom:"MCA-6MI",open:false},
+  {type:"tranche",id:"t1285",cid:"c017",nom:"MCA-6MI IMP",open:false},
+  {type:"chantier",id:"c018",nom:"NOVALLIANCE",conduc:"",open:false},
+  {type:"tranche",id:"t1286",cid:"c018",nom:"1 - NOVALLIANCE - SOUS DALLE - MURS",open:false},
+  {type:"tranche",id:"t1287",cid:"c018",nom:"2 - NOVALLIANCE - SOUS DALLE - MURS",open:false},
+  {type:"tranche",id:"t1288",cid:"c018",nom:"3 - NOVALLIANCE - SOUS DALLE - MURS",open:false},
+  {type:"tranche",id:"t1289",cid:"c018",nom:"4 - NOVALLIANCE - SOUS DALLE - MURS",open:false},
+  {type:"tranche",id:"t1290",cid:"c018",nom:"5 - NOVALLIANCE - TZ - MURS",open:false},
+  {type:"tranche",id:"t1291",cid:"c018",nom:"6 - NOVALLIANCE - TZ - MURS",open:false},
+  {type:"tranche",id:"t1292",cid:"c018",nom:"7 - NOVALLIANCE - TZ - MURS",open:false},
+  {type:"tranche",id:"t1293",cid:"c018",nom:"8 - NOVALLIANCE - TZ - MURS",open:false},
+  {type:"tranche",id:"t1294",cid:"c018",nom:"10 - NOVALLIANCE - ASPIRATION - MURS",open:false},
+  {type:"tranche",id:"t1295",cid:"c018",nom:"11 - NOVALLIANCE - ASPIRATION - BARDAGE",open:false},
+  {type:"chantier",id:"c019",nom:"LINO VENTURA",conduc:"",open:false},
+  {type:"tranche",id:"t1296",cid:"c019",nom:"1 - LINO VENTURA - TZ - MURS",open:false},
+  {type:"tranche",id:"t1297",cid:"c019",nom:"2 - LINO VENTURA - TZ - CHARPENTE",open:false},
+  {type:"tranche",id:"t1298",cid:"c019",nom:"3 - LINO VENTURA - TZ - INSTALLATION CHANTIER",open:false},
+  {type:"tranche",id:"t1299",cid:"c019",nom:"4 - LINO VENTURA - SALLE - INSTALLATION CHANTIER",open:false},
+  {type:"tranche",id:"t1300",cid:"c019",nom:"5 - LINO VENTURA - SALLE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1301",cid:"c019",nom:"6 - LINO VENTURA - SALLE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1302",cid:"c019",nom:"7 - LINO VENTURA - SALLE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1303",cid:"c019",nom:"8 - LINO VENTURA - SALLE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1304",cid:"c019",nom:"9 - LINO VENTURA - SALLE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1305",cid:"c019",nom:"10 - LINO VENTURA - SALLE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1306",cid:"c019",nom:"11 - LINO VENTURA - SALLE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1307",cid:"c019",nom:"12 - LINO VENTURA - SALLE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1308",cid:"c019",nom:"13 - LINO VENTURA - SALLE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1309",cid:"c019",nom:"14 - LINO VENTURA - SALLE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1310",cid:"c019",nom:"15 - LINO VENTURA - SALLE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1311",cid:"c019",nom:"16 - LINO VENTURA - HALL - CHARPENTE",open:false},
+  {type:"tranche",id:"t1312",cid:"c019",nom:"17 - LINO VENTURA - HALL - CHARPENTE",open:false},
+  {type:"tranche",id:"t1313",cid:"c019",nom:"18 - LINO VENTURA - TZ - MURS",open:false},
+  {type:"tranche",id:"t1314",cid:"c019",nom:"19 - LINO VENTURA - TZ - MURS",open:false},
+  {type:"tranche",id:"t1315",cid:"c019",nom:"20 - LINO VENTURA - TZ - CHARPENTE",open:false},
+  {type:"tranche",id:"t1316",cid:"c019",nom:"21 - LINO VENTURA - TZ - MURS",open:false},
+  {type:"tranche",id:"t1317",cid:"c019",nom:"22 - LINO VENTURA - HALL - CHARPENTE",open:false},
+  {type:"tranche",id:"t1318",cid:"c019",nom:"23 - LINO VENTURA - HALL - CHARPENTE",open:false},
+  {type:"tranche",id:"t1319",cid:"c019",nom:"24 - LINO VENTURA - SALLE - CHARPENTE",open:false},
+  {type:"tranche",id:"t1320",cid:"c019",nom:"25 - LINO VENTURA - TZ - MURS",open:false},
+  {type:"tranche",id:"t1321",cid:"c019",nom:"26 - LINO VENTURA - TZ - MURS",open:false},
+  {type:"tranche",id:"t1322",cid:"c019",nom:"27 - LINO VENTURA - HALL - CAISSONS",open:false},
+  {type:"tranche",id:"t1323",cid:"c019",nom:"28 - LINO VENTURA - HALL - CAISSONS",open:false},
+  {type:"tranche",id:"t1324",cid:"c019",nom:"29 - LINO VENTURA - HALL - CAISSONS",open:false},
+  {type:"tranche",id:"t1325",cid:"c019",nom:"30 - LINO VENTURA - HALL - CAISSONS",open:false},
+  {type:"tranche",id:"t1326",cid:"c019",nom:"31 - LINO VENTURA - TZ - CHARPENTE",open:false},
+  {type:"tranche",id:"t1327",cid:"c019",nom:"32 - LINO VENTURA - TZ - CHARPENTE",open:false},
+  {type:"tranche",id:"t1328",cid:"c019",nom:"33 - LINO VENTURA - TZ - CHARPENTE",open:false},
+  {type:"tranche",id:"t1329",cid:"c019",nom:"34 - LINO VENTURA - TZ - MURS",open:false},
+  {type:"tranche",id:"t1330",cid:"c019",nom:"35 - LINO VENTURA - TZ - BARDAGE",open:false},
+  {type:"tranche",id:"t1331",cid:"c019",nom:"36 - LINO VENTURA - TZ - BARDAGE",open:false},
+  {type:"tranche",id:"t1332",cid:"c019",nom:"37 - LINO VENTURA - TZ - BARDAGE",open:false},
+  {type:"tranche",id:"t1333",cid:"c019",nom:"38 - LINO VENTURA - TZ - BARDAGE",open:false},
+  {type:"tranche",id:"t1334",cid:"c019",nom:"39 - LINO VENTURA - TZ - BARDAGE",open:false},
+  {type:"chantier",id:"c020",nom:"HYROME",conduc:"",open:false},
+  {type:"tranche",id:"t1335",cid:"c020",nom:"1 - HYROME - TZ - INSTALLATION CHANTIER",open:false},
+  {type:"tranche",id:"t1336",cid:"c020",nom:"2 - HYROME - TZ - MURS",open:false},
+  {type:"tranche",id:"t1337",cid:"c020",nom:"3 - HYROME - TZ - MURS",open:false},
+  {type:"tranche",id:"t1338",cid:"c020",nom:"4 - HYROME - TZ - MURS",open:false},
+  {type:"tranche",id:"t1339",cid:"c020",nom:"5 - HYROME - TZ - CHARPENTE",open:false},
+  {type:"tranche",id:"t1340",cid:"c020",nom:"6 - HYROME - TZ - CHARPENTE",open:false},
+  {type:"tranche",id:"t1341",cid:"c020",nom:"7 - HYROME - TZ - CHARPENTE",open:false},
+  {type:"tranche",id:"t1342",cid:"c020",nom:"8 - HYROME - TZ - CHARPENTE",open:false},
+  {type:"tranche",id:"t1343",cid:"c020",nom:"9 - HYROME - TZ - CHARPENTE",open:false},
+  {type:"tranche",id:"t1344",cid:"c020",nom:"10 - HYROME - TZ - MURS",open:false},
+  {type:"tranche",id:"t1345",cid:"c020",nom:"11 - HYROME - TZ - MURS",open:false},
+  {type:"tranche",id:"t1346",cid:"c020",nom:"12 - HYROME - TZ - MURS",open:false},
+  {type:"tranche",id:"t1347",cid:"c020",nom:"13 - HYROME - TZ - MURS",open:false},
+  {type:"tranche",id:"t1348",cid:"c020",nom:"14 - HYROME - TZ - MURS",open:false},
+  {type:"chantier",id:"c021",nom:"EPONA",conduc:"",open:false},
+  {type:"tranche",id:"t1349",cid:"c021",nom:"1 - EPONA - C2 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1350",cid:"c021",nom:"2 - EPONA - C2 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1351",cid:"c021",nom:"3 - EPONA - C2 - BARDAGE",open:false},
+  {type:"tranche",id:"t1352",cid:"c021",nom:"4 - EPONA - C5 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1353",cid:"c021",nom:"5 - EPONA - C5 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1354",cid:"c021",nom:"6 - EPONA - C5 - BARDAGE",open:false},
+  {type:"tranche",id:"t1355",cid:"c021",nom:"7 - EPONA - C2 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1356",cid:"c021",nom:"8 - EPONA - C5 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1357",cid:"c021",nom:"9 - EPONA - C1 - BALCONS / COURSIVES",open:false},
+  {type:"tranche",id:"t1358",cid:"c021",nom:"10 - EPONA - C1 - BALCONS / COURSIVES",open:false},
+  {type:"tranche",id:"t1359",cid:"c021",nom:"11 - EPONA - C1 - BALCONS / COURSIVES",open:false},
+  {type:"tranche",id:"t1360",cid:"c021",nom:"12 - EPONA - C1 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1361",cid:"c021",nom:"13 - EPONA - C1 - BARDAGE",open:false},
+  {type:"tranche",id:"t1362",cid:"c021",nom:"14 - EPONA - C1 - TERRASSES",open:false},
+  {type:"tranche",id:"t1363",cid:"c021",nom:"15 - EPONA - C4 - BALCONS / COURSIVES",open:false},
+  {type:"tranche",id:"t1364",cid:"c021",nom:"16 - EPONA - C4 - BALCONS / COURSIVES",open:false},
+  {type:"tranche",id:"t1365",cid:"c021",nom:"17 - EPONA - C4 - BALCONS / COURSIVES",open:false},
+  {type:"tranche",id:"t1366",cid:"c021",nom:"18 - EPONA - C4 - CHARPENTE",open:false},
+  {type:"tranche",id:"t1367",cid:"c021",nom:"19 - EPONA - C4 - BARDAGE",open:false},
+  {type:"tranche",id:"t1368",cid:"c021",nom:"20 - EPONA - C4 - TERRASSES",open:false},
+  {type:"tranche",id:"t1369",cid:"c021",nom:"21 - EPONA - C1 LV - MURS",open:false},
+  {type:"tranche",id:"t1370",cid:"c021",nom:"22 - EPONA - C1 LV - MURS",open:false},
+  {type:"tranche",id:"t1371",cid:"c021",nom:"23 - EPONA - C1 LV - BARDAGE",open:false},
+  {type:"tranche",id:"t1372",cid:"c021",nom:"24 - EPONA - C4 LV - MURS",open:false},
+  {type:"tranche",id:"t1373",cid:"c021",nom:"25 - EPONA - C4 LV - MURS",open:false},
+  {type:"tranche",id:"t1374",cid:"c021",nom:"26 - EPONA - C4 LV - BARDAGE",open:false},
+  {type:"chantier",id:"c022",nom:"POD CANDE",conduc:"",open:false},
+  {type:"tranche",id:"t1375",cid:"c022",nom:"POD CANDE A IMP + CNA",open:false},
+  {type:"tranche",id:"t1376",cid:"c022",nom:"POD CANDE A MOB + PO",open:false},
+  {type:"tranche",id:"t1377",cid:"c022",nom:"POD CANDE A CP + CT",open:false},
+  {type:"tranche",id:"t1378",cid:"c022",nom:"POD CANDE B IMP + CNA",open:false},
+  {type:"tranche",id:"t1379",cid:"c022",nom:"POD CANDE B MOB + PO",open:false},
+  {type:"tranche",id:"t1380",cid:"c022",nom:"POD CANDE B CP + CT",open:false},
+  {type:"tranche",id:"t1381",cid:"c022",nom:"POD CANDE C IMP + CNA",open:false},
+  {type:"tranche",id:"t1382",cid:"c022",nom:"POD CANDE C MOB + PO",open:false},
+  {type:"tranche",id:"t1383",cid:"c022",nom:"POD CANDE C CP + CT",open:false},
+  {type:"chantier",id:"c023",nom:"POD DURTAL",conduc:"",open:false},
+  {type:"tranche",id:"t1384",cid:"c023",nom:"POD DUR A STR EXT",open:false},
+  {type:"tranche",id:"t1385",cid:"c023",nom:"POD DUR B STR EXT",open:false},
+  {type:"chantier",id:"c024",nom:"POD - LONGUÉ-JUMELLES",conduc:"",open:false},
+  {type:"tranche",id:"t1386",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - A - MOB PIGNON",open:false},
+  {type:"tranche",id:"t1387",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - A - MOB RDC",open:false},
+  {type:"tranche",id:"t1388",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - A - CT",open:false},
+  {type:"tranche",id:"t1389",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - A - IMP + CNA R+1",open:false},
+  {type:"tranche",id:"t1390",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - B - CT",open:false},
+  {type:"tranche",id:"t1391",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - B - MOB PIGNON",open:false},
+  {type:"tranche",id:"t1392",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - B - MOB RDC",open:false},
+  {type:"tranche",id:"t1393",cid:"c024",nom:"POD - LONGUÉ-JUMELLES - B - IMP + CNA R+1",open:false},
+  {type:"chantier",id:"c025",nom:"POD - ST ETIENNE",conduc:"",open:false},
+  {type:"tranche",id:"t1394",cid:"c025",nom:"POD - ST ETIENNE Co - MOB PIGNON",open:false},
+  {type:"tranche",id:"t1395",cid:"c025",nom:"POD - ST ETIENNE Co - PO + CP",open:false},
+  {type:"tranche",id:"t1396",cid:"c025",nom:"POD - ST ETIENNE Co - MOB RDC / R+1",open:false},
+  {type:"tranche",id:"t1397",cid:"c025",nom:"POD - ST ETIENNE Co - CT",open:false},
+  {type:"tranche",id:"t1398",cid:"c025",nom:"POD - ST ETIENNE Co - IMP + CNA R+1",open:false},
+  {type:"tranche",id:"t1399",cid:"c025",nom:"POD - ST ETIENNE Co - BALCON/COURSIVE",open:false},
+  {type:"tranche",id:"t1400",cid:"c025",nom:"POD - ST ETIENNE Indiv - CT",open:false},
+  {type:"tranche",id:"t1401",cid:"c025",nom:"POD - ST ETIENNE Indiv - MOB PIGNON",open:false},
+  {type:"tranche",id:"t1402",cid:"c025",nom:"POD - ST ETIENNE Indiv - MOB",open:false},
+  {type:"tranche",id:"t1403",cid:"c025",nom:"POD - ST ETIENNE Indiv - IMP + CNA R+1",open:false},
+  {type:"chantier",id:"c026",nom:"BEL VIA",conduc:"",open:false},
+  {type:"tranche",id:"t1404",cid:"c026",nom:"BELVIA - M1 - CP RDC + PO",open:false},
+  {type:"tranche",id:"t1405",cid:"c026",nom:"BELVIA - M2 - MOB LOCAL OM +CNA",open:false},
+  {type:"tranche",id:"t1406",cid:"c026",nom:"BELVIA - M3 - CP RDC + PO",open:false},
+  {type:"tranche",id:"t1407",cid:"c026",nom:"BELVIA - M4 - CNA APPENTITS",open:false},
+  {type:"tranche",id:"t1408",cid:"c026",nom:"BELVIA - M5 - CNA APPENTITS",open:false},
+  {type:"tranche",id:"t1409",cid:"c026",nom:"BELVIA - M6 - CP RDC + PO",open:false},
+  {type:"tranche",id:"t1410",cid:"c026",nom:"BELVIA - M7 - CA R+1",open:false},
+  {type:"tranche",id:"t1411",cid:"c026",nom:"BELVIA - M8 - CP RDC + PO",open:false},
+  {type:"tranche",id:"t1412",cid:"c026",nom:"BELVIA - M9 - CP RDC + PO",open:false},
+  {type:"tranche",id:"t1413",cid:"c026",nom:"BELVIA - M10 - CA R+2",open:false},
+  {type:"tranche",id:"t1414",cid:"c026",nom:"BELVIA - M11 - CNA APPENTITS",open:false},
+  {type:"tranche",id:"t1415",cid:"c026",nom:"BELVIA - M12 - MOB LOCAL OM +CNA",open:false},
+  {type:"tranche",id:"t1416",cid:"c026",nom:"BELVIA - M13 - CA R+1",open:false},
+  {type:"tranche",id:"t1417",cid:"c026",nom:"BELVIA - M14 - CP RDC + PO",open:false},
+  {type:"chantier",id:"c027",nom:"VERDANIA",conduc:"",open:false},
+  {type:"tranche",id:"t1418",cid:"c027",nom:"VERDANIA - MOB",open:false},
+  {type:"tranche",id:"t1419",cid:"c027",nom:"VERDANIA - CHARPENTE",open:false},
+  {type:"chantier",id:"c028",nom:"VILLA SEB",conduc:"",open:false},
+  {type:"tranche",id:"t1420",cid:"c028",nom:"VILLA SEB - IMP & MOB",open:false},
+  {type:"tranche",id:"t1421",cid:"c028",nom:"VILLA SEB - CHARPENTE",open:false},
+  {type:"chantier",id:"c029",nom:"DETALLANTE",conduc:"",open:false},
+  {type:"tranche",id:"t1422",cid:"c029",nom:"DETALLANTE - MOB",open:false},
+  {type:"chantier",id:"c030",nom:"BLANCHECOTTE",conduc:"",open:false},
+  {type:"tranche",id:"t1423",cid:"c030",nom:"BLANCHECOTTE - MOB",open:false},
+  {type:"tranche",id:"t1424",cid:"c030",nom:"BLANCHECOTTE - CP",open:false},
+  {type:"chantier",id:"c031",nom:"GANDEMER",conduc:"",open:false},
+  {type:"tranche",id:"t1425",cid:"c031",nom:"GANDEMER",open:false},
+  {type:"chantier",id:"c032",nom:"ROU PREAU",conduc:"",open:false},
+  {type:"tranche",id:"t1426",cid:"c032",nom:"ROU PREAU",open:false},
+  {type:"chantier",id:"c033",nom:"PANORAMA",conduc:"",open:false},
+  {type:"tranche",id:"t1427",cid:"c033",nom:"PANORAMA - BRISE SOLEIL",open:false},
+  {type:"tranche",id:"t1428",cid:"c033",nom:"PANORAMA - BALCONS",open:false},
+  {type:"chantier",id:"c034",nom:"LYCEE LE FRESNE",conduc:"",open:false},
+  {type:"tranche",id:"t1429",cid:"c034",nom:"LE FRESNE - Terrasse",open:false},
+  {type:"tranche",id:"t1430",cid:"c034",nom:"LE FRESNE PORCHE Entrée - MOB",open:false}
+];
 
-// ═══ PERSISTENCE ═════════════════════════════════════════════════════════
-function saveLS() {
-  try { localStorage.setItem('erp_v2', JSON.stringify(state)); } catch(e) {}
+// ═══ STATE ════════════════════════════════════════════════════════════════
+let state = {
+  chantiers:[],tranches:[],phases:[],articles:[],
+  cdes:[],stock:[],bls:[],
+};
+let _ctx = {};
+let _search = '';
+let _saveTimeout = null;
+let _currentBLId = null;
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtDate(s){if(!s)return'';try{if(/^\d{2}\/\d{2}\/\d{4}$/.test(s))return s;const[y,m,d]=s.split('-');return`${d}/${m}/${y}`;}catch(e){return s;}}
+function parseDate(s){if(!s)return null;s=String(s).trim().replace(/[""]/g,'');if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return null;}
+function progHtml(pct,cls){return`<div class="prog"><div class="prog-bar"><div class="prog-fill ${cls||'prog-blue'}" style="width:${Math.min(pct,100)}%"></div></div><span class="prog-label">${pct}%</span></div>`;}
+function statusBadge(s){
+  const m={Terminé:'badge-green',Reçue:'badge-green','En cours':'badge-blue',Planifié:'badge-gray',planifie:'badge-gray',en_cours:'badge-blue',termine:'badge-green',bloque:'badge-red',attente:'badge-orange',Retard:'badge-red',Litige:'badge-red','Réception partielle':'badge-orange',Envoyée:'badge-orange',Validée:'badge-blue',Brouillon:'badge-gray',brouillon:'badge-gray',valide:'badge-green',reserve:'badge-orange',en_stock:'badge-green',sorti:'badge-gray'};
+  const labels={planifie:'Planifié',en_cours:'En cours',termine:'Terminé',bloque:'Bloqué',attente:'Attente BE',brouillon:'Brouillon',valide:'Validé',reserve:'Réservé',en_stock:'En stock',sorti:'Sorti'};
+  return`<span class="badge ${m[s]||'badge-gray'}">${labels[s]||s}</span>`;
+}
+function fmt(n){return Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0})+'€';}
+function empHtml(e){return e&&e!=='—'?`<span class="emp">${e}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>';}
+
+// ═══ PERSISTENCE ══════════════════════════════════════════════════════════
+function saveLS(){try{localStorage.setItem('erp_v3',JSON.stringify(state));}catch(e){}}
+function loadLS(){try{const s=localStorage.getItem('erp_v3');if(s){state=JSON.parse(s);return true;}}catch(e){}return false;}
+
+function scheduleSave(){
+  if(_saveTimeout)clearTimeout(_saveTimeout);
+  setSyncPill('saving','Enregistrement...');
+  _saveTimeout=setTimeout(saveToSheets,2000);
 }
 
-function loadLS() {
-  try {
-    const s = localStorage.getItem('erp_v2');
-    if (s) { state = JSON.parse(s); return true; }
-  } catch(e) {}
+async function saveToSheets(){
+  saveLS();
+  try{
+    const res=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'saveERP',data:state})});
+    const r=await res.json();
+    if(r.ok)setSyncPill('ok','Enregistré '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+    else throw new Error(r.error);
+  }catch(e){setSyncPill('error','Local OK');console.warn(e);}
+}
+
+async function loadFromSheets(){
+  try{
+    const res=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERP'})});
+    const r=await res.json();
+    if(r.ok&&r.data&&r.data.chantiers?.length){state=r.data;saveLS();return true;}
+  }catch(e){console.warn('getERP:',e);}
   return false;
 }
 
-function scheduleSave() {
-  if (_saveTimeout) clearTimeout(_saveTimeout);
-  setSyncPill('saving', 'Enregistrement...');
-  _saveTimeout = setTimeout(saveToSheets, 2000);
+function setSyncPill(mode,text){
+  const p=document.getElementById('sync-pill');
+  p.style.display='inline-flex';
+  p.className='sync-pill'+(mode==='ok'?'':' '+mode);
+  document.getElementById('sync-text').textContent=text;
 }
 
-async function saveToSheets() {
-  saveLS();
-  try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({action: 'saveERP', data: state})
-    });
-    const r = await res.json();
-    if (r.ok) setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-    else throw new Error(r.error);
-  } catch(e) {
-    setSyncPill('error', 'Local OK');
+// ═══ SYNC CTVX ════════════════════════════════════════════════════════════
+async function syncCTVX(){
+  setSyncPill('saving','Sync CTVX...');
+  try{
+    const res=await fetch(DATES_CSV_URL);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const text=await res.text();
+    const lines=text.split('\n').filter(l=>l.trim());
+    if(lines.length<2)throw new Error('Feuille vide');
+    const sep=lines[0].includes(';')?';':',';
+    let updated=0;
+    for(let i=1;i<lines.length;i++){
+      const cols=lines[i].split(sep).map(c=>c.trim().replace(/^"|"$/g,''));
+      const trancheNom=(cols[4]||'').trim(); // col E (index 4)
+      const dateRaw=(cols[6]||'').trim();    // col G (index 6)
+      const date=parseDate(dateRaw);
+      if(!trancheNom||!date)continue;
+      // Chercher la tranche dans state
+      state.tranches.forEach(tr=>{
+        if(tr.nom.toLowerCase().trim()===trancheNom.toLowerCase().trim()){
+          // Mettre à jour date_ctvx sur tous les articles de cette tranche
+          const phases=state.phases.filter(p=>p.tid===tr.id);
+          phases.forEach(ph=>{
+            state.articles.filter(a=>a.pid===ph.id).forEach(a=>{
+              a.date_ctvx=date;updated++;
+            });
+          });
+          // Aussi stocker sur la tranche elle-même
+          tr.ctvx=date;
+        }
+      });
+    }
+    if(updated>0){
+      scheduleSave();
+      renderAll();
+      toast(`✓ ${updated} date(s) CTVX synchronisées`);
+    }else{
+      setSyncPill('ok','Synchronisé');
+      toast('Aucune correspondance trouvée — vérifiez les noms de tranches');
+    }
+  }catch(e){
+    setSyncPill('error','Erreur sync');
+    toast('Erreur : '+e.message);
   }
 }
 
-async function loadFromSheets() {
-  try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({action: 'getERP'})
-    });
-    const r = await res.json();
-    if (r.ok && r.data && r.data.chantiers?.length) {
-      state = r.data;
-      saveLS();
-      return true;
-    }
-  } catch(e) {}
-  return false;
-}
-
-function setSyncPill(mode, text) {
-  const p = document.getElementById('sync-pill');
-  p.style.display = 'inline-flex';
-  p.className = 'sync-pill' + (mode==='ok'?'':' '+mode);
-  document.getElementById('sync-text').textContent = text;
-}
-
-// ═══ INIT ════════════════════════════════════════════════════════════════
-async function init() {
-  const hasLocal = loadLS();
-  if (!hasLocal || !state.chantiers.length) {
-    // Premier lancement — charger les données initiales
-    INIT_PLANNING.forEach(item => {
-      if (item.type === 'chantier') {
-        state.chantiers.push({id: item.id, nom: item.nom, conduc: item.conduc||'', open: false});
-      } else if (item.type === 'tranche') {
-        state.tranches.push({id: item.id, cid: item.cid, nom: item.nom, conduc: '', open: false, budget: 0, passe: 0, pct: 0});
-      }
+// ═══ INIT ═════════════════════════════════════════════════════════════════
+async function init(){
+  const hasLocal=loadLS();
+  if(!hasLocal||!state.chantiers.length){
+    INIT_DATA.forEach(item=>{
+      if(item.type==='chantier') state.chantiers.push({id:item.id,nom:item.nom,conduc:item.conduc||'',open:false});
+      else if(item.type==='tranche') state.tranches.push({id:item.id,cid:item.cid,nom:item.nom,conduc:'',open:false,ctvx:''});
     });
     saveLS();
   }
-  const ok = await loadFromSheets();
-  if (ok) renderAll();
-  else renderAll();
-  setSyncPill('ok', 'Prêt');
+  const ok=await loadFromSheets();
+  renderAll();
+  setSyncPill('ok','Synchronisé');
+  document.getElementById('rt-label').textContent='Connecté';
 }
 
-// ═══ RENDER ══════════════════════════════════════════════════════════════
-function renderAll() {
+// ═══ RENDER ALL ═══════════════════════════════════════════════════════════
+function renderAll(){
   renderMetrics();
   renderPlanning();
+  renderAchatsMetrics();
+  renderCdes();
+  renderStockMetrics();
+  renderStock();
+  renderBLMetrics();
+  renderBLs();
 }
 
-function renderMetrics() {
-  const nbC = state.chantiers.length;
-  const nbT = state.tranches.length;
-  const nbP = state.phases.length;
-  const nbA = state.articles.length;
-  const avMoyen = nbA ? Math.round(state.articles.reduce((s,a)=>s+(+a.avancement||0),0)/nbA) : 0;
-  const retards = state.articles.filter(a=>a.statut==='bloque').length;
-  document.getElementById('metrics-bar').innerHTML = `
-    <div class="metric"><div class="metric-k">Chantiers</div><div class="metric-v">${nbC}</div><div class="metric-sub">${nbT} tranches</div></div>
-    <div class="metric"><div class="metric-k">Phases</div><div class="metric-v">${nbP}</div></div>
+// ═══ METRICS ══════════════════════════════════════════════════════════════
+function renderMetrics(){
+  const nbA=state.articles.length;
+  const avMoyen=nbA?Math.round(state.articles.reduce((s,a)=>s+(+a.avancement||0),0)/nbA):0;
+  const retards=state.articles.filter(a=>{if(!a.date_ctvx)return false;const today=new Date();const ctvx=new Date(a.date_ctvx);return ctvx<today&&a.statut!=='termine';}).length;
+  const termines=state.articles.filter(a=>a.statut==='termine').length;
+  document.getElementById('metrics-bar').innerHTML=`
+    <div class="metric"><div class="metric-k">Chantiers</div><div class="metric-v">${state.chantiers.length}</div><div class="metric-sub">${state.tranches.length} tranches</div></div>
+    <div class="metric"><div class="metric-k">Phases</div><div class="metric-v">${state.phases.length}</div></div>
     <div class="metric"><div class="metric-k">Articles</div><div class="metric-v">${nbA}</div></div>
-    <div class="metric"><div class="metric-k">Avancement moy.</div><div class="metric-v${avMoyen>=80?' ok':avMoyen>0?'':''}">${avMoyen}%</div></div>
-    <div class="metric"><div class="metric-k">Bloqués</div><div class="metric-v${retards>0?' alert':' ok'}">${retards}</div></div>`;
+    <div class="metric"><div class="metric-k">Avancement</div><div class="metric-v${avMoyen>=80?' ok':''}">${avMoyen}%</div></div>
+    <div class="metric"><div class="metric-k">Terminés</div><div class="metric-v ok">${termines}</div></div>
+    <div class="metric"><div class="metric-k">CTVX dépassées</div><div class="metric-v${retards>0?' alert':' ok'}">${retards}</div></div>`;
 }
 
-function onSearch(q) {
-  _search = q.toLowerCase().trim();
-  renderPlanning();
-}
+// ═══ PLANNING ═════════════════════════════════════════════════════════════
+function onSearch(q){_search=q.toLowerCase().trim();renderPlanning();}
 
-function renderPlanning() {
-  const tbody = document.getElementById('planning-tbody');
-  let html = '';
-  const q = _search;
+function renderPlanning(){
+  const tbody=document.getElementById('planning-tbody');
+  let html='';
+  const q=_search;
 
-  for (const ch of state.chantiers) {
-    if (q && !ch.nom.toLowerCase().includes(q)) {
-      const hasTr = state.tranches.some(t => t.cid===ch.id && t.nom.toLowerCase().includes(q));
-      if (!hasTr) continue;
+  for(const ch of state.chantiers){
+    const trs=state.tranches.filter(t=>t.cid===ch.id);
+    if(q&&!ch.nom.toLowerCase().includes(q)){
+      const hasTr=trs.some(t=>t.nom.toLowerCase().includes(q));
+      if(!hasTr)continue;
     }
-    const tranchesOfCh = state.tranches.filter(t => t.cid === ch.id);
-    const chOpen = ch.open;
-    html += renderChantierRow(ch, tranchesOfCh.length);
-
-    if (!chOpen && !q) continue;
-
-    for (const tr of tranchesOfCh) {
-      if (q && !ch.nom.toLowerCase().includes(q) && !tr.nom.toLowerCase().includes(q)) continue;
-      const phases = state.phases.filter(p => p.tid === tr.id);
-      const trOpen = tr.open || !!q;
-      html += renderTrancheRow(tr);
-
-      if (!trOpen) continue;
-
-      for (const ph of phases) {
-        const articles = state.articles.filter(a => a.pid === ph.id);
-        const phOpen = ph.open;
-        html += renderPhaseRow(ph, articles.length);
-        if (!phOpen) continue;
-        for (const art of articles) {
-          html += renderArticleRow(art);
-        }
-        html += renderAddArticleRow(ph.id);
+    html+=renderChRow(ch,trs.length);
+    if(!ch.open&&!q)continue;
+    for(const tr of trs){
+      if(q&&!ch.nom.toLowerCase().includes(q)&&!tr.nom.toLowerCase().includes(q))continue;
+      const phs=state.phases.filter(p=>p.tid===tr.id);
+      const arts=state.articles.filter(a=>phs.some(p=>p.id===a.pid));
+      html+=renderTrRow(tr,phs.length,arts);
+      if(!tr.open&&!q)continue;
+      for(const ph of phs){
+        const phArts=state.articles.filter(a=>a.pid===ph.id);
+        html+=renderPhRow(ph,phArts.length,phArts);
+        if(!ph.open)continue;
+        for(const art of phArts) html+=renderArtRow(art);
+        html+=`<tr class="row-add"><td colspan="12"><button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddArticle('${ph.id}')">+ Article</button></td></tr>`;
       }
-      html += renderAddPhaseRow(tr.id);
+      html+=`<tr class="row-add-ph"><td colspan="12"><button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddPhase('${tr.id}')">+ Phase</button></td></tr>`;
     }
-    html += renderAddTrancheRow(ch.id);
+    html+=`<tr class="row-add-tr"><td colspan="12"><button style="font-size:11px;color:var(--text2);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddTranche('${ch.id}')">+ Tranche</button></td></tr>`;
   }
-
-  tbody.innerHTML = html;
+  tbody.innerHTML=html;
 }
 
-function renderChantierRow(ch, nbTr) {
-  const o = ch.open;
-  return `<tr class="row-chantier" onclick="toggleNode('ch','${ch.id}')">
+function renderChRow(ch,nbTr){
+  const o=ch.open;
+  return`<tr class="row-chantier" onclick="toggleNode('ch','${ch.id}')">
     <td><span class="chevron${o?' open':''}">▶</span></td>
-    <td colspan="9">
-      ${ch.conduc?`<span style="background:#E8E5FF;color:#534AB7;font-size:10px;padding:2px 7px;border-radius:5px;font-weight:700;margin-right:6px">${esc(ch.conduc)}</span>`:''}
-      ${esc(ch.nom)}
-      <span style="font-size:11px;color:var(--text2);font-weight:400;margin-left:8px">${nbTr} tranche${nbTr!==1?'s':''}</span>
-    </td>
+    <td colspan="9">${ch.conduc?`<span style="background:#E8E5FF;color:#534AB7;font-size:10px;padding:2px 7px;border-radius:5px;font-weight:700;margin-right:6px">${esc(ch.conduc)}</span>`:''}${esc(ch.nom)}<span style="font-size:11px;color:var(--text2);font-weight:400;margin-left:8px">${nbTr} tranche${nbTr!==1?'s':''}</span></td>
     <td></td>
-    <td style="text-align:right">
+    <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="event.stopPropagation();openEditChantier('${ch.id}')">✎</button>
-      <button class="btn btn-sm" style="color:var(--red);border-color:var(--red-border);background:var(--red-bg)" onclick="event.stopPropagation();deleteChantier('${ch.id}')">✕</button>
-    </td>
-  </tr>`;
+      <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deleteChantier('${ch.id}')">✕</button>
+    </td></tr>`;
 }
 
-function renderTrancheRow(tr) {
-  const o = tr.open;
-  const phases = state.phases.filter(p => p.tid === tr.id);
-  const articles = state.articles.filter(a => phases.some(p => p.id === a.pid));
-  const avMoyen = articles.length ? Math.round(articles.reduce((s,a)=>s+(+a.avancement||0),0)/articles.length) : 0;
-  return `<tr class="row-tranche" onclick="toggleNode('tr','${tr.id}')">
+function renderTrRow(tr,nbPh,arts){
+  const o=tr.open;
+  const avMoyen=arts.length?Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length):0;
+  const ctvxBadge=tr.ctvx?`<span class="dp dp-orange" style="margin-left:6px">${fmtDate(tr.ctvx)}</span>`:'';
+  return`<tr class="row-tranche" onclick="toggleNode('tr','${tr.id}')">
     <td><span class="chevron${o?' open':''}">▶</span></td>
-    <td colspan="7">
-      ${tr.conduc?`<span style="font-size:10px;color:var(--text3);margin-right:4px">${esc(tr.conduc)}</span>`:''}
-      ${esc(tr.nom)}
-      <span style="font-size:10px;color:var(--text3);margin-left:6px">${phases.length} phase${phases.length!==1?'s':''}</span>
-    </td>
-    <td>${articles.length?progHtml(avMoyen,'prog-blue'):''}</td>
-    <td></td>
-    <td style="text-align:right">
+    <td colspan="7">${tr.conduc?`<span style="font-size:10px;color:var(--text3);margin-right:4px">${esc(tr.conduc)}</span>`:''}${esc(tr.nom)}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbPh} phase${nbPh!==1?'s':''}${ctvxBadge}</span></td>
+    <td colspan="2">${arts.length?progHtml(avMoyen,'prog-blue'):''}</td>
+    <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="event.stopPropagation();openEditTranche('${tr.id}')">✎</button>
-      <button class="btn btn-sm" style="color:var(--red);border-color:var(--red-border);background:var(--red-bg)" onclick="event.stopPropagation();deleteTranche('${tr.id}')">✕</button>
-    </td>
-  </tr>`;
+      <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deleteTranche('${tr.id}')">✕</button>
+    </td></tr>`;
 }
 
-function renderPhaseRow(ph, nbArt) {
-  const o = ph.open;
-  const articles = state.articles.filter(a => a.pid === ph.id);
-  const avMoyen = articles.length ? Math.round(articles.reduce((s,a)=>s+(+a.avancement||0),0)/articles.length) : 0;
-  const budgetTotal = articles.reduce((s,a)=>s+(+a.budget_heures||0),0);
-  return `<tr class="row-phase" onclick="toggleNode('ph','${ph.id}')">
+function renderPhRow(ph,nbArt,arts){
+  const o=ph.open;
+  const avMoyen=arts.length?Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length):0;
+  const bh=arts.reduce((s,a)=>s+(+a.budget_heures||0),0);
+  return`<tr class="row-phase" onclick="toggleNode('ph','${ph.id}')">
     <td><span class="chevron${o?' open':''}">▶</span></td>
-    <td colspan="7">
-      ${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}
-      <b>${esc(ph.nom)}</b>
-      <span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}</span>
-      ${budgetTotal?`<span style="font-size:10px;color:var(--text2);margin-left:8px;font-family:'DM Mono',monospace">${budgetTotal}h</span>`:''}
-    </td>
-    <td>${articles.length?progHtml(avMoyen,'prog-blue'):''}</td>
-    <td></td>
-    <td style="text-align:right">
+    <td colspan="7">${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}<b>${esc(ph.nom)}</b><span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}${bh?` · ${bh}h`:''}</span></td>
+    <td colspan="2">${arts.length?progHtml(avMoyen,'prog-blue'):''}</td>
+    <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="event.stopPropagation();openEditPhase('${ph.id}')">✎</button>
-      <button class="btn btn-sm" style="color:var(--red);border-color:var(--red-border);background:var(--red-bg)" onclick="event.stopPropagation();deletePhase('${ph.id}')">✕</button>
-    </td>
-  </tr>`;
+      <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deletePhase('${ph.id}')">✕</button>
+    </td></tr>`;
 }
 
-function renderArticleRow(a) {
-  const avCls = a.avancement>=100?'prog-green':a.avancement>0?'prog-blue':'prog-orange';
-  const statLabel = {planifie:'Planifié',en_cours:'En cours',termine:'Terminé',bloque:'Bloqué',attente:'Attente'};
-  const statBadge = {planifie:'badge-gray',en_cours:'badge-blue',termine:'badge-green',bloque:'badge-red',attente:'badge-orange'};
-  return `<tr class="row-article">
+function renderArtRow(a){
+  const av=+a.avancement||0;
+  const avCls=av>=100?'prog-green':av>0?'prog-blue':'prog-orange';
+  return`<tr class="row-article">
     <td></td>
     <td style="font-weight:500;color:var(--text)">${esc(a.libelle||'—')}</td>
-    <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.operation||'')}</td>
+    <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.operation||'')}</td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${a.qte_m2||''}</td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${a.qte_m3||''}</td>
     <td>${a.date_ctvx?`<span class="dp dp-orange">${fmtDate(a.date_ctvx)}</span>`:''}</td>
     <td>${a.date_sortie_be?`<span class="dp dp-blue">${fmtDate(a.date_sortie_be)}</span>`:''}</td>
     <td>${a.date_sortie_prod?`<span class="dp dp-purple">${fmtDate(a.date_sortie_prod)}</span>`:''}</td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${a.budget_heures||''}</td>
-    <td>${progHtml(+a.avancement||0,avCls)}</td>
-    <td><span class="badge ${statBadge[a.statut]||'badge-gray'}">${statLabel[a.statut]||a.statut}</span></td>
-    <td style="text-align:right">
+    <td>${progHtml(av,avCls)}</td>
+    <td>${statusBadge(a.statut||'planifie')}</td>
+    <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="openEditArticle('${a.id}')">✎</button>
-      <button class="btn btn-sm" style="color:var(--red);border-color:var(--red-border);background:var(--red-bg)" onclick="deleteArticle('${a.id}')">✕</button>
-    </td>
-  </tr>`;
+      <button class="btn btn-sm btn-red" onclick="deleteArticle('${a.id}')">✕</button>
+    </td></tr>`;
 }
 
-function renderAddArticleRow(pid) {
-  return `<tr class="row-add"><td colspan="12">
-    <button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddArticle('${pid}')">+ Article</button>
-  </td></tr>`;
-}
-
-function renderAddPhaseRow(tid) {
-  return `<tr class="row-add-phase"><td colspan="12">
-    <button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddPhase('${tid}')">+ Phase</button>
-  </td></tr>`;
-}
-
-function renderAddTrancheRow(cid) {
-  return `<tr class="row-add-tranche"><td colspan="12">
-    <button style="font-size:11px;color:var(--text2);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddTranche('${cid}')">+ Tranche</button>
-  </td></tr>`;
-}
-
-// ═══ TOGGLE ══════════════════════════════════════════════════════════════
-function toggleNode(type, id) {
-  if (type==='ch') { const c=state.chantiers.find(x=>x.id===id); if(c) c.open=!c.open; }
-  else if (type==='tr') { const t=state.tranches.find(x=>x.id===id); if(t) t.open=!t.open; }
-  else if (type==='ph') { const p=state.phases.find(x=>x.id===id); if(p) p.open=!p.open; }
+function toggleNode(type,id){
+  if(type==='ch'){const c=state.chantiers.find(x=>x.id===id);if(c)c.open=!c.open;}
+  else if(type==='tr'){const t=state.tranches.find(x=>x.id===id);if(t)t.open=!t.open;}
+  else if(type==='ph'){const p=state.phases.find(x=>x.id===id);if(p)p.open=!p.open;}
   renderPlanning();
 }
-
-function toggleAll(v) {
+function toggleAll(v){
   state.chantiers.forEach(c=>c.open=v);
   state.tranches.forEach(t=>t.open=v);
   state.phases.forEach(p=>p.open=v);
   renderPlanning();
 }
 
-// ═══ CHANTIER CRUD ═══════════════════════════════════════════════════════
-function openAddChantier() {
-  _modalCtx = {type:'add'};
-  document.getElementById('mc-title').textContent = 'Nouveau chantier';
-  document.getElementById('mc-nom').value = '';
-  document.getElementById('mc-conduc').value = '';
-  document.getElementById('modal-chantier').classList.add('show');
+// ═══ CHANTIER CRUD ════════════════════════════════════════════════════════
+function openAddChantier(){_ctx={type:'add'};document.getElementById('mc-title').textContent='Nouveau chantier';document.getElementById('mc-nom').value='';document.getElementById('mc-conduc').value='';document.getElementById('modal-ch').classList.add('show');}
+function openEditChantier(id){const c=state.chantiers.find(x=>x.id===id);if(!c)return;_ctx={type:'edit',id};document.getElementById('mc-title').textContent='Modifier';document.getElementById('mc-nom').value=c.nom;document.getElementById('mc-conduc').value=c.conduc||'';document.getElementById('modal-ch').classList.add('show');}
+function saveChantier(){
+  const nom=document.getElementById('mc-nom').value.trim();if(!nom)return;
+  const conduc=document.getElementById('mc-conduc').value.trim();
+  if(_ctx.type==='add')state.chantiers.push({id:uid(),nom,conduc,open:false});
+  else{const c=state.chantiers.find(x=>x.id===_ctx.id);if(c){c.nom=nom;c.conduc=conduc;}}
+  closeModal('modal-ch');scheduleSave();renderAll();toast('Chantier enregistré');
 }
-function openEditChantier(id) {
-  const c = state.chantiers.find(x=>x.id===id);
-  if (!c) return;
-  _modalCtx = {type:'edit', id};
-  document.getElementById('mc-title').textContent = 'Modifier le chantier';
-  document.getElementById('mc-nom').value = c.nom;
-  document.getElementById('mc-conduc').value = c.conduc||'';
-  document.getElementById('modal-chantier').classList.add('show');
-}
-function saveChantier() {
-  const nom = document.getElementById('mc-nom').value.trim();
-  if (!nom) return;
-  const conduc = document.getElementById('mc-conduc').value.trim();
-  if (_modalCtx.type==='add') {
-    state.chantiers.push({id:uid(), nom, conduc, open:false});
-  } else {
-    const c = state.chantiers.find(x=>x.id===_modalCtx.id);
-    if (c) { c.nom=nom; c.conduc=conduc; }
-  }
-  closeModal('modal-chantier');
-  scheduleSave(); renderAll(); toast('Chantier enregistré');
-}
-function deleteChantier(id) {
-  if (!confirm('Supprimer ce chantier et toutes ses données ?')) return;
-  const trs = state.tranches.filter(t=>t.cid===id);
-  trs.forEach(t => {
-    const phs = state.phases.filter(p=>p.tid===t.id);
-    phs.forEach(p => { state.articles = state.articles.filter(a=>a.pid!==p.id); });
-    state.phases = state.phases.filter(p=>p.tid!==t.id);
+function deleteChantier(id){
+  if(!confirm('Supprimer ce chantier et toutes ses données ?'))return;
+  state.tranches.filter(t=>t.cid===id).forEach(t=>{
+    state.phases.filter(p=>p.tid===t.id).forEach(p=>{state.articles=state.articles.filter(a=>a.pid!==p.id);});
+    state.phases=state.phases.filter(p=>p.tid!==t.id);
   });
-  state.tranches = state.tranches.filter(t=>t.cid!==id);
-  state.chantiers = state.chantiers.filter(c=>c.id!==id);
-  scheduleSave(); renderAll(); toast('Chantier supprimé');
+  state.tranches=state.tranches.filter(t=>t.cid!==id);
+  state.chantiers=state.chantiers.filter(c=>c.id!==id);
+  scheduleSave();renderAll();toast('Chantier supprimé');
 }
 
-// ═══ TRANCHE CRUD ════════════════════════════════════════════════════════
-function openAddTranche(cid) {
-  _modalCtx = {type:'add', cid};
-  document.getElementById('mt-title').textContent = 'Nouvelle tranche';
-  document.getElementById('mt-nom').value = '';
-  document.getElementById('mt-conduc').value = '';
-  document.getElementById('modal-tranche').classList.add('show');
+// ═══ TRANCHE CRUD ═════════════════════════════════════════════════════════
+function openAddTranche(cid){_ctx={type:'add',cid};document.getElementById('mt-title').textContent='Nouvelle tranche';document.getElementById('mt-nom').value='';document.getElementById('mt-conduc').value='';document.getElementById('modal-tr').classList.add('show');}
+function openEditTranche(id){const t=state.tranches.find(x=>x.id===id);if(!t)return;_ctx={type:'edit',id};document.getElementById('mt-title').textContent='Modifier la tranche';document.getElementById('mt-nom').value=t.nom;document.getElementById('mt-conduc').value=t.conduc||'';document.getElementById('modal-tr').classList.add('show');}
+function saveTranche(){
+  const nom=document.getElementById('mt-nom').value.trim();if(!nom)return;
+  const conduc=document.getElementById('mt-conduc').value.trim();
+  if(_ctx.type==='add')state.tranches.push({id:uid(),cid:_ctx.cid,nom,conduc,open:false,ctvx:''});
+  else{const t=state.tranches.find(x=>x.id===_ctx.id);if(t){t.nom=nom;t.conduc=conduc;}}
+  closeModal('modal-tr');scheduleSave();renderAll();toast('Tranche enregistrée');
 }
-function openEditTranche(id) {
-  const t = state.tranches.find(x=>x.id===id);
-  if (!t) return;
-  _modalCtx = {type:'edit', id};
-  document.getElementById('mt-title').textContent = 'Modifier la tranche';
-  document.getElementById('mt-nom').value = t.nom;
-  document.getElementById('mt-conduc').value = t.conduc||'';
-  document.getElementById('modal-tranche').classList.add('show');
-}
-function saveTranche() {
-  const nom = document.getElementById('mt-nom').value.trim();
-  if (!nom) return;
-  const conduc = document.getElementById('mt-conduc').value.trim();
-  if (_modalCtx.type==='add') {
-    state.tranches.push({id:uid(), cid:_modalCtx.cid, nom, conduc, open:false, budget:0, passe:0, pct:0});
-  } else {
-    const t = state.tranches.find(x=>x.id===_modalCtx.id);
-    if (t) { t.nom=nom; t.conduc=conduc; }
-  }
-  closeModal('modal-tranche');
-  scheduleSave(); renderAll(); toast('Tranche enregistrée');
-}
-function deleteTranche(id) {
-  if (!confirm('Supprimer cette tranche et toutes ses phases/articles ?')) return;
-  const phs = state.phases.filter(p=>p.tid===id);
-  phs.forEach(p => { state.articles = state.articles.filter(a=>a.pid!==p.id); });
-  state.phases = state.phases.filter(p=>p.tid!==id);
-  state.tranches = state.tranches.filter(t=>t.id!==id);
-  scheduleSave(); renderAll(); toast('Tranche supprimée');
+function deleteTranche(id){
+  if(!confirm('Supprimer cette tranche et toutes ses phases/articles ?'))return;
+  state.phases.filter(p=>p.tid===id).forEach(p=>{state.articles=state.articles.filter(a=>a.pid!==p.id);});
+  state.phases=state.phases.filter(p=>p.tid!==id);
+  state.tranches=state.tranches.filter(t=>t.id!==id);
+  scheduleSave();renderAll();toast('Tranche supprimée');
 }
 
-// ═══ PHASE CRUD ══════════════════════════════════════════════════════════
-function openAddPhase(tid) {
-  const existing = state.phases.filter(p=>p.tid===tid);
-  _modalCtx = {type:'add', tid};
-  document.getElementById('mp-num').value = 'Ph' + String(existing.length+1).padStart(2,'0');
-  document.getElementById('mp-nom').value = '';
-  document.getElementById('modal-phase').classList.add('show');
+// ═══ PHASE CRUD ═══════════════════════════════════════════════════════════
+function openAddPhase(tid){const ex=state.phases.filter(p=>p.tid===tid);_ctx={type:'add',tid};document.getElementById('mph-title').textContent='Nouvelle phase';document.getElementById('mph-num').value='Ph'+String(ex.length+1).padStart(2,'0');document.getElementById('mph-nom').value='';document.getElementById('modal-ph').classList.add('show');}
+function openEditPhase(id){const p=state.phases.find(x=>x.id===id);if(!p)return;_ctx={type:'edit',id};document.getElementById('mph-title').textContent='Modifier la phase';document.getElementById('mph-num').value=p.num||'';document.getElementById('mph-nom').value=p.nom;document.getElementById('modal-ph').classList.add('show');}
+function savePhase(){
+  const nom=document.getElementById('mph-nom').value.trim();if(!nom)return;
+  const num=document.getElementById('mph-num').value.trim();
+  if(_ctx.type==='add'){const p={id:uid(),tid:_ctx.tid,num,nom,open:false};state.phases.push(p);}
+  else{const p=state.phases.find(x=>x.id===_ctx.id);if(p){p.num=num;p.nom=nom;}}
+  closeModal('modal-ph');scheduleSave();renderAll();toast('Phase enregistrée');
 }
-function openEditPhase(id) {
-  const p = state.phases.find(x=>x.id===id);
-  if (!p) return;
-  _modalCtx = {type:'edit', id};
-  document.getElementById('mp-num').value = p.num||'';
-  document.getElementById('mp-nom').value = p.nom;
-  document.getElementById('modal-phase').classList.add('show');
-}
-function savePhase() {
-  const nom = document.getElementById('mp-nom').value.trim();
-  if (!nom) return;
-  const num = document.getElementById('mp-num').value.trim();
-  if (_modalCtx.type==='add') {
-    state.phases.push({id:uid(), tid:_modalCtx.tid, num, nom, open:false});
-  } else {
-    const p = state.phases.find(x=>x.id===_modalCtx.id);
-    if (p) { p.num=num; p.nom=nom; }
-  }
-  closeModal('modal-phase');
-  scheduleSave(); renderAll(); toast('Phase enregistrée');
-}
-function deletePhase(id) {
-  if (!confirm('Supprimer cette phase et tous ses articles ?')) return;
-  state.articles = state.articles.filter(a=>a.pid!==id);
-  state.phases = state.phases.filter(p=>p.id!==id);
-  scheduleSave(); renderAll(); toast('Phase supprimée');
+function deletePhase(id){
+  if(!confirm('Supprimer cette phase et tous ses articles ?'))return;
+  state.articles=state.articles.filter(a=>a.pid!==id);
+  state.phases=state.phases.filter(p=>p.id!==id);
+  scheduleSave();renderAll();toast('Phase supprimée');
 }
 
-// ═══ ARTICLE CRUD ════════════════════════════════════════════════════════
-function openAddArticle(pid) {
-  _modalCtx = {type:'add', pid};
-  document.getElementById('ma-title').textContent = 'Nouvel article';
-  ['ma-libelle','ma-operation','ma-m2','ma-m3','ma-bh'].forEach(id=>document.getElementById(id).value='');
-  ['ma-ctvx','ma-sbe','ma-sprod'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('ma-av').value = '0';
-  document.getElementById('ma-statut').value = 'planifie';
-  document.getElementById('modal-article').classList.add('show');
+// ═══ ARTICLE CRUD ═════════════════════════════════════════════════════════
+function openAddArticle(pid){
+  _ctx={type:'add',pid};
+  document.getElementById('mart-title').textContent='Nouvel article';
+  ['mart-lib','mart-op','mart-m2','mart-m3','mart-bh'].forEach(i=>document.getElementById(i).value='');
+  ['mart-ctvx','mart-sbe','mart-sprod'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('mart-av').value='0';
+  document.getElementById('mart-statut').value='planifie';
+  // Pré-remplir CTVX depuis la tranche parente
+  const ph=state.phases.find(p=>p.id===pid);
+  if(ph){const tr=state.tranches.find(t=>t.id===ph.tid);if(tr&&tr.ctvx)document.getElementById('mart-ctvx').value=tr.ctvx;}
+  document.getElementById('modal-art').classList.add('show');
 }
-function openEditArticle(id) {
-  const a = state.articles.find(x=>x.id===id);
-  if (!a) return;
-  _modalCtx = {type:'edit', id};
-  document.getElementById('ma-title').textContent = 'Modifier l'article';
-  document.getElementById('ma-libelle').value = a.libelle||'';
-  document.getElementById('ma-operation').value = a.operation||'';
-  document.getElementById('ma-m2').value = a.qte_m2||'';
-  document.getElementById('ma-m3').value = a.qte_m3||'';
-  document.getElementById('ma-ctvx').value = a.date_ctvx||'';
-  document.getElementById('ma-sbe').value = a.date_sortie_be||'';
-  document.getElementById('ma-sprod').value = a.date_sortie_prod||'';
-  document.getElementById('ma-bh').value = a.budget_heures||'';
-  document.getElementById('ma-av').value = a.avancement||0;
-  document.getElementById('ma-statut').value = a.statut||'planifie';
-  document.getElementById('modal-article').classList.add('show');
+function openEditArticle(id){
+  const a=state.articles.find(x=>x.id===id);if(!a)return;
+  _ctx={type:'edit',id};
+  document.getElementById('mart-title').textContent='Modifier l\'article';
+  document.getElementById('mart-lib').value=a.libelle||'';
+  document.getElementById('mart-op').value=a.operation||'';
+  document.getElementById('mart-m2').value=a.qte_m2||'';
+  document.getElementById('mart-m3').value=a.qte_m3||'';
+  document.getElementById('mart-ctvx').value=a.date_ctvx||'';
+  document.getElementById('mart-sbe').value=a.date_sortie_be||'';
+  document.getElementById('mart-sprod').value=a.date_sortie_prod||'';
+  document.getElementById('mart-bh').value=a.budget_heures||'';
+  document.getElementById('mart-av').value=a.avancement||0;
+  document.getElementById('mart-statut').value=a.statut||'planifie';
+  document.getElementById('modal-art').classList.add('show');
 }
-function saveArticle() {
-  const data = {
-    libelle: document.getElementById('ma-libelle').value.trim(),
-    operation: document.getElementById('ma-operation').value.trim(),
-    qte_m2: document.getElementById('ma-m2').value,
-    qte_m3: document.getElementById('ma-m3').value,
-    date_ctvx: document.getElementById('ma-ctvx').value,
-    date_sortie_be: document.getElementById('ma-sbe').value,
-    date_sortie_prod: document.getElementById('ma-sprod').value,
-    budget_heures: document.getElementById('ma-bh').value,
-    avancement: document.getElementById('ma-av').value,
-    statut: document.getElementById('ma-statut').value,
+function saveArticle(){
+  const data={
+    libelle:document.getElementById('mart-lib').value.trim(),
+    operation:document.getElementById('mart-op').value.trim(),
+    qte_m2:document.getElementById('mart-m2').value,
+    qte_m3:document.getElementById('mart-m3').value,
+    date_ctvx:document.getElementById('mart-ctvx').value,
+    date_sortie_be:document.getElementById('mart-sbe').value,
+    date_sortie_prod:document.getElementById('mart-sprod').value,
+    budget_heures:document.getElementById('mart-bh').value,
+    avancement:document.getElementById('mart-av').value,
+    statut:document.getElementById('mart-statut').value,
   };
-  if (_modalCtx.type==='add') {
-    // Auto-ouvrir la phase
-    const ph = state.phases.find(p=>p.id===_modalCtx.pid);
-    if (ph) ph.open = true;
-    state.articles.push({id:uid(), pid:_modalCtx.pid, ...data});
-  } else {
-    const a = state.articles.find(x=>x.id===_modalCtx.id);
-    if (a) Object.assign(a, data);
+  if(_ctx.type==='add'){
+    const ph=state.phases.find(p=>p.id===_ctx.pid);if(ph)ph.open=true;
+    state.articles.push({id:uid(),pid:_ctx.pid,...data});
+  }else{
+    const a=state.articles.find(x=>x.id===_ctx.id);if(a)Object.assign(a,data);
   }
-  closeModal('modal-article');
-  scheduleSave(); renderAll(); toast('Article enregistré');
+  closeModal('modal-art');scheduleSave();renderAll();toast('Article enregistré');
 }
-function deleteArticle(id) {
-  if (!confirm('Supprimer cet article ?')) return;
-  state.articles = state.articles.filter(a=>a.id!==id);
-  scheduleSave(); renderAll(); toast('Article supprimé');
+function deleteArticle(id){
+  if(!confirm('Supprimer cet article ?'))return;
+  state.articles=state.articles.filter(a=>a.id!==id);
+  scheduleSave();renderAll();toast('Article supprimé');
 }
 
-// ═══ UTILS ═══════════════════════════════════════════════════════════════
-function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function fmtDate(s) { if(!s)return''; try{const[y,m,d]=s.split('-');return`${d}/${m}/${y}`;}catch(e){return s;} }
-function progHtml(pct, cls) {
-  return `<div class="prog"><div class="prog-bar"><div class="prog-fill ${cls||'prog-blue'}" style="width:${Math.min(pct,100)}%"></div></div><span class="prog-label">${pct}%</span></div>`;
+// ═══ COMMANDES ════════════════════════════════════════════════════════════
+function renderAchatsMetrics(){
+  const nb=state.cdes.length;
+  const attente=state.cdes.filter(c=>c.statut==='Envoyée'||c.statut==='Réception partielle').length;
+  const litiges=state.cdes.filter(c=>c.statut==='Litige').length;
+  const montant=state.cdes.reduce((s,c)=>s+(c.montant||0),0);
+  document.getElementById('achats-metrics').innerHTML=`
+    <div class="metric"><div class="metric-k">Commandes</div><div class="metric-v">${nb}</div></div>
+    <div class="metric"><div class="metric-k">Montant engagé</div><div class="metric-v">${Math.round(montant/1000)}k€</div></div>
+    <div class="metric"><div class="metric-k">En attente</div><div class="metric-v${attente>0?' warn':' ok'}">${attente}</div></div>
+    <div class="metric"><div class="metric-k">Litiges</div><div class="metric-v${litiges>0?' alert':' ok'}">${litiges}</div></div>`;
 }
-function showScreen(id) {
+
+function renderCdes(){
+  const fil=document.getElementById('fil-cde-statut')?.value||'';
+  const filtered=fil?state.cdes.filter(c=>c.statut===fil):state.cdes;
+  const sc={Brouillon:'badge-gray',Validée:'badge-blue',Envoyée:'badge-orange','Réception partielle':'badge-orange',Reçue:'badge-green',Litige:'badge-red'};
+  document.getElementById('cde-list').innerHTML=filtered.length?filtered.map(cde=>`
+    <div class="cde-card"><div class="cde-header" onclick="toggleCde('${cde.id}')">
+      <span class="chevron${cde.open?' open':''}">▶</span>
+      <span class="badge ${sc[cde.statut]||'badge-gray'}">${cde.statut}</span>
+      <span style="font-weight:600;font-size:13px;flex:1">${esc(cde.id)} — ${esc(cde.fourn)}</span>
+      <span style="font-size:12px;color:var(--text2)">${esc(cde.chantier||'')}</span>
+      <span style="font-size:13px;font-family:'DM Mono',monospace;font-weight:600;color:var(--blue);margin-left:12px">${fmt(cde.montant||0)}</span>
+      ${cde.statut==='Envoyée'||cde.statut==='Réception partielle'?`<button class="btn btn-green btn-sm" onclick="event.stopPropagation();openRecv('${cde.id}')">Réceptionner</button>`:''}
+    </div>
+    ${cde.open?`<div class="cde-body">
+      <div class="cde-grid">
+        <div class="cde-meta"><span class="k">Demandeur</span><span class="v">${esc(cde.demandeur||'')}</span></div>
+        <div class="cde-meta"><span class="k">Date</span><span class="v">${esc(cde.date||'')}</span></div>
+        <div class="cde-meta"><span class="k">Livraison souhaitée</span><span class="v">${esc(cde.dliv||'—')}</span></div>
+        <div class="cde-meta" style="grid-column:span 3"><span class="k">Commentaire</span><span class="v">${esc(cde.comment||'')}</span></div>
+      </div>
+      ${(cde.lignes||[]).length?`<table class="lignes-table"><thead><tr><th>Désignation</th><th>Réf.</th><th class="r">Qté</th><th>Unité</th><th class="r">PU</th><th class="r">Total</th><th class="r">Reçu</th><th class="r">Écart</th></tr></thead>
+      <tbody>${(cde.lignes||[]).map(l=>{const ec=(l.recue||0)-l.qte;return`<tr><td>${esc(l.desc)}</td><td style="color:var(--text3)">${esc(l.ref||'')}</td><td class="r">${l.qte}</td><td>${esc(l.unit||'')}</td><td class="r">${(l.pu||0).toFixed(2)}€</td><td class="r">${fmt((l.qte||0)*(l.pu||0))}</td><td class="r">${l.recue!=null?l.recue:'—'}</td><td class="r ${ec<0?'ecart-bad':'ecart-ok'}">${l.recue!=null?(ec>=0?'+':'')+ec:'—'}</td></tr>`;}).join('')}</tbody></table>`:''}
+    </div>`:''}
+    </div>`).join(''):`<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune commande. Cliquez sur "+ Commande" pour commencer.</div>`;
+}
+function toggleCde(id){const c=state.cdes.find(x=>x.id===id);if(c)c.open=!c.open;renderCdes();}
+
+// ═══ STOCK ════════════════════════════════════════════════════════════════
+function renderStockMetrics(){
+  const enStock=state.stock.filter(s=>s.statut==='en_stock').length;
+  const pf=state.stock.filter(s=>s.statut==='en_stock'&&s.type==='PF').length;
+  const mp=state.stock.filter(s=>s.statut==='en_stock'&&s.type==='MP').length;
+  const sorties=state.stock.filter(s=>s.statut==='sorti').length;
+  document.getElementById('stock-metrics').innerHTML=`
+    <div class="metric"><div class="metric-k">En stock</div><div class="metric-v ok">${enStock}</div></div>
+    <div class="metric"><div class="metric-k">Produits finis</div><div class="metric-v ok">${pf}</div><div class="metric-sub">prêts à expédier</div></div>
+    <div class="metric"><div class="metric-k">Matières premières</div><div class="metric-v">${mp}</div></div>
+    <div class="metric"><div class="metric-k">Sorties</div><div class="metric-v">${sorties}</div></div>`;
+}
+
+function renderStock(){
+  const fs=document.getElementById('stock-fil-statut')?.value||'';
+  const ft=document.getElementById('stock-fil-type')?.value||'';
+  const rows=state.stock.filter(s=>{
+    if(fs&&s.statut!==fs)return false;
+    if(ft&&s.type!==ft)return false;
+    return true;
+  });
+  const statColors={en_stock:'badge-green',sorti:'badge-gray',reserve:'badge-orange'};
+  const statLabels={en_stock:'En stock',sorti:'Sorti',reserve:'Réservé'};
+  document.getElementById('stock-tbody').innerHTML=rows.length?rows.map(s=>`
+    <tr class="${s.statut==='sorti'?'sorti':''}">
+      <td>${empHtml(s.emp)}</td>
+      <td style="font-weight:500">${esc(s.designation)}</td>
+      <td style="font-size:12px;color:var(--text2)">${esc(s.chantier||'')}</td>
+      <td><span class="badge ${s.type==='PF'?'badge-blue':'badge-teal'}">${s.type}</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600">${esc(s.qte)}</td>
+      <td><span class="badge ${statColors[s.statut]||'badge-gray'}">${statLabels[s.statut]||s.statut}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${esc(s.entree||'')}</td>
+      <td style="font-size:11px">${s.sortie?`${s.sortie}${s.bl_num?` <span class="dp dp-purple">${s.bl_num}</span>`:''}`:(s.bl_num?`<span class="badge badge-orange" style="font-size:9px">Réservé ${s.bl_num}</span>`:'—')}</td>
+      <td>${s.statut==='en_stock'?`<button class="btn btn-green btn-sm" onclick="openModal('move-stock')">Déplacer</button>`:''}</td>
+    </tr>`).join(''):`<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text3)">Aucun article en stock. Cliquez sur "+ Entrée stock".</td></tr>`;
+}
+
+// ═══ BONS DE LIVRAISON ════════════════════════════════════════════════════
+function renderBLMetrics(){
+  const nb=state.bls.length;
+  const brouillon=state.bls.filter(b=>b.statut==='brouillon').length;
+  const valide=state.bls.filter(b=>b.statut==='valide').length;
+  const dispos=state.stock.filter(s=>s.statut==='en_stock'&&s.type==='PF').length;
+  document.getElementById('bl-metrics').innerHTML=`
+    <div class="metric"><div class="metric-k">BL émis</div><div class="metric-v">${nb}</div></div>
+    <div class="metric"><div class="metric-k">En brouillon</div><div class="metric-v${brouillon>0?' warn':' ok'}">${brouillon}</div></div>
+    <div class="metric"><div class="metric-k">Validés</div><div class="metric-v ok">${valide}</div></div>
+    <div class="metric"><div class="metric-k">PF disponibles</div><div class="metric-v${dispos>0?' warn':' ok'}">${dispos}</div><div class="metric-sub">prêts en stock</div></div>`;
+}
+
+function renderBLs(){
+  document.getElementById('bl-list').innerHTML=state.bls.length?state.bls.map(bl=>`
+    <div class="bl-card">
+      <div class="bl-header" onclick="toggleBL('${bl.id}')">
+        <span class="chevron${bl.open?' open':''}">▶</span>
+        ${statusBadge(bl.statut)}
+        <span style="font-weight:600;font-size:13px;flex:1">${esc(bl.num)} — ${esc(bl.chantier)}</span>
+        <span style="font-size:12px;color:var(--text2)">${esc((bl.destinataire||'').split('—')[0].trim())}</span>
+        <span class="dp dp-blue" style="margin-left:8px">${esc(bl.date||'')}</span>
+        ${bl.statut==='brouillon'?`<button class="btn btn-primary btn-sm" style="margin-left:8px" onclick="event.stopPropagation();openPrintBL('${bl.id}')">Finaliser + imprimer</button>`:''}
+        ${bl.statut==='valide'?`<button class="btn btn-sm" style="margin-left:8px" onclick="event.stopPropagation();openPrintBL('${bl.id}')">Voir / réimprimer</button>`:''}
+      </div>
+      ${bl.open?`<div class="bl-body">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
+          <div class="cde-meta"><span class="k">Destinataire</span><span class="v">${esc(bl.destinataire||'')}</span></div>
+          <div class="cde-meta"><span class="k">Chauffeur</span><span class="v">${esc(bl.chauffeur||'À renseigner')}</span></div>
+          <div class="cde-meta"><span class="k">Camion</span><span class="v">${esc(bl.camion||'À renseigner')}</span></div>
+          <div class="cde-meta" style="grid-column:span 3"><span class="k">Référence</span><span class="v">${esc(bl.ref||'')}</span></div>
+        </div>
+        <table class="lignes-table"><thead><tr><th>Désignation</th><th>Emplacement</th><th class="r">Quantité</th><th>Unité</th></tr></thead>
+        <tbody>${(bl.lignes||[]).map(l=>`<tr><td>${esc(l.desc)}</td><td>${empHtml(l.emp)}</td><td class="r">${esc(l.qte)}</td><td>${esc(l.unite||'')}</td></tr>`).join('')}</tbody></table>
+        ${bl.statut==='valide'?`<div style="margin-top:8px;background:var(--green-bg);border:1px solid var(--green-border);border-radius:7px;padding:8px 10px;font-size:12px;color:var(--green)">✓ BL validé le ${bl.date}</div>`:''}
+      </div>`:''}
+    </div>`).join(''):`<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun BL. Cliquez sur "+ Générer un BL".</div>`;
+}
+function toggleBL(id){const b=state.bls.find(x=>x.id===id);if(b)b.open=!b.open;renderBLs();}
+
+function openGenBL(){
+  const dispo=state.stock.filter(s=>s.statut==='en_stock'&&s.type==='PF');
+  document.getElementById('gen-bl-body').innerHTML=`
+    <div class="info-box">Sélectionnez les articles PF en stock à inclure dans ce BL.</div>
+    ${dispo.length?`<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px">
+    ${dispo.map((s,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:${i<dispo.length-1?'1px solid var(--border)':'none'}">
+      <input type="checkbox" class="toggle-check" id="genbl-${s.id}" checked>
+      <label for="genbl-${s.id}" style="flex:1;cursor:pointer;font-size:12px;font-weight:500">${esc(s.designation)}</label>
+      ${empHtml(s.emp)}<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text2)">${esc(s.qte)}</span>
+    </div>`).join('')}</div>`:'<div class="warn-box">Aucun produit fini disponible en stock.</div>'}
+    <div class="field-2">
+      <div class="field"><label>Destinataire</label><input type="text" id="genbl-dest" placeholder="Nom — Adresse"/></div>
+      <div class="field"><label>Référence</label><input type="text" id="genbl-ref" placeholder="Ex: HYROME ZA — BL S17"/></div>
+    </div>
+    <div class="field-2">
+      <div class="field"><label>Chauffeur</label><input type="text" id="genbl-chauffeur"/></div>
+      <div class="field"><label>Camion / immat.</label><input type="text" id="genbl-camion" placeholder="ZZ-123-ZZ"/></div>
+    </div>`;
+  document.getElementById('gen-bl-modal').classList.add('show');
+}
+function closeGenBL(){document.getElementById('gen-bl-modal').classList.remove('show');}
+function confirmGenBL(){
+  const num='BL-'+new Date().getFullYear()+'-'+String(state.bls.length+1).padStart(3,'0');
+  const newBL={
+    id:uid(),num,chantier:'Nouveau',
+    destinataire:document.getElementById('genbl-dest')?.value||'',
+    chauffeur:document.getElementById('genbl-chauffeur')?.value||'',
+    camion:document.getElementById('genbl-camion')?.value||'',
+    ref:document.getElementById('genbl-ref')?.value||num,
+    date:new Date().toLocaleDateString('fr-FR'),statut:'brouillon',open:true,
+    lignes:state.stock.filter(s=>s.statut==='en_stock'&&s.type==='PF'&&document.getElementById('genbl-'+s.id)?.checked)
+      .map(s=>({desc:s.designation,emp:s.emp,qte:s.qte,unite:''})),
+  };
+  state.bls.unshift(newBL);
+  closeGenBL();scheduleSave();renderBLs();renderBLMetrics();showScreen('bl');toast('BL créé en brouillon');
+}
+
+function openPrintBL(id){
+  _currentBLId=id;
+  const bl=state.bls.find(x=>x.id===id);if(!bl)return;
+  document.getElementById('print-bl-title').textContent=bl.num+' — '+bl.chantier;
+  const empty=Math.max(0,10-(bl.lignes||[]).length);
+  document.getElementById('print-bl-body').innerHTML=`
+    <div class="bl-print-wrap" id="bl-print-content">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div><div style="font-size:18px;font-weight:800">ROUSSEAU</div><div style="font-size:10px;color:#555;margin-top:2px">9 Chemin du Tour du Bois<br>49770 Longuenée-en-Anjou<br>Tél : 0241311220</div></div>
+        <div style="text-align:right"><div style="font-size:10px;color:#555">www.rousseausa.fr</div><div style="font-size:11px;font-weight:700;margin-top:4px">${bl.num}</div><div style="font-size:10px;color:#555">${bl.date}</div></div>
+      </div>
+      <div class="bl-print-title">BON DE LIVRAISON</div>
+      <div class="bl-print-grid">
+        <div class="bl-print-box"><strong>Expéditeur</strong>Charpente Menuiserie Rousseau<br>9 Chemin du Tour du Bois<br>49770 Longuenée-en-Anjou</div>
+        <div class="bl-print-box"><strong>Destinataire</strong>${(bl.destinataire||'').replace(/—/g,'<br>')}</div>
+      </div>
+      <div style="font-size:11px;margin-bottom:8px;display:flex;gap:24px;flex-wrap:wrap">
+        <span><strong>Chauffeur :</strong> ${bl.chauffeur||'_________________'}</span>
+        <span><strong>Camion :</strong> ${bl.camion||'_________________'}</span>
+        <span><strong>Référence :</strong> ${bl.ref}</span>
+      </div>
+      <table class="bl-lignes">
+        <thead><tr><th style="width:55%">Désignation</th><th style="width:15%">Emplacement</th><th style="width:15%;text-align:right">Quantité</th><th style="width:15%">Unité</th></tr></thead>
+        <tbody>
+          ${(bl.lignes||[]).map(l=>`<tr><td>${esc(l.desc)}</td><td style="font-family:'DM Mono',monospace;font-size:10px">${l.emp!=='—'?esc(l.emp||''):''}</td><td class="r">${esc(l.qte)}</td><td>${esc(l.unite||'')}</td></tr>`).join('')}
+          ${Array(empty).fill('<tr><td style="height:20px">&nbsp;</td><td></td><td></td><td></td></tr>').join('')}
+        </tbody>
+      </table>
+      <div class="bl-sigs"><div class="bl-sig-box">Signature expéditeur :</div><div class="bl-sig-box">Signature client :</div></div>
+    </div>
+    ${bl.statut==='brouillon'?`<div style="margin-top:10px;background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--orange)">⚠ BL en brouillon — cliquez "Valider + marquer sorti" pour finaliser.</div>`:''}`;
+  document.getElementById('print-bl-modal').classList.add('show');
+}
+function validateBL(){
+  const bl=state.bls.find(x=>x.id===_currentBLId);if(!bl)return;
+  bl.statut='valide';
+  (bl.lignes||[]).forEach(l=>{
+    const s=state.stock.find(x=>x.emp===l.emp&&x.statut!=='sorti');
+    if(s){s.statut='sorti';s.sortie=bl.date;s.bl_num=bl.num;}
+  });
+  document.getElementById('print-bl-modal').classList.remove('show');
+  scheduleSave();renderBLs();renderStock();renderBLMetrics();renderStockMetrics();
+  toast('✓ BL validé — articles marqués "Sorti"');
+}
+
+// ═══ RÉCEPTION CDE ════════════════════════════════════════════════════════
+function openRecv(id){
+  const cde=state.cdes.find(c=>c.id===id);if(!cde)return;
+  document.getElementById('recv-body').innerHTML=`
+    <div class="field-2" style="margin-bottom:10px">
+      <div class="field"><label>N° BL fournisseur</label><input type="text" placeholder="BL-XXXX"/></div>
+      <div class="field"><label>Date réception</label><input type="date" value="${new Date().toISOString().slice(0,10)}"/></div>
+    </div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);margin:10px 0 6px">Pointage lignes</div>
+    ${(cde.lignes||[]).map(l=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <div style="flex:1"><strong>${esc(l.desc)}</strong><br><span style="color:var(--text3)">CDE: ${l.qte} ${l.unit||''} · Reçu: ${l.recue||0}</span></div>
+      <span style="font-size:11px;color:var(--text2)">Qté ce BL :</span>
+      <input type="number" value="0" style="width:65px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px" min="0"/>
+      <span style="font-size:11px;color:var(--text2)">Emplacement :</span>
+      <input type="text" placeholder="C11-a" style="width:80px;padding:3px 6px;border:1px solid var(--purple-border);border-radius:6px;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;background:var(--purple-bg)"/>
+    </div>`).join('')}`;
+  document.getElementById('recv-modal').classList.add('show');
+}
+function closeRecv(){document.getElementById('recv-modal').classList.remove('show');}
+
+// ═══ MODALS GÉNÉRIQUES ════════════════════════════════════════════════════
+function openModal(type){
+  const titles={'add-cde':'Nouvelle commande fournisseur','add-stock':'Entrée en stock','move-stock':'Déplacer un article'};
+  document.getElementById('modal-title').textContent=titles[type]||'';
+  const bodies={
+    'add-cde':`<div class="field-2"><div class="field"><label>N° commande</label><input type="text" placeholder="CDE-2026-XXX"/></div><div class="field"><label>Fournisseur</label><input type="text"/></div></div>
+      <div class="field"><label>Chantier lié</label><select><option>— Libre —</option>${state.chantiers.map(c=>`<option>${esc(c.nom)}</option>`).join('')}</select></div>
+      <div class="field-2"><div class="field"><label>Date commande</label><input type="date"/></div><div class="field"><label>Livraison souhaitée</label><input type="date"/></div></div>
+      <div class="field"><label>Montant estimé (€)</label><input type="number" min="0" step="100"/></div>
+      <div class="field"><label>Commentaire</label><input type="text" placeholder="Description de la commande"/></div>`,
+    'add-stock':`<div class="field"><label>Désignation</label><input type="text" placeholder="Ex: Lame 145×45 cl.4 — 4m"/></div>
+      <div class="field-2"><div class="field"><label>Quantité</label><input type="text" placeholder="350 ml"/></div><div class="field"><label>Type</label><select><option value="MP">Matière première (MP)</option><option value="PF">Produit fini (PF)</option></select></div></div>
+      <div class="field"><label>Chantier / Tranche</label><input type="text" placeholder="Ex: HYROME / ZA / Ph01"/></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--purple-bg);border:1px solid var(--purple-border);border-radius:8px"><label style="font-size:12px;font-weight:600;color:var(--purple)">Emplacement</label><input type="text" placeholder="C11-a" id="new-emp" style="width:100px;padding:6px 9px;border:1px solid var(--purple-border);border-radius:6px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;background:var(--surface)"/></div>`,
+    'move-stock':`<div style="padding:10px 12px;background:var(--purple-bg);border:1px solid var(--purple-border);border-radius:8px"><div style="font-size:12px;font-weight:600;color:var(--purple);margin-bottom:6px">Nouvel emplacement</div><input type="text" placeholder="ex: B05-a" style="width:120px;padding:6px 9px;border:1px solid var(--purple-border);border-radius:6px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;background:var(--surface)"/></div>`,
+  };
+  document.getElementById('modal-body').innerHTML=bodies[type]||'';
+  document.getElementById('modal').classList.add('show');
+}
+
+function saveGenericModal(){
+  // Pour les commandes, on pourrait créer un objet CDE minimal
+  closeModal('modal');
+  toast('Enregistré');
+}
+
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+
+function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.app-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('screen-'+id).classList.add('active');
-  const tab = document.getElementById('tab-'+id);
-  if (tab) tab.classList.add('active');
-}
-function toast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg; el.classList.add('show');
-  setTimeout(()=>el.classList.remove('show'), 2000);
+  const tab=document.getElementById('tab-'+id);if(tab)tab.classList.add('active');
 }
 
-// ═══ START ═══════════════════════════════════════════════════════════════
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+// ═══ START ════════════════════════════════════════════════════════════════
+// Init date pour la charge
+const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1));
+document.getElementById('charge-debut').value=d.toISOString().slice(0,10);
+
 init();
 </script>
 </body>
