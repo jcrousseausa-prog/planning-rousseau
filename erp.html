@@ -19,7 +19,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
-header{background:var(--surface);border-bottom:1px solid var(--border);padding:.75rem 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:50}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:.75rem 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:50;box-shadow:0 1px 4px rgba(0,0,0,.08)}
 .logo{font-size:16px;font-weight:600;letter-spacing:-.02em}
 .logo em{color:var(--text3);font-style:normal;font-weight:400}
 .header-right{display:flex;gap:8px;margin-left:auto;align-items:center;flex-wrap:wrap}
@@ -32,7 +32,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:.
 .sync-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .sync-pill.saving .sync-dot{animation:blink .6s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.app-tabs{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:0;overflow-x:auto;position:sticky;top:49px;z-index:40}
+.app-tabs{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:0;overflow-x:auto;position:sticky;top:49px;z-index:40;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .app-tab{padding:10px 15px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s}
 .app-tab:hover{color:var(--text)}
 .app-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
@@ -187,7 +187,9 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </header>
 
-<div class="app-tabs">
+<div id="notif-bar" style="display:none;background:var(--blue);color:#fff;padding:7px 20px;font-size:12px;font-weight:500;align-items:center;gap:10px;position:sticky;top:49px;z-index:45"></div>
+
+<div class="app-tabs" style="position:sticky;top:49px;z-index:40">
   <button class="app-tab active" id="tab-planning" onclick="showScreen('planning')">Tableau de pilotage</button>
   <button class="app-tab" id="tab-achats" onclick="showScreen('achats')">Commandes fournisseurs<span class="notif-dot"></span></button>
   <button class="app-tab" id="tab-stock" onclick="showScreen('stock')">Stock<span class="new-badge">NEW</span></button>
@@ -909,29 +911,86 @@ function empHtml(e){return e&&e!=='—'?`<span class="emp">${e}</span>`:'<span s
 function saveLS(){try{localStorage.setItem('erp_v3',JSON.stringify(state));}catch(e){}}
 function loadLS(){try{const s=localStorage.getItem('erp_v3');if(s){state=JSON.parse(s);return true;}}catch(e){}return false;}
 
-function scheduleSave(){
-  if(_saveTimeout)clearTimeout(_saveTimeout);
-  setSyncPill('saving','Enregistrement...');
-  _saveTimeout=setTimeout(saveToSheets,2000);
-}
+// ─── SAUVEGARDE LIGNE PAR LIGNE + POLLING ────────────────────────────────
 
-async function saveToSheets(){
+// File d'attente des modifications à sauvegarder
+let _saveTimeout = null;
+let _pollInterval = null;
+let _lastSaveHash = '';
+
+function scheduleSave() {
   saveLS();
-  try{
-    const res=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'saveERP',data:state})});
-    const r=await res.json();
-    if(r.ok)setSyncPill('ok','Enregistré '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-    else throw new Error(r.error);
-  }catch(e){setSyncPill('error','Local OK');console.warn(e);}
+  if (_saveTimeout) clearTimeout(_saveTimeout);
+  setSyncPill('saving', 'Enregistrement...');
+  _saveTimeout = setTimeout(saveToSheets, 2000);
 }
 
-async function loadFromSheets(){
-  try{
-    const res=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERP'})});
-    const r=await res.json();
-    if(r.ok&&r.data&&r.data.chantiers?.length){state=r.data;saveLS();return true;}
-  }catch(e){console.warn('getERP:',e);}
+async function saveToSheets() {
+  saveLS();
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'saveERP', data: state})
+    });
+    const r = await res.json();
+    if (r.ok) setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+    else throw new Error(r.error);
+  } catch(e) {
+    setSyncPill('error', 'Local OK');
+    console.warn('saveERP error:', e);
+  }
+}
+
+async function loadFromSheets() {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'getERP'})
+    });
+    const r = await res.json();
+    if (r.ok && r.data && r.data.chantiers?.length) {
+      state = r.data;
+      saveLS();
+      return true;
+    }
+  } catch(e) { console.warn('getERP:', e); }
   return false;
+}
+
+// ─── POLLING — rechargement toutes les 45s ────────────────────────────────
+function startPolling() {
+  if (_pollInterval) clearInterval(_pollInterval);
+  _pollInterval = setInterval(async () => {
+    // Ne pas recharger si une sauvegarde est en cours
+    if (document.getElementById('sync-text').textContent === 'Enregistrement...') return;
+    try {
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain'},
+        body: JSON.stringify({action: 'getERPHash'})
+      });
+      const r = await res.json();
+      if (r.ok && r.hash && r.hash !== _lastSaveHash) {
+        // Données modifiées par un autre utilisateur
+        _lastSaveHash = r.hash;
+        const ok = await loadFromSheets();
+        if (ok) {
+          renderAll();
+          showNotif('🔄 Planning mis à jour par un autre utilisateur');
+        }
+      }
+    } catch(e) { /* polling silencieux */ }
+  }, 45000); // toutes les 45 secondes
+}
+
+function showNotif(msg) {
+  const el = document.getElementById('notif-bar');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'flex';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
 }
 
 function setSyncPill(mode,text){
@@ -1001,6 +1060,8 @@ async function init(){
   renderAll();
   setSyncPill('ok','Synchronisé');
   document.getElementById('rt-label').textContent='Connecté';
+  // Démarrer le polling toutes les 45s
+  startPolling();
 }
 
 // ═══ RENDER ALL ═══════════════════════════════════════════════════════════
