@@ -823,14 +823,17 @@ fermetures:state.fermetures, nextId:state.nextId, gsUrl:state.gsUrl,
 }
 
 function normalizeDate(s) {
-if (!s) return null;
-s = String(s).trim();
-if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-const fr = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-if (fr) return `${fr[3]}-${fr[2].padStart(2,'0')}-${fr[1].padStart(2,'0')}`;
-const dt = new Date(s);
-if (!isNaN(dt.getTime())) return dt.toISOString().slice(0,10);
-return null;
+  if (!s) return null;
+  s = String(s).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const fr = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (fr) return `${fr[3]}-${fr[2].padStart(2,'0')}-${fr[1].padStart(2,'0')}`;
+  // Rejeter les dates JS mal formées (ex: "Tue Aug 21 1906...")
+  if (/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/.test(s)) return null;
+  if (/\d{4}-\d{2}-\d{2}T/.test(s)) return s.slice(0,10);
+  const dt = new Date(s);
+  if (!isNaN(dt.getTime()) && dt.getFullYear() > 2000) return dt.toISOString().slice(0,10);
+  return null;
 }
 
 function normalizeTranche(t) {
@@ -852,7 +855,10 @@ if (!s) return;
 const saved = JSON.parse(s);
 // Tranches gérées par Google Sheets uniquement
 if (saved.joursOff)   state.joursOff   = saved.joursOff;
-if (saved.fermetures) state.fermetures = saved.fermetures.map(f => typeof f==='string'?{date:f,atelier:'all'}:f);
+if (saved.fermetures) state.fermetures = saved.fermetures
+  .map(f => typeof f==='string'?{date:f,atelier:'all'}:f)
+  .map(f => ({...f, date: normalizeDate(f.date)||f.date}))
+  .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
 if (saved.nextId)     state.nextId     = saved.nextId;
 if (saved.gsUrl)      state.gsUrl      = saved.gsUrl;
 } catch(e) {}
