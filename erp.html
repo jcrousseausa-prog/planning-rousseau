@@ -892,6 +892,8 @@ let state = {
 let _ctx = {};
 let _search = '';
 let _saveTimeout = null;
+let _pollInterval = null;
+let _lastSaveHash = '';
 let _currentBLId = null;
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
@@ -913,10 +915,7 @@ function loadLS(){try{const s=localStorage.getItem('erp_v3');if(s){state=JSON.pa
 
 // ─── SAUVEGARDE LIGNE PAR LIGNE + POLLING ────────────────────────────────
 
-// File d'attente des modifications à sauvegarder
-let _saveTimeout = null;
-let _pollInterval = null;
-let _lastSaveHash = '';
+// Polling
 
 function scheduleSave() {
   saveLS();
