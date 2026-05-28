@@ -608,7 +608,10 @@ async function initApp() {
       });
       const cal = await rc.json();
       if (cal.ok && cal.data) {
-        if (cal.data.fermetures?.length) state.fermetures = cal.data.fermetures;
+        if (cal.data.fermetures?.length) state.fermetures = cal.data.fermetures
+  .map(f => typeof f==='string'?{date:f,atelier:'all'}:f)
+  .map(f => ({...f, date: normalizeDate(String(f.date))||''}))
+  .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
         if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
       }
     } catch(ce) { console.warn('Calendrier non chargé:', ce.message); }
@@ -635,7 +638,10 @@ try {
         });
         const cal = await rc.json();
         if (cal.ok && cal.data) {
-          if (cal.data.fermetures?.length) state.fermetures = cal.data.fermetures;
+          if (cal.data.fermetures?.length) state.fermetures = cal.data.fermetures
+  .map(f => typeof f==='string'?{date:f,atelier:'all'}:f)
+  .map(f => ({...f, date: normalizeDate(String(f.date))||''}))
+  .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
           if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
         }
       } catch(ce) { console.warn('Calendrier non chargé:', ce.message); }
