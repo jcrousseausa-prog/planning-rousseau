@@ -1411,12 +1411,12 @@ function addFermetureSemaine(){
   const d=dEl.value;const at=atEl.value;
   if(!d){dEl.style.borderColor='var(--red)';dEl.focus();return;}
   dEl.style.borderColor='';
-  const dt=new Date(d);
+  const dt=new Date(d+'T12:00:00');
   const dow=dt.getDay()||7;
   dt.setDate(dt.getDate()-(dow-1));
   for(let i=0;i<5;i++){
     const ds=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate()+i);
-const s=`${ds.getFullYear()}-${String(ds.getMonth()+1).padStart(2,'0')}-${String(ds.getDate()).padStart(2,'0')}`;
+    const s=`${ds.getFullYear()}-${String(ds.getMonth()+1).padStart(2,'0')}-${String(ds.getDate()).padStart(2,'0')}`;
     if(!state.fermetures.some(f=>f.date===s&&f.atelier===at))
       state.fermetures.push({date:s,atelier:at});
   }
