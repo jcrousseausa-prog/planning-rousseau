@@ -1401,7 +1401,7 @@ function addFermeture(){
   if(state.fermetures.some(f=>f.date===d&&f.atelier===at))return;
   state.fermetures=[...state.fermetures,{date:d,atelier:at}].sort((a,b)=>a.date.localeCompare(b.date));
   dEl.value='';
-  scheduleSave(state.atelier);render();
+  rechainAll();scheduleSave(state.atelier);render();
 }
 function addFermetureSemaine(){
   if(!state.joursOpen){state.joursOpen=true;renderJoursPanel();}
@@ -1422,9 +1422,9 @@ const s=`${ds.getFullYear()}-${String(ds.getMonth()+1).padStart(2,'0')}-${String
   }
   state.fermetures.sort((a,b)=>a.date.localeCompare(b.date));
   dEl.value='';
-  scheduleSave(state.atelier);render();
+  rechainAll();scheduleSave(state.atelier);render();
 }
-function removeFermeture(d,at){state.fermetures=state.fermetures.filter(f=>!(f.date===d&&f.atelier===at));scheduleSave(state.atelier);render();}
+function removeFermeture(d,at){state.fermetures=state.fermetures.filter(f=>!(f.date===d&&f.atelier===at));rechainAll();scheduleSave(state.atelier);render();}
 
 function updT(atId,id,field,val){
 if(IS_READONLY)return;
