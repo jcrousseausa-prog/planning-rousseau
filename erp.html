@@ -195,6 +195,7 @@ table.bl-lignes td.r{text-align:right}
   <button class="app-tab" id="tab-stock" onclick="showScreen('stock')">Stock<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-bl" onclick="showScreen('bl')">Bons de livraison<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-charge" onclick="showScreen('charge')">Charge équipes</button>
+  <button class="app-tab" id="tab-retours" onclick="showScreen('retours')">Retours équipes</button>
 </div>
 
 <main>
@@ -285,6 +286,28 @@ table.bl-lignes td.r{text-align:right}
   <div id="charge-list" style="margin-top:12px">
     <div class="info-box">La charge équipes est liée au Planning Production (index.html). Les tranches actives y sont planifiées par atelier.</div>
   </div>
+</div>
+
+<!-- ══ RETOURS ÉQUIPES ══ -->
+<div class="screen" id="screen-retours">
+  <div class="metrics" id="retours-metrics"></div>
+  <div class="toolbar">
+    <select class="btn" id="fil-retour-statut" onchange="renderRetours()">
+      <option value="">Tous statuts</option>
+      <option value="nouveau">Nouveau</option>
+      <option value="en_cours">En cours</option>
+      <option value="resolu">Résolu</option>
+    </select>
+    <select class="btn" id="fil-retour-type" onchange="renderRetours()">
+      <option value="">Tous types</option>
+      <option value="bug">Bug</option>
+      <option value="amelioration">Amélioration</option>
+      <option value="idee">Idée</option>
+      <option value="question">Question</option>
+    </select>
+    <button class="btn btn-primary" style="margin-left:auto" onclick="openAddRetour()">+ Nouveau retour</button>
+  </div>
+  <div id="retours-list"></div>
 </div>
 
 </main>
@@ -887,7 +910,7 @@ const INIT_DATA =
 // ═══ STATE ════════════════════════════════════════════════════════════════
 let state = {
   chantiers:[],tranches:[],phases:[],articles:[],
-  cdes:[],stock:[],bls:[],
+  cdes:[],stock:[],bls:[],retours:[],
 };
 let _ctx = {};
 let _search = '';
@@ -1055,6 +1078,7 @@ async function init(){
     });
     saveLS();
   }
+  if(!state.retours)state.retours=[];
   const ok=await loadFromSheets();
   renderAll();
   setSyncPill('ok','Synchronisé');
@@ -1073,21 +1097,77 @@ function renderAll(){
   renderStock();
   renderBLMetrics();
   renderBLs();
+  if(document.getElementById('screen-retours').classList.contains('active'))renderRetours();
 }
 
 // ═══ METRICS ══════════════════════════════════════════════════════════════
 function renderMetrics(){
-  const nbA=state.articles.length;
-  const avMoyen=nbA?Math.round(state.articles.reduce((s,a)=>s+(+a.avancement||0),0)/nbA):0;
-  const retards=state.articles.filter(a=>{if(!a.date_ctvx)return false;const today=new Date();const ctvx=new Date(a.date_ctvx);return ctvx<today&&a.statut!=='termine';}).length;
-  const termines=state.articles.filter(a=>a.statut==='termine').length;
-  document.getElementById('metrics-bar').innerHTML=`
-    <div class="metric"><div class="metric-k">Chantiers</div><div class="metric-v">${state.chantiers.length}</div><div class="metric-sub">${state.tranches.length} tranches</div></div>
-    <div class="metric"><div class="metric-k">Phases</div><div class="metric-v">${state.phases.length}</div></div>
-    <div class="metric"><div class="metric-k">Articles</div><div class="metric-v">${nbA}</div></div>
-    <div class="metric"><div class="metric-k">Avancement</div><div class="metric-v${avMoyen>=80?' ok':''}">${avMoyen}%</div></div>
-    <div class="metric"><div class="metric-k">Terminés</div><div class="metric-v ok">${termines}</div></div>
-    <div class="metric"><div class="metric-k">CTVX dépassées</div><div class="metric-v${retards>0?' alert':' ok'}">${retards}</div></div>`;
+  // Métriques compactes par chantier
+  const nbC = state.chantiers.length;
+  const nbT = state.tranches.length;
+  const nbA = state.articles.length;
+  const retards = state.articles.filter(a=>{
+    if(!a.date_ctvx)return false;
+    const today=new Date();const ctvx=new Date(a.date_ctvx);
+    return ctvx<today&&a.statut!=='termine';
+  }).length;
+
+  // Calcul avancement par chantier
+  const chantierStats = state.chantiers.map(ch=>{
+    const trs = state.tranches.filter(t=>t.cid===ch.id);
+    const phs = state.phases.filter(p=>trs.some(t=>t.id===p.tid));
+    const arts = state.articles.filter(a=>phs.some(p=>p.id===a.pid));
+    const budgetTotal = arts.reduce((s,a)=>s+(+a.budget_heures||0),0);
+    const passeTotal = arts.reduce((s,a)=>{
+      const av=(+a.avancement||0)/100;
+      return s+(+a.budget_heures||0)*av;
+    },0);
+    const avMoyen = arts.length?Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length):0;
+    const retardsCh = arts.filter(a=>{
+      if(!a.date_ctvx)return false;
+      return new Date(a.date_ctvx)<new Date()&&a.statut!=='termine';
+    }).length;
+    return {ch, arts:arts.length, avMoyen, budgetTotal, passeTotal, retardsCh};
+  }).filter(s=>s.arts>0);
+
+  // Bandeau compact — chiffres clés
+  let html = `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:8px 0;margin-bottom:10px;border-bottom:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Chantiers</span>
+      <span style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace">${nbC}</span>
+      <span style="font-size:11px;color:var(--text3)">${nbT} tranches</span>
+    </div>
+    <div style="width:1px;height:24px;background:var(--border)"></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Articles</span>
+      <span style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace">${nbA}</span>
+    </div>
+    <div style="width:1px;height:24px;background:var(--border)"></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">CTVX dépassées</span>
+      <span style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:${retards>0?'var(--red)':'var(--green)'}">${retards}</span>
+    </div>`;
+
+  // Avancement par chantier (seulement ceux avec articles)
+  if(chantierStats.length) {
+    html += `<div style="width:1px;height:24px;background:var(--border)"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Avancement</span>`;
+    chantierStats.forEach(s=>{
+      const color = s.avMoyen>=80?'var(--green)':s.avMoyen>0?'var(--blue)':'var(--text3)';
+      const retBadge = s.retardsCh>0?`<span style="background:var(--red-bg);color:var(--red);font-size:9px;padding:1px 4px;border-radius:4px;font-weight:700">⚠${s.retardsCh}</span>`:'';
+      html += `<div style="display:flex;align-items:center;gap:4px;padding:3px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:11px">
+        <span style="font-weight:600;color:var(--text)">${s.ch.nom.split(' ')[0]}</span>
+        <span style="font-weight:700;color:${color}">${s.avMoyen}%</span>
+        ${retBadge}
+        ${s.budgetTotal>0?`<span style="color:var(--text3)">${Math.round(s.passeTotal)}h/${s.budgetTotal}h</span>`:''}
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  document.getElementById('metrics-bar').innerHTML = html;
 }
 
 // ═══ PLANNING ═════════════════════════════════════════════════════════════
@@ -1572,6 +1652,127 @@ function toast(msg){
   setTimeout(()=>el.classList.remove('show'),2500);
 }
 
+// ═══ RETOURS ÉQUIPES ══════════════════════════════════════════════════════
+function renderRetoursMetrics(){
+  const nb = (state.retours||[]).length;
+  const nouveaux = (state.retours||[]).filter(r=>r.statut==='nouveau').length;
+  const enCours = (state.retours||[]).filter(r=>r.statut==='en_cours').length;
+  const urgents = (state.retours||[]).filter(r=>r.priorite==='urgent'&&r.statut!=='resolu').length;
+  document.getElementById('retours-metrics').innerHTML=`
+    <div class="metric"><div class="metric-k">Total retours</div><div class="metric-v">${nb}</div></div>
+    <div class="metric"><div class="metric-k">Nouveaux</div><div class="metric-v${nouveaux>0?' warn':' ok'}">${nouveaux}</div></div>
+    <div class="metric"><div class="metric-k">En cours</div><div class="metric-v">${enCours}</div></div>
+    <div class="metric"><div class="metric-k">Urgents</div><div class="metric-v${urgents>0?' alert':' ok'}">${urgents}</div></div>`;
+}
+
+function renderRetours(){
+  renderRetoursMetrics();
+  const fs = document.getElementById('fil-retour-statut')?.value||'';
+  const ft = document.getElementById('fil-retour-type')?.value||'';
+  const rows = (state.retours||[]).filter(r=>{
+    if(fs&&r.statut!==fs)return false;
+    if(ft&&r.type!==ft)return false;
+    return true;
+  }).sort((a,b)=>{
+    const prio={urgent:0,normal:1,faible:2};
+    const stat={nouveau:0,en_cours:1,resolu:2};
+    if(stat[a.statut]!==stat[b.statut])return stat[a.statut]-stat[b.statut];
+    return (prio[a.priorite]||1)-(prio[b.priorite]||1);
+  });
+
+  const typeIcon={bug:'🐛',amelioration:'⚡',idee:'💡',question:'❓'};
+  const typeLabel={bug:'Bug',amelioration:'Amélioration',idee:'Idée',question:'Question'};
+  const prioBadge={urgent:'badge-red',normal:'badge-orange',faible:'badge-green'};
+  const prioLabel={urgent:'Urgent',normal:'Normal',faible:'Faible'};
+  const statBadge={nouveau:'badge-blue',en_cours:'badge-orange',resolu:'badge-green'};
+  const statLabel={nouveau:'Nouveau',en_cours:'En cours',resolu:'Résolu'};
+  const moduleLabel={planning:'Planning',achats:'Achats',stock:'Stock',bl:'BL',charge:'Charge',erp:'ERP','':'Général'};
+
+  if(!rows.length){
+    document.getElementById('retours-list').innerHTML='<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun retour. Cliquez sur "+ Nouveau retour" pour commencer.</div>';
+    return;
+  }
+
+  document.getElementById('retours-list').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Type</th><th>Description</th><th>Module</th>
+          <th>Auteur</th><th>Date</th><th>Priorité</th><th>Statut</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r=>`<tr>
+            <td><span style="font-size:16px" title="${typeLabel[r.type]||r.type}">${typeIcon[r.type]||'📝'}</span></td>
+            <td>
+              <div style="font-weight:500;font-size:13px">${esc(r.description||'')}</div>
+              ${r.commentaire?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(r.commentaire)}</div>`:''}
+            </td>
+            <td><span style="font-size:11px;color:var(--text2)">${moduleLabel[r.module]||r.module||'—'}</span></td>
+            <td style="font-size:12px;color:var(--text2)">${esc(r.auteur||'—')}</td>
+            <td style="font-size:11px;color:var(--text3);white-space:nowrap">${esc(r.date||'')}</td>
+            <td><span class="badge ${prioBadge[r.priorite]||'badge-gray'}">${prioLabel[r.priorite]||r.priorite}</span></td>
+            <td>
+              <select class="inline-select" onchange="updateStatutRetour('${r.id}',this.value)" style="font-size:11px;border:1px solid var(--border);border-radius:6px;padding:2px 6px">
+                <option value="nouveau"${r.statut==='nouveau'?' selected':''}>Nouveau</option>
+                <option value="en_cours"${r.statut==='en_cours'?' selected':''}>En cours</option>
+                <option value="resolu"${r.statut==='resolu'?' selected':''}>Résolu</option>
+              </select>
+            </td>
+            <td style="text-align:right">
+              <button class="btn btn-sm btn-red" onclick="deleteRetour('${r.id}')">✕</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function openAddRetour(){
+  _ctx={type:'add'};
+  document.getElementById('mr-title').textContent='Nouveau retour';
+  document.getElementById('mr-type').value='amelioration';
+  document.getElementById('mr-priorite').value='normal';
+  document.getElementById('mr-module').value='';
+  document.getElementById('mr-desc').value='';
+  document.getElementById('mr-comment').value='';
+  document.getElementById('mr-auteur').value='';
+  document.getElementById('modal-retour').classList.add('show');
+}
+
+function saveRetour(){
+  const desc = document.getElementById('mr-desc').value.trim();
+  if(!desc){document.getElementById('mr-desc').style.borderColor='var(--red)';return;}
+  document.getElementById('mr-desc').style.borderColor='';
+  if(!state.retours) state.retours=[];
+  const retour = {
+    id: uid(),
+    type: document.getElementById('mr-type').value,
+    priorite: document.getElementById('mr-priorite').value,
+    module: document.getElementById('mr-module').value,
+    description: desc,
+    commentaire: document.getElementById('mr-comment').value.trim(),
+    auteur: document.getElementById('mr-auteur').value.trim(),
+    date: new Date().toLocaleDateString('fr-FR'),
+    statut: 'nouveau',
+  };
+  state.retours.unshift(retour);
+  closeModal('modal-retour');
+  scheduleSave();
+  renderRetours();
+  toast('Retour enregistré');
+}
+
+function updateStatutRetour(id, statut){
+  const r = (state.retours||[]).find(x=>x.id===id);
+  if(r){r.statut=statut;scheduleSave();renderRetoursMetrics();toast('Statut mis à jour');}
+}
+
+function deleteRetour(id){
+  if(!confirm('Supprimer ce retour ?'))return;
+  state.retours=(state.retours||[]).filter(r=>r.id!==id);
+  scheduleSave();renderRetours();toast('Retour supprimé');
+}
+
 // ═══ START ════════════════════════════════════════════════════════════════
 // Init date pour la charge
 const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1));
@@ -1579,5 +1780,53 @@ document.getElementById('charge-debut').value=d.toISOString().slice(0,10);
 
 init();
 </script>
+<!-- MODAL RETOUR -->
+<div class="modal-bg" id="modal-retour" onclick="if(event.target===this)closeModal('modal-retour')">
+  <div class="modal" style="width:560px">
+    <h2 id="mr-title">Nouveau retour</h2>
+    <div class="field-2">
+      <div class="field"><label>Type</label>
+        <select id="mr-type">
+          <option value="bug">🐛 Bug</option>
+          <option value="amelioration">⚡ Amélioration</option>
+          <option value="idee">💡 Idée</option>
+          <option value="question">❓ Question</option>
+        </select>
+      </div>
+      <div class="field"><label>Priorité</label>
+        <select id="mr-priorite">
+          <option value="urgent">🔴 Urgent</option>
+          <option value="normal" selected>🟡 Normal</option>
+          <option value="faible">🟢 Faible</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Module concerné</label>
+      <select id="mr-module">
+        <option value="">— Général —</option>
+        <option value="planning">Planning production</option>
+        <option value="achats">Commandes fournisseurs</option>
+        <option value="stock">Stock</option>
+        <option value="bl">Bons de livraison</option>
+        <option value="charge">Charge équipes</option>
+        <option value="erp">ERP général</option>
+      </select>
+    </div>
+    <div class="field"><label>Description</label>
+      <textarea id="mr-desc" style="min-height:80px;resize:vertical" placeholder="Décrivez le problème ou l'amélioration souhaitée…"></textarea>
+    </div>
+    <div class="field"><label>Commentaire / contexte</label>
+      <textarea id="mr-comment" style="min-height:60px;resize:vertical" placeholder="Informations complémentaires, exemple concret…"></textarea>
+    </div>
+    <div class="field"><label>Votre nom / rôle</label>
+      <input type="text" id="mr-auteur" placeholder="Ex: Jean — Conducteur de travaux"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-retour')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveRetour()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
