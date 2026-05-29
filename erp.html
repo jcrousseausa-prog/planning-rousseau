@@ -1125,7 +1125,6 @@ async function init(){
 
 // ═══ RENDER ALL ═══════════════════════════════════════════════════════════
 function renderAll(){
-  renderMetrics();
   renderPlanning();
   renderAchatsMetrics();
   renderCdes();
@@ -1137,75 +1136,6 @@ function renderAll(){
   if(document.getElementById('screen-dashboard').classList.contains('active'))renderDashboard();
 }
 
-// ═══ METRICS ══════════════════════════════════════════════════════════════
-function renderMetrics(){
-  // Métriques compactes par chantier
-  const nbC = state.chantiers.length;
-  const nbT = state.tranches.length;
-  const nbA = state.articles.length;
-  const retards = state.articles.filter(a=>{
-    if(!a.date_ctvx)return false;
-    const today=new Date();const ctvx=new Date(a.date_ctvx);
-    return ctvx<today&&a.statut!=='termine';
-  }).length;
-
-  // Calcul avancement par chantier
-  const chantierStats = state.chantiers.map(ch=>{
-    const trs = state.tranches.filter(t=>t.cid===ch.id);
-    const phs = state.phases.filter(p=>trs.some(t=>t.id===p.tid));
-    const arts = state.articles.filter(a=>phs.some(p=>p.id===a.pid));
-    const budgetTotal = arts.reduce((s,a)=>s+(+a.budget_heures||0),0);
-    const passeTotal = arts.reduce((s,a)=>{
-      const av=(+a.avancement||0)/100;
-      return s+(+a.budget_heures||0)*av;
-    },0);
-    const avMoyen = arts.length?Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length):0;
-    const retardsCh = arts.filter(a=>{
-      if(!a.date_ctvx)return false;
-      return new Date(a.date_ctvx)<new Date()&&a.statut!=='termine';
-    }).length;
-    return {ch, arts:arts.length, avMoyen, budgetTotal, passeTotal, retardsCh};
-  }).filter(s=>s.arts>0);
-
-  // Bandeau compact — chiffres clés
-  let html = `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:8px 0;margin-bottom:10px;border-bottom:1px solid var(--border)">
-    <div style="display:flex;align-items:center;gap:6px">
-      <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Chantiers</span>
-      <span style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace">${nbC}</span>
-      <span style="font-size:11px;color:var(--text3)">${nbT} tranches</span>
-    </div>
-    <div style="width:1px;height:24px;background:var(--border)"></div>
-    <div style="display:flex;align-items:center;gap:6px">
-      <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Articles</span>
-      <span style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace">${nbA}</span>
-    </div>
-    <div style="width:1px;height:24px;background:var(--border)"></div>
-    <div style="display:flex;align-items:center;gap:6px">
-      <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">CTVX dépassées</span>
-      <span style="font-size:18px;font-weight:700;font-family:'DM Mono',monospace;color:${retards>0?'var(--red)':'var(--green)'}">${retards}</span>
-    </div>`;
-
-  // Avancement par chantier (seulement ceux avec articles)
-  if(chantierStats.length) {
-    html += `<div style="width:1px;height:24px;background:var(--border)"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Avancement</span>`;
-    chantierStats.forEach(s=>{
-      const color = s.avMoyen>=80?'var(--green)':s.avMoyen>0?'var(--blue)':'var(--text3)';
-      const retBadge = s.retardsCh>0?`<span style="background:var(--red-bg);color:var(--red);font-size:9px;padding:1px 4px;border-radius:4px;font-weight:700">⚠${s.retardsCh}</span>`:'';
-      html += `<div style="display:flex;align-items:center;gap:4px;padding:3px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:11px">
-        <span style="font-weight:600;color:var(--text)">${s.ch.nom.split(' ')[0]}</span>
-        <span style="font-weight:700;color:${color}">${s.avMoyen}%</span>
-        ${retBadge}
-        ${s.budgetTotal>0?`<span style="color:var(--text3)">${Math.round(s.passeTotal)}h/${s.budgetTotal}h</span>`:''}
-      </div>`;
-    });
-    html += `</div>`;
-  }
-
-  html += `</div>`;
-  document.getElementById('metrics-bar').innerHTML = html;
-}
 
 // ═══ PLANNING ═════════════════════════════════════════════════════════════
 function onSearch(q){_search=q.toLowerCase().trim();renderPlanning();}
@@ -2042,7 +1972,7 @@ async function renderDashboard(){
         <button class="btn btn-sm" onclick="_prodB2Data=null;renderDashboard()" style="font-size:11px">⇅ Actualiser</button>
       </div>
     </div>
-    ${prodData.length===0?'<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--orange);margin-bottom:12px">⚠ Aucune donnée chargée depuis Production_B2. Vérifiez que l'onglet est publié en CSV dans Google Sheets.</div>':''}
+    ${prodData.length===0?'<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--orange);margin-bottom:12px">⚠ Aucune donnée chargée depuis Production_B2. Vérifiez que l\'onglet est publié en CSV dans Google Sheets.</div>':''}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;min-width:700px">
         <thead>
@@ -2071,7 +2001,7 @@ async function renderDashboard(){
               <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;${pctColor}">${r.h_total>0?r.pct_interim+'%':'—'}</td>
               <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${r.ratio||'—'}</td>
             </tr>`;
-          }).join(''):'<tr><td colspan="8" style="padding:1.5rem;text-align:center;color:var(--text3);font-style:italic">Aucune donnée — collez vos données dans l'onglet Production_B2 du Google Sheet</td></tr>'}
+          }).join(''):'<tr><td colspan="8" style="padding:1.5rem;text-align:center;color:var(--text3);font-style:italic">Aucune donnée — collez vos données dans l\'onglet Production_B2 du Google Sheet</td></tr>'}
           ${semRows.length?`
           <tr style="background:var(--bg);font-weight:700;border-top:2px solid var(--border2)">
             <td style="padding:7px 12px;font-size:11px;font-weight:700">TOTAL</td>
