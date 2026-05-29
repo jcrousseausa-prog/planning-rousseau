@@ -196,6 +196,7 @@ table.bl-lignes td.r{text-align:right}
   <button class="app-tab" id="tab-stock" onclick="showScreen('stock')">Stock<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-bl" onclick="showScreen('bl')">Bons de livraison<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-charge" onclick="showScreen('charge')">Charge équipes</button>
+  <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global</button>
   <button class="app-tab" id="tab-retours" onclick="showScreen('retours')">Retours équipes</button>
 </div>
 
@@ -299,6 +300,28 @@ table.bl-lignes td.r{text-align:right}
   <div id="charge-list" style="margin-top:12px">
     <div class="info-box">La charge équipes est liée au Planning Production (index.html). Les tranches actives y sont planifiées par atelier.</div>
   </div>
+</div>
+
+<!-- ══ PLANNING GLOBAL ══ -->
+<div class="screen" id="screen-planning-global">
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="pg-search" placeholder="Rechercher chantier, tranche…" oninput="renderPlanningGlobal()"/>
+    </div>
+    <select class="btn" id="pg-filtre-chantier" onchange="renderPlanningGlobal()">
+      <option value="">Tous les chantiers</option>
+    </select>
+    <select class="btn" id="pg-filtre-statut" onchange="renderPlanningGlobal()">
+      <option value="">Tous statuts CTVX</option>
+      <option value="retard">⚠ CTVX dépassée</option>
+      <option value="urgent">⏱ Urgent (&lt;7j)</option>
+      <option value="ok">✓ OK</option>
+      <option value="vide">Sans date CTVX</option>
+    </select>
+    <button class="btn" onclick="exportPlanningGlobalCSV()">📥 Export CSV</button>
+  </div>
+  <div id="pg-content"></div>
 </div>
 
 <!-- ══ RETOURS ÉQUIPES ══ -->
@@ -1658,12 +1681,157 @@ function showScreen(id){
   document.querySelectorAll('.app-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('screen-'+id).classList.add('active');
   const tab=document.getElementById('tab-'+id);if(tab)tab.classList.add('active');
+  if(id==='planning-global'){initPlanningGlobal();renderPlanningGlobal();}
+  if(id==='dashboard')renderDashboard();
+  if(id==='retours')renderRetours();
 }
 
 function toast(msg){
   const el=document.getElementById('toast');
   el.textContent=msg;el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+// ═══ PLANNING GLOBAL ══════════════════════════════════════════════════════
+
+function initPlanningGlobal(){
+  // Remplir le filtre chantier
+  const sel = document.getElementById('pg-filtre-chantier');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">Tous les chantiers</option>' +
+    state.chantiers.map(ch=>`<option value="${ch.id}">${esc(ch.nom)}</option>`).join('');
+}
+
+function renderPlanningGlobal(){
+  const q = (document.getElementById('pg-search')?.value||'').toLowerCase().trim();
+  const filtChantier = document.getElementById('pg-filtre-chantier')?.value||'';
+  const filtStatut = document.getElementById('pg-filtre-statut')?.value||'';
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // Construire les lignes : une par tranche
+  const rows = [];
+  state.chantiers.forEach(ch=>{
+    if(filtChantier && ch.id!==filtChantier) return;
+    const trs = state.tranches.filter(t=>t.cid===ch.id);
+    trs.forEach(tr=>{
+      const phs = state.phases.filter(p=>p.tid===tr.id);
+      const arts = state.articles.filter(a=>phs.some(p=>p.id===a.pid));
+
+      // Date début usinage = date_sortie_be la plus proche (ou date_ctvx - buffer)
+      const datesBE = arts.map(a=>a.date_sortie_be).filter(d=>d&&/^\d{4}-\d{2}-\d{2}$/.test(d));
+      const datesProd = arts.map(a=>a.date_sortie_prod).filter(d=>d&&/^\d{4}-\d{2}-\d{2}$/.test(d));
+      const datesCTVX = arts.map(a=>a.date_ctvx).filter(d=>d&&/^\d{4}-\d{2}-\d{2}$/.test(d));
+
+      const dateDebutBE = datesBE.length ? datesBE.sort()[0] : null;
+      const dateDebutProd = datesProd.length ? datesProd.sort()[0] : null;
+      const dateCTVX = tr.ctvx || (datesCTVX.length ? datesCTVX.sort()[0] : null);
+
+      // Calcul statut CTVX
+      let statutCTVX = 'vide';
+      let joursRestants = null;
+      if(dateCTVX) {
+        const ctvxDate = new Date(dateCTVX);
+        ctvxDate.setHours(0,0,0,0);
+        joursRestants = Math.round((ctvxDate-today)/86400000);
+        if(joursRestants<0) statutCTVX='retard';
+        else if(joursRestants<=7) statutCTVX='urgent';
+        else statutCTVX='ok';
+      }
+
+      // Filtres
+      if(filtStatut && statutCTVX!==filtStatut) return;
+
+      // Avancement moyen
+      const av = arts.length ? Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length) : 0;
+
+      // Recherche texte
+      if(q && !ch.nom.toLowerCase().includes(q) && !tr.nom.toLowerCase().includes(q)) return;
+
+      rows.push({ch, tr, dateDebutBE, dateDebutProd, dateCTVX, statutCTVX, joursRestants, av, nbArts:arts.length});
+    });
+  });
+
+  if(!rows.length){
+    document.getElementById('pg-content').innerHTML=`<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune tranche trouvée${q?' pour "'+esc(q)+'"':''}.</div>`;
+    return;
+  }
+
+  // Trier par date CTVX (retards en premier, puis urgents, puis par date)
+  rows.sort((a,b)=>{
+    const order={retard:0,urgent:1,ok:2,vide:3};
+    if(order[a.statutCTVX]!==order[b.statutCTVX]) return order[a.statutCTVX]-order[b.statutCTVX];
+    if(a.dateCTVX&&b.dateCTVX) return a.dateCTVX.localeCompare(b.dateCTVX);
+    return 0;
+  });
+
+  const html = `
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">${rows.length} tranche${rows.length>1?'s':''} affichée${rows.length>1?'s':''}</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Chantier</th>
+          <th>Tranche</th>
+          <th style="width:110px">Début BE</th>
+          <th style="width:110px">Début Prod</th>
+          <th style="width:110px">Date CTVX</th>
+          <th style="width:100px">Avancement</th>
+          <th style="width:90px">Statut CTVX</th>
+          <th style="width:60px">Articles</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map((r,i)=>{
+            const bg = i%2?'background:#FAFAF8;':'';
+            let ctvxBadge='';
+            if(r.statutCTVX==='retard') ctvxBadge=`<span class="badge badge-red">⚠ ${Math.abs(r.joursRestants)}j retard</span>`;
+            else if(r.statutCTVX==='urgent') ctvxBadge=`<span class="badge badge-orange">⏱ ${r.joursRestants}j</span>`;
+            else if(r.statutCTVX==='ok') ctvxBadge=`<span class="badge badge-green">✓ +${r.joursRestants}j</span>`;
+            else ctvxBadge=`<span style="color:var(--text3);font-size:11px">—</span>`;
+
+            const avColor=r.av>=80?'var(--green)':r.av>0?'var(--blue)':'var(--text3)';
+
+            return `<tr style="${bg}border-bottom:1px solid var(--border)">
+              <td style="font-weight:600;font-size:12px">${esc(r.ch.nom)}</td>
+              <td style="font-size:12px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.tr.nom)}">${esc(r.tr.nom)}</td>
+              <td>${r.dateDebutBE?`<span class="dp dp-blue">${fmtDate(r.dateDebutBE)}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
+              <td>${r.dateDebutProd?`<span class="dp dp-purple">${fmtDate(r.dateDebutProd)}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
+              <td>${r.dateCTVX?`<span class="dp dp-orange">${fmtDate(r.dateCTVX)}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;min-width:40px">
+                    <div style="width:${Math.min(r.av,100)}%;height:100%;background:${avColor};border-radius:3px"></div>
+                  </div>
+                  <span style="font-size:11px;font-family:'DM Mono',monospace;color:${avColor};min-width:28px">${r.av}%</span>
+                </div>
+              </td>
+              <td>${ctvxBadge}</td>
+              <td style="text-align:center;font-size:12px;color:var(--text2)">${r.nbArts||'—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  document.getElementById('pg-content').innerHTML = html;
+}
+
+function exportPlanningGlobalCSV(){
+  let csv = 'Chantier;Tranche;Debut BE;Debut Prod;Date CTVX;Avancement%;Articles\n';
+  state.chantiers.forEach(ch=>{
+    state.tranches.filter(t=>t.cid===ch.id).forEach(tr=>{
+      const phs=state.phases.filter(p=>p.tid===tr.id);
+      const arts=state.articles.filter(a=>phs.some(p=>p.id===a.pid));
+      const datesBE=arts.map(a=>a.date_sortie_be).filter(d=>d).sort();
+      const datesProd=arts.map(a=>a.date_sortie_prod).filter(d=>d).sort();
+      const datesCTVX=arts.map(a=>a.date_ctvx).filter(d=>d).sort();
+      const av=arts.length?Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length):0;
+      const dateCTVX=tr.ctvx||(datesCTVX[0]||'');
+      csv+=`"${ch.nom}";"${tr.nom}";"${datesBE[0]||''}";"${datesProd[0]||''}";"${dateCTVX}";"${av}";"${arts.length}"\n`;
+    });
+  });
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='planning_global_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+  toast('Export CSV téléchargé');
 }
 
 // ═══ TABLEAU DE BORD ══════════════════════════════════════════════════════
