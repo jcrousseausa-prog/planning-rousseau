@@ -191,6 +191,7 @@ table.bl-lignes td.r{text-align:right}
 
 <div class="app-tabs" style="position:sticky;top:49px;z-index:40">
   <button class="app-tab active" id="tab-planning" onclick="showScreen('planning')">Tableau de pilotage</button>
+  <button class="app-tab" id="tab-dashboard" onclick="showScreen('dashboard')">Tableau de bord</button>
   <button class="app-tab" id="tab-achats" onclick="showScreen('achats')">Commandes fournisseurs<span class="notif-dot"></span></button>
   <button class="app-tab" id="tab-stock" onclick="showScreen('stock')">Stock<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-bl" onclick="showScreen('bl')">Bons de livraison<span class="new-badge">NEW</span></button>
@@ -202,7 +203,6 @@ table.bl-lignes td.r{text-align:right}
 
 <!-- ══ PLANNING ══ -->
 <div class="screen active" id="screen-planning">
-  <div class="metrics" id="metrics-bar"></div>
   <div class="toolbar">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
@@ -232,6 +232,19 @@ table.bl-lignes td.r{text-align:right}
       <tbody id="planning-tbody"></tbody>
     </table>
   </div>
+</div>
+
+<!-- ══ TABLEAU DE BORD ══ -->
+<div class="screen" id="screen-dashboard">
+  <div class="toolbar" style="margin-bottom:16px">
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Période intérim</label>
+    <select id="db-annee" style="padding:6px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px" onchange="renderDashboard()">
+      <option value="2026">Sept 2025 — Août 2026</option>
+      <option value="2027">Sept 2026 — Août 2027</option>
+    </select>
+    <button class="btn btn-primary" style="margin-left:auto" onclick="openSaisieInterim()">+ Saisir heures intérim</button>
+  </div>
+  <div id="dashboard-content"></div>
 </div>
 
 <!-- ══ ACHATS ══ -->
@@ -910,7 +923,7 @@ const INIT_DATA =
 // ═══ STATE ════════════════════════════════════════════════════════════════
 let state = {
   chantiers:[],tranches:[],phases:[],articles:[],
-  cdes:[],stock:[],bls:[],retours:[],
+  cdes:[],stock:[],bls:[],retours:[],interim:[],
 };
 let _ctx = {};
 let _search = '';
@@ -1098,6 +1111,7 @@ function renderAll(){
   renderBLMetrics();
   renderBLs();
   if(document.getElementById('screen-retours').classList.contains('active'))renderRetours();
+  if(document.getElementById('screen-dashboard').classList.contains('active'))renderDashboard();
 }
 
 // ═══ METRICS ══════════════════════════════════════════════════════════════
@@ -1652,6 +1666,280 @@ function toast(msg){
   setTimeout(()=>el.classList.remove('show'),2500);
 }
 
+// ═══ TABLEAU DE BORD ══════════════════════════════════════════════════════
+
+function openSaisieInterim(){
+  document.getElementById('modal-interim').classList.add('show');
+}
+
+function saveInterim(){
+  const mois = document.getElementById('int-mois').value;
+  const annee = document.getElementById('int-annee').value;
+  const heures = parseFloat(document.getElementById('int-heures').value)||0;
+  const comment = document.getElementById('int-comment').value.trim();
+  if(!heures){document.getElementById('int-heures').style.borderColor='var(--red)';return;}
+  document.getElementById('int-heures').style.borderColor='';
+  if(!state.interim) state.interim=[];
+  const key = `${annee}-${mois}`;
+  const existing = state.interim.findIndex(i=>i.key===key);
+  if(existing>=0) state.interim[existing]={key,mois,annee,heures,comment};
+  else state.interim.push({key,mois,annee,heures,comment});
+  closeModal('modal-interim');
+  scheduleSave();
+  renderDashboard();
+  toast('Heures intérim enregistrées');
+}
+
+const PROD_B2_CSV = 'https://docs.google.com/spreadsheets/d/1HdbsNfFae6GYzNDxUGLbzHZ6cxg5GXVb1jAIss7y-JE/pub?gid=1854865688&single=true&output=csv';
+let _prodB2Data = null; // cache des données production
+
+async function loadProdB2() {
+  try {
+    const res = await fetch(PROD_B2_CSV);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const text = await res.text();
+    const lines = text.split('\n').filter(l=>l.trim());
+    if(lines.length<2) return [];
+    // Détecter le séparateur
+    const sep = lines[0].includes('\t')?'\t':',';
+    const headers = lines[0].split(sep).map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
+    
+    // Trouver les indices des colonnes clés
+    const findCol = (names) => {
+      for(const n of names){
+        const i = headers.findIndex(h=>h.includes(n.toLowerCase()));
+        if(i>=0) return i;
+      }
+      return -1;
+    };
+    
+    const iSem = findCol(['semaine','week']);
+    const iM2B = findCol(['m2 bardage','m2bard','bardage']);
+    const iM2S = findCol(['m2 std','m2std','std']);
+    
+    if(iSem<0) { console.warn('Colonne Semaine non trouvée'); return []; }
+    
+    const rows = [];
+    for(let i=1;i<lines.length;i++){
+      const cols = lines[i].split(sep).map(c=>c.trim().replace(/^"|"$/g,'').replace(',','.'));
+      const sem = parseInt(cols[iSem]);
+      if(!sem||isNaN(sem)) continue;
+      const m2b = iM2B>=0?parseFloat(cols[iM2B])||0:0;
+      const m2s = iM2S>=0?parseFloat(cols[iM2S])||0:0;
+      // Chercher si la semaine existe déjà
+      const existing = rows.find(r=>r.semaine===sem);
+      if(existing){
+        existing.m2_barde+=m2b;
+        existing.m2_std+=m2s;
+        existing.m2_total+=m2b+m2s;
+        existing.nb_pieces++;
+      } else {
+        rows.push({semaine:sem, m2_barde:m2b, m2_std:m2s, m2_total:m2b+m2s, nb_pieces:1});
+      }
+    }
+    return rows.sort((a,b)=>a.semaine-b.semaine);
+  } catch(e) {
+    console.warn('Erreur lecture Production_B2:', e.message);
+    return [];
+  }
+}
+
+async function renderDashboard(){
+  const anneeRef = document.getElementById('db-annee')?.value||'2026';
+  
+  // Charger données production si pas en cache
+  if(!_prodB2Data) {
+    document.getElementById('dashboard-content').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">⟳ Chargement des données production…</div>';
+    _prodB2Data = await loadProdB2();
+  }
+  const prodData = _prodB2Data||[];
+
+  let html = '';
+
+  // ── Section 1 : Avancement par chantier ──────────────────────────────
+  html += `<div style="margin-bottom:24px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);margin-bottom:12px">📊 Avancement par chantier</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;min-width:700px">
+        <thead><tr>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 14px;text-align:left;border-bottom:1px solid var(--border)">Chantier</th>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 14px;text-align:center;border-bottom:1px solid var(--border)">Tranches</th>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 14px;text-align:right;border-bottom:1px solid var(--border)">H prévues</th>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 14px;text-align:right;border-bottom:1px solid var(--border)">H passées</th>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 14px;text-align:right;border-bottom:1px solid var(--border)">m² prod.</th>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 14px;text-align:left;border-bottom:1px solid var(--border);min-width:150px">Avancement</th>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 14px;text-align:center;border-bottom:1px solid var(--border)">⚠ CTVX</th>
+        </tr></thead><tbody>`;
+
+  let totHPrev=0,totHPasse=0,totM2=0;
+  let hasData=false;
+
+  state.chantiers.forEach(ch=>{
+    const trs=state.tranches.filter(t=>t.cid===ch.id);
+    const phs=state.phases.filter(p=>trs.some(t=>t.id===p.tid));
+    const arts=state.articles.filter(a=>phs.some(p=>p.id===a.pid));
+    if(!arts.length) return;
+    hasData=true;
+
+    const hPrev=arts.reduce((s,a)=>s+(+a.budget_heures||0),0);
+    const hPasse=arts.reduce((s,a)=>s+(+a.budget_heures||0)*(+a.avancement||0)/100,0);
+    const m2=arts.reduce((s,a)=>s+(+a.qte_m2||0)*(+a.avancement||0)/100,0);
+    const av=Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length);
+    const retards=arts.filter(a=>a.date_ctvx&&a.statut!=='termine'&&new Date(a.date_ctvx)<new Date()).length;
+
+    totHPrev+=hPrev; totHPasse+=hPasse; totM2+=m2;
+
+    const avColor=av>=80?'var(--green)':av>0?'var(--blue)':'var(--text3)';
+    const hColor=hPrev>0&&hPasse>hPrev*1.1?'var(--red)':'var(--text)';
+
+    html+=`<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:9px 14px;font-weight:600;font-size:13px">${esc(ch.nom)}</td>
+      <td style="padding:9px 14px;text-align:center;font-size:12px;color:var(--text2)">${trs.length}</td>
+      <td style="padding:9px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${hPrev>0?Math.round(hPrev)+'h':'—'}</td>
+      <td style="padding:9px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${hColor}">${hPasse>0?Math.round(hPasse)+'h':'—'}</td>
+      <td style="padding:9px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${m2>0?Math.round(m2)+' m²':'—'}</td>
+      <td style="padding:9px 14px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;min-width:60px">
+            <div style="width:${Math.min(av,100)}%;height:100%;background:${avColor};border-radius:3px;transition:width .4s"></div>
+          </div>
+          <span style="font-size:12px;font-family:'DM Mono',monospace;font-weight:700;color:${avColor};min-width:36px">${av}%</span>
+        </div>
+      </td>
+      <td style="padding:9px 14px;text-align:center">
+        ${retards>0?`<span style="background:var(--red-bg);color:var(--red);font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;border:1px solid var(--red-border)">⚠ ${retards}</span>`:'<span style="color:var(--green);font-size:14px">✓</span>'}
+      </td>
+    </tr>`;
+  });
+
+  if(!hasData) {
+    html += `<tr><td colspan="7" style="padding:2rem;text-align:center;color:var(--text3);font-style:italic">Aucun article renseigné — ajoutez des phases et articles dans le Tableau de pilotage pour voir les stats.</td></tr>`;
+  } else {
+    html+=`<tr style="background:var(--bg)">
+      <td style="padding:9px 14px;font-size:12px;font-weight:700">TOTAL</td>
+      <td></td>
+      <td style="padding:9px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700">${totHPrev>0?Math.round(totHPrev)+'h':'—'}</td>
+      <td style="padding:9px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700">${totHPasse>0?Math.round(totHPasse)+'h':'—'}</td>
+      <td style="padding:9px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700">${totM2>0?Math.round(totM2)+' m²':'—'}</td>
+      <td></td><td></td>
+    </tr>`;
+  }
+  html+=`</tbody></table></div></div>`;
+
+  // ── Section 2 : Production MOB B2 par semaine ─────────────────────────
+  // Fusionner avec les heures intérim si disponibles
+  const interim = (state.interim||[]);
+
+  // Construire tableau fusionné
+  const allSemaines = new Set([
+    ...prodData.map(r=>r.semaine),
+    ...interim.map(i=>parseInt(i.semaine)||0).filter(s=>s>0)
+  ]);
+  const semRows = [...allSemaines].sort((a,b)=>a-b).map(sem=>{
+    const prod = prodData.find(r=>r.semaine===sem)||{m2_barde:0,m2_std:0,m2_total:0};
+    const int_ = interim.find(i=>parseInt(i.semaine)===sem)||{h_total:0,h_interim:0};
+    const hTotal = parseFloat(int_.h_total)||0;
+    const hInterim = parseFloat(int_.h_interim)||0;
+    const pctInterim = hTotal>0?Math.round(hInterim/hTotal*100):0;
+    const ratio = prod.m2_total>0&&hTotal>0?(hTotal/prod.m2_total).toFixed(2):null;
+    return {sem, ...prod, h_total:hTotal, h_interim:hInterim, pct_interim:pctInterim, ratio};
+  });
+
+  // Totaux
+  const totM2B=semRows.reduce((s,r)=>s+r.m2_barde,0);
+  const totM2S=semRows.reduce((s,r)=>s+r.m2_std,0);
+  const totM2T=semRows.reduce((s,r)=>s+r.m2_total,0);
+  const totHT=semRows.reduce((s,r)=>s+r.h_total,0);
+  const totHI=semRows.reduce((s,r)=>s+r.h_interim,0);
+  const totPct=totHT>0?Math.round(totHI/totHT*100):0;
+  const totRatio=totM2T>0&&totHT>0?(totHT/totM2T).toFixed(2):null;
+
+  // Moyennes
+  const nbSem=semRows.filter(r=>r.m2_total>0).length||1;
+  const moyM2=Math.round(totM2T/nbSem);
+  const moyHT=Math.round(totHT/nbSem);
+  const moyHI=Math.round(totHI/nbSem);
+
+  // Projection fin d'année (52 semaines)
+  const semActuelle = Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000);
+  const semRestantes = Math.max(0,52-semActuelle);
+  const projM2 = totM2T + moyM2*semRestantes;
+
+  html+=`<div style="margin-bottom:24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2)">🏭 Production MOB B2 — par semaine</div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--text2)">Total : <strong style="font-family:'DM Mono',monospace;color:var(--blue)">${Math.round(totM2T)} m²</strong></span>
+        <span style="font-size:12px;color:var(--text2)">Projection : <strong style="font-family:'DM Mono',monospace;color:var(--green)">${Math.round(projM2)} m²</strong></span>
+        <button class="btn btn-sm" onclick="_prodB2Data=null;renderDashboard()" style="font-size:11px">⇅ Actualiser</button>
+      </div>
+    </div>
+    ${prodData.length===0?'<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--orange);margin-bottom:12px">⚠ Aucune donnée chargée depuis Production_B2. Vérifiez que l'onglet est publié en CSV dans Google Sheets.</div>':''}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;min-width:700px">
+        <thead>
+          <tr>
+            <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;text-align:center;border-bottom:1px solid var(--border);white-space:nowrap">Semaine</th>
+            <th style="background:#EAF1FB;font-size:10px;color:var(--blue);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap">M2 Bardé</th>
+            <th style="background:#EAF1FB;font-size:10px;color:var(--blue);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap">M2 Std</th>
+            <th style="background:#EAF1FB;font-size:10px;color:var(--blue);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap">M2 Total</th>
+            <th style="background:#EAFAF1;font-size:10px;color:var(--green);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap">H Total</th>
+            <th style="background:#EAFAF1;font-size:10px;color:var(--green);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap">H Intérim</th>
+            <th style="background:#EAFAF1;font-size:10px;color:var(--green);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap">% Intérim</th>
+            <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap">Ratio h/m²</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${semRows.length?semRows.map((r,i)=>{
+            const bg=i%2?'background:#FAFAF8;':'';
+            const pctColor=r.pct_interim>=50?'color:var(--red)':r.pct_interim>=35?'color:var(--orange)':'color:var(--text)';
+            return `<tr style="${bg}border-bottom:1px solid var(--border)">
+              <td style="padding:7px 12px;text-align:center;font-family:'DM Mono',monospace;font-size:12px;font-weight:600">S${String(r.sem).padStart(2,'0')}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${r.m2_barde>0?r.m2_barde.toFixed(2):'—'}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${r.m2_std>0?r.m2_std.toFixed(2):'—'}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--blue)">${r.m2_total>0?r.m2_total.toFixed(2):'—'}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${r.h_total>0?r.h_total:'—'}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${r.h_interim>0?r.h_interim:'—'}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;${pctColor}">${r.h_total>0?r.pct_interim+'%':'—'}</td>
+              <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${r.ratio||'—'}</td>
+            </tr>`;
+          }).join(''):'<tr><td colspan="8" style="padding:1.5rem;text-align:center;color:var(--text3);font-style:italic">Aucune donnée — collez vos données dans l'onglet Production_B2 du Google Sheet</td></tr>'}
+          ${semRows.length?`
+          <tr style="background:var(--bg);font-weight:700;border-top:2px solid var(--border2)">
+            <td style="padding:7px 12px;font-size:11px;font-weight:700">TOTAL</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${totM2B.toFixed(0)}</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${totM2S.toFixed(0)}</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--blue)">${totM2T.toFixed(0)}</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${totHT||'—'}</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${totHI||'—'}</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${totHT?totPct+'%':'—'}</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${totRatio||'—'}</td>
+          </tr>
+          <tr style="background:var(--surface2)">
+            <td style="padding:7px 12px;font-size:11px;color:var(--text2)">MOYENNE</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${Math.round(totM2B/nbSem)}</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${Math.round(totM2S/nbSem)}</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${moyM2}</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${moyHT||'—'}</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${moyHI||'—'}</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${totHT?totPct+'%':'—'}</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${totRatio||'—'}</td>
+          </tr>
+          <tr style="background:var(--green-bg)">
+            <td style="padding:7px 12px;font-size:11px;color:var(--green);font-weight:600">PROJECTION</td>
+            <td colspan="2" style="padding:7px 12px;font-size:11px;color:var(--green)">à fin d'année (${semRestantes} sem. restantes)</td>
+            <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--green)">${Math.round(projM2)} m²</td>
+            <td colspan="4"></td>
+          </tr>`:''}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+
+  document.getElementById('dashboard-content').innerHTML = html;
+}
+
+
 // ═══ RETOURS ÉQUIPES ══════════════════════════════════════════════════════
 function renderRetoursMetrics(){
   const nb = (state.retours||[]).length;
@@ -1824,6 +2112,41 @@ init();
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-retour')">Annuler</button>
       <button class="btn btn-primary" onclick="saveRetour()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL INTERIM -->
+<div class="modal-bg" id="modal-interim" onclick="if(event.target===this)closeModal('modal-interim')">
+  <div class="modal" style="width:480px">
+    <h2>Heures intérimaires</h2>
+    <div class="field-2">
+      <div class="field"><label>Mois</label>
+        <select id="int-mois">
+          <option value="09">Septembre</option><option value="10">Octobre</option>
+          <option value="11">Novembre</option><option value="12">Décembre</option>
+          <option value="01">Janvier</option><option value="02">Février</option>
+          <option value="03">Mars</option><option value="04">Avril</option>
+          <option value="05">Mai</option><option value="06">Juin</option>
+          <option value="07">Juillet</option><option value="08">Août</option>
+        </select>
+      </div>
+      <div class="field"><label>Année</label>
+        <select id="int-annee">
+          <option value="2025">2025</option><option value="2026" selected>2026</option>
+          <option value="2027">2027</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Heures intérimaires</label>
+      <input type="number" id="int-heures" min="0" step="0.5" placeholder="Ex: 120"/>
+    </div>
+    <div class="field"><label>Commentaire (optionnel)</label>
+      <input type="text" id="int-comment" placeholder="Ex: Pointe août — 3 intérimaires"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-interim')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveInterim()">Enregistrer</button>
     </div>
   </div>
 </div>
