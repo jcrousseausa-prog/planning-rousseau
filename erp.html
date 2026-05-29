@@ -211,7 +211,7 @@ table.bl-lignes td.r{text-align:right}
     </div>
     <button class="btn" onclick="toggleAll(true)">Tout déplier</button>
     <button class="btn" onclick="toggleAll(false)">Tout replier</button>
-    <button class="btn btn-orange" onclick="syncCTVX()" title="Synchroniser les dates CTVX depuis l'onglet DATES du fichier pilote">⇅ Sync CTVX</button>
+    <button class="btn btn-orange" onclick="syncCTVX()" title="Synchroniser les dates CTVX depuis l&#39;onglet DATES du fichier pilote">⇅ Sync CTVX</button>
     <button class="btn btn-primary" onclick="openAddChantier()">+ Chantier</button>
   </div>
   <div class="table-wrap">
@@ -1972,7 +1972,7 @@ async function renderDashboard(){
         <button class="btn btn-sm" onclick="_prodB2Data=null;renderDashboard()" style="font-size:11px">⇅ Actualiser</button>
       </div>
     </div>
-    ${prodData.length===0?'<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--orange);margin-bottom:12px">⚠ Aucune donnée chargée depuis Production_B2. Vérifiez que l\'onglet est publié en CSV dans Google Sheets.</div>':''}
+    ${prodData.length===0?'<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--orange);margin-bottom:12px">⚠ Aucune donnée chargée depuis Production_B2. Vérifiez que l&#39;onglet est publié en CSV dans Google Sheets.</div>':''}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;min-width:700px">
         <thead>
@@ -2001,7 +2001,7 @@ async function renderDashboard(){
               <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;${pctColor}">${r.h_total>0?r.pct_interim+'%':'—'}</td>
               <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${r.ratio||'—'}</td>
             </tr>`;
-          }).join(''):'<tr><td colspan="8" style="padding:1.5rem;text-align:center;color:var(--text3);font-style:italic">Aucune donnée — collez vos données dans l\'onglet Production_B2 du Google Sheet</td></tr>'}
+          }).join(''):'<tr><td colspan="8" style="padding:1.5rem;text-align:center;color:var(--text3);font-style:italic">Aucune donnée — collez vos données dans l&#39;onglet Production_B2 du Google Sheet</td></tr>'}
           ${semRows.length?`
           <tr style="background:var(--bg);font-weight:700;border-top:2px solid var(--border2)">
             <td style="padding:7px 12px;font-size:11px;font-weight:700">TOTAL</td>
