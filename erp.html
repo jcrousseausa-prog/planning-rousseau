@@ -971,7 +971,7 @@ function empHtml(e){return e&&e!=='—'?`<span class="emp">${e}</span>`:'<span s
 
 // ═══ PERSISTENCE ══════════════════════════════════════════════════════════
 function saveLS(){try{localStorage.setItem('erp_v3',JSON.stringify(state));}catch(e){}}
-function loadLS(){try{const s=localStorage.getItem('erp_v3');if(s){state=JSON.parse(s);return true;}}catch(e){}return false;}
+function loadLS(){try{const s=localStorage.getItem('erp_v3');if(s){const d=JSON.parse(s);if(d&&d.chantiers&&d.chantiers.length>=5){state=d;return true;}else{localStorage.removeItem('erp_v3');return false;}}}catch(e){}return false;}
 
 // ─── SAUVEGARDE LIGNE PAR LIGNE + POLLING ────────────────────────────────
 
