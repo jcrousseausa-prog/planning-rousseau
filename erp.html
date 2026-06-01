@@ -212,6 +212,7 @@ table.bl-lignes td.r{text-align:right}
     <button class="btn" onclick="toggleAll(true)">Tout déplier</button>
     <button class="btn" onclick="toggleAll(false)">Tout replier</button>
     <button class="btn btn-orange" onclick="syncCTVX()" title="Synchroniser les dates CTVX depuis l&#39;onglet DATES du fichier pilote">⇅ Sync CTVX</button>
+    <button class="btn btn-green" onclick="genererDatesSheet()" title="Générer l&#39;onglet DATES dans Google Sheets depuis les tranches ERP">📅 Générer DATES</button>
     <button class="btn btn-primary" onclick="openAddChantier()">+ Chantier</button>
   </div>
   <div class="table-wrap">
@@ -1008,8 +1009,16 @@ async function loadFromSheets() {
       body: JSON.stringify({action: 'getERP'})
     });
     const r = await res.json();
-    if (r.ok && r.data && r.data.chantiers?.length) {
-      state = r.data;
+    if (r.ok && r.data && r.data.chantiers?.length >= 5) {
+      state.chantiers = r.data.chantiers;
+      state.tranches = r.data.tranches||[];
+      state.phases = r.data.phases||[];
+      state.articles = r.data.articles||[];
+      state.cdes = r.data.cdes||[];
+      state.stock = r.data.stock||[];
+      state.bls = r.data.bls||[];
+      state.retours = r.data.retours||[];
+      state.interim = r.data.interim||[];
       saveLS();
       return true;
     }
@@ -2157,6 +2166,28 @@ function deleteRetour(id){
   if(!confirm('Supprimer ce retour ?'))return;
   state.retours=(state.retours||[]).filter(r=>r.id!==id);
   scheduleSave();renderRetours();toast('Retour supprimé');
+}
+
+// ═══ GÉNÉRATION ONGLET DATES ═══════════════════════════════════════════════
+async function genererDatesSheet(){
+  setSyncPill('saving', 'Génération DATES...');
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'genererDates'})
+    });
+    const r = await res.json();
+    if (r.ok) {
+      setSyncPill('ok', r.message || 'DATES généré');
+      toast('✓ Onglet DATES mis à jour — ' + r.count + ' tranches');
+    } else {
+      throw new Error(r.error);
+    }
+  } catch(e) {
+    setSyncPill('error', 'Erreur');
+    toast('Erreur : ' + e.message);
+  }
 }
 
 // ═══ START ════════════════════════════════════════════════════════════════
