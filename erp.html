@@ -168,6 +168,29 @@ table.bl-lignes td.r{text-align:right}
   header,.app-tabs,.toolbar,#bl-actions{display:none!important}
   body{background:#fff}
 }
+
+/* ── HEURES MODULE ── */
+.htab { padding:9px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s; }
+.htab:hover { color:var(--text); }
+.htab.active { color:var(--text);border-bottom-color:var(--text); }
+.emp-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:1rem; }
+.emp-card { background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px; }
+.emp-card-name { font-size:13px;font-weight:600; }
+.emp-card-meta { font-size:11px;color:var(--text2); }
+.emp-badge-cdi { background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700; }
+.emp-badge-interim { background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700; }
+.emp-badge-cdd { background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700; }
+.planning-print { background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden; }
+.planning-print th { background:#1A4F8A;color:#fff;font-size:11px;padding:8px 10px;text-align:center;border:1px solid rgba(255,255,255,.2); }
+.planning-print td { padding:7px 10px;border:1px solid var(--border);font-size:12px;vertical-align:middle; }
+.pp-present { background:#EAFAF1;color:#1E8449;font-weight:600;text-align:center;border-radius:4px;padding:2px 6px;font-size:11px; }
+.pp-absent  { background:#FDECEA;color:#C0392B;font-weight:600;text-align:center;border-radius:4px;padding:2px 6px;font-size:11px; }
+.pp-rtt    { background:#EAF2FB;color:#1A5276;font-weight:600;text-align:center;border-radius:4px;padding:2px 6px;font-size:11px; }
+@media print {
+  .app-tab,.htab,.btn,.toolbar,#conn-bar,header,.tabs,#jours-panel-area { display:none!important; }
+  .screen { display:block!important; }
+  .planning-print { border:none; }
+}
 </style>
 </head>
 <body>
@@ -196,6 +219,7 @@ table.bl-lignes td.r{text-align:right}
   <button class="app-tab" id="tab-stock" onclick="showScreen('stock')">Stock<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-bl" onclick="showScreen('bl')">Bons de livraison<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-charge" onclick="showScreen('charge')">Charge équipes</button>
+  <button class="app-tab" id="tab-heures" onclick="showScreen('heures')">Heures</button>
   <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global</button>
   <button class="app-tab" id="tab-retours" onclick="showScreen('retours')">Retours équipes</button>
 </div>
@@ -300,6 +324,77 @@ table.bl-lignes td.r{text-align:right}
   </div>
   <div id="charge-list" style="margin-top:12px">
     <div class="info-box">La charge équipes est liée au Planning Production (index.html). Les tranches actives y sont planifiées par atelier.</div>
+  </div>
+</div>
+
+<!-- ══ HEURES ══ -->
+<div class="screen" id="screen-heures">
+  <!-- Sous-onglets -->
+  <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px">
+    <button class="htab active" id="htab-employes" onclick="showHTab('employes')">👥 Employés</button>
+    <button class="htab" id="htab-saisie" onclick="showHTab('saisie')">📝 Saisie semaine</button>
+    <button class="htab" id="htab-planning" onclick="showHTab('planning')">📅 Planning ressources</button>
+    <button class="htab" id="htab-recap" onclick="showHTab('recap')">📊 Récap chantiers</button>
+    <button class="htab" id="htab-macro" onclick="showHTab('macro')">🗓 Vue macro</button>
+  </div>
+  <!-- Contenus -->
+  <div id="hscreen-employes"></div>
+  <div id="hscreen-saisie" style="display:none"></div>
+  <div id="hscreen-planning" style="display:none"></div>
+  <div id="hscreen-recap" style="display:none"></div>
+  <div id="hscreen-macro" style="display:none"></div>
+</div>
+
+<!-- MODAL EMPLOYE -->
+<div class="modal-bg" id="modal-employe" onclick="if(event.target===this)closeModal('modal-employe')">
+  <div class="modal" style="width:480px">
+    <h2 id="me-title">Ajouter un employé</h2>
+    <div class="field-2">
+      <div class="field"><label>Nom</label><input type="text" id="me-nom" placeholder="DUPONT"/></div>
+      <div class="field"><label>Prénom</label><input type="text" id="me-prenom" placeholder="Jean"/></div>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Matricule / ID</label>
+      <input type="text" id="me-matricule" placeholder="Ex: 215, INT01..." style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"/>
+    </div>
+    <div class="field-2">
+      <div class="field"><label>Statut</label>
+        <select id="me-statut">
+          <option value="CDI">CDI</option>
+          <option value="interim">Intérim</option>
+          <option value="cdd">CDD</option>
+        </select>
+      </div>
+      <div class="field"><label>Atelier habituel</label>
+        <select id="me-atelier">
+          <option value="B1">Charpente B1</option>
+          <option value="B2">MOB B2</option>
+          <option value="B3">Atelier B3</option>
+          <option value="Men">Atelier Men</option>
+          <option value="Log">Logistique</option>
+        </select>
+      </div>
+    </div>
+    <div id="me-interim-fields">
+      <div class="field"><label>Agence intérim</label><input type="text" id="me-agence" placeholder="Ex: Manpower, Adecco..."/></div>
+      <div class="field"><label>Date fin de mission</label><input type="date" id="me-fin-mission"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-employe')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveEmploye()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SAISIE HEURES -->
+<div class="modal-bg" id="modal-heures" onclick="if(event.target===this)closeModal('modal-heures')">
+  <div class="modal" style="width:680px;max-width:98vw">
+    <h2 id="mh-title">Saisie heures</h2>
+    <div id="mh-content"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-heures')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveHeuresSemaine()">Enregistrer</button>
+    </div>
   </div>
 </div>
 
@@ -947,7 +1042,7 @@ const INIT_DATA =
 // ═══ STATE ════════════════════════════════════════════════════════════════
 let state = {
   chantiers:[],tranches:[],phases:[],articles:[],
-  cdes:[],stock:[],bls:[],retours:[],interim:[],
+  cdes:[],stock:[],bls:[],retours:[],interim:[],employes:[],heures:[],
 };
 let _ctx = {};
 let _search = '';
@@ -1620,6 +1715,7 @@ function showScreen(id){
   document.querySelectorAll('.app-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('screen-'+id).classList.add('active');
   const tab=document.getElementById('tab-'+id);if(tab)tab.classList.add('active');
+  if(id==='heures'){showHTab('employes');}
   if(id==='planning-global'){initPlanningGlobal();renderPlanningGlobal();}
   if(id==='dashboard')renderDashboard();
   if(id==='retours')renderRetours();
@@ -1630,6 +1726,1081 @@ function toast(msg){
   el.textContent=msg;el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),2500);
 }
+
+// ═══ MODULE HEURES ════════════════════════════════════════════════════════
+
+const ATELIERS_H = ['B1','B2','B3','Men','Log'];
+const JOURS_SEMAINE = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
+
+// ── SOUS-ONGLETS ──
+function showHTab(tab){
+  ['employes','saisie','planning','recap','macro'].forEach(t=>{
+    document.getElementById('hscreen-'+t).style.display = t===tab?'':'none';
+    document.getElementById('htab-'+t).classList.toggle('active', t===tab);
+  });
+  if(tab==='employes') renderEmployes();
+  if(tab==='saisie') renderSaisieHebdo();
+  if(tab==='planning') renderPlanningRessources();
+  if(tab==='recap') renderRecapHeures();
+  if(tab==='macro'){
+    // Toujours se positionner sur la semaine en cours à l'ouverture
+    state._macroStartSem = getWeekISO(new Date());
+    renderVueMacro();
+  }
+}
+
+// ── EMPLOYÉS ──
+function renderEmployes(){
+  const el = document.getElementById('hscreen-employes');
+  const employes = state.employes||[];
+  const nbCDI = employes.filter(e=>e.statut==='CDI').length;
+  const nbInterim = employes.filter(e=>e.statut==='interim').length;
+  const today = new Date().toISOString().slice(0,10);
+
+  let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <span style="font-size:13px;color:var(--text2)">${employes.length} employés — <b>${nbCDI}</b> CDI · <b>${nbInterim}</b> Intérim</span>
+    <button class="btn btn-primary" style="margin-left:auto" onclick="openAddEmploye()">+ Employé</button>
+  </div>`;
+
+  if(!employes.length){
+    html += `<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun employé — cliquez sur "+ Employé" pour commencer</div>`;
+  } else {
+    // Grouper par atelier
+    ATELIERS_H.forEach(at=>{
+      const emps = employes.filter(e=>e.atelier===at);
+      if(!emps.length) return;
+      html += `<div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);margin-bottom:8px">${at}</div>
+        <div class="emp-grid">`;
+      emps.forEach(e=>{
+        const badge = e.statut==='CDI'?'emp-badge-cdi':e.statut==='interim'?'emp-badge-interim':'emp-badge-cdd';
+        const finMission = e.fin_mission&&e.statut==='interim'?`<div style="font-size:10px;color:${e.fin_mission<today?'var(--red)':'var(--text3)'}">Fin mission: ${fmtDate(e.fin_mission)}</div>`:'';
+        const agence = e.agence?`<div style="font-size:11px;color:var(--text3)">${esc(e.agence)}</div>`:'';
+        const isInactif = e.inactif === true;
+        const finExpired = e.fin_mission && e.fin_mission < today;
+        html += `<div class="emp-card" style="${isInactif?'opacity:.5;filter:grayscale(.8)':''}">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <div class="emp-card-name">${esc(e.nom)} ${esc(e.prenom)}</div>
+            <div style="display:flex;gap:4px;align-items:center">
+              <span class="${badge}">${e.statut==='CDI'?'CDI':e.statut==='interim'?'Intérim':'CDD'}</span>
+              ${isInactif?'<span style="background:#DDD;color:#888;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:700">INACTIF</span>':''}
+            </div>
+          </div>
+          ${e.matricule?`<div style="font-size:10px;color:var(--text3)">ID : ${esc(e.matricule)}</div>`:''}
+          ${e.agence?`<div style="font-size:11px;color:var(--text2)">Agence : ${esc(e.agence)}</div>`:''}
+          ${e.fin_mission?'<div style="font-size:10px;font-weight:600;color:'+(finExpired?'#C0392B':'#6B6860')+'">📅 Fin : '+fmtDate(e.fin_mission)+(finExpired?' ⚠':'')+'</div>':''}
+          <div style="display:flex;gap:5px;margin-top:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-sm" onclick="openEditEmploye('${e.id}')">✎</button>
+            <button class="btn btn-sm" onclick="toggleActifEmploye('${e.id}')" style="${isInactif?'background:var(--green-bg);color:var(--green);border-color:var(--green-border)':'background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)'}">${isInactif?'Activer':'Désactiver'}</button>
+            ${e.statut==='interim'?`<button class="btn btn-sm" onclick="openPDFInterim('${e.id}')" style="background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)" title="Imprimer relevé intérimaire">🖨 PDF</button>`:''}
+            <button class="btn btn-sm btn-danger" onclick="deleteEmploye('${e.id}')" style="margin-left:auto">✕</button>
+          </div>
+        </div>`;
+      });
+      html += `</div></div>`;
+    });
+  }
+  el.innerHTML = html;
+}
+
+function openAddEmploye(){
+  document.getElementById('me-title').textContent = 'Ajouter un employé';
+  document.getElementById('me-nom').value = '';
+  document.getElementById('me-prenom').value = '';
+  document.getElementById('me-statut').value = 'CDI';
+  document.getElementById('me-atelier').value = 'B2';
+  document.getElementById('me-matricule').value = '';
+  document.getElementById('me-agence').value = '';
+  document.getElementById('me-fin-mission').value = '';
+  document.getElementById('me-interim-fields').style.display = 'none';
+  document.getElementById('me-statut').onchange = function(){
+    document.getElementById('me-interim-fields').style.display = this.value==='interim'?'':'none';
+  };
+  document.getElementById('modal-employe').classList.add('show');
+  _ctx = {type:'add-employe'};
+}
+
+function openEditEmploye(id){
+  const e = (state.employes||[]).find(x=>x.id===id);
+  if(!e) return;
+  document.getElementById('me-title').textContent = 'Modifier l\'employé';
+  document.getElementById('me-nom').value = e.nom;
+  document.getElementById('me-prenom').value = e.prenom;
+  document.getElementById('me-statut').value = e.statut;
+  document.getElementById('me-atelier').value = e.atelier;
+  document.getElementById('me-matricule').value = e.matricule||'';
+  document.getElementById('me-agence').value = e.agence||'';
+  document.getElementById('me-fin-mission').value = e.fin_mission||'';
+  document.getElementById('me-interim-fields').style.display = e.statut==='interim'?'':'none';
+  document.getElementById('me-statut').onchange = function(){
+    document.getElementById('me-interim-fields').style.display = this.value==='interim'?'':'none';
+  };
+  document.getElementById('modal-employe').classList.add('show');
+  _ctx = {type:'edit-employe', id};
+}
+
+function saveEmploye(){
+  const nom = document.getElementById('me-nom').value.trim();
+  const prenom = document.getElementById('me-prenom').value.trim();
+  if(!nom){document.getElementById('me-nom').style.borderColor='var(--red)';return;}
+  document.getElementById('me-nom').style.borderColor='';
+  if(!state.employes) state.employes = [];
+  const data = {
+    nom: nom.toUpperCase(),
+    prenom,
+    matricule: document.getElementById('me-matricule').value.trim(),
+    statut: document.getElementById('me-statut').value,
+    atelier: document.getElementById('me-atelier').value,
+    agence: document.getElementById('me-agence').value.trim(),
+    fin_mission: document.getElementById('me-fin-mission').value||null,
+  };
+  if(_ctx.type==='edit-employe'){
+    const idx = state.employes.findIndex(e=>e.id===_ctx.id);
+    if(idx>=0) Object.assign(state.employes[idx], data);
+  } else {
+    state.employes.push({id:uid(), ...data});
+  }
+  closeModal('modal-employe');
+  scheduleSave();
+  renderEmployes();
+  toast('Employé enregistré');
+}
+
+function toggleActifEmploye(id){
+  const e = (state.employes||[]).find(x=>x.id===id);
+  if(!e) return;
+  e.inactif = !e.inactif;
+  scheduleSave();
+  renderEmployes();
+  toast(e.inactif ? 'Employé désactivé' : 'Employé activé');
+}
+
+function deleteEmploye(id){
+  if(!confirm('Supprimer cet employé ?')) return;
+  state.employes = (state.employes||[]).filter(e=>e.id!==id);
+  scheduleSave();
+  renderEmployes();
+}
+
+// ── SAISIE HEBDOMADAIRE ──
+function renderSaisieHebdo(){
+  const el = document.getElementById('hscreen-saisie');
+  const employes = state.employes||[];
+  const semaines = getSemainesDisponibles();
+  const semSel = state._semHeure || semaines[0]?.val || getWeekISO(new Date());
+
+  let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Semaine</label>
+    <select id="sem-sel" style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px" onchange="state._semHeure=this.value;renderSaisieHebdo()">
+      ${semaines.map(s=>`<option value="${s.val}"${s.val===semSel?' selected':''}>${s.label}</option>`).join('')}
+    </select>
+    <button class="btn" onclick="addSemaineHeures()">+ Semaine</button>
+  </div>`;
+
+  if(!employes.length){
+    html += `<div class="warn-box">Ajoutez d\'abord vos employés dans l\'onglet "Employés"</div>`;
+    el.innerHTML = html;
+    return;
+  }
+
+  // Tableau de saisie rapide — toutes les personnes
+  const heuresSem = (state.heures||[]).filter(h=>h.semaine===semSel);
+
+  html += `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Employé</th><th>Atelier</th>
+      ${JOURS_SEMAINE.map(j=>`<th style="text-align:center">${j}</th>`).join('')}
+      <th style="text-align:center">Total</th>
+      <th></th>
+    </tr></thead>
+    <tbody>`;
+
+  employes.forEach(emp=>{
+    const lignes = heuresSem.filter(h=>h.emp_id===emp.id);
+    const totalH = lignes.reduce((s,l)=>s+(+l.total_hebdo||0),0);
+    const badge = emp.statut==='CDI'?'emp-badge-cdi':emp.statut==='interim'?'emp-badge-interim':'emp-badge-cdd';
+
+    // Résumé par jour
+    const parJour = {};
+    JOURS_SEMAINE.forEach(j=>{
+      const h = lignes.find(l=>l.jour===j);
+      parJour[j] = h ? (h.h_mat+h.h_am).toFixed(1)+'h' : '—';
+    });
+
+    html += `<tr style="border-bottom:1px solid var(--border)">
+      <td style="font-weight:600;font-size:13px;white-space:nowrap">${esc(emp.nom)} ${esc(emp.prenom)}<br><span class="${badge}" style="font-size:9px">${emp.statut==='interim'?'Intérim':'CDI'}</span></td>
+      <td>
+        <select style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit" onchange="updateAtelierSemaine('${emp.id}','${semSel}',this.value)">
+          ${ATELIERS_H.map(a=>`<option value="${a}"${(lignes[0]?.atelier||emp.atelier)===a?' selected':''}>${a}</option>`).join('')}
+        </select>
+      </td>
+      ${JOURS_SEMAINE.map(j=>`<td style="text-align:center;font-size:12px;font-family:'DM Mono',monospace;color:${parJour[j]==='—'?'var(--text3)':'var(--text)'}">${parJour[j]}</td>`).join('')}
+      <td style="text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'}">${totalH>0?totalH+'h':'—'}</td>
+      <td style="display:flex;gap:4px;padding:4px">
+        <button class="btn btn-sm btn-primary" onclick="openSaisieJours('${emp.id}','${semSel}')">✎</button>
+        ${emp.statut==='interim'?`<button class="btn btn-sm" onclick="exportPDFInterim('${emp.id}','${semSel}')" style="background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)" title="Relevé PDF">🖨</button>`:''}
+      </td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+  el.innerHTML = html;
+}
+
+function getWeekISO(date){
+  const d = new Date(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()));
+  const dayNum = d.getUTCDay()||7;
+  d.setUTCDate(d.getUTCDate()+4-dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  const wn = Math.ceil((((d-yearStart)/86400000)+1)/7);
+  return `${d.getUTCFullYear()}-S${String(wn).padStart(2,'0')}`;
+}
+
+function getSemainesDisponibles(){
+  const sems = new Set((state.heures||[]).map(h=>h.semaine));
+  // Ajouter les 4 dernières semaines + 2 prochaines
+  const now = new Date();
+  for(let i=-4;i<=2;i++){
+    const d = new Date(now);
+    d.setDate(d.getDate()+i*7);
+    sems.add(getWeekISO(d));
+  }
+  return [...sems].sort().reverse().map(s=>{
+    const [yr,sw] = s.split('-S');
+    return {val:s, label:`S${sw} — ${yr}`};
+  });
+}
+
+function addSemaineHeures(){
+  const val = prompt('Numéro de semaine (ex: 24):');
+  if(!val) return;
+  const yr = new Date().getFullYear();
+  const sem = `${yr}-S${String(parseInt(val)).padStart(2,'0')}`;
+  state._semHeure = sem;
+  renderSaisieHebdo();
+}
+
+function updateAtelierSemaine(empId, semaine, atelier){
+  const lignes = (state.heures||[]).filter(h=>h.emp_id===empId&&h.semaine===semaine);
+  lignes.forEach(l=>l.atelier=atelier);
+  scheduleSave();
+}
+
+function openSaisieJours(empId, semaine){
+  const emp = (state.employes||[]).find(e=>e.id===empId);
+  if(!emp) return;
+  const existingLignes = (state.heures||[]).filter(h=>h.emp_id===empId&&h.semaine===semaine);
+  const atelier = existingLignes[0]?.atelier || emp.atelier;
+
+  // Structure : une ligne = un chantier + heures par jour
+  // Récupérer les lignes existantes regroupées par chantier
+  const chantiersSaisis = {};
+  existingLignes.forEach(l=>{
+    if(l.chantier1){
+      if(!chantiersSaisis[l.chantier1]) chantiersSaisis[l.chantier1] = {};
+      chantiersSaisis[l.chantier1][l.jour] = (chantiersSaisis[l.chantier1][l.jour]||0) + (+l.h_mat||0);
+    }
+    if(l.chantier2){
+      if(!chantiersSaisis[l.chantier2]) chantiersSaisis[l.chantier2] = {};
+      chantiersSaisis[l.chantier2][l.jour] = (chantiersSaisis[l.chantier2][l.jour]||0) + (+l.h_am||0);
+    }
+  });
+
+  // Absences par jour
+  const absences = {};
+  existingLignes.forEach(l=>{ if(l.absent) absences[l.jour]=l.absent; });
+
+  // Chantiers disponibles
+  const chantiersList = ['<option value="">— Chantier —</option>',
+    ...state.chantiers.map(c=>`<option value="${esc(c.nom)}">${esc(c.nom)}</option>`)
+  ].join('');
+
+  // Construire lignes chantiers (au moins 3 lignes vides + les existantes)
+  const lignesChantiers = Object.keys(chantiersSaisis).length
+    ? Object.entries(chantiersSaisis)
+    : [];
+  while(lignesChantiers.length < 3) lignesChantiers.push(['', {}]);
+
+  let html = `<div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <strong style="font-size:14px">${esc(emp.nom)} ${esc(emp.prenom)}</strong>
+    <span style="font-size:12px;color:var(--text2)">— ${semaine}</span>
+    <label style="font-size:12px;margin-left:auto">Atelier :
+      <select id="sj-atelier" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px">
+        ${ATELIERS_H.map(a=>`<option value="${a}"${a===atelier?' selected':''}>${a}</option>`).join('')}
+      </select>
+    </label>
+  </div>
+
+  <!-- Absences par jour -->
+  <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Absences :</span>
+    ${JOURS_SEMAINE.map(j=>`
+      <label style="font-size:11px;display:flex;align-items:center;gap:4px">
+        <span style="font-weight:600">${j.slice(0,3)}</span>
+        <select id="sj-abs-${j}" style="font-size:11px;padding:2px 5px;border:1px solid var(--border);border-radius:5px;font-family:inherit">
+          <option value="">—</option>
+          <option value="Absent" ${absences[j]==='Absent'?'selected':''}>Absent</option>
+          <option value="RTT" ${absences[j]==='RTT'?'selected':''}>RTT</option>
+          <option value="CP" ${absences[j]==='CP'?'selected':''}>CP</option>
+          <option value="Maladie" ${absences[j]==='Maladie'?'selected':''}>Maladie</option>
+          <option value="Formation" ${absences[j]==='Formation'?'selected':''}>Formation</option>
+        </select>
+      </label>`).join('')}
+  </div>
+
+  <!-- Tableau heures par chantier -->
+  <div style="overflow-x:auto">
+  <table id="sj-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:600px">
+    <thead>
+      <tr style="background:var(--bg)">
+        <th style="padding:7px 10px;text-align:left;border:1px solid var(--border);min-width:180px">Chantier</th>
+        ${JOURS_SEMAINE.map(j=>`<th style="padding:7px 8px;text-align:center;border:1px solid var(--border);min-width:60px">${j.slice(0,3)}<br><span style="font-size:9px;font-weight:400;color:var(--text3)">heures</span></th>`).join('')}
+        <th style="padding:7px 8px;text-align:center;border:1px solid var(--border);background:#EAF2FB;color:var(--blue);font-weight:700">Total</th>
+        <th style="padding:7px 8px;border:1px solid var(--border);width:30px"></th>
+      </tr>
+    </thead>
+    <tbody id="sj-tbody">
+      ${lignesChantiers.map(([ch, hJours], i)=>`
+      <tr id="sj-row-${i}" style="border-bottom:1px solid var(--border)">
+        <td style="padding:5px;border:1px solid var(--border)">
+          <select id="sj-ch-${i}" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px" onchange="updateTotalRow(${i})">
+            ${chantiersList}
+          </select>
+        </td>
+        ${JOURS_SEMAINE.map(j=>`
+        <td style="padding:4px;border:1px solid var(--border)">
+          <input type="number" id="sj-h-${i}-${j}" value="${hJours[j]||''}" min="0" max="24" step="0.5"
+            style="width:52px;padding:4px;border:1px solid var(--border);border-radius:5px;text-align:center;font-family:inherit;font-size:12px"
+            oninput="updateTotalRow(${i});updateTotalSemaine()"/>
+        </td>`).join('')}
+        <td style="padding:5px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:var(--blue);background:#EAF2FB;border:1px solid var(--border)" id="sj-tot-${i}">0h</td>
+        <td style="padding:4px;text-align:center;border:1px solid var(--border)">
+          <button onclick="removeSaisieRow(${i})" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:14px">✕</button>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+    <tfoot>
+      <tr style="background:var(--bg);font-weight:700">
+        <td style="padding:7px 10px;border:1px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase">TOTAL JOUR</td>
+        ${JOURS_SEMAINE.map(j=>`<td style="padding:7px 8px;text-align:center;font-family:'DM Mono',monospace;font-size:13px;border:1px solid var(--border)" id="sj-totjour-${j}">—</td>`).join('')}
+        <td style="padding:7px 8px;text-align:center;font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--green);border:1px solid var(--border);background:#EAFAF1" id="sj-totsem">0h</td>
+        <td style="border:1px solid var(--border)"></td>
+      </tr>
+    </tfoot>
+  </table>
+  </div>
+  <button class="btn btn-sm" style="margin-top:8px" onclick="addSaisieRow()">+ Ligne chantier</button>`;
+
+  document.getElementById('mh-title').textContent = `Heures — ${esc(emp.nom)} ${esc(emp.prenom)} — ${semaine}`;
+  document.getElementById('mh-content').innerHTML = html;
+  document.getElementById('modal-heures').classList.add('show');
+  _ctx = {type:'saisie-heures', empId, semaine, nbRows: lignesChantiers.length};
+
+  // Remettre les valeurs des selects chantier
+  lignesChantiers.forEach(([ch], i)=>{
+    if(ch) document.getElementById('sj-ch-'+i).value = ch;
+    updateTotalRow(i);
+  });
+  updateTotalSemaine();
+}
+
+function addSaisieRow(){
+  _ctx.nbRows = (_ctx.nbRows||0)+1;
+  const i = _ctx.nbRows-1;
+  const chantiersList = ['<option value="">— Chantier —</option>',
+    ...state.chantiers.map(c=>`<option value="${esc(c.nom)}">${esc(c.nom)}</option>`)
+  ].join('');
+  const tr = document.createElement('tr');
+  tr.id = 'sj-row-'+i;
+  tr.style.borderBottom = '1px solid var(--border)';
+  tr.innerHTML = `
+    <td style="padding:5px;border:1px solid var(--border)">
+      <select id="sj-ch-${i}" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px" onchange="updateTotalRow(${i})">
+        ${chantiersList}
+      </select>
+    </td>
+    ${JOURS_SEMAINE.map(j=>`
+    <td style="padding:4px;border:1px solid var(--border)">
+      <input type="number" id="sj-h-${i}-${j}" min="0" max="24" step="0.5"
+        style="width:52px;padding:4px;border:1px solid var(--border);border-radius:5px;text-align:center;font-family:inherit;font-size:12px"
+        oninput="updateTotalRow(${i});updateTotalSemaine()"/>
+    </td>`).join('')}
+    <td style="padding:5px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:var(--blue);background:#EAF2FB;border:1px solid var(--border)" id="sj-tot-${i}">0h</td>
+    <td style="padding:4px;text-align:center;border:1px solid var(--border)">
+      <button onclick="removeSaisieRow(${i})" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:14px">✕</button>
+    </td>`;
+  document.getElementById('sj-tbody').appendChild(tr);
+}
+
+function removeSaisieRow(i){
+  const row = document.getElementById('sj-row-'+i);
+  if(row) row.remove();
+  updateTotalSemaine();
+}
+
+function updateTotalRow(i){
+  let total = 0;
+  JOURS_SEMAINE.forEach(j=>{
+    const el = document.getElementById('sj-h-'+i+'-'+j);
+    if(el) total += parseFloat(el.value)||0;
+  });
+  const totEl = document.getElementById('sj-tot-'+i);
+  if(totEl) totEl.textContent = total>0?total+'h':'0h';
+}
+
+function updateTotalSemaine(){
+  let totalSem = 0;
+  JOURS_SEMAINE.forEach(j=>{
+    let totalJour = 0;
+    for(let i=0;i<(_ctx.nbRows||10);i++){
+      const el = document.getElementById('sj-h-'+i+'-'+j);
+      if(el) totalJour += parseFloat(el.value)||0;
+    }
+    const totJourEl = document.getElementById('sj-totjour-'+j);
+    if(totJourEl) totJourEl.textContent = totalJour>0?totalJour+'h':'—';
+    totalSem += totalJour;
+  });
+  const totSemEl = document.getElementById('sj-totsem');
+  if(totSemEl) totSemEl.textContent = totalSem>0?totalSem+'h':'0h';
+}
+
+
+function saveHeuresSemaine(){
+  const {empId, semaine, nbRows} = _ctx;
+  const atelier = document.getElementById('sj-atelier').value;
+  if(!state.heures) state.heures = [];
+  // Supprimer les lignes existantes
+  state.heures = state.heures.filter(h=>!(h.emp_id===empId&&h.semaine===semaine));
+  const emp = (state.employes||[]).find(e=>e.id===empId);
+
+  // Absences
+  const absences = {};
+  JOURS_SEMAINE.forEach(j=>{
+    const v = document.getElementById('sj-abs-'+j)?.value||'';
+    if(v) absences[j]=v;
+  });
+
+  // Heures par chantier par jour
+  for(let i=0;i<(nbRows||10);i++){
+    const chEl = document.getElementById('sj-ch-'+i);
+    if(!chEl) continue;
+    const chantier = chEl.value;
+    if(!chantier) continue;
+    JOURS_SEMAINE.forEach(j=>{
+      const h = parseFloat(document.getElementById('sj-h-'+i+'-'+j)?.value)||0;
+      if(h>0){
+        state.heures.push({
+          id: uid(), emp_id: empId, semaine, jour: j, atelier,
+          chantier1: chantier, chantier2: '',
+          h_mat: h, h_am: 0,
+          total_hebdo: h,
+          absent: absences[j]||'',
+          statut: emp?.statut||'CDI'
+        });
+      }
+    });
+    // Absences sans heures
+  }
+  // Ajouter les absences pures (jours sans heures)
+  JOURS_SEMAINE.forEach(j=>{
+    if(absences[j]){
+      const hasEntry = state.heures.some(h=>h.emp_id===empId&&h.semaine===semaine&&h.jour===j);
+      if(!hasEntry){
+        state.heures.push({
+          id: uid(), emp_id: empId, semaine, jour: j, atelier,
+          chantier1: '', chantier2: '',
+          h_mat: 0, h_am: 0, total_hebdo: 0,
+          absent: absences[j],
+          statut: emp?.statut||'CDI'
+        });
+      }
+    }
+  });
+
+  closeModal('modal-heures');
+  scheduleSave();
+  renderSaisieHebdo();
+  toast('Heures enregistrées');
+}
+
+
+// ── PLANNING RESSOURCES (imprimable + saisie horaires) ──
+function renderPlanningRessources(){
+  const el = document.getElementById('hscreen-planning');
+  const employes = state.employes||[];
+  const semaines = getSemainesDisponibles();
+  const semSel = state._semHeure || semaines[0]?.val || getWeekISO(new Date());
+  const heuresSem = (state.heures||[]).filter(h=>h.semaine===semSel);
+
+  // Calculer les dates des jours de la semaine
+  const [yr, sw] = semSel.split('-S');
+  const wn = parseInt(sw);
+  const jan4 = new Date(parseInt(yr),0,4);
+  const lundi = new Date(jan4);
+  lundi.setDate(jan4.getDate() - (jan4.getDay()||7) + 1 + (wn-1)*7);
+  const dateJours = JOURS_SEMAINE.map((_,i)=>{
+    const d = new Date(lundi); d.setDate(lundi.getDate()+i);
+    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+  });
+
+  let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap" class="no-print">
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Semaine</label>
+    <select id="plan-sem-sel" style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px" onchange="state._semHeure=this.value;renderPlanningRessources()">
+      ${semaines.map(s=>`<option value="${s.val}"${s.val===semSel?' selected':''}>${s.label}</option>`).join('')}
+    </select>
+    <button class="btn btn-primary" onclick="window.print()">🖨 Imprimer</button>
+    <span style="font-size:11px;color:var(--text3);margin-left:8px">Double-cliquez sur une cellule pour saisir les horaires</span>
+  </div>`;
+
+  // En-tête imprimable
+  html += `<div style="margin-bottom:16px;display:none" class="print-only">
+    <div style="display:flex;align-items:center;gap:20px;border-bottom:2px solid #1A4F8A;padding-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:#1A4F8A;border:2px solid #1A4F8A;padding:4px 8px;border-radius:4px">ROUSSEAU<br>CONSTRUCTION</div>
+      <div>
+        <div style="font-size:16px;font-weight:700">Planning Ressources Hebdomadaire</div>
+        <div style="font-size:12px;color:#555">Semaine ${wn} — du ${dateJours[0]} au ${dateJours[4]} ${yr}</div>
+      </div>
+    </div>
+  </div>`;
+
+  html += `<div class="planning-print" style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;min-width:750px">
+      <thead>
+        <tr>
+          <th style="background:#1A4F8A;color:#fff;padding:8px 12px;text-align:left;border:1px solid rgba(255,255,255,.2);min-width:160px">Employé</th>
+          <th style="background:#1A4F8A;color:#fff;padding:8px 8px;text-align:center;border:1px solid rgba(255,255,255,.2);width:60px">Statut</th>
+          ${JOURS_SEMAINE.map((j,i)=>`<th style="background:#1A4F8A;color:#fff;padding:8px 10px;text-align:center;border:1px solid rgba(255,255,255,.2);min-width:120px">${j}<br><span style="font-size:10px;opacity:.8;font-weight:400">${dateJours[i]}</span></th>`).join('')}
+          <th style="background:#1A4F8A;color:#fff;padding:8px 8px;text-align:center;border:1px solid rgba(255,255,255,.2);width:70px">Total H</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  ATELIERS_H.forEach(at=>{
+    const emps = employes.filter(e=>{
+      const lignes = heuresSem.filter(h=>h.emp_id===e.id);
+      return (lignes[0]?.atelier||e.atelier)===at;
+    });
+    if(!emps.length) return;
+
+    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Atelier Men':'Logistique';
+    html += `<tr><td colspan="8" style="background:#2C5F8A;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:5px 12px;border:1px solid rgba(255,255,255,.2)">${atLabel}</td></tr>`;
+
+    emps.forEach((emp,idx)=>{
+      const lignes = heuresSem.filter(h=>h.emp_id===emp.id);
+      const totalH = lignes.reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0),0);
+      const bg = idx%2?'background:#FAFAF8;':'';
+      const badge = emp.statut==='CDI'?'emp-badge-cdi':emp.statut==='interim'?'emp-badge-interim':'emp-badge-cdd';
+
+      html += `<tr style="${bg}">
+        <td style="padding:6px 12px;font-weight:600;font-size:12px;border:1px solid var(--border)">${esc(emp.nom)} ${esc(emp.prenom)}</td>
+        <td style="padding:6px 8px;text-align:center;border:1px solid var(--border)"><span class="${badge}" style="font-size:9px">${emp.statut==='CDI'?'CDI':'Int.'}</span></td>
+        ${JOURS_SEMAINE.map(j=>{
+          const l = lignes.find(x=>x.jour===j&&x.type_saisie==='presence') || lignes.find(x=>x.jour===j&&x.horaire) || lignes.find(x=>x.jour===j&&x.absent&&!x.chantier1) || null;
+          const abs = l?.absent||'';
+          const horaire = l?.horaire||'';
+          let cellContent = '';
+          let cellStyle = '';
+          if(abs){
+            const absColors = {Absent:'background:#FDECEA;color:#C0392B',RTT:'background:#EAF2FB;color:#1A5276',CP:'background:#EAFAF1;color:#1E8449',Maladie:'background:#FEF9E7;color:#D68910',Formation:'background:#F4ECF7;color:#6C3483'};
+            cellStyle = absColors[abs]||'';
+            cellContent = `<span style="font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;${cellStyle}">${abs}</span>`;
+          } else if(horaire){
+            const comment = l?.comment||'';
+            cellContent = `<span style="font-size:11px;font-family:'DM Mono',monospace;color:#1A4F8A">${horaire}</span>${comment?`<br><span style="font-size:9px;color:var(--text3)">${esc(comment)}</span>`:''}`;
+          } else {
+            cellContent = `<span style="font-size:10px;color:var(--text3)">—</span>`;
+          }
+          return `<td style="padding:5px 8px;text-align:center;border:1px solid var(--border);cursor:pointer" 
+            onclick="editCellPlanning('${emp.id}','${semSel}','${j}')" 
+            title="Cliquez pour modifier">
+            ${cellContent}
+          </td>`;
+        }).join('')}
+        <td style="padding:6px 8px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'};border:1px solid var(--border)">${totalH>0?totalH+'h':'—'}</td>
+      </tr>`;
+    });
+  });
+
+  html += `</tbody></table></div>`;
+  el.innerHTML = html;
+}
+
+// Saisie inline d'une cellule du planning
+// Variables globales pour la saisie présence
+let _cellEmpId = null, _cellSemaine = null, _cellJour = null;
+
+function editCellPlanning(empId, semaine, jour){
+  _cellEmpId = empId;
+  _cellSemaine = semaine;
+  _cellJour = jour;
+
+  const existing = (state.heures||[]).find(h=>
+    h.emp_id===empId && h.semaine===semaine && h.jour===jour && h.type_saisie==='presence'
+  ) || (state.heures||[]).find(h=>
+    h.emp_id===empId && h.semaine===semaine && h.jour===jour && h.horaire
+  );
+
+  document.getElementById('modal-presence-horaire').value = existing?.horaire||'';
+  document.getElementById('modal-presence-atelier').value = existing?.atelier || (state.employes||[]).find(e=>e.id===empId)?.atelier || 'B2';
+  document.getElementById('modal-presence-absent').value = existing?.absent||'';
+  document.getElementById('modal-presence-comment').value = existing?.comment||'';
+
+  const emp = (state.employes||[]).find(e=>e.id===empId);
+  document.getElementById('modal-presence-title').textContent =
+    (emp ? emp.nom+' '+emp.prenom : '') + ' — ' + jour + ' (' + semaine + ')';
+
+  document.getElementById('modal-presence').classList.add('show');
+  setTimeout(()=>document.getElementById('modal-presence-horaire').focus(), 100);
+}
+
+function clearCellPlanning(){
+  const empId = _cellEmpId, semaine = _cellSemaine, jour = _cellJour;
+  if(!empId) return;
+  state.heures = (state.heures||[]).filter(h=>
+    !(h.emp_id===empId && h.semaine===semaine && h.jour===jour && h.type_saisie==='presence')
+  );
+  closeModal('modal-presence');
+  state._semHeure = semaine;
+  _cellJour = null;
+  scheduleSave();
+  if(_macroMode){ _macroMode=false; renderVueMacro(); }
+  else renderPlanningRessources();
+}
+
+function saveCellPlanning(){
+  const empId = _cellEmpId;
+  const semaine = _cellSemaine;
+  const jour = _cellJour;
+  if(!empId) return;
+
+  const horaire = (document.getElementById('modal-presence-horaire')?.value||'').trim();
+  const absent  = document.getElementById('modal-presence-absent')?.value||'';
+
+  if(!state.heures) state.heures = [];
+
+  // Supprimer l'entrée de présence existante
+  state.heures = state.heures.filter(h=>
+    !(h.emp_id===empId && h.semaine===semaine && h.jour===jour && (h.type_saisie==='presence' || h.horaire))
+  );
+
+  // Calculer les heures depuis "7h00-16h15"
+  let hTotal = 0;
+  if(horaire){
+    const m = horaire.replace(/\s/g,'').match(/^(\d+)h(\d*)[-:](\d+)h(\d*)$/);
+    if(m){
+      const debut = parseInt(m[1])+(parseInt(m[2]||0)/60);
+      const fin   = parseInt(m[3])+(parseInt(m[4]||0)/60);
+      hTotal = Math.max(0, Math.round((fin-debut)*100)/100);
+    }
+  }
+
+  if(horaire || absent){
+    const emp = (state.employes||[]).find(e=>e.id===empId);
+    state.heures.push({
+      id: uid(),
+      emp_id: empId,
+      semaine: semaine,
+      jour: jour,
+      atelier: document.getElementById('modal-presence-atelier')?.value || emp?.atelier||'B2',
+      horaire: horaire,
+      absent: absent,
+      h_mat: hTotal,
+      h_am: 0,
+      total_hebdo: hTotal,
+      chantier1: '',
+      chantier2: '',
+      statut: emp?.statut||'CDI',
+      type_saisie: 'presence',
+      comment: (document.getElementById('modal-presence-comment')?.value||'').trim(),
+      comment: (document.getElementById('modal-presence-comment')?.value||'').trim()
+    });
+  }
+
+  closeModal('modal-presence');
+  state._semHeure = semaine;
+  _cellJour = null;
+  scheduleSave();
+  if(_macroMode){ _macroMode=false; renderVueMacro(); }
+  else renderPlanningRessources();
+}
+
+
+// ── RÉCAP HEURES PAR CHANTIER ──
+function renderRecapHeures(){
+  const el = document.getElementById('hscreen-recap');
+  const heures = state.heures||[];
+  const employes = state.employes||[];
+
+  if(!heures.length){
+    el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune heure saisie</div>';
+    return;
+  }
+
+  // Grouper par chantier
+  const parChantier = {};
+  heures.forEach(h=>{
+    const emp = employes.find(e=>e.id===h.emp_id);
+    const statut = emp?.statut||h.statut||'CDI';
+    const total = (+h.h_mat||0)+(+h.h_am||0);
+    if(!total) return;
+    [h.chantier1, h.chantier2].filter(Boolean).forEach(ch=>{
+      if(!parChantier[ch]) parChantier[ch]={nom:ch,hCDI:0,hInterim:0,total:0};
+      if(statut==='interim') parChantier[ch].hInterim+=total/([h.chantier1,h.chantier2].filter(Boolean).length);
+      else parChantier[ch].hCDI+=total/([h.chantier1,h.chantier2].filter(Boolean).length);
+      parChantier[ch].total+=total/([h.chantier1,h.chantier2].filter(Boolean).length);
+    });
+  });
+
+  const rows = Object.values(parChantier).sort((a,b)=>b.total-a.total);
+  const totCDI = rows.reduce((s,r)=>s+r.hCDI,0);
+  const totInt = rows.reduce((s,r)=>s+r.hInterim,0);
+
+  let html = `<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="metric"><div class="metric-k">H CDI</div><div class="metric-v ok">${Math.round(totCDI)}h</div></div>
+    <div class="metric"><div class="metric-k">H Intérim</div><div class="metric-v warn">${Math.round(totInt)}h</div></div>
+    <div class="metric"><div class="metric-k">Total</div><div class="metric-v">${Math.round(totCDI+totInt)}h</div></div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr>
+      <th>Chantier</th>
+      <th style="text-align:right">H CDI</th>
+      <th style="text-align:right">H Intérim</th>
+      <th style="text-align:right">Total</th>
+      <th style="text-align:right">% Intérim</th>
+    </tr></thead><tbody>
+    ${rows.map((r,i)=>`<tr style="${i%2?'background:#FAFAF8;':''}border-bottom:1px solid var(--border)">
+      <td style="font-weight:500">${esc(r.nom)}</td>
+      <td style="text-align:right;font-family:'DM Mono',monospace">${Math.round(r.hCDI)}h</td>
+      <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange)">${Math.round(r.hInterim)}h</td>
+      <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700">${Math.round(r.total)}h</td>
+      <td style="text-align:right;font-family:'DM Mono',monospace;color:${r.hInterim/r.total>.4?'var(--red)':'var(--text2)'}">${r.total>0?Math.round(r.hInterim/r.total*100)+'%':'—'}</td>
+    </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+
+  el.innerHTML = html;
+}
+
+// ── EXPORT PDF INTÉRIMAIRE ──
+function openPDFInterim(empId){
+  // Choisir la semaine
+  const semaines = getSemainesDisponibles();
+  const semSel = state._semHeure || semaines[0]?.val || getWeekISO(new Date());
+  const emp = (state.employes||[]).find(e=>e.id===empId);
+  const choix = prompt(
+    'Relevé PDF — ' + (emp?emp.nom+' '+emp.prenom:'') +
+    '\nEntrez le numéro de semaine (ex: 23) ou laissez vide pour la semaine en cours (' + semSel + ')'
+  );
+  if(choix === null) return; // Annulé
+  let semaine = semSel;
+  if(choix.trim()){
+    const yr = new Date().getFullYear();
+    semaine = yr + '-S' + String(parseInt(choix)).padStart(2,'0');
+  }
+  exportPDFInterim(empId, semaine);
+}
+
+function exportPDFInterim(empId, semaine){
+  const emp = (state.employes||[]).find(e=>e.id===empId);
+  if(!emp) return;
+  const lignes = (state.heures||[]).filter(h=>h.emp_id===empId&&h.semaine===semaine);
+  const totalH = lignes.reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0),0);
+  const [yr,sw] = semaine.split('-S');
+  const wn = parseInt(sw);
+  const jan4 = new Date(parseInt(yr),0,4);
+  const lundi = new Date(jan4);
+  lundi.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(wn-1)*7);
+
+  const win = window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>Relevé heures — ${emp.nom} ${emp.prenom} — S${sw}</title>
+    <style>
+      body{font-family:Arial,sans-serif;font-size:12px;margin:30px;color:#222}
+      .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+      .logo-placeholder{width:80px;height:60px;border:2px solid #1A4F8A;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#1A4F8A;text-align:center}
+      .title{text-align:center;font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+      .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;background:#f5f5f5;padding:12px;border-radius:6px}
+      .info-row{font-size:11px}
+      .info-label{font-weight:700;color:#555}
+      table{width:100%;border-collapse:collapse;margin-bottom:20px}
+      th{background:#1A4F8A;color:#fff;padding:7px 10px;text-align:left;font-size:11px}
+      td{padding:7px 10px;border-bottom:1px solid #ddd;font-size:12px}
+      .total-row{font-weight:700;background:#f0f0f0;font-size:13px}
+      .total-box{display:inline-block;border:2px solid #1A4F8A;padding:8px 20px;font-size:18px;font-weight:700;color:#1A4F8A;border-radius:6px}
+      .signature{margin-top:30px;display:flex;justify-content:space-between}
+      .sig-block{text-align:center;width:200px}
+      .sig-line{border-top:1px solid #333;margin-top:40px;padding-top:5px;font-size:11px}
+      @media print{body{margin:15px}}
+    </style>
+  </head><body>
+    <div class="header">
+      <div class="logo-placeholder">ROUSSEAU<br>CONSTRUCTION</div>
+      <div class="title">Relevé d'heures hebdomadaire<br><span style="font-size:13px;font-weight:400">Intérimaire</span></div>
+      <div style="text-align:right;font-size:12px">
+        <div>Semaine N° : <strong>${wn}</strong></div>
+        <div>Agence : <strong>${esc(emp.agence||'—')}</strong></div>
+      </div>
+    </div>
+    <div class="info-grid">
+      <div class="info-row"><span class="info-label">Entreprise utilisatrice :</span> ROUSSEAU CONSTRUCTION</div>
+      <div class="info-row"><span class="info-label">Intérimaire :</span> ${esc(emp.nom)} ${esc(emp.prenom)}</div>
+      <div class="info-row"><span class="info-label">Atelier :</span> ${esc(lignes[0]?.atelier||emp.atelier||'—')}</div>
+      <div class="info-row"><span class="info-label">Période :</span> du ${String(lundi.getDate()).padStart(2,'0')}/${String(lundi.getMonth()+1).padStart(2,'0')} au ${String(new Date(lundi.getTime()+4*86400000).getDate()).padStart(2,'0')}/${String(new Date(lundi.getTime()+4*86400000).getMonth()+1).padStart(2,'0')}/${yr}</div>
+    </div>
+    <table>
+      <thead><tr><th>Jour</th><th>Date</th><th>H Matin</th><th>H Après-midi</th><th>Total</th><th>Commentaire</th></tr></thead>
+      <tbody>
+        ${JOURS_SEMAINE.map((j,i)=>{
+          const d = new Date(lundi.getTime()+i*86400000);
+          const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${yr}`;
+          const l = lignes.find(x=>x.jour===j);
+          const hMat = l?.h_mat||0;
+          const hAm = l?.h_am||0;
+          const total = hMat+hAm;
+          const abs = l?.absent||'';
+          return `<tr>
+            <td><strong>${j}</strong></td>
+            <td>${dateStr}</td>
+            <td style="text-align:center">${abs?abs:(hMat>0?hMat+'h':'—')}</td>
+            <td style="text-align:center">${abs?'':(hAm>0?hAm+'h':'—')}</td>
+            <td style="text-align:center;font-weight:600">${abs?abs:(total>0?total+'h':'—')}</td>
+            <td>${l?.chantier1||''} ${l?.chantier2?'/ '+l.chantier2:''}</td>
+          </tr>`;
+        }).join('')}
+        <tr class="total-row">
+          <td colspan="4" style="text-align:right;padding-right:20px">TOTAL HEBDOMADAIRE :</td>
+          <td colspan="2"><div class="total-box">${totalH}h</div></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="signature">
+      <div class="sig-block"><div class="sig-line">Signature intérimaire</div></div>
+      <div class="sig-block"><div class="sig-line">Cachet et signature agence</div></div>
+      <div class="sig-block"><div class="sig-line">Signature Rousseau Construction</div></div>
+    </div>
+  </body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(), 500);
+}
+
+
+
+// ── VUE MACRO MULTI-SEMAINES (détail par jour) ──
+function renderVueMacro(){
+  const el = document.getElementById('hscreen-macro');
+  const employes = state.employes||[];
+
+  if(!employes.length){
+    el.innerHTML = "<div class='warn-box'>Ajoutez vos employés dans l'onglet Employés</div>";
+    return;
+  }
+
+  const nbSem = parseInt(document.getElementById('macro-nb-sem')?.value)||4;
+  const startSem = state._macroStartSem || document.getElementById('macro-start-sem')?.value || getWeekISO(new Date());
+  const todaySem = getWeekISO(new Date());
+  const todayStr = new Date().toLocaleDateString('fr-FR',{weekday:'short'}).slice(0,3);
+
+  // Générer les semaines et leurs jours
+  const semaines = [];
+  const [yr0, sw0] = startSem.split('-S');
+  let curDate = getLundiFromSemaine(parseInt(yr0), parseInt(sw0));
+  const JOURS_COURT = ['L','M','Me','J','V'];
+
+  for(let i=0; i<nbSem; i++){
+    const sem = getWeekISO(curDate);
+    const [yr, sw] = sem.split('-S');
+    const jours = JOURS_SEMAINE.map((j,di)=>{
+      const d = new Date(curDate); d.setDate(curDate.getDate()+di);
+      return {
+        jour: j,
+        court: JOURS_COURT[di],
+        date: d,
+        dateStr: `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`,
+        isToday: d.toDateString() === new Date().toDateString()
+      };
+    });
+    semaines.push({
+      val: sem,
+      label: `S${sw}`,
+      year: yr,
+      jours,
+      isCurrentWeek: sem === todaySem
+    });
+    curDate.setDate(curDate.getDate()+7);
+  }
+
+  let html = `
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn btn-sm" onclick="macroNav(-4)" title="-4 semaines">◀◀</button>
+    <button class="btn btn-sm" onclick="macroNav(-1)" title="-1 semaine">◀</button>
+    <button class="btn btn-sm" style="background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border);font-weight:600" onclick="macroGoToday()">Aujourd'hui</button>
+    <button class="btn btn-sm" onclick="macroNav(1)" title="+1 semaine">▶</button>
+    <button class="btn btn-sm" onclick="macroNav(4)" title="+4 semaines">▶▶</button>
+    <select id="macro-start-sem" style="padding:5px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px;margin-left:4px" onchange="renderVueMacro()">
+      ${generateSemainesOptions(startSem, 8)}
+    </select>
+    <select id="macro-nb-sem" style="padding:5px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px" onchange="renderVueMacro()">
+      <option value="2" ${nbSem===2?'selected':''}>2 sem.</option>
+      <option value="4" ${nbSem===4?'selected':''}>4 sem.</option>
+      <option value="6" ${nbSem===6?'selected':''}>6 sem.</option>
+      <option value="8" ${nbSem===8?'selected':''}>8 sem.</option>
+      <option value="12" ${nbSem===12?'selected':''}>12 sem.</option>
+    </select>
+    <div style="display:flex;gap:8px;margin-left:auto;align-items:center;font-size:10px;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#EAFAF1;border:1px solid #A9DFBF;border-radius:2px;display:inline-block"></span>Présent</span>
+      <span style="display:flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#FDECEA;border:1px solid #F5B7B1;border-radius:2px;display:inline-block"></span>Absent</span>
+      <span style="display:flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#EAF2FB;border:1px solid #AED6F1;border-radius:2px;display:inline-block"></span>RTT/CP</span>
+      <span style="display:flex;align-items:center;gap:3px"><span style="width:12px;height:12px;background:#FEF9E7;border:1px solid #FAD7A0;border-radius:2px;display:inline-block"></span>Autre</span>
+    </div>
+  </div>
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+  <table style="border-collapse:collapse;font-size:11px">
+    <thead>
+      <tr>
+        <th style="background:#1A4F8A;color:#fff;padding:5px 6px;text-align:left;border:1px solid rgba(255,255,255,.2);position:sticky;left:0;min-width:100px;max-width:160px;z-index:3;font-size:10px">Employé</th>
+        ${semaines.map(s=>s.jours.map(j=>`
+        <th style="background:${j.isToday?'#B7770D':s.isCurrentWeek?'#1A5E8A':'#2C5F8A'};color:#fff;padding:4px 2px;text-align:center;border:1px solid rgba(255,255,255,.15);${j.court==='L'?'border-left:2px solid rgba(255,255,255,.5);':''};min-width:30px;font-size:10px;font-weight:${j.isToday?'800':'500'}">
+          ${j.court==='L'?`<div style="font-size:8px;opacity:.7">${s.label}</div>`:''}
+          <div>${j.court}</div>
+          <div style="font-size:8px;opacity:.7">${j.date.getDate()}</div>
+        </th>`).join('')).join('')}
+      </tr>
+    </thead>
+    <tbody>`;
+
+  // Par atelier
+  ATELIERS_H.forEach(at=>{
+    const empsAt = employes.filter(e=>e.atelier===at);
+    if(!empsAt.length) return;
+    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Menuiserie':'Logistique';
+    const totalCols = 1 + semaines.length * 5;
+
+    html += `<tr>
+      <td colspan="${totalCols}" style="background:#2C5F8A;color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:4px 12px;border:1px solid rgba(255,255,255,.2)">${atLabel}</td>
+    </tr>`;
+
+    empsAt.forEach((emp, idx)=>{
+      const empFinDiv = emp.fin_mission ? ('<div style="font-size:9px;color:'+(emp.fin_mission<today?'#C0392B':'#888')+'">&#x1F4C5; '+fmtDate(emp.fin_mission)+(emp.fin_mission<today?' &#9888;':'')+'</div>') : '';
+      const rowBg = idx%2?'#FAFAF8':'#FFFFFF';
+      const badge = emp.statut==='CDI'?'emp-badge-cdi':'emp-badge-interim';
+
+      html += `<tr style="background:${rowBg}">
+        <td style="padding:5px 8px;font-weight:600;font-size:12px;border:1px solid var(--border);position:sticky;left:0;background:${rowBg};z-index:1;white-space:nowrap">
+          ${emp.matricule?`<span style="font-size:8px;color:var(--text3);display:block">#${esc(emp.matricule)}</span>`:''}
+          ${esc(emp.nom)} ${esc(emp.prenom)} <span class="${badge}" style="font-size:8px">${emp.statut==='CDI'?'CDI':'Int.'}</span>
+          ${empFinDiv}
+        </td>
+        ${semaines.map((s,si)=>s.jours.map((j,ji)=>{
+          const lignes = (state.heures||[]).filter(h=>h.emp_id===emp.id&&h.semaine===s.val);
+          const presence = lignes.find(l=>l.type_saisie==='presence'&&l.jour===j.jour);
+          const hasH = lignes.filter(l=>l.jour===j.jour&&l.chantier1).reduce((sum,l)=>sum+(+l.h_mat||0)+(+l.h_am||0),0);
+
+          let bg = j.isToday?'#FFFBEE':s.isCurrentWeek?'#FFFEF5':'';
+          let border = ji===0?'border-left:2px solid #8FA8C8;':'';
+          let txt = '';
+          let title = j.jour;
+
+          if(presence){
+            const abs = presence.absent||'';
+            const hor = presence.horaire||'';
+            const com = presence.comment||'';
+            if(abs==='Absent'){ bg='#FDECEA'; txt=`<span style="color:#C0392B;font-weight:700;font-size:9px">Abs</span>`; border+=';outline:1px solid #F5B7B1'; }
+            else if(abs==='RTT'){ bg='#EAF2FB'; txt=`<span style="color:#1A5276;font-weight:700;font-size:9px">RTT</span>`; border+=';outline:1px solid #AED6F1'; }
+            else if(abs==='CP'){ bg='#EAF2FB'; txt=`<span style="color:#1A5276;font-weight:700;font-size:9px">CP</span>`; border+=';outline:1px solid #AED6F1'; }
+            else if(abs){ bg='#FEF9E7'; txt=`<span style="color:#D68910;font-weight:700;font-size:8px">${abs.slice(0,4)}</span>`; }
+            else if(hor){ bg='#EAFAF1'; txt=`<span style="color:#1E8449;font-size:8px;font-family:monospace">${hor.replace('-','↗')}</span>`; }
+            title = [j.jour, abs, hor, com].filter(Boolean).join(' — ');
+          } else if(hasH>0){
+            bg='#F0FAF5'; txt=`<span style="color:#1E8449;font-size:9px">${hasH}h</span>`;
+          }
+
+          return `<td style="padding:2px;text-align:center;border:1px solid #DDD;background:${bg};${border};cursor:pointer;width:32px;height:28px"
+            onclick="openMacroCell('${emp.id}','${s.val}','${j.jour}')"
+            title="${title}">
+            ${txt||''}
+          </td>`;
+        }).join('')).join('')}
+      </tr>`;
+    });
+  });
+
+  html += `</tbody></table></div>`;
+  el.innerHTML = html;
+}
+
+
+function macroNav(delta){
+  const sel = document.getElementById('macro-start-sem');
+  const cur = sel?.value || state._macroStartSem || getWeekISO(new Date());
+  const [yr, sw] = cur.split('-S');
+  const lundi = getLundiFromSemaine(parseInt(yr), parseInt(sw));
+  lundi.setDate(lundi.getDate() + delta*7);
+  state._macroStartSem = getWeekISO(lundi);
+  renderVueMacro();
+}
+
+function macroGoToday(){
+  state._macroStartSem = getWeekISO(new Date());
+  renderVueMacro();
+}
+
+function getLundiFromSemaine(yr, wn){
+  const jan4 = new Date(yr, 0, 4);
+  const lundi = new Date(jan4);
+  lundi.setDate(jan4.getDate() - (jan4.getDay()||7) + 1 + (wn-1)*7);
+  return lundi;
+}
+
+function generateSemainesOptions(selected, nbSemBack){
+  const opts = [];
+  const now = new Date();
+  // Générer nbSemBack semaines passées + 52 semaines futures
+  const start = new Date(now);
+  start.setDate(start.getDate() - nbSemBack*7);
+  for(let i=0; i<nbSemBack+52; i++){
+    const d = new Date(start);
+    d.setDate(start.getDate()+i*7);
+    const val = getWeekISO(d);
+    const [yr, sw] = val.split('-S');
+    const isNow = val === getWeekISO(now);
+    opts.push(`<option value="${val}" ${val===selected?'selected':''}>${isNow?'▶ ':''}S${sw} — ${yr}</option>`);
+  }
+  return opts.join('');
+}
+
+function openMacroCell(empId, semaine, jour){
+  // Réutiliser le modal de présence existant mais pour la semaine entière
+  state._semHeure = semaine;
+  _cellEmpId = empId;
+  _cellSemaine = semaine;
+  _cellJour = 'Semaine'; // Flag spécial
+
+  const existing = (state.heures||[]).find(h=>
+    h.emp_id===empId && h.semaine===semaine && h.jour===jour && h.type_saisie==='presence'
+  );
+  const emp = (state.employes||[]).find(e=>e.id===empId);
+
+  document.getElementById('modal-presence-horaire').value = existing?.horaire||'';
+  document.getElementById('modal-presence-absent').value = existing?.absent||'';
+  document.getElementById('modal-presence-comment').value = existing?.comment||'';
+  document.getElementById('modal-presence-atelier').value = existing?.atelier || emp?.atelier || 'B2';
+
+  document.getElementById('modal-presence-title').textContent =
+    (emp ? emp.nom+' '+emp.prenom : '') + ' — ' + (jour||'') + ' ' + semaine;
+
+  // Adapter le callback de sauvegarde pour la vue macro
+  _cellJour = jour;
+  _macroMode = true;
+  document.getElementById('modal-presence').classList.add('show');
+  setTimeout(()=>document.getElementById('modal-presence-horaire').focus(), 100);
+}
+
+let _macroMode = false;
+
+// Override saveCellPlanning pour gérer le mode macro
+const _origSaveCellPlanning = saveCellPlanning;
+
 
 // ═══ PLANNING GLOBAL ══════════════════════════════════════════════════════
 
@@ -2276,6 +3447,55 @@ init();
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-interim')">Annuler</button>
       <button class="btn btn-primary" onclick="saveInterim()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRESENCE v2 -->
+<div class="modal-bg" id="modal-presence" onclick="if(event.target===this)closeModal('modal-presence')">
+  <div class="modal" style="width:360px">
+    <h2 id="modal-presence-title" style="font-size:14px;margin-bottom:16px"></h2>
+    <div class="field" style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Horaires</label>
+      <input type="text" id="modal-presence-horaire" placeholder="Ex: 7h00-16h15"
+        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:'DM Mono',monospace;font-size:14px;text-align:center"
+        onkeydown="if(event.key==='Enter')saveCellPlanning()"/>
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Atelier</label>
+      <select id="modal-presence-atelier"
+        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px">
+        <option value="B1">Charpente B1</option>
+        <option value="B2">MOB B2</option>
+        <option value="Men">Menuiserie</option>
+        <option value="B3">Atelier B3</option>
+        <option value="Log">Logistique</option>
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:16px">
+      <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Absence</label>
+      <select id="modal-presence-absent"
+        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px">
+        <option value="">Présent</option>
+        <option value="Absent">Absent</option>
+        <option value="RTT">RTT</option>
+        <option value="CP">Congés</option>
+        <option value="Maladie">Maladie</option>
+        <option value="Formation">Formation</option>
+        <option value="Visite médicale">Visite médicale</option>
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:16px">
+      <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Commentaire</label>
+      <input type="text" id="modal-presence-comment" placeholder="Ex: Visite médicale 8h45, départ anticipé..."
+        style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"
+        maxlength="80"
+        onkeydown="if(event.key==='Enter')saveCellPlanning()"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-red btn-sm" onclick="clearCellPlanning()" style="margin-right:auto">Effacer</button>
+      <button class="btn" onclick="closeModal('modal-presence')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCellPlanning()">Enregistrer</button>
     </div>
   </div>
 </div>
