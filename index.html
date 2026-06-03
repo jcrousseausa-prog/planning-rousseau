@@ -614,7 +614,7 @@ async function initApp() {
   .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
 // Utiliser Apps Script seulement s'il a des données valides
 // sinon garder celles du localStorage déjà chargées
-if (fermApps.length) state.fermetures = fermApps;
+state.fermetures = fermApps; // Remplacer TOUJOURS
         if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
       }
     } catch(ce) { console.warn('Calendrier non chargé:', ce.message); }
@@ -826,7 +826,7 @@ function saveLS() {
 try {
 localStorage.setItem('planning_state', JSON.stringify({
 tranches:state.tranches, joursOff:state.joursOff,
-fermetures:state.fermetures, nextId:state.nextId, gsUrl:state.gsUrl,
+nextId:state.nextId, gsUrl:state.gsUrl,
 }));
 } catch(e) {}
 }
@@ -864,10 +864,6 @@ if (!s) return;
 const saved = JSON.parse(s);
 // Tranches gérées par Google Sheets uniquement
 if (saved.joursOff)   state.joursOff   = saved.joursOff;
-if (saved.fermetures) state.fermetures = saved.fermetures
-  .map(f => typeof f==='string'?{date:f,atelier:'all'}:f)
-  .map(f => ({...f, date: normalizeDate(f.date)||f.date}))
-  .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
 if (saved.nextId)     state.nextId     = saved.nextId;
 if (saved.gsUrl)      state.gsUrl      = saved.gsUrl;
 } catch(e) {}
