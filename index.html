@@ -7,10 +7,6 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
-/* ═══════════════════════════════════════════
-CONFIGURATION SUPABASE
-Remplacez les deux valeurs ci-dessous
-═══════════════════════════════════════════ */
 :root {}
 
 :root {
@@ -26,7 +22,6 @@ Remplacez les deux valeurs ci-dessous
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; }
 
-/* ── BARRE CONNEXION ── */
 .conn-bar {
 display: flex; align-items: center; gap: 10px;
 padding: 6px 1.5rem;
@@ -52,7 +47,6 @@ letter-spacing: .04em; text-transform: uppercase;
 .badge-edit { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
 .badge-read { background: var(--blue-bg); color: var(--blue); border: 1px solid var(--blue-border); }
 
-/* ── READONLY BANNER ── */
 .readonly-banner {
 background: linear-gradient(135deg,#1A5276,#2E86C1);
 color:#fff; padding:8px 1.5rem;
@@ -100,7 +94,6 @@ main { padding: 1.25rem 1.5rem; max-width: 1600px; margin: 0 auto; }
 .metric-val.red { color: var(--red); }
 .metric-val.green { color: var(--green); }
 
-/* TABLE */
 .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 th { background: var(--bg); font-size: 11px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 9px 11px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -121,7 +114,6 @@ input:focus { outline: none; border-color: var(--text); }
 .sim-date { color: var(--blue); font-weight: 600; font-family: 'Courier New', monospace; font-size: 12px; }
 .normal-date { font-family: 'Courier New', monospace; font-size: 12px; color: var(--text2); }
 
-/* GANTT */
 .gantt-panel { position:relative; border:1px solid var(--border); border-radius:12px; background:var(--surface); display:flex; flex-direction:column; height:calc(100vh - 260px); min-height:300px; clip-path:inset(0 round 12px); }
 .gantt-panel-head { flex-shrink:0; background:var(--surface); border-bottom:2px solid var(--border2); overflow:hidden; position:relative; z-index:10; }
 .gantt-week-row { display:flex; border-bottom:1px solid var(--border); }
@@ -169,7 +161,6 @@ input:focus { outline: none; border-color: var(--text); }
 .gantt-lock-pin.pin-debut { left:0; background:#1A5276; border-radius:3px 0 0 3px; }
 .gantt-lock-pin.pin-fin   { right:0; background:#6C3483; border-radius:0 3px 3px 0; }
 
-/* MODALS */
 .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:100; padding:1rem; }
 .modal { background:var(--surface); border-radius:14px; padding:1.75rem; width:520px; max-width:95vw; max-height:90vh; overflow-y:auto; }
 .modal h2 { font-size:16px; font-weight:600; margin-bottom:1rem; }
@@ -179,13 +170,11 @@ input:focus { outline: none; border-color: var(--text); }
 .form-group input, .form-group select, .form-group textarea { width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font-family:inherit; font-size:14px; }
 .form-row { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
 
-/* JOURS PANEL */
 .ferm-chip { display:inline-flex; align-items:center; gap:4px; padding:3px 8px 3px 10px; border-radius:20px; font-size:11px; font-weight:500; font-family:'Courier New',monospace; }
 .ferm-chip-all    { background:var(--orange-bg); color:var(--orange); border:1px solid var(--orange-border); }
 .ferm-chip-atelier { background:var(--purple-bg); color:var(--purple); border:1px solid var(--purple-border); }
 .ferm-chip button { background:none; border:none; cursor:pointer; font-size:12px; line-height:1; padding:0 1px; }
 
-/* CHARGE */
 .charge-atelier-block { border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:1.25rem; }
 .charge-atelier-head  { display:flex; align-items:center; gap:8px; padding:9px 14px; color:#fff; font-weight:700; font-size:13px; }
 .ch-badge { background:rgba(255,255,255,.22); border-radius:20px; padding:2px 10px; font-size:11px; }
@@ -210,7 +199,6 @@ input:focus { outline: none; border-color: var(--text); }
 .ch-stat { font-size:11px; color:var(--text2); }
 .ch-stat b { font-size:13px; font-family:'Courier New',monospace; color:var(--text); }
 
-/* Sync indicator */
 .sync-pill {
 display:inline-flex; align-items:center; gap:5px;
 padding:3px 10px; border-radius:20px; font-size:11px; font-weight:500;
@@ -234,7 +222,6 @@ transition:all .3s;
 
 #drag-tooltip { display:none; position:fixed; background:var(--text); color:#fff; padding:5px 11px; border-radius:7px; font-family:'Courier New',monospace; font-size:12px; pointer-events:none; z-index:9999; transform:translate(-50%,-140%); white-space:nowrap; }
 
-/* CHARGE MODAL */
 .modal-bg-charge { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:100; padding:1rem; }
 
 @media (max-width:700px) { main { padding:.85rem; } .gantt-label-col-hd, .gantt-row-label, .gantt-atelier-title { min-width:130px; width:130px; } }
@@ -424,21 +411,14 @@ transition:all .3s;
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════
-//  CONFIGURATION SUPABASE
-// ═══════════════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://umkrmneaqkleyoutazlh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVta3JtbmVhcWtsZXlvdXRhemxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTkyNDIsImV4cCI6MjA5NDA3NTI0Mn0.UwT7L3m39oJ2yXpdnaAPeMN-NnqQbWEMLZatI34s6Dk';
 
-// Mode lecture seule : ajouter ?readonly dans l'URL pour l'activer
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzBtgzwODBl1DWD4iev3QU3ABirEptVX5E0wVrqWEU3Jq_gdsjERzBoIhBRVluX41c/exec';
 const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRoI_ySau7t8ZnVKYnTctBTGH49wQ2bIsKQ8_Y87QjpMfFdLcxiyLY_baKmSGtRRqhVau1wBrkIrNTP/pub?gid=175636692&single=true&output=csv';
 const IS_READONLY = window.location.search.includes('readonly') ||
 document.body.dataset.readonly === 'true';
 
-// ═══════════════════════════════════════════════════════════════
-//  CONSTANTES
-// ═══════════════════════════════════════════════════════════════
 const ATELIERS = [
 {id:'b1', label:'Charpente B1', color:'#2471A3'},
 {id:'b2', label:'MOB B2',       color:'#1E8449'},
@@ -449,9 +429,6 @@ const FERIES_FR = ['2026-01-01','2026-04-06','2026-05-01','2026-05-08','2026-05-
 const JOURS_LABELS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 const COL = 26;
 
-// ═══════════════════════════════════════════════════════════════
-//  ÉTAT
-// ═══════════════════════════════════════════════════════════════
 let state = {
 view:'table', ganttShowAll:true, joursOpen:false, atelier:'b1',
 joursOff:{b1:[5,6],b2:[5,6],b3:[5,6],men:[5,6]},
@@ -469,9 +446,6 @@ let _sbConnected = false;
 let _sbChannel = null;
 let _saveTimeout = null;
 
-// ═══════════════════════════════════════════════════════════════
-//  HELPERS SUPABASE (fetch natif, pas de lib)
-// ═══════════════════════════════════════════════════════════════
 async function sbFetch(path, options={}) {
 const url = `${SUPABASE_URL}/rest/v1/${path}`;
 const headers = {
@@ -507,9 +481,6 @@ async function sbDelete(table, id) {
 return sbFetch(`${table}?id=eq.${id}`, {method:'DELETE'});
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  CONNEXION & CHARGEMENT
-// ═══════════════════════════════════════════════════════════════
 function setConnBar(mode, text) {
 const bar = document.getElementById('conn-bar');
 bar.className = 'conn-bar ' + mode;
@@ -569,7 +540,7 @@ return 0;
 
 async function initApp() {
   setConnBar('connecting', 'Chargement...');
-  loadLS(); // Restaurer fermetures + joursOff depuis localStorage
+  loadLS(); // Restaurer joursOff depuis localStorage (pas les fermetures)
   try {
     const res = await fetch('https://docs.google.com/spreadsheets/d/e/2PACX-1vRoI_ySau7t8ZnVKYnTctBTGH49wQ2bIsKQ8_Y87QjpMfFdLcxiyLY_baKmSGtRRqhVau1wBrkIrNTP/pub?gid=175636692&single=true&output=csv');
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -598,8 +569,12 @@ async function initApp() {
     state.tranches = tranches;
     const total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
     setConnBar('connected', 'Google Sheets — ' + total + ' tranches');
-  
-    // Charger fermetures + joursOff depuis Apps Script
+
+    // ══════════════════════════════════════════════════════════
+    // FERMETURES : SOURCE UNIQUE = Google Sheets (feuille Fermetures)
+    // Toujours remplacer state.fermetures depuis Apps Script
+    // Ne jamais utiliser le localStorage pour les fermetures
+    // ══════════════════════════════════════════════════════════
     try {
       const rc = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
@@ -609,15 +584,14 @@ async function initApp() {
       const cal = await rc.json();
       if (cal.ok && cal.data) {
         const fermApps = (cal.data.fermetures||[])
-  .map(f => typeof f==='string'?{date:f,atelier:'all'}:f)
-  .map(f => ({...f, date: normalizeDate(String(f.date))||''}))
-  .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
-// Utiliser Apps Script seulement s'il a des données valides
-// sinon garder celles du localStorage déjà chargées
-state.fermetures = fermApps; // Remplacer TOUJOURS
+          .map(f => typeof f==='string'?{date:f,atelier:'all'}:f)
+          .map(f => ({...f, date: normalizeDate(String(f.date))||''}))
+          .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
+        state.fermetures = fermApps; // ← CORRECTION 1 : toujours remplacer
         if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
       }
     } catch(ce) { console.warn('Calendrier non chargé:', ce.message); }
+
     setSyncPill('ok', 'Synchronisé');
     render();
   } catch(e) {
@@ -631,25 +605,24 @@ async function initSupabase() { initApp(); }
 
 async function loadFromSupabase() {
 try {
-  // Charger fermetures + joursOff depuis Apps Script
-    if (!state.fermetures.length) {
-      try {
-        const rc = await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          headers: {'Content-Type': 'text/plain'},
-          body: JSON.stringify({action: 'getCalendrier'})
-        });
-        const cal = await rc.json();
-        if (cal.ok && cal.data) {
-          if (cal.data.fermetures?.length) state.fermetures = cal.data.fermetures
-  .map(f => typeof f==='string'?{date:f,atelier:'all'}:f)
-  .map(f => ({...f, date: normalizeDate(String(f.date))||''}))
-  .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
-          if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
-        }
-      } catch(ce) { console.warn('Calendrier non chargé:', ce.message); }
+  // Fermetures : toujours depuis Apps Script
+  try {
+    const rc = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'getCalendrier'})
+    });
+    const cal = await rc.json();
+    if (cal.ok && cal.data) {
+      const fermApps = (cal.data.fermetures||[])
+        .map(f => typeof f==='string'?{date:f,atelier:'all'}:f)
+        .map(f => ({...f, date: normalizeDate(String(f.date))||''}))
+        .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
+      state.fermetures = fermApps; // ← Toujours remplacer
+      if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
     }
-// Charger calendrier
+  } catch(ce) { console.warn('Calendrier non chargé:', ce.message); }
+
 const configs = await sbSelect('calendrier_config');
 if (configs && configs.length) {
 configs.forEach(c => { state.joursOff[c.atelier_id] = c.jours_off; });
@@ -658,7 +631,6 @@ const ferms = await sbSelect('fermetures');
 if (ferms && ferms.length) {
 state.fermetures = ferms.map(f => ({date: f.date_ferm, atelier: f.atelier_id}));
 }
-// Charger tranches — sans order pour éviter erreur si colonne manquante
 const tranches = await sbFetch('tranches?select=*');
 console.log('Tranches chargées depuis Supabase:', tranches ? tranches.length : 0);
 if (tranches && tranches.length) {
@@ -668,7 +640,6 @@ const atId = t.atelier_id;
 if (!state.tranches[atId]) state.tranches[atId] = [];
 state.tranches[atId].push(dbToTranche(t));
 });
-// Trier par ordre
 for (const atId in state.tranches) {
 state.tranches[atId].sort((a,b) => (a.ordre||0) - (b.ordre||0));
 }
@@ -721,19 +692,10 @@ if (t._dbId) obj.id = t._dbId;
 return obj;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  REALTIME (Supabase Realtime via WebSocket)
-// ═══════════════════════════════════════════════════════════════
 function subscribeRealtime() {
 if (!_sbConnected) return;
-// Polling léger toutes les 10s pour les utilisateurs en lecture
-// (Realtime complet nécessite la lib JS — on simule avec polling)
-
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  SAUVEGARDE DANS SUPABASE
-// ═══════════════════════════════════════════════════════════════
 async function saveToSupabase(atId) {
   saveLS();
   setSyncPill('saving', 'Enregistrement...');
@@ -749,7 +711,7 @@ async function saveToSupabase(atId) {
     }));
   }
   try {
-    const res = await fetch('https://script.google.com/macros/s/AKfycbzBtgzwODBl1DWD4iev3QU3ABirEptVX5E0wVrqWEU3Jq_gdsjERzBoIhBRVluX41c/exec', {
+    const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain'},
       body: JSON.stringify({action: 'saveTranches', tranches: allTranches, fermetures: state.fermetures, joursOff: state.joursOff})
@@ -769,15 +731,11 @@ if (!_sbConnected || IS_READONLY || !dbId) return;
 try { await sbDelete('tranches', dbId); } catch(e) { console.warn('Delete error:', e); }
 }
 
-// Debounce : attend 800ms d'inactivité avant de sauvegarder
 function scheduleSave(atId) {
 if (_saveTimeout) clearTimeout(_saveTimeout);
 _saveTimeout = setTimeout(() => saveToSheets(atId), 2000);
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  IMPORT DEPUIS LOCALSTORAGE VERS SUPABASE
-// ═══════════════════════════════════════════════════════════════
 async function importFromLocalStorage() {
 const resultEl = document.getElementById('import-ls-result');
 const saved = localStorage.getItem('planning_state');
@@ -819,13 +777,15 @@ el.style.color = 'var(--red)';
 }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  PERSISTENCE LOCALE (backup)
-// ═══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// CORRECTION 2 : saveLS() — NE PAS sauvegarder les fermetures
+// Les fermetures viennent uniquement de Google Sheets
+// ══════════════════════════════════════════════════════════════
 function saveLS() {
 try {
 localStorage.setItem('planning_state', JSON.stringify({
 tranches:state.tranches, joursOff:state.joursOff,
+// fermetures: volontairement absent - source unique = Google Sheets feuille Fermetures
 nextId:state.nextId, gsUrl:state.gsUrl,
 }));
 } catch(e) {}
@@ -837,7 +797,6 @@ function normalizeDate(s) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   const fr = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (fr) return `${fr[3]}-${fr[2].padStart(2,'0')}-${fr[1].padStart(2,'0')}`;
-  // Rejeter les dates JS mal formées (ex: "Tue Aug 21 1906...")
   if (/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/.test(s)) return null;
   if (/\d{4}-\d{2}-\d{2}T/.test(s)) return s.slice(0,10);
   const dt = new Date(s);
@@ -857,6 +816,10 @@ if (!t.tranche)                 t.tranche    = '(sans nom)';
 if (t.ordre === undefined)      t.ordre      = 0;
 }
 
+// ══════════════════════════════════════════════════════════════
+// CORRECTION 3 : loadLS() — NE PAS charger les fermetures
+// Les fermetures viennent uniquement de Google Sheets
+// ══════════════════════════════════════════════════════════════
 function loadLS() {
 try {
 const s = localStorage.getItem('planning_state');
@@ -864,14 +827,12 @@ if (!s) return;
 const saved = JSON.parse(s);
 // Tranches gérées par Google Sheets uniquement
 if (saved.joursOff)   state.joursOff   = saved.joursOff;
+// fermetures: volontairement absent - source unique = Google Sheets feuille Fermetures
 if (saved.nextId)     state.nextId     = saved.nextId;
 if (saved.gsUrl)      state.gsUrl      = saved.gsUrl;
 } catch(e) {}
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  DATE HELPERS
-// ═══════════════════════════════════════════════════════════════
 function today(){
   const n=new Date();
   return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
@@ -902,9 +863,6 @@ function diffDays(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
 function fmtDate(s){if(!s)return'—';const[y,m,d]=s.split('-');return`${d}/${m}/${y}`;}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-// ═══════════════════════════════════════════════════════════════
-//  CHAÎNAGE
-// ═══════════════════════════════════════════════════════════════
 function rechainAtelier(atId) {
 const all = state.tranches[atId];
 if (!all || !all.length) return;
@@ -937,9 +895,6 @@ return dt.toISOString().slice(0,10);
 }
 function rechainAll(){for(const at of ATELIERS)rechainAtelier(at.id);}
 
-// ═══════════════════════════════════════════════════════════════
-//  RENDER
-// ═══════════════════════════════════════════════════════════════
 function render() {
 if (IS_READONLY) {
 document.body.classList.add('readonly-mode');
@@ -1024,7 +979,6 @@ ${ATELIERS.map(a=>`<option value="${a.id}"${a.id===atId?' selected':''}>${a.labe
 </div>`;
 }
 
-// ── TABLE ──
 let _dragRow = null;
 function renderTable() {
 const atId=state.atelier;
@@ -1120,7 +1074,6 @@ scheduleSave(atId);
 render();
 }
 
-// ── GANTT ──
 function renderGantt(){
 try {
 const html=state.ganttShowAll?buildGanttAll():buildGanttSingle(state.atelier);
@@ -1277,7 +1230,6 @@ for(const at of ATELIERS){
 let tr=[...(state.tranches[at.id]||[])].sort((a,b)=>a.ordre-b.ordre);
 const totalTr=tr.length;
 if(_ganttCondense) {
-// Afficher les 3 prochaines tranches actives ou à venir
 const todayStr = today();
 const actives = tr.filter(t => dateFin(t, at.id) >= todayStr);
 tr = actives.slice(0, 3);
@@ -1357,7 +1309,6 @@ function hideGanttCursor(uid){['col','head','tip'].forEach(p=>{const el=document
 function onGanttKey(e,uid){const body=document.getElementById(`gantt-wrap-${uid}`);if(!body)return;if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','PageUp','PageDown','Home','End'].includes(e.key)){e.preventDefault();e.stopPropagation();if(e.key==='ArrowLeft')body.scrollLeft-=(e.shiftKey?7:1)*COL;if(e.key==='ArrowRight')body.scrollLeft+=(e.shiftKey?7:1)*COL;if(e.key==='PageUp')body.scrollTop-=body.clientHeight*.8;if(e.key==='PageDown')body.scrollTop+=body.clientHeight*.8;if(e.key==='Home')body.scrollLeft=0;if(e.key==='End')body.scrollLeft=body.scrollWidth;}}
 function keepGanttPos(){if(state.view==='gantt'){const body=_ganttBody();if(body)_ganttScroll={left:body.scrollLeft,top:body.scrollTop};}}
 
-// ── GANTT DRAG ──
 function onBarDown(e,atId,tId){
 if(IS_READONLY||e.button!==0)return;e.preventDefault();e.stopPropagation();
 const bar=document.getElementById(`gbar-${atId}-${tId}`);if(!bar)return;
@@ -1390,11 +1341,11 @@ else{tranches.forEach((x,i)=>{x.ordre=x.ordre||i+1;});}
 scheduleSave(atId);render();
 }
 
-// ── ACTIONS ──
 function setView(v){state.view=v;document.getElementById('vbtn-table').classList.toggle('active',v==='table');document.getElementById('vbtn-gantt').classList.toggle('active',v==='gantt');render();}
 function setAtelier(id){state.atelier=id;state.ganttShowAll=false;_tableSearch='';render();}
 function setGanttAll(b){state.ganttShowAll=b;render();}
 function toggleJour(atId,i){const off=state.joursOff[atId]||[];state.joursOff[atId]=off.includes(i)?off.filter(x=>x!==i):[...off,i];scheduleSave(atId);render();}
+
 function addFermeture(){
   if(!state.joursOpen){state.joursOpen=true;renderJoursPanel();}
   const dEl=document.getElementById('ferm-date-input');
@@ -1460,7 +1411,6 @@ else if(flag==='parallel'){t.parallel=!t.parallel;if(t.parallel){t.lockDebut=fal
 rechainAtelier(atId);keepGanttPos();scheduleSave(atId);render();
 }
 
-// ── MODALS ──
 function toggleLockDebutUI(){const c=document.getElementById('f-lockDebut').checked;if(c){document.getElementById('f-lockFin').checked=false;toggleLockFinUI();}}
 function toggleLockFinUI(){const c=document.getElementById('f-lockFin').checked;document.getElementById('f-lockFinDate-group').style.display=c?'block':'none';if(c)document.getElementById('f-lockDebut').checked=false;}
 
@@ -1534,7 +1484,6 @@ rechainAtelier(newAtId);state.atelier=newAtId;
 closeModal();keepGanttPos();scheduleSave(newAtId);render();
 }
 
-// ── CSV ──
 function exportCSV(){
 const atId=state.atelier;const tr=[...state.tranches[atId]].sort((a,b)=>a.ordre-b.ordre);
 let csv='ordre;tranche;commentaire;date_debut;date_fin;duree;date_besoin_ctvx\n';
@@ -1559,7 +1508,6 @@ for(const atId in data.tranches)(data.tranches[atId]||[]).forEach(normalizeTranc
 state.tranches=data.tranches;state.joursOff=data.joursOff||state.joursOff;
 state.fermetures=(data.fermetures||[]).map(f=>typeof f==='string'?{date:f,atelier:'all'}:f);
 state.nextId=data.nextId||state.nextId;
-// Uploader vers Supabase
 for(const atId in state.tranches)scheduleSave(atId);
 render();alert('✓ Sauvegarde restaurée et envoyée vers Supabase.');
 }catch(err){alert('Erreur : '+err.message);}
@@ -1573,7 +1521,6 @@ const blob=new Blob(['\uFEFF'+data],{type:mime+';charset=utf-8'});
 const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
 }
 
-// ── SYNC CSV ──
 function openSyncModal(){
 document.getElementById('supabase-status-detail').textContent='Cliquez "Tester la connexion" pour vérifier.';
 document.getElementById('supabase-status-detail').style.background='';
@@ -1624,7 +1571,6 @@ resultEl.innerHTML='<div class="info-box">⟳ Import en cours…</div>';
 const reader=new FileReader();
 reader.onload=e=>{
 try{
-// Import simplifié — colonnes auto-détectées
 const lines=e.target.result.split('\n').filter(l=>l.trim());
 const sep=lines[0].includes(';')?';':',';
 const headers=lines[0].split(sep).map(h=>h.trim().toLowerCase());
@@ -1650,7 +1596,6 @@ resultEl.innerHTML=`<div class="info-box" style="background:var(--green-bg);bord
 reader.readAsText(file,'UTF-8');
 }
 
-// ── CHARGE ──
 function openChargeModal(){
 const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1));
 document.getElementById('charge-debut').value=d.toISOString().slice(0,10);
@@ -1668,7 +1613,6 @@ const semaines=[];let curSem=new Date(debutStr);
 while(curSem<=finDt){
 const sd=curSem.toISOString().slice(0,10);const efDt=new Date(curSem);efDt.setDate(efDt.getDate()+6);
 const ef=efDt<=finDt?efDt.toISOString().slice(0,10):finStr;
-const moisNom=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][curSem.getMonth()];
 semaines.push({debut:sd,fin:ef,wn:getWeekNum(curSem),short:`S${getWeekNum(curSem)} · du ${fmtDate(sd)} au ${fmtDate(ef)}`});
 curSem.setDate(curSem.getDate()+7);
 }
@@ -1711,11 +1655,6 @@ html+=`<div class="ch-stat-row"><div class="ch-stat"><b>${joursOccupes.size}</b>
 }
 document.getElementById('charge-content').innerHTML=html;
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  INIT
-// ═══════════════════════════════════════════════════════════════
-// ═══ DONNÉES INTÉGRÉES (sauvegarde du 2026-05-11) ═══
 
 setTimeout(initApp, 100);
 
