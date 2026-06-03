@@ -571,9 +571,8 @@ async function initApp() {
     setConnBar('connected', 'Google Sheets — ' + total + ' tranches');
 
     // ══════════════════════════════════════════════════════════
-    // FERMETURES : SOURCE UNIQUE = Google Sheets (feuille Fermetures)
-    // Toujours remplacer state.fermetures depuis Apps Script
-    // Ne jamais utiliser le localStorage pour les fermetures
+    // FERMETURES : Google Sheets = source principale
+    // Fallback localStorage si Sheets inaccessible
     // ══════════════════════════════════════════════════════════
     try {
       const rc = await fetch(APPS_SCRIPT_URL, {
@@ -587,10 +586,26 @@ async function initApp() {
           .map(f => typeof f==='string'?{date:f,atelier:'all'}:f)
           .map(f => ({...f, date: normalizeDate(String(f.date))||''}))
           .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
-        state.fermetures = fermApps; // ← CORRECTION 1 : toujours remplacer
+        state.fermetures = fermApps;
         if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
+        // Mettre en cache dans localStorage après réception réussie
+        try { localStorage.setItem('fermetures_cache', JSON.stringify(fermApps)); } catch(e) {}
       }
-    } catch(ce) { console.warn('Calendrier non chargé:', ce.message); }
+    } catch(ce) {
+      console.warn('Calendrier non chargé:', ce.message);
+      // Fallback : recharger depuis le cache localStorage
+      try {
+        const cached = localStorage.getItem('fermetures_cache');
+        if (cached) {
+          const fermCached = JSON.parse(cached)
+            .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
+          if (fermCached.length) {
+            state.fermetures = fermCached;
+            console.log('Fermetures rechargées depuis cache:', fermCached.length);
+          }
+        }
+      } catch(e) {}
+    }
 
     setSyncPill('ok', 'Synchronisé');
     render();
@@ -605,7 +620,7 @@ async function initSupabase() { initApp(); }
 
 async function loadFromSupabase() {
 try {
-  // Fermetures : toujours depuis Apps Script
+  // Fermetures : Google Sheets prioritaire, fallback cache
   try {
     const rc = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
@@ -618,10 +633,17 @@ try {
         .map(f => typeof f==='string'?{date:f,atelier:'all'}:f)
         .map(f => ({...f, date: normalizeDate(String(f.date))||''}))
         .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
-      state.fermetures = fermApps; // ← Toujours remplacer
+      state.fermetures = fermApps;
       if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
+      try { localStorage.setItem('fermetures_cache', JSON.stringify(fermApps)); } catch(e) {}
     }
-  } catch(ce) { console.warn('Calendrier non chargé:', ce.message); }
+  } catch(ce) {
+    console.warn('Calendrier non chargé:', ce.message);
+    try {
+      const cached = localStorage.getItem('fermetures_cache');
+      if (cached) state.fermetures = JSON.parse(cached).filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
+    } catch(e) {}
+  }
 
 const configs = await sbSelect('calendrier_config');
 if (configs && configs.length) {
@@ -785,9 +807,12 @@ function saveLS() {
 try {
 localStorage.setItem('planning_state', JSON.stringify({
 tranches:state.tranches, joursOff:state.joursOff,
-// fermetures: volontairement absent - source unique = Google Sheets feuille Fermetures
 nextId:state.nextId, gsUrl:state.gsUrl,
 }));
+// Mettre à jour le cache fermetures séparément
+if (state.fermetures && state.fermetures.length) {
+  localStorage.setItem('fermetures_cache', JSON.stringify(state.fermetures));
+}
 } catch(e) {}
 }
 
