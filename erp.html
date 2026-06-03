@@ -1757,9 +1757,13 @@ function renderEmployes(){
   const nbInterim = employes.filter(e=>e.statut==='interim').length;
   const today = new Date().toISOString().slice(0,10);
 
-  let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+  let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
     <span style="font-size:13px;color:var(--text2)">${employes.length} employés — <b>${nbCDI}</b> CDI · <b>${nbInterim}</b> Intérim</span>
     <button class="btn btn-primary" style="margin-left:auto" onclick="openAddEmploye()">+ Employé</button>
+  </div>
+  <div style="background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--blue);margin-bottom:14px">
+    💾 Les données (employés + heures) sont sauvegardées dans <strong>Google Sheets</strong> (feuilles ERP_Employes et ERP_Heures) et en local dans votre navigateur. 
+    Pour modifier une saisie, cliquez ✎ sur l'employé dans "Saisie semaine".
   </div>`;
 
   if(!employes.length){
@@ -1889,12 +1893,13 @@ function renderSaisieHebdo(){
   const semaines = getSemainesDisponibles();
   const semSel = state._semHeure || semaines[0]?.val || getWeekISO(new Date());
 
-  let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-    <label style="font-size:12px;font-weight:600;color:var(--text2)">Semaine</label>
+  let html = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+    <button class="btn btn-sm" onclick="saisieNavSem(-1)" title="Semaine précédente">◀</button>
     <select id="sem-sel" style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px" onchange="state._semHeure=this.value;renderSaisieHebdo()">
       ${semaines.map(s=>`<option value="${s.val}"${s.val===semSel?' selected':''}>${s.label}</option>`).join('')}
     </select>
-    <button class="btn" onclick="addSemaineHeures()">+ Semaine</button>
+    <button class="btn btn-sm" onclick="saisieNavSem(1)" title="Semaine suivante">▶</button>
+    <button class="btn btn-sm" style="background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)" onclick="state._semHeure=getWeekISO(new Date());renderSaisieHebdo()">Auj.</button>
   </div>`;
 
   if(!employes.length){
@@ -1958,9 +1963,9 @@ function getWeekISO(date){
 
 function getSemainesDisponibles(){
   const sems = new Set((state.heures||[]).map(h=>h.semaine));
-  // Ajouter les 4 dernières semaines + 2 prochaines
+  // Ajouter les 8 dernières semaines + 26 prochaines (6 mois)
   const now = new Date();
-  for(let i=-4;i<=2;i++){
+  for(let i=-8;i<=26;i++){
     const d = new Date(now);
     d.setDate(d.getDate()+i*7);
     sems.add(getWeekISO(d));
@@ -1977,6 +1982,16 @@ function addSemaineHeures(){
   const yr = new Date().getFullYear();
   const sem = `${yr}-S${String(parseInt(val)).padStart(2,'0')}`;
   state._semHeure = sem;
+  renderSaisieHebdo();
+}
+
+function saisieNavSem(delta){
+  const semaines = getSemainesDisponibles();
+  const cur = state._semHeure || semaines[0]?.val || getWeekISO(new Date());
+  const [yr, sw] = cur.split('-S');
+  const lundi = getLundiFromSemaine(parseInt(yr), parseInt(sw));
+  lundi.setDate(lundi.getDate() + delta*7);
+  state._semHeure = getWeekISO(lundi);
   renderSaisieHebdo();
 }
 
@@ -2511,18 +2526,17 @@ function exportPDFInterim(empId, semaine){
   const lundi = new Date(jan4);
   lundi.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(wn-1)*7);
 
-  const win = window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html><head>
+  // Générer le HTML dans un Blob pour éviter les bloqueurs de popups
+  const htmlContent = `<!DOCTYPE html><html><head>
     <meta charset="UTF-8">
     <title>Relevé heures — ${emp.nom} ${emp.prenom} — S${sw}</title>
     <style>
       body{font-family:Arial,sans-serif;font-size:12px;margin:30px;color:#222}
       .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
-      .logo-placeholder{width:80px;height:60px;border:2px solid #1A4F8A;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#1A4F8A;text-align:center}
+      .logo-placeholder{width:80px;height:60px;border:2px solid #1A4F8A;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#1A4F8A;text-align:center;padding:4px}
       .title{text-align:center;font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
       .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;background:#f5f5f5;padding:12px;border-radius:6px}
-      .info-row{font-size:11px}
-      .info-label{font-weight:700;color:#555}
+      .info-row{font-size:11px}.info-label{font-weight:700;color:#555}
       table{width:100%;border-collapse:collapse;margin-bottom:20px}
       th{background:#1A4F8A;color:#fff;padding:7px 10px;text-align:left;font-size:11px}
       td{padding:7px 10px;border-bottom:1px solid #ddd;font-size:12px}
@@ -2531,7 +2545,7 @@ function exportPDFInterim(empId, semaine){
       .signature{margin-top:30px;display:flex;justify-content:space-between}
       .sig-block{text-align:center;width:200px}
       .sig-line{border-top:1px solid #333;margin-top:40px;padding-top:5px;font-size:11px}
-      @media print{body{margin:15px}}
+      @media print{body{margin:15px}button{display:none}}
     </style>
   </head><body>
     <div class="header">
@@ -2549,24 +2563,18 @@ function exportPDFInterim(empId, semaine){
       <div class="info-row"><span class="info-label">Période :</span> du ${String(lundi.getDate()).padStart(2,'0')}/${String(lundi.getMonth()+1).padStart(2,'0')} au ${String(new Date(lundi.getTime()+4*86400000).getDate()).padStart(2,'0')}/${String(new Date(lundi.getTime()+4*86400000).getMonth()+1).padStart(2,'0')}/${yr}</div>
     </div>
     <table>
-      <thead><tr><th>Jour</th><th>Date</th><th>H Matin</th><th>H Après-midi</th><th>Total</th><th>Commentaire</th></tr></thead>
+      <thead><tr><th>Jour</th><th>Date</th><th>H Matin</th><th>H Après-midi</th><th>Total</th><th>Chantier(s)</th></tr></thead>
       <tbody>
         ${JOURS_SEMAINE.map((j,i)=>{
           const d = new Date(lundi.getTime()+i*86400000);
-          const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${yr}`;
+          const dateStr = String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+yr;
           const l = lignes.find(x=>x.jour===j);
           const hMat = l?.h_mat||0;
           const hAm = l?.h_am||0;
           const total = hMat+hAm;
           const abs = l?.absent||'';
-          return `<tr>
-            <td><strong>${j}</strong></td>
-            <td>${dateStr}</td>
-            <td style="text-align:center">${abs?abs:(hMat>0?hMat+'h':'—')}</td>
-            <td style="text-align:center">${abs?'':(hAm>0?hAm+'h':'—')}</td>
-            <td style="text-align:center;font-weight:600">${abs?abs:(total>0?total+'h':'—')}</td>
-            <td>${l?.chantier1||''} ${l?.chantier2?'/ '+l.chantier2:''}</td>
-          </tr>`;
+          const chantiers = [l?.chantier1,l?.chantier2].filter(Boolean).join(' / ');
+          return '<tr><td><strong>'+j+'</strong></td><td>'+dateStr+'</td><td style="text-align:center">'+(abs?abs:(hMat>0?hMat+'h':'—'))+'</td><td style="text-align:center">'+(abs?'':(hAm>0?hAm+'h':'—'))+'</td><td style="text-align:center;font-weight:600">'+(abs?abs:(total>0?total+'h':'—'))+'</td><td>'+chantiers+'</td></tr>';
         }).join('')}
         <tr class="total-row">
           <td colspan="4" style="text-align:right;padding-right:20px">TOTAL HEBDOMADAIRE :</td>
@@ -2579,10 +2587,24 @@ function exportPDFInterim(empId, semaine){
       <div class="sig-block"><div class="sig-line">Cachet et signature agence</div></div>
       <div class="sig-block"><div class="sig-line">Signature Rousseau Construction</div></div>
     </div>
-  </body></html>`);
-  win.document.close();
-  setTimeout(()=>win.print(), 500);
-}
+    <div style="text-align:center;margin-top:20px">
+      <button onclick="window.print()" style="padding:10px 24px;background:#1A4F8A;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer">🖨 Imprimer / Enregistrer PDF</button>
+    </div>
+  </body></html>`;
+
+  const blob = new Blob([htmlContent], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if(!win) {
+    // Si popup bloqué, créer un lien de téléchargement
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'releve_heures_'+emp.nom+'_'+emp.prenom+'_S'+sw+'.html';
+    a.click();
+    toast('PDF généré — ouvrez le fichier téléchargé et imprimez');
+  } else {
+    setTimeout(()=>{ URL.revokeObjectURL(url); }, 10000);
+  }
 
 
 
