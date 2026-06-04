@@ -1924,14 +1924,22 @@ function renderSaisieHebdo(){
 
   employes.forEach(emp=>{
     const lignes = heuresSem.filter(h=>h.emp_id===emp.id);
-    const totalH = lignes.reduce((s,l)=>s+(+l.total_hebdo||0),0);
+    // Total hebdo = somme de tous les h_mat+h_am (pas total_hebdo qui peut être partiel)
+    const totalH = Math.round(lignes.reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0),0)*10)/10;
     const badge = emp.statut==='CDI'?'emp-badge-cdi':emp.statut==='interim'?'emp-badge-interim':'emp-badge-cdd';
 
-    // Résumé par jour
+    // Résumé par jour — sommer TOUTES les lignes du jour (un par chantier)
     const parJour = {};
     JOURS_SEMAINE.forEach(j=>{
-      const h = lignes.find(l=>l.jour===j);
-      parJour[j] = h ? (h.h_mat+h.h_am).toFixed(1)+'h' : '—';
+      const lignesJour = lignes.filter(l=>l.jour===j);
+      if(!lignesJour.length){ parJour[j]='—'; return; }
+      // Vérifier si absence
+      const abs = lignesJour.find(l=>l.absent);
+      if(abs && !lignesJour.some(l=>(+l.h_mat||0)+(+l.h_am||0)>0)){
+        parJour[j] = abs.absent; return;
+      }
+      const total = lignesJour.reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0),0);
+      parJour[j] = total>0 ? total.toFixed(1)+'h' : (abs?abs.absent:'—');
     });
 
     html += `<tr style="border-bottom:1px solid var(--border)">
@@ -2368,7 +2376,99 @@ function editCellPlanning(empId, semaine, jour){
     (emp ? emp.nom+' '+emp.prenom : '') + ' — ' + jour + ' (' + semaine + ')';
 
   document.getElementById('modal-presence').classList.add('show');
-  setTimeout(()=>document.getElementById('modal-presence-horaire').focus(), 100);
+  setTimeout(()=>{
+    document.getElementById('modal-presence-horaire').focus();
+    initRepJours(jour);
+  }, 100);
+}
+
+function toggleRepJours(val){
+  ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'].forEach(j=>{
+    const el = document.getElementById('rep-'+j);
+    if(el) el.checked = val;
+  });
+}
+
+// Cocher le jour courant par défaut quand on ouvre le modal
+function initRepJours(jour){
+  ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'].forEach(j=>{
+    const el = document.getElementById('rep-'+j);
+    if(el) el.checked = (j===jour);
+  });
+  const nbEl = document.getElementById('rep-nb-semaines');
+  if(nbEl) nbEl.value = 1;
+}
+
+function saveCellPlanningMulti(){
+  const empId = _cellEmpId;
+  const semaine = _cellSemaine;
+  const jour = _cellJour;
+  if(!empId) return;
+
+  const horaire = (document.getElementById('modal-presence-horaire')?.value||'').trim();
+  const absent  = document.getElementById('modal-presence-absent')?.value||'';
+  const atelier = document.getElementById('modal-presence-atelier')?.value||'B2';
+  const comment = (document.getElementById('modal-presence-comment')?.value||'').trim();
+  const nbSem   = Math.max(1, parseInt(document.getElementById('rep-nb-semaines')?.value)||1);
+
+  // Jours cochés
+  const joursCibles = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'].filter(j=>{
+    const el = document.getElementById('rep-'+j);
+    return el?.checked;
+  });
+  if(!joursCibles.length) joursCibles.push(jour); // fallback : jour courant
+
+  if(!state.heures) state.heures = [];
+
+  // Calculer les heures nettes
+  let hTotal = 0;
+  if(horaire){
+    const m = horaire.replace(/\s/g,'').match(/^(\d+)h(\d*)[-:](\d+)h(\d*)$/);
+    if(m){
+      const debut = parseInt(m[1])+(parseInt(m[2]||0)/60);
+      const fin   = parseInt(m[3])+(parseInt(m[4]||0)/60);
+      const pause = (state.pauseConfig||{})[atelier]||0;
+      hTotal = Math.max(0, Math.round((fin-debut-pause)*100)/100);
+    }
+  }
+
+  // Calculer les semaines cibles
+  const [yr0, sw0] = semaine.split('-S');
+  const semaines = [];
+  for(let s=0; s<nbSem; s++){
+    const lundi = getLundiFromSemaine(parseInt(yr0), parseInt(sw0));
+    lundi.setDate(lundi.getDate() + s*7);
+    semaines.push(getWeekISO(lundi));
+  }
+
+  // Appliquer sur chaque semaine × chaque jour coché
+  let count = 0;
+  semaines.forEach(sem=>{
+    joursCibles.forEach(j=>{
+      // Supprimer l'entrée existante
+      state.heures = state.heures.filter(h=>
+        !(h.emp_id===empId && h.semaine===sem && h.jour===j && (h.type_saisie==='presence'||h.horaire))
+      );
+      if(horaire||absent){
+        const emp = (state.employes||[]).find(e=>e.id===empId);
+        state.heures.push({
+          id: uid(), emp_id: empId, semaine: sem, jour: j,
+          atelier, horaire, absent, h_mat: hTotal, h_am: 0,
+          total_hebdo: hTotal, chantier1: '', chantier2: '',
+          statut: emp?.statut||'CDI', type_saisie: 'presence', comment
+        });
+        count++;
+      }
+    });
+  });
+
+  closeModal('modal-presence');
+  state._semHeure = semaine;
+  _cellJour = null;
+  scheduleSave();
+  if(_macroMode){ _macroMode=false; renderVueMacro(); }
+  else renderPlanningRessources();
+  toast(`✓ ${count} saisie${count>1?'s':''} enregistrée${count>1?'s':''}`);
 }
 
 function clearCellPlanning(){
@@ -2860,7 +2960,10 @@ function openMacroCell(empId, semaine, jour){
   _cellJour = jour;
   _macroMode = true;
   document.getElementById('modal-presence').classList.add('show');
-  setTimeout(()=>document.getElementById('modal-presence-horaire').focus(), 100);
+  setTimeout(()=>{
+    document.getElementById('modal-presence-horaire').focus();
+    initRepJours(jour);
+  }, 100);
 }
 
 let _macroMode = false;
@@ -3518,20 +3621,36 @@ init();
   </div>
 </div>
 
-<!-- MODAL PRESENCE v2 -->
+<!-- MODAL PRESENCE v3 -->
 <div class="modal-bg" id="modal-presence" onclick="if(event.target===this)closeModal('modal-presence')">
-  <div class="modal" style="width:360px">
+  <div class="modal" style="width:420px">
     <h2 id="modal-presence-title" style="font-size:14px;margin-bottom:16px"></h2>
-    <div class="field" style="margin-bottom:12px">
+
+    <!-- Horaires + raccourci -->
+    <div class="field" style="margin-bottom:10px">
       <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Horaires</label>
-      <input type="text" id="modal-presence-horaire" placeholder="Ex: 7h00-16h15"
-        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:'DM Mono',monospace;font-size:14px;text-align:center"
-        onkeydown="if(event.key==='Enter')saveCellPlanning()"/>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="text" id="modal-presence-horaire" placeholder="Ex: 7h00-16h15"
+          style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:'DM Mono',monospace;font-size:14px;text-align:center"
+          onkeydown="if(event.key==='Enter')saveCellPlanning()"/>
+      </div>
+      <!-- Horaires rapides -->
+      <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap">
+        <span style="font-size:10px;color:var(--text3);align-self:center">Rapide :</span>
+        <button onclick="document.getElementById('modal-presence-horaire').value='7h00-16h15'" 
+          style="font-size:10px;padding:2px 7px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;font-family:'DM Mono',monospace">7h00-16h15</button>
+        <button onclick="document.getElementById('modal-presence-horaire').value='7h00-12h00'" 
+          style="font-size:10px;padding:2px 7px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;font-family:'DM Mono',monospace">7h00-12h00</button>
+        <button onclick="document.getElementById('modal-presence-horaire').value='13h00-16h15'" 
+          style="font-size:10px;padding:2px 7px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;font-family:'DM Mono',monospace">13h00-16h15</button>
+      </div>
     </div>
-    <div class="field" style="margin-bottom:12px">
+
+    <!-- Atelier -->
+    <div class="field" style="margin-bottom:10px">
       <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Atelier</label>
       <select id="modal-presence-atelier"
-        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px">
+        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px">
         <option value="B1">Charpente B1</option>
         <option value="B2">MOB B2</option>
         <option value="Men">Menuiserie</option>
@@ -3540,10 +3659,12 @@ init();
         <option value="Us">Usinage</option>
       </select>
     </div>
-    <div class="field" style="margin-bottom:16px">
+
+    <!-- Absence -->
+    <div class="field" style="margin-bottom:10px">
       <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Absence</label>
       <select id="modal-presence-absent"
-        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px">
+        style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px">
         <option value="">Présent</option>
         <option value="Absent">Absent</option>
         <option value="RTT">RTT</option>
@@ -3553,17 +3674,44 @@ init();
         <option value="Visite médicale">Visite médicale</option>
       </select>
     </div>
-    <div class="field" style="margin-bottom:16px">
+
+    <!-- Commentaire -->
+    <div class="field" style="margin-bottom:12px">
       <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Commentaire</label>
-      <input type="text" id="modal-presence-comment" placeholder="Ex: Visite médicale 8h45, départ anticipé..."
+      <input type="text" id="modal-presence-comment" placeholder="Ex: Visite médicale 8h45..."
         style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"
-        maxlength="80"
-        onkeydown="if(event.key==='Enter')saveCellPlanning()"/>
+        maxlength="80" onkeydown="if(event.key==='Enter')saveCellPlanning()"/>
     </div>
+
+    <!-- Répéter sur plusieurs jours / semaines -->
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">⚡ Appliquer sur plusieurs jours</div>
+      
+      <!-- Sélection jours de la semaine en cours -->
+      <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
+        <span style="font-size:10px;color:var(--text3);align-self:center;width:100%">Cette semaine :</span>
+        ${['Lundi','Mardi','Mercredi','Jeudi','Vendredi'].map(j=>`
+        <label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer">
+          <input type="checkbox" id="rep-${j}" class="rep-jour" style="width:auto"/>
+          ${j.slice(0,3)}
+        </label>`).join('')}
+        <button onclick="toggleRepJours(true)" style="font-size:10px;padding:1px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;margin-left:4px">Tous</button>
+        <button onclick="toggleRepJours(false)" style="font-size:10px;padding:1px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer">Aucun</button>
+      </div>
+
+      <!-- Répéter sur N semaines -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--text2)">Répéter sur</span>
+        <input type="number" id="rep-nb-semaines" value="1" min="1" max="26" 
+          style="width:55px;padding:4px 7px;border:1px solid var(--border);border-radius:6px;font-family:'DM Mono',monospace;font-size:12px;text-align:center"/>
+        <span style="font-size:11px;color:var(--text2)">semaine(s) à partir de la semaine en cours</span>
+      </div>
+    </div>
+
     <div class="modal-footer">
       <button class="btn btn-red btn-sm" onclick="clearCellPlanning()" style="margin-right:auto">Effacer</button>
       <button class="btn" onclick="closeModal('modal-presence')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveCellPlanning()">Enregistrer</button>
+      <button class="btn btn-primary" onclick="saveCellPlanningMulti()">Enregistrer</button>
     </div>
   </div>
 </div>
