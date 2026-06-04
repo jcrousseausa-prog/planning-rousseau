@@ -372,6 +372,7 @@ table.bl-lignes td.r{text-align:right}
           <option value="B3">Atelier B3</option>
           <option value="Men">Atelier Men</option>
           <option value="Log">Logistique</option>
+          <option value="Us">Usinage</option>
         </select>
       </div>
     </div>
@@ -1043,6 +1044,7 @@ const INIT_DATA =
 let state = {
   chantiers:[],tranches:[],phases:[],articles:[],
   cdes:[],stock:[],bls:[],retours:[],interim:[],employes:[],heures:[],
+  pauseConfig:{B1:0.75,B2:0.75,B3:0.75,Men:0.75,Log:0,Us:0},
 };
 let _ctx = {};
 let _search = '';
@@ -1729,7 +1731,7 @@ function toast(msg){
 
 // ═══ MODULE HEURES ════════════════════════════════════════════════════════
 
-const ATELIERS_H = ['B1','B2','B3','Men','Log'];
+const ATELIERS_H = ['B1','B2','B3','Men','Log','Us'];
 const JOURS_SEMAINE = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
 
 // ── SOUS-ONGLETS ──
@@ -2264,7 +2266,8 @@ function renderPlanningRessources(){
       ${semaines.map(s=>`<option value="${s.val}"${s.val===semSel?' selected':''}>${s.label}</option>`).join('')}
     </select>
     <button class="btn btn-primary" onclick="window.print()">🖨 Imprimer</button>
-    <span style="font-size:11px;color:var(--text3);margin-left:8px">Double-cliquez sur une cellule pour saisir les horaires</span>
+    <button class="btn" onclick="openPauseConfig()" title="Configurer les pauses par atelier">⚙ Pauses</button>
+    <span style="font-size:11px;color:var(--text3);margin-left:8px">Cliquez pour saisir les horaires</span>
   </div>`;
 
   // En-tête imprimable
@@ -2297,7 +2300,7 @@ function renderPlanningRessources(){
     });
     if(!emps.length) return;
 
-    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Atelier Men':'Logistique';
+    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Atelier Men':at==='Log'?'Logistique':'Usinage';
     html += `<tr><td colspan="8" style="background:#2C5F8A;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:5px 12px;border:1px solid rgba(255,255,255,.2)">${atLabel}</td></tr>`;
 
     emps.forEach((emp,idx)=>{
@@ -2398,14 +2401,16 @@ function saveCellPlanning(){
     !(h.emp_id===empId && h.semaine===semaine && h.jour===jour && (h.type_saisie==='presence' || h.horaire))
   );
 
-  // Calculer les heures depuis "7h00-16h15"
+  // Calculer les heures depuis "7h00-16h15" en déduisant la pause
   let hTotal = 0;
   if(horaire){
     const m = horaire.replace(/\s/g,'').match(/^(\d+)h(\d*)[-:](\d+)h(\d*)$/);
     if(m){
       const debut = parseInt(m[1])+(parseInt(m[2]||0)/60);
       const fin   = parseInt(m[3])+(parseInt(m[4]||0)/60);
-      hTotal = Math.max(0, Math.round((fin-debut)*100)/100);
+      const atelierPause = document.getElementById('modal-presence-atelier')?.value||'B2';
+      const pause = (state.pauseConfig||{})[atelierPause]||0;
+      hTotal = Math.max(0, Math.round((fin-debut-pause)*100)/100);
     }
   }
 
@@ -2439,6 +2444,47 @@ function saveCellPlanning(){
   else renderPlanningRessources();
 }
 
+
+// ── CONFIG PAUSES PAR ATELIER ──
+function openPauseConfig(){
+  if(!state.pauseConfig) state.pauseConfig = {B1:0.75,B2:0.75,B3:0.75,Men:0.75,Log:0,Us:0};
+  const cfg = state.pauseConfig;
+  const atelierLabels = {B1:'Charpente B1',B2:'MOB B2',B3:'Atelier B3',Men:'Menuiserie',Log:'Logistique',Us:'Usinage'};
+  document.getElementById('modal-pause-body').innerHTML = `
+    <div class="info-box" style="margin-bottom:12px">La pause est déduite automatiquement du calcul des heures nettes lors de la saisie des horaires (ex: 7h00-16h15 - 0h45 = 8h30).</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr>
+        <th style="padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase">Atelier</th>
+        <th style="padding:7px 10px;text-align:center;border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase">Pause (heures)</th>
+        <th style="padding:7px 10px;text-align:center;border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase">Affichage</th>
+      </tr></thead>
+      <tbody>
+        ${ATELIERS_H.map(at=>`<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px 10px;font-weight:600">${atelierLabels[at]||at}</td>
+          <td style="padding:6px 10px;text-align:center">
+            <input type="number" id="pause-${at}" value="${cfg[at]||0}" 
+              min="0" max="2" step="0.25"
+              style="width:80px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;text-align:center;font-family:'DM Mono',monospace;font-size:13px"/>
+          </td>
+          <td style="padding:8px 10px;text-align:center;font-size:12px;color:var(--text2)">
+            ${(cfg[at]||0)===0?'Pas de pause':`${Math.floor((cfg[at]||0)*60)} min`}
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  document.getElementById('modal-pause').classList.add('show');
+}
+
+function savePauseConfig(){
+  if(!state.pauseConfig) state.pauseConfig = {};
+  ATELIERS_H.forEach(at=>{
+    const val = parseFloat(document.getElementById('pause-'+at)?.value)||0;
+    state.pauseConfig[at] = val;
+  });
+  closeModal('modal-pause');
+  scheduleSave();
+  toast('Pauses enregistrées');
+}
 
 // ── RÉCAP HEURES PAR CHANTIER ──
 function renderRecapHeures(){
@@ -2694,7 +2740,7 @@ function renderVueMacro(){
   ATELIERS_H.forEach(at=>{
     const empsAt = employes.filter(e=>e.atelier===at);
     if(!empsAt.length) return;
-    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Menuiserie':'Logistique';
+    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Menuiserie':at==='Log'?'Logistique':'Usinage';
     const totalCols = 1 + semaines.length * 5;
 
     html += `<tr>
@@ -3491,6 +3537,7 @@ init();
         <option value="Men">Menuiserie</option>
         <option value="B3">Atelier B3</option>
         <option value="Log">Logistique</option>
+        <option value="Us">Usinage</option>
       </select>
     </div>
     <div class="field" style="margin-bottom:16px">
@@ -3517,6 +3564,18 @@ init();
       <button class="btn btn-red btn-sm" onclick="clearCellPlanning()" style="margin-right:auto">Effacer</button>
       <button class="btn" onclick="closeModal('modal-presence')">Annuler</button>
       <button class="btn btn-primary" onclick="saveCellPlanning()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PAUSE CONFIG -->
+<div class="modal-bg" id="modal-pause" onclick="if(event.target===this)closeModal('modal-pause')">
+  <div class="modal" style="width:460px">
+    <h2>⚙ Pauses par atelier</h2>
+    <div id="modal-pause-body"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-pause')">Annuler</button>
+      <button class="btn btn-primary" onclick="savePauseConfig()">Enregistrer</button>
     </div>
   </div>
 </div>
