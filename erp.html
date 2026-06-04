@@ -1045,6 +1045,7 @@ let state = {
   chantiers:[],tranches:[],phases:[],articles:[],
   cdes:[],stock:[],bls:[],retours:[],interim:[],employes:[],heures:[],
   pauseConfig:{B1:0.75,B2:0.75,B3:0.75,Men:0.75,Log:0,Us:0},
+  fermetures:[],
 };
 let _ctx = {};
 let _search = '';
@@ -1116,6 +1117,19 @@ async function loadFromSheets() {
       state.bls = r.data.bls||[];
       state.retours = r.data.retours||[];
       state.interim = r.data.interim||[];
+      // Charger les fermetures depuis getCalendrier
+      try {
+        const rc = await fetch(APPS_SCRIPT_URL, {
+          method:'POST', headers:{'Content-Type':'text/plain'},
+          body: JSON.stringify({action:'getCalendrier'})
+        });
+        const cal = await rc.json();
+        if(cal.ok && cal.data?.fermetures) {
+          state.fermetures = cal.data.fermetures
+            .map(f=>typeof f==='string'?{date:f,atelier:'all'}:f)
+            .filter(f=>f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
+        }
+      } catch(e){ console.warn('fermetures ERP:', e); }
       saveLS();
       return true;
     }
@@ -2280,6 +2294,7 @@ function renderPlanningRessources(){
     </select>
     <button class="btn btn-primary" onclick="window.print()">🖨 Imprimer</button>
     <button class="btn" onclick="openPauseConfig()" title="Configurer les pauses par atelier">⚙ Pauses</button>
+    <button class="btn btn-orange" onclick="appliquerFermetures()" title="Pré-remplir les absences depuis les fermetures du planning production">📅 Fermetures</button>
     <span style="font-size:11px;color:var(--text3);margin-left:8px">Cliquez pour saisir les horaires</span>
   </div>`;
 
@@ -2335,7 +2350,7 @@ function renderPlanningRessources(){
           let cellContent = '';
           let cellStyle = '';
           if(abs){
-            const absColors = {Absent:'background:#FDECEA;color:#C0392B',RTT:'background:#EAF2FB;color:#1A5276',CP:'background:#EAFAF1;color:#1E8449',Maladie:'background:#FEF9E7;color:#D68910',Formation:'background:#F4ECF7;color:#6C3483'};
+            const absColors = {Absent:'background:#FDECEA;color:#C0392B',RTT:'background:#EAF2FB;color:#1A5276',CP:'background:#EAFAF1;color:#1E8449',Maladie:'background:#FEF9E7;color:#D68910',Formation:'background:#F4ECF7;color:#6C3483',Fermeture:'background:#F5F4F0;color:#6B6860'};
             cellStyle = absColors[abs]||'';
             cellContent = `<span style="font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;${cellStyle}">${abs}</span>`;
           } else if(horaire){
@@ -2562,6 +2577,56 @@ function saveCellPlanning(){
 
 
 // ── CONFIG PAUSES PAR ATELIER ──
+function appliquerFermetures(){
+  const fermetures = state.fermetures||[];
+  if(!fermetures.length){
+    toast('Aucune fermeture chargée depuis le planning');
+    return;
+  }
+  const employes = state.employes||[];
+  if(!employes.length){ toast('Aucun employé'); return; }
+  if(!state.heures) state.heures = [];
+
+  let count = 0;
+  fermetures.forEach(f=>{
+    const date = new Date(f.date);
+    const dayOfWeek = date.getDay(); // 0=dim, 6=sam
+    if(dayOfWeek===0||dayOfWeek===6) return; // ignorer week-end
+    const jourNom = ['','Lundi','Mardi','Mercredi','Jeudi','Vendredi','',''][dayOfWeek];
+    const semaine = getWeekISO(date);
+
+    employes.forEach(emp=>{
+      // Vérifier si une entrée existe déjà pour ce jour
+      const exists = state.heures.find(h=>
+        h.emp_id===emp.id && h.semaine===semaine && h.jour===jourNom
+      );
+      if(exists) return; // ne pas écraser une saisie existante
+
+      state.heures.push({
+        id: uid(),
+        emp_id: emp.id,
+        semaine, jour: jourNom,
+        atelier: emp.atelier||'B1',
+        horaire: '', absent: 'Fermeture',
+        h_mat: 0, h_am: 0, total_hebdo: 0,
+        chantier1: '', chantier2: '',
+        statut: emp.statut||'CDI',
+        type_saisie: 'presence',
+        comment: 'Fermeture atelier'
+      });
+      count++;
+    });
+  });
+
+  if(count>0){
+    scheduleSave();
+    renderPlanningRessources();
+    toast(`✓ ${count} fermeture${count>1?'s':''} appliquée${count>1?'s':''}`);
+  } else {
+    toast('Toutes les fermetures sont déjà renseignées');
+  }
+}
+
 function openPauseConfig(){
   if(!state.pauseConfig) state.pauseConfig = {B1:0.75,B2:0.75,B3:0.75,Men:0.75,Log:0,Us:0};
   const cfg = state.pauseConfig;
@@ -2982,6 +3047,7 @@ function renderVueMacro(){
             if(abs==='Absent'){ bg='#FDECEA'; txt=`<span style="color:#C0392B;font-weight:700;font-size:9px">Abs</span>`; border+=';outline:1px solid #F5B7B1'; }
             else if(abs==='RTT'){ bg='#EAF2FB'; txt=`<span style="color:#1A5276;font-weight:700;font-size:9px">RTT</span>`; border+=';outline:1px solid #AED6F1'; }
             else if(abs==='CP'){ bg='#EAF2FB'; txt=`<span style="color:#1A5276;font-weight:700;font-size:9px">CP</span>`; border+=';outline:1px solid #AED6F1'; }
+            else if(abs==='Fermeture'){ bg='#F0EFE8'; txt=`<span style="color:#A8A59E;font-size:8px">Ferm.</span>`; }
             else if(abs){ bg='#FEF9E7'; txt=`<span style="color:#D68910;font-weight:700;font-size:8px">${abs.slice(0,4)}</span>`; }
             else if(hor){ bg='#EAFAF1'; txt=`<span style="color:#1E8449;font-size:8px;font-family:monospace">${hor.replace('-','↗')}</span>`; }
             title = [j.jour, abs, hor, com].filter(Boolean).join(' — ');
@@ -3299,6 +3365,111 @@ async function loadProdB2() {
   }
 }
 
+function renderAlertesSaisie(){
+  const employes = state.employes||[];
+  const heures = state.heures||[];
+  if(!employes.length) return '';
+
+  // Calculer les semaines passées (jusqu'à la semaine dernière incluse)
+  const today = new Date();
+  const semaineEnCours = getWeekISO(today);
+
+  // Générer les 12 dernières semaines (hors semaine en cours)
+  const semainesPassees = [];
+  for(let i=1; i<=12; i++){
+    const d = new Date(today);
+    d.setDate(d.getDate() - i*7);
+    const sem = getWeekISO(d);
+    if(sem !== semaineEnCours) semainesPassees.push(sem);
+  }
+
+  // Pour chaque employé actif, vérifier si des semaines passées n'ont aucune saisie
+  // (ni présence, ni heures chantier)
+  const alertes = [];
+  employes.filter(e=>!e.inactif).forEach(emp=>{
+    const semManquantes = [];
+    semainesPassees.forEach(sem=>{
+      const lignes = heures.filter(h=>h.emp_id===emp.id && h.semaine===sem);
+      if(!lignes.length){
+        const [yr, sw] = sem.split('-S');
+        // Calculer les dates de la semaine
+        const lundi = getLundiFromSemaine(parseInt(yr), parseInt(sw));
+        const vendredi = new Date(lundi); vendredi.setDate(lundi.getDate()+4);
+        semManquantes.push({
+          sem, sw,
+          label: `S${sw}`,
+          dates: `${String(lundi.getDate()).padStart(2,'0')}/${String(lundi.getMonth()+1).padStart(2,'0')} → ${String(vendredi.getDate()).padStart(2,'0')}/${String(vendredi.getMonth()+1).padStart(2,'0')}`
+        });
+      }
+    });
+    if(semManquantes.length){
+      alertes.push({emp, semManquantes});
+    }
+  });
+
+  if(!alertes.length) return `
+    <div style="background:var(--green-bg);border:1px solid var(--green-border);border-radius:10px;padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">✅</span>
+      <span style="font-size:13px;font-weight:600;color:var(--green)">Toutes les heures sont saisies pour les 12 dernières semaines</span>
+    </div>`;
+
+  // Grouper par nombre de semaines manquantes pour afficher les plus urgents en premier
+  alertes.sort((a,b)=>b.semManquantes.length - a.semManquantes.length);
+
+  const totalManquants = alertes.reduce((s,a)=>s+a.semManquantes.length, 0);
+
+  return `
+  <div style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">⚠️</span>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--red)">Heures non saisies</div>
+          <div style="font-size:12px;color:var(--text2)">${alertes.length} employé${alertes.length>1?'s':''} · ${totalManquants} semaine${totalManquants>1?'s':''} manquante${totalManquants>1?'s':''}</div>
+        </div>
+      </div>
+      <button class="btn btn-sm" onclick="this.closest('div.alerte-wrap').style.display='none'">Masquer</button>
+    </div>
+    <div class="alerte-wrap" style="background:var(--surface);border:1px solid var(--red-border);border-radius:12px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="background:var(--red-bg);color:var(--red);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:7px 14px;text-align:left;border-bottom:1px solid var(--red-border)">Employé</th>
+          <th style="background:var(--red-bg);color:var(--red);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:7px 14px;text-align:center;border-bottom:1px solid var(--red-border);width:80px">Statut</th>
+          <th style="background:var(--red-bg);color:var(--red);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:7px 14px;text-align:left;border-bottom:1px solid var(--red-border)">Semaines manquantes <span style="font-weight:400;opacity:.7">(12 dernières semaines)</span></th>
+          <th style="background:var(--red-bg);color:var(--red);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:7px 14px;text-align:center;border-bottom:1px solid var(--red-border);width:80px">Nb</th>
+          <th style="background:var(--red-bg);padding:7px 14px;border-bottom:1px solid var(--red-border);width:80px"></th>
+        </tr></thead>
+        <tbody>
+          ${alertes.map((a,i)=>{
+            const badge = a.emp.statut==='CDI'?'emp-badge-cdi':a.emp.statut==='interim'?'emp-badge-interim':'emp-badge-cdd';
+            const urgence = a.semManquantes.length >= 3 ? 'var(--red)' : a.semManquantes.length >= 2 ? 'var(--orange)' : 'var(--text)';
+            return `<tr style="${i%2?'background:#FDF8F8;':'background:#fff;'}border-bottom:1px solid var(--red-border)">
+              <td style="padding:9px 14px;font-weight:600;font-size:13px">${esc(a.emp.nom)} ${esc(a.emp.prenom)}</td>
+              <td style="padding:9px 14px;text-align:center"><span class="${badge}" style="font-size:10px">${a.emp.statut==='CDI'?'CDI':a.emp.statut==='interim'?'Intérim':'CDD'}</span></td>
+              <td style="padding:9px 14px">
+                <div style="display:flex;gap:5px;flex-wrap:wrap">
+                  ${a.semManquantes.map(s=>`
+                    <span style="font-size:11px;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:5px;padding:2px 7px;font-family:'DM Mono',monospace;cursor:pointer;white-space:nowrap"
+                      title="${s.dates}" onclick="showHTab('saisie');state._semHeure='${s.sem}';renderSaisieHebdo()">
+                      ${s.label}
+                    </span>`).join('')}
+                </div>
+              </td>
+              <td style="padding:9px 14px;text-align:center;font-family:'DM Mono',monospace;font-weight:700;font-size:14px;color:${urgence}">${a.semManquantes.length}</td>
+              <td style="padding:9px 14px;text-align:center">
+                <button class="btn btn-sm btn-primary" style="font-size:11px"
+                  onclick="showHTab('saisie');state._semHeure='${a.semManquantes[0].sem}';renderSaisieHebdo()">
+                  Saisir →
+                </button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
 async function renderDashboard(){
   const anneeRef = document.getElementById('db-annee')?.value||'2026';
   
@@ -3310,6 +3481,10 @@ async function renderDashboard(){
   const prodData = _prodB2Data||[];
 
   let html = '';
+
+  // ── Section 0 : Alertes heures non saisies ──────────────────────────
+  const alertesHtml = renderAlertesSaisie();
+  if(alertesHtml) html += alertesHtml;
 
   // ── Section 1 : Avancement par chantier ──────────────────────────────
   html += `<div style="margin-bottom:24px">
@@ -3779,6 +3954,7 @@ init();
         <option value="Maladie">Maladie</option>
         <option value="Formation">Formation</option>
         <option value="Visite médicale">Visite médicale</option>
+        <option value="Fermeture">Fermeture atelier</option>
       </select>
     </div>
 
