@@ -2597,50 +2597,121 @@ function renderRecapHeures(){
     return;
   }
 
-  // Grouper par chantier
+  const semaines = getSemainesDisponibles();
+  const semFil = state._recapSemFil||'';
+
+  // Grouper par chantier + atelier + CDI/interim
   const parChantier = {};
+  const ateliersSeen = new Set();
+
   heures.forEach(h=>{
+    if(semFil && h.semaine !== semFil) return;
     const emp = employes.find(e=>e.id===h.emp_id);
     const statut = emp?.statut||h.statut||'CDI';
+    const atelier = h.atelier||emp?.atelier||'?';
     const total = (+h.h_mat||0)+(+h.h_am||0);
     if(!total) return;
+
     [h.chantier1, h.chantier2].filter(Boolean).forEach(ch=>{
-      if(!parChantier[ch]) parChantier[ch]={nom:ch,hCDI:0,hInterim:0,total:0};
-      if(statut==='interim') parChantier[ch].hInterim+=total/([h.chantier1,h.chantier2].filter(Boolean).length);
-      else parChantier[ch].hCDI+=total/([h.chantier1,h.chantier2].filter(Boolean).length);
-      parChantier[ch].total+=total/([h.chantier1,h.chantier2].filter(Boolean).length);
+      const nbCh = [h.chantier1,h.chantier2].filter(Boolean).length;
+      const hPart = total / nbCh;
+      if(!parChantier[ch]) parChantier[ch]={nom:ch,total:0,parAtelier:{}};
+      if(!parChantier[ch].parAtelier[atelier]) parChantier[ch].parAtelier[atelier]={cdi:0,interim:0};
+      if(statut==='interim') parChantier[ch].parAtelier[atelier].interim += hPart;
+      else parChantier[ch].parAtelier[atelier].cdi += hPart;
+      parChantier[ch].total += hPart;
+      ateliersSeen.add(atelier);
     });
   });
 
   const rows = Object.values(parChantier).sort((a,b)=>b.total-a.total);
-  const totCDI = rows.reduce((s,r)=>s+r.hCDI,0);
-  const totInt = rows.reduce((s,r)=>s+r.hInterim,0);
+  const ateliersCols = ATELIERS_H.filter(a=>ateliersSeen.has(a));
 
-  let html = `<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-    <div class="metric"><div class="metric-k">H CDI</div><div class="metric-v ok">${Math.round(totCDI)}h</div></div>
-    <div class="metric"><div class="metric-k">H Intérim</div><div class="metric-v warn">${Math.round(totInt)}h</div></div>
-    <div class="metric"><div class="metric-k">Total</div><div class="metric-v">${Math.round(totCDI+totInt)}h</div></div>
+  // Totaux globaux
+  const totParAtelier = {};
+  ateliersCols.forEach(at=>{
+    totParAtelier[at] = {
+      cdi: rows.reduce((s,r)=>s+(r.parAtelier[at]?.cdi||0),0),
+      interim: rows.reduce((s,r)=>s+(r.parAtelier[at]?.interim||0),0),
+    };
+    totParAtelier[at].total = totParAtelier[at].cdi + totParAtelier[at].interim;
+  });
+  const totGCDI = rows.reduce((s,r)=>s+Object.values(r.parAtelier).reduce((a,b)=>a+b.cdi,0),0);
+  const totGInt  = rows.reduce((s,r)=>s+Object.values(r.parAtelier).reduce((a,b)=>a+b.interim,0),0);
+
+  // Aide lecture : chaque atelier = 2 sous-colonnes CDI / Int.
+  let html = `
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Semaine</label>
+    <select style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+      onchange="state._recapSemFil=this.value;renderRecapHeures()">
+      <option value="">Toutes les semaines</option>
+      ${semaines.map(s=>`<option value="${s.val}"${s.val===semFil?' selected':''}>${s.label}</option>`).join('')}
+    </select>
   </div>
-  <div class="table-wrap"><table>
-    <thead><tr>
-      <th>Chantier</th>
-      <th style="text-align:right">H CDI</th>
-      <th style="text-align:right">H Intérim</th>
-      <th style="text-align:right">Total</th>
-      <th style="text-align:right">% Intérim</th>
-    </tr></thead><tbody>
-    ${rows.map((r,i)=>`<tr style="${i%2?'background:#FAFAF8;':''}border-bottom:1px solid var(--border)">
-      <td style="font-weight:500">${esc(r.nom)}</td>
-      <td style="text-align:right;font-family:'DM Mono',monospace">${Math.round(r.hCDI)}h</td>
-      <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange)">${Math.round(r.hInterim)}h</td>
-      <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700">${Math.round(r.total)}h</td>
-      <td style="text-align:right;font-family:'DM Mono',monospace;color:${r.hInterim/r.total>.4?'var(--red)':'var(--text2)'}">${r.total>0?Math.round(r.hInterim/r.total*100)+'%':'—'}</td>
-    </tr>`).join('')}
+
+  <!-- Métriques globales -->
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="metric"><div class="metric-k">H CDI</div><div class="metric-v ok">${Math.round(totGCDI)}h</div></div>
+    <div class="metric"><div class="metric-k">H Intérim</div><div class="metric-v warn">${Math.round(totGInt)}h</div></div>
+    <div class="metric"><div class="metric-k">Total</div><div class="metric-v">${Math.round(totGCDI+totGInt)}h</div></div>
+    ${ateliersCols.map(at=>`
+    <div class="metric" style="border-color:var(--blue-border)">
+      <div class="metric-k" style="color:var(--blue)">${at}</div>
+      <div class="metric-v" style="font-size:16px">${Math.round(totParAtelier[at].total)}h</div>
+      <div class="metric-sub">${Math.round(totParAtelier[at].cdi)}h CDI · <span style="color:var(--orange)">${Math.round(totParAtelier[at].interim)}h Int.</span></div>
+    </div>`).join('')}
+  </div>
+
+  <!-- Tableau détaillé -->
+  <div class="table-wrap" style="overflow-x:auto">
+  <table style="min-width:600px">
+    <thead>
+      <tr>
+        <th rowspan="2" style="vertical-align:middle">Chantier</th>
+        <th rowspan="2" style="text-align:right;vertical-align:middle">Total</th>
+        ${ateliersCols.map(at=>`<th colspan="2" style="text-align:center;background:#EAF1FB;color:var(--blue);border-bottom:1px solid var(--blue-border)">${at}</th>`).join('')}
+        <th rowspan="2" style="text-align:right;vertical-align:middle">% Int.</th>
+      </tr>
+      <tr>
+        ${ateliersCols.map(()=>`
+          <th style="text-align:right;font-size:10px;background:#EAF1FB;color:var(--green)">CDI</th>
+          <th style="text-align:right;font-size:10px;background:#FDF3E8;color:var(--orange)">Int.</th>
+        `).join('')}
+      </tr>
+    </thead>
+    <tbody>
+    ${rows.map((r,i)=>{
+      const hCDI = Object.values(r.parAtelier).reduce((s,v)=>s+v.cdi,0);
+      const hInt = Object.values(r.parAtelier).reduce((s,v)=>s+v.interim,0);
+      const pct = r.total>0?Math.round(hInt/r.total*100):0;
+      return `<tr style="${i%2?'background:#FAFAF8;':''}border-bottom:1px solid var(--border)">
+        <td style="font-weight:500">${esc(r.nom)}</td>
+        <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700">${Math.round(r.total)}h</td>
+        ${ateliersCols.map(at=>{
+          const v = r.parAtelier[at]||{cdi:0,interim:0};
+          return `
+          <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${v.cdi>0?'var(--green)':'var(--text3)'}">${v.cdi>0?Math.round(v.cdi)+'h':'—'}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${v.interim>0?'var(--orange)':'var(--text3)'}">${v.interim>0?Math.round(v.interim)+'h':'—'}</td>`;
+        }).join('')}
+        <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${r.total>0?pct+'%':'—'}</td>
+      </tr>`;
+    }).join('')}
+    <tr style="background:var(--bg);font-weight:700;border-top:2px solid var(--border2)">
+      <td>TOTAL</td>
+      <td style="text-align:right;font-family:'DM Mono',monospace">${Math.round(totGCDI+totGInt)}h</td>
+      ${ateliersCols.map(at=>`
+        <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--green)">${Math.round(totParAtelier[at].cdi)}h</td>
+        <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange)">${Math.round(totParAtelier[at].interim)}h</td>
+      `).join('')}
+      <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${(totGCDI+totGInt)>0?Math.round(totGInt/(totGCDI+totGInt)*100)+'%':'—'}</td>
+    </tr>
     </tbody>
   </table></div>`;
 
   el.innerHTML = html;
 }
+
 
 // ── EXPORT PDF INTÉRIMAIRE ──
 function openPDFInterim(empId){
