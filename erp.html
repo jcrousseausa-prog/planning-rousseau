@@ -336,7 +336,7 @@ table.bl-lignes td.r{text-align:right}
     <button class="htab" id="htab-planning" onclick="showHTab('planning')">📅 Planning ressources</button>
     <button class="htab" id="htab-recap" onclick="showHTab('recap')">📊 Récap chantiers</button>
     <button class="htab" id="htab-macro" onclick="showHTab('macro')">🗓 Vue macro</button>
-    <button class="htab" id="htab-affectation" onclick="showHTab('affectation')">⚖️ Affectation Log</button>
+    <button class="htab" id="htab-affectation" onclick="showHTab('affectation')"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4Ij4KICA8IS0tIENvcnBzIHByaW5jaXBhbCAtLT4KICA8cmVjdCB4PSIxMCIgeT0iMTQiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxMCIgcng9IjEuNSIgZmlsbD0iI0NDMjIwMCIvPgogIDwhLS0gQ2FiaW5lIC0tPgogIDxyZWN0IHg9IjE4IiB5PSI5IiB3aWR0aD0iOCIgaGVpZ2h0PSI4IiByeD0iMSIgZmlsbD0iI0REMzMxMSIvPgogIDwhLS0gVml0cmUgY2FiaW5lIC0tPgogIDxyZWN0IHg9IjE5LjUiIHk9IjEwLjUiIHdpZHRoPSI1IiBoZWlnaHQ9IjUiIHJ4PSIwLjUiIGZpbGw9IiM4OENDRUUiIG9wYWNpdHk9IjAuOCIvPgogIDwhLS0gTcOidCB2ZXJ0aWNhbCAtLT4KICA8cmVjdCB4PSI4IiB5PSI0IiB3aWR0aD0iMi41IiBoZWlnaHQ9IjE4IiByeD0iMSIgZmlsbD0iI0FBMTEwMCIvPgogIDwhLS0gRm91cmNoZXMgLS0+CiAgPHJlY3QgeD0iMiIgeT0iMjAiIHdpZHRoPSI4IiBoZWlnaHQ9IjEuOCIgcng9IjAuOCIgZmlsbD0iIzg4MTEwMCIvPgogIDxyZWN0IHg9IjIiIHk9IjIzIiB3aWR0aD0iOCIgaGVpZ2h0PSIxLjgiIHJ4PSIwLjgiIGZpbGw9IiM4ODExMDAiLz4KICA8IS0tIFJvdWUgYXZhbnQgLS0+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIFJvdWUgYXJyacOocmUgLS0+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIENvbnRyZXBvaWRzIGFycmnDqHJlIC0tPgogIDxyZWN0IHg9IjI0IiB5PSIxNyIgd2lkdGg9IjQiIGhlaWdodD0iNyIgcng9IjEiIGZpbGw9IiM5OTExMDAiLz4KICA8IS0tIEd5cm9waGFyZSAtLT4KICA8Y2lyY2xlIGN4PSIyMiIgY3k9IjguNSIgcj0iMS41IiBmaWxsPSIjRkY2NjAwIi8+CiAgPGNpcmNsZSBjeD0iMjIiIGN5PSI4LjUiIHI9IjAuNyIgZmlsbD0iI0ZGQUEwMCIvPgo8L3N2Zz4=" style="width:14px;height:14px;vertical-align:middle;margin-right:4px"> Affectation Log</button>
   </div>
   <!-- Contenus -->
   <div id="hscreen-employes"></div>
@@ -383,7 +383,7 @@ table.bl-lignes td.r{text-align:right}
       <div style="display:flex;gap:16px;flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
           <input type="checkbox" id="me-cariste" style="width:16px;height:16px"/>
-          🚜 Cariste (affectation proportionnelle)
+          <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4Ij4KICA8IS0tIENvcnBzIHByaW5jaXBhbCAtLT4KICA8cmVjdCB4PSIxMCIgeT0iMTQiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxMCIgcng9IjEuNSIgZmlsbD0iI0NDMjIwMCIvPgogIDwhLS0gQ2FiaW5lIC0tPgogIDxyZWN0IHg9IjE4IiB5PSI5IiB3aWR0aD0iOCIgaGVpZ2h0PSI4IiByeD0iMSIgZmlsbD0iI0REMzMxMSIvPgogIDwhLS0gVml0cmUgY2FiaW5lIC0tPgogIDxyZWN0IHg9IjE5LjUiIHk9IjEwLjUiIHdpZHRoPSI1IiBoZWlnaHQ9IjUiIHJ4PSIwLjUiIGZpbGw9IiM4OENDRUUiIG9wYWNpdHk9IjAuOCIvPgogIDwhLS0gTcOidCB2ZXJ0aWNhbCAtLT4KICA8cmVjdCB4PSI4IiB5PSI0IiB3aWR0aD0iMi41IiBoZWlnaHQ9IjE4IiByeD0iMSIgZmlsbD0iI0FBMTEwMCIvPgogIDwhLS0gRm91cmNoZXMgLS0+CiAgPHJlY3QgeD0iMiIgeT0iMjAiIHdpZHRoPSI4IiBoZWlnaHQ9IjEuOCIgcng9IjAuOCIgZmlsbD0iIzg4MTEwMCIvPgogIDxyZWN0IHg9IjIiIHk9IjIzIiB3aWR0aD0iOCIgaGVpZ2h0PSIxLjgiIHJ4PSIwLjgiIGZpbGw9IiM4ODExMDAiLz4KICA8IS0tIFJvdWUgYXZhbnQgLS0+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIFJvdWUgYXJyacOocmUgLS0+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIENvbnRyZXBvaWRzIGFycmnDqHJlIC0tPgogIDxyZWN0IHg9IjI0IiB5PSIxNyIgd2lkdGg9IjQiIGhlaWdodD0iNyIgcng9IjEiIGZpbGw9IiM5OTExMDAiLz4KICA8IS0tIEd5cm9waGFyZSAtLT4KICA8Y2lyY2xlIGN4PSIyMiIgY3k9IjguNSIgcj0iMS41IiBmaWxsPSIjRkY2NjAwIi8+CiAgPGNpcmNsZSBjeD0iMjIiIGN5PSI4LjUiIHI9IjAuNyIgZmlsbD0iI0ZGQUEwMCIvPgo8L3N2Zz4=" style="width:18px;height:18px;vertical-align:middle;margin-right:4px"> Cariste (affectation proportionnelle)
         </label>
       </div>
     </div>
@@ -1815,7 +1815,7 @@ function renderEmployes(){
             <div class="emp-card-name">${esc(e.nom)} ${esc(e.prenom)}</div>
             <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
               <span class="${badge}">${e.statut==='CDI'?'CDI':e.statut==='interim'?'Intérim':'CDD'}</span>
-              ${e.cariste?'<span style="background:#FFF8E1;color:#F57F17;border:1px solid #FFE082;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:700">🚜 Cariste</span>':''}
+              ${e.cariste?'<span style="background:#FFF0EE;color:#CC2200;border:1px solid #FFAAAA;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:700"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4Ij4KICA8IS0tIENvcnBzIHByaW5jaXBhbCAtLT4KICA8cmVjdCB4PSIxMCIgeT0iMTQiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxMCIgcng9IjEuNSIgZmlsbD0iI0NDMjIwMCIvPgogIDwhLS0gQ2FiaW5lIC0tPgogIDxyZWN0IHg9IjE4IiB5PSI5IiB3aWR0aD0iOCIgaGVpZ2h0PSI4IiByeD0iMSIgZmlsbD0iI0REMzMxMSIvPgogIDwhLS0gVml0cmUgY2FiaW5lIC0tPgogIDxyZWN0IHg9IjE5LjUiIHk9IjEwLjUiIHdpZHRoPSI1IiBoZWlnaHQ9IjUiIHJ4PSIwLjUiIGZpbGw9IiM4OENDRUUiIG9wYWNpdHk9IjAuOCIvPgogIDwhLS0gTcOidCB2ZXJ0aWNhbCAtLT4KICA8cmVjdCB4PSI4IiB5PSI0IiB3aWR0aD0iMi41IiBoZWlnaHQ9IjE4IiByeD0iMSIgZmlsbD0iI0FBMTEwMCIvPgogIDwhLS0gRm91cmNoZXMgLS0+CiAgPHJlY3QgeD0iMiIgeT0iMjAiIHdpZHRoPSI4IiBoZWlnaHQ9IjEuOCIgcng9IjAuOCIgZmlsbD0iIzg4MTEwMCIvPgogIDxyZWN0IHg9IjIiIHk9IjIzIiB3aWR0aD0iOCIgaGVpZ2h0PSIxLjgiIHJ4PSIwLjgiIGZpbGw9IiM4ODExMDAiLz4KICA8IS0tIFJvdWUgYXZhbnQgLS0+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIFJvdWUgYXJyacOocmUgLS0+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIENvbnRyZXBvaWRzIGFycmnDqHJlIC0tPgogIDxyZWN0IHg9IjI0IiB5PSIxNyIgd2lkdGg9IjQiIGhlaWdodD0iNyIgcng9IjEiIGZpbGw9IiM5OTExMDAiLz4KICA8IS0tIEd5cm9waGFyZSAtLT4KICA8Y2lyY2xlIGN4PSIyMiIgY3k9IjguNSIgcj0iMS41IiBmaWxsPSIjRkY2NjAwIi8+CiAgPGNpcmNsZSBjeD0iMjIiIGN5PSI4LjUiIHI9IjAuNyIgZmlsbD0iI0ZGQUEwMCIvPgo8L3N2Zz4=" style="width:12px;height:12px;vertical-align:middle;margin-right:2px"> Cariste</span>':''}
               ${isInactif?'<span style="background:#DDD;color:#888;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:700">INACTIF</span>':''}
             </div>
           </div>
@@ -2503,7 +2503,6 @@ function editCellPlanning(empId, semaine, jour){
     h.emp_id===empId && h.semaine===semaine && h.jour===jour && h.horaire
   );
 
-  document.getElementById('modal-presence-horaire').value = existing?.horaire||'';
   document.getElementById('modal-presence-atelier').value = existing?.atelier || (state.employes||[]).find(e=>e.id===empId)?.atelier || 'B2';
   document.getElementById('modal-presence-absent').value = existing?.absent||'';
   document.getElementById('modal-presence-comment').value = existing?.comment||'';
@@ -2514,9 +2513,109 @@ function editCellPlanning(empId, semaine, jour){
 
   document.getElementById('modal-presence').classList.add('show');
   setTimeout(()=>{
-    document.getElementById('modal-presence-horaire').focus();
-    initRepJours(jour);
+    initModalPresence(existing, jour);
+    document.getElementById('mp-mat-deb').focus();
   }, 100);
+}
+
+// ── HELPERS MODAL PRÉSENCE 2 TRANCHES ──
+function parseHeure(s){
+  if(!s) return null;
+  const m = s.replace(/\s/g,'').match(/^(\d+)h(\d*)$/);
+  if(!m) return null;
+  return parseInt(m[1]) + (parseInt(m[2]||0)/60);
+}
+
+function calcTotalPresence(){
+  const matDeb = parseHeure(document.getElementById('mp-mat-deb')?.value);
+  const matFin = parseHeure(document.getElementById('mp-mat-fin')?.value);
+  const amDeb  = parseHeure(document.getElementById('mp-am-deb')?.value);
+  const amFin  = parseHeure(document.getElementById('mp-am-fin')?.value);
+  let total = 0;
+  let parts = [];
+  if(matDeb!==null && matFin!==null && matFin>matDeb){
+    const h = Math.round((matFin-matDeb)*100)/100;
+    total += h;
+    parts.push(h+'h mat.');
+  }
+  if(amDeb!==null && amFin!==null && amFin>amDeb){
+    const h = Math.round((amFin-amDeb)*100)/100;
+    total += h;
+    parts.push(h+'h AM');
+  }
+  const el = document.getElementById('mp-total');
+  if(el) el.textContent = total>0 ? total+'h ('+parts.join(' + ')+')' : '— h';
+  return total;
+}
+
+function setHorairesRapides(matDeb, matFin, amDeb, amFin, clearOther){
+  if(matDeb!==undefined) document.getElementById('mp-mat-deb').value = matDeb;
+  if(matFin!==undefined) document.getElementById('mp-mat-fin').value = matFin;
+  if(amDeb!==undefined)  document.getElementById('mp-am-deb').value  = amDeb;
+  if(amFin!==undefined)  document.getElementById('mp-am-fin').value  = amFin;
+  calcTotalPresence();
+}
+
+function toggleHorairesPresence(absent){
+  const bloc = document.getElementById('mp-mat-deb')?.closest('div[style*="background:var(--bg)"]');
+  if(bloc) bloc.style.opacity = absent ? '0.4' : '1';
+  if(absent){
+    // Vider les horaires si absence
+    ['mp-mat-deb','mp-mat-fin','mp-am-deb','mp-am-fin'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.value = '';
+    });
+    const el = document.getElementById('mp-total');
+    if(el) el.textContent = '— h';
+  }
+}
+
+function getHorairesFromModal(){
+  const matDeb = parseHeure(document.getElementById('mp-mat-deb')?.value);
+  const matFin = parseHeure(document.getElementById('mp-mat-fin')?.value);
+  const amDeb  = parseHeure(document.getElementById('mp-am-deb')?.value);
+  const amFin  = parseHeure(document.getElementById('mp-am-fin')?.value);
+  let hMat = 0, hAm = 0;
+  let horaireStr = '';
+  if(matDeb!==null && matFin!==null && matFin>matDeb){
+    hMat = Math.round((matFin-matDeb)*100)/100;
+    horaireStr += (document.getElementById('mp-mat-deb').value)+'-'+(document.getElementById('mp-mat-fin').value);
+  }
+  if(amDeb!==null && amFin!==null && amFin>amDeb){
+    hAm = Math.round((amFin-amDeb)*100)/100;
+    if(horaireStr) horaireStr += ' / ';
+    horaireStr += (document.getElementById('mp-am-deb').value)+'-'+(document.getElementById('mp-am-fin').value);
+  }
+  return {hMat, hAm, total: hMat+hAm, horaire: horaireStr};
+}
+
+function initModalPresence(existing, jour){
+  // Remplir les champs depuis une entrée existante
+  const horaire = existing?.horaire||'';
+  // Parser le format "7h00-12h00 / 13h00-16h15" ou "7h00-12h00"
+  const parts = horaire.split('/').map(s=>s.trim());
+  const parsePart = (s) => {
+    const m = s.match(/^(\d+h\d*)[\-:](\d+h\d*)$/);
+    return m ? [m[1],m[2]] : ['',''];
+  };
+  if(parts[0]){
+    const [d,f] = parsePart(parts[0]);
+    document.getElementById('mp-mat-deb').value = d;
+    document.getElementById('mp-mat-fin').value = f;
+  } else {
+    document.getElementById('mp-mat-deb').value = '';
+    document.getElementById('mp-mat-fin').value = '';
+  }
+  if(parts[1]){
+    const [d,f] = parsePart(parts[1]);
+    document.getElementById('mp-am-deb').value = d;
+    document.getElementById('mp-am-fin').value = f;
+  } else {
+    document.getElementById('mp-am-deb').value = '';
+    document.getElementById('mp-am-fin').value = '';
+  }
+  calcTotalPresence();
+  initRepJours(jour);
 }
 
 function toggleRepJours(val){
@@ -2565,17 +2664,10 @@ function saveCellPlanningMulti(){
 
   if(!state.heures) state.heures = [];
 
-  // Calculer les heures nettes
-  let hTotal = 0;
-  if(horaire){
-    const m = horaire.replace(/\s/g,'').match(/^(\d+)h(\d*)[-:](\d+)h(\d*)$/);
-    if(m){
-      const debut = parseInt(m[1])+(parseInt(m[2]||0)/60);
-      const fin   = parseInt(m[3])+(parseInt(m[4]||0)/60);
-      const pause = (state.pauseConfig||{})[atelier]||0;
-      hTotal = Math.max(0, Math.round((fin-debut-pause)*100)/100);
-    }
-  }
+  // Calculer les heures depuis les 2 tranches
+  const tranchesData = getHorairesFromModal();
+  const hTotal = tranchesData.total;
+  const horaire = tranchesData.horaire;
 
   // Calculer les semaines cibles
   const [yr0, sw0] = semaine.split('-S');
@@ -2646,18 +2738,10 @@ function saveCellPlanning(){
     !(h.emp_id===empId && h.semaine===semaine && h.jour===jour && (h.type_saisie==='presence' || h.horaire))
   );
 
-  // Calculer les heures depuis "7h00-16h15" en déduisant la pause
-  let hTotal = 0;
-  if(horaire){
-    const m = horaire.replace(/\s/g,'').match(/^(\d+)h(\d*)[-:](\d+)h(\d*)$/);
-    if(m){
-      const debut = parseInt(m[1])+(parseInt(m[2]||0)/60);
-      const fin   = parseInt(m[3])+(parseInt(m[4]||0)/60);
-      const atelierPause = document.getElementById('modal-presence-atelier')?.value||'B2';
-      const pause = (state.pauseConfig||{})[atelierPause]||0;
-      hTotal = Math.max(0, Math.round((fin-debut-pause)*100)/100);
-    }
-  }
+  // Calculer les heures depuis les 2 tranches
+  const tranchesDataS = getHorairesFromModal();
+  const hTotal = tranchesDataS.total;
+  const horaire = tranchesDataS.horaire;
 
   if(horaire || absent){
     const emp = (state.employes||[]).find(e=>e.id===empId);
@@ -2847,7 +2931,7 @@ function renderAffectationLog(){
   </div>
 
   ${!totalProd ? `<div class="warn-box">Aucune heure de production saisie pour l'atelier ${atelierCible} en ${semSel}. Saisissez d'abord les heures chantier de cet atelier.</div>` : ''}
-  ${!empsSupport.length ? `<div class="warn-box">Aucun employé marqué "Cariste". Modifiez la fiche d'un employé et cochez 🚜 Cariste pour l'inclure ici.</div>` : ''}
+  ${!empsSupport.length ? `<div class="warn-box">Aucun employé marqué "Cariste". Modifiez la fiche d'un employé et cochez <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4Ij4KICA8IS0tIENvcnBzIHByaW5jaXBhbCAtLT4KICA8cmVjdCB4PSIxMCIgeT0iMTQiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxMCIgcng9IjEuNSIgZmlsbD0iI0NDMjIwMCIvPgogIDwhLS0gQ2FiaW5lIC0tPgogIDxyZWN0IHg9IjE4IiB5PSI5IiB3aWR0aD0iOCIgaGVpZ2h0PSI4IiByeD0iMSIgZmlsbD0iI0REMzMxMSIvPgogIDwhLS0gVml0cmUgY2FiaW5lIC0tPgogIDxyZWN0IHg9IjE5LjUiIHk9IjEwLjUiIHdpZHRoPSI1IiBoZWlnaHQ9IjUiIHJ4PSIwLjUiIGZpbGw9IiM4OENDRUUiIG9wYWNpdHk9IjAuOCIvPgogIDwhLS0gTcOidCB2ZXJ0aWNhbCAtLT4KICA8cmVjdCB4PSI4IiB5PSI0IiB3aWR0aD0iMi41IiBoZWlnaHQ9IjE4IiByeD0iMSIgZmlsbD0iI0FBMTEwMCIvPgogIDwhLS0gRm91cmNoZXMgLS0+CiAgPHJlY3QgeD0iMiIgeT0iMjAiIHdpZHRoPSI4IiBoZWlnaHQ9IjEuOCIgcng9IjAuOCIgZmlsbD0iIzg4MTEwMCIvPgogIDxyZWN0IHg9IjIiIHk9IjIzIiB3aWR0aD0iOCIgaGVpZ2h0PSIxLjgiIHJ4PSIwLjgiIGZpbGw9IiM4ODExMDAiLz4KICA8IS0tIFJvdWUgYXZhbnQgLS0+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIFJvdWUgYXJyacOocmUgLS0+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIENvbnRyZXBvaWRzIGFycmnDqHJlIC0tPgogIDxyZWN0IHg9IjI0IiB5PSIxNyIgd2lkdGg9IjQiIGhlaWdodD0iNyIgcng9IjEiIGZpbGw9IiM5OTExMDAiLz4KICA8IS0tIEd5cm9waGFyZSAtLT4KICA8Y2lyY2xlIGN4PSIyMiIgY3k9IjguNSIgcj0iMS41IiBmaWxsPSIjRkY2NjAwIi8+CiAgPGNpcmNsZSBjeD0iMjIiIGN5PSI4LjUiIHI9IjAuNyIgZmlsbD0iI0ZGQUEwMCIvPgo8L3N2Zz4=" style="width:14px;height:14px;vertical-align:middle"> Cariste pour l'inclure ici.</div>` : ''}
 
   ${totalProd && empsSupport.length ? `
   <!-- Résumé production -->
@@ -3485,7 +3569,6 @@ function openMacroCell(empId, semaine, jour){
   );
   const emp = (state.employes||[]).find(e=>e.id===empId);
 
-  document.getElementById('modal-presence-horaire').value = existing?.horaire||'';
   document.getElementById('modal-presence-absent').value = existing?.absent||'';
   document.getElementById('modal-presence-comment').value = existing?.comment||'';
   document.getElementById('modal-presence-atelier').value = existing?.atelier || emp?.atelier || 'B2';
@@ -3493,13 +3576,12 @@ function openMacroCell(empId, semaine, jour){
   document.getElementById('modal-presence-title').textContent =
     (emp ? emp.nom+' '+emp.prenom : '') + ' — ' + (jour||'') + ' ' + semaine;
 
-  // Adapter le callback de sauvegarde pour la vue macro
   _cellJour = jour;
   _macroMode = true;
   document.getElementById('modal-presence').classList.add('show');
   setTimeout(()=>{
-    document.getElementById('modal-presence-horaire').focus();
-    initRepJours(jour);
+    initModalPresence(existing, jour);
+    document.getElementById('mp-mat-deb').focus();
   }, 100);
 }
 
@@ -4267,28 +4349,52 @@ init();
   </div>
 </div>
 
-<!-- MODAL PRESENCE v3 -->
+<!-- MODAL PRESENCE v4 — 2 tranches horaires -->
 <div class="modal-bg" id="modal-presence" onclick="if(event.target===this)closeModal('modal-presence')">
-  <div class="modal" style="width:420px">
-    <h2 id="modal-presence-title" style="font-size:14px;margin-bottom:16px"></h2>
+  <div class="modal" style="width:440px">
+    <h2 id="modal-presence-title" style="font-size:14px;margin-bottom:14px"></h2>
 
-    <!-- Horaires + raccourci -->
-    <div class="field" style="margin-bottom:10px">
-      <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Horaires</label>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input type="text" id="modal-presence-horaire" placeholder="Ex: 7h00-16h15"
-          style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:'DM Mono',monospace;font-size:14px;text-align:center"
-          onkeydown="if(event.key==='Enter')saveCellPlanning()"/>
+    <!-- 2 tranches horaires -->
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:12px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Horaires</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600">MATIN — début</label>
+          <input type="text" id="mp-mat-deb" placeholder="7h00"
+            style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-family:'DM Mono',monospace;font-size:14px;text-align:center"
+            oninput="calcTotalPresence()"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600">MATIN — fin</label>
+          <input type="text" id="mp-mat-fin" placeholder="12h00"
+            style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-family:'DM Mono',monospace;font-size:14px;text-align:center"
+            oninput="calcTotalPresence()"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600">APRÈS-MIDI — début</label>
+          <input type="text" id="mp-am-deb" placeholder="13h00"
+            style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-family:'DM Mono',monospace;font-size:14px;text-align:center"
+            oninput="calcTotalPresence()"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600">APRÈS-MIDI — fin</label>
+          <input type="text" id="mp-am-fin" placeholder="16h15"
+            style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-family:'DM Mono',monospace;font-size:14px;text-align:center"
+            oninput="calcTotalPresence()"/>
+        </div>
       </div>
-      <!-- Horaires rapides -->
-      <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap">
-        <span style="font-size:10px;color:var(--text3);align-self:center">Rapide :</span>
-        <button onclick="document.getElementById('modal-presence-horaire').value='7h00-16h15'" 
-          style="font-size:10px;padding:2px 7px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;font-family:'DM Mono',monospace">7h00-16h15</button>
-        <button onclick="document.getElementById('modal-presence-horaire').value='7h00-12h00'" 
-          style="font-size:10px;padding:2px 7px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;font-family:'DM Mono',monospace">7h00-12h00</button>
-        <button onclick="document.getElementById('modal-presence-horaire').value='13h00-16h15'" 
-          style="font-size:10px;padding:2px 7px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;font-family:'DM Mono',monospace">13h00-16h15</button>
+      <!-- Total calculé -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span style="font-size:10px;color:var(--text3)">Rapide :</span>
+          <button onclick="setHorairesRapides('7h00','12h00','13h00','16h15')"
+            style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer">Journée</button>
+          <button onclick="setHorairesRapides('7h00','12h00','','',true)"
+            style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer">Matin seul</button>
+          <button onclick="setHorairesRapides('','','13h00','16h15',true)"
+            style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer">AM seul</button>
+        </div>
+        <div style="font-size:13px;font-family:'DM Mono',monospace;font-weight:700;color:var(--blue)" id="mp-total">— h</div>
       </div>
     </div>
 
@@ -4309,7 +4415,7 @@ init();
     <!-- Absence -->
     <div class="field" style="margin-bottom:10px">
       <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Absence</label>
-      <select id="modal-presence-absent"
+      <select id="modal-presence-absent" onchange="toggleHorairesPresence(this.value)"
         style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px">
         <option value="">Présent</option>
         <option value="Absent">Absent</option>
@@ -4325,26 +4431,20 @@ init();
     <!-- Commentaire -->
     <div class="field" style="margin-bottom:12px">
       <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Commentaire</label>
-      <input type="text" id="modal-presence-comment" placeholder="Ex: Visite médicale 8h45..."
+      <input type="text" id="modal-presence-comment" placeholder="Ex: départ anticipé 15h..."
         style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"
-        maxlength="80" onkeydown="if(event.key==='Enter')saveCellPlanning()"/>
+        maxlength="80"/>
     </div>
 
     <!-- Répéter sur plusieurs jours / semaines -->
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">
       <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">⚡ Appliquer sur plusieurs jours</div>
-      
-      <!-- Sélection jours de la semaine en cours — générée par JS via initRepJours -->
-      <div id="rep-jours-container" style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
-        <!-- rempli par initRepJours() -->
-      </div>
-
-      <!-- Répéter sur N semaines -->
+      <div id="rep-jours-container" style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap"></div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:11px;color:var(--text2)">Répéter sur</span>
-        <input type="number" id="rep-nb-semaines" value="1" min="1" max="26" 
+        <input type="number" id="rep-nb-semaines" value="1" min="1" max="26"
           style="width:55px;padding:4px 7px;border:1px solid var(--border);border-radius:6px;font-family:'DM Mono',monospace;font-size:12px;text-align:center"/>
-        <span style="font-size:11px;color:var(--text2)">semaine(s) à partir de la semaine en cours</span>
+        <span style="font-size:11px;color:var(--text2)">semaine(s)</span>
       </div>
     </div>
 
