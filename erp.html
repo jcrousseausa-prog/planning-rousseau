@@ -2318,7 +2318,10 @@ function renderPlanningRessources(){
 
     emps.forEach((emp,idx)=>{
       const lignes = heuresSem.filter(h=>h.emp_id===emp.id);
-      const totalH = lignes.reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0),0);
+      // Total = lignes présence uniquement (pas les heures chantier)
+      const lignesP = lignes.filter(l=>l.type_saisie==='presence'||l.horaire);
+      const totalH = (lignesP.length ? lignesP : lignes.filter(l=>l.chantier1))
+        .reduce((s,l)=>s+(+l.h_mat||0),0);
       const bg = idx%2?'background:#FAFAF8;':'';
       const badge = emp.statut==='CDI'?'emp-badge-cdi':emp.statut==='interim'?'emp-badge-interim':'emp-badge-cdd';
 
@@ -2396,10 +2399,18 @@ function toggleRepJours(val){
 
 // Cocher le jour courant par défaut quand on ouvre le modal
 function initRepJours(jour){
-  ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'].forEach(j=>{
-    const el = document.getElementById('rep-'+j);
-    if(el) el.checked = (j===jour);
-  });
+  const container = document.getElementById('rep-jours-container');
+  if(container){
+    container.innerHTML = `
+      <span style="font-size:10px;color:var(--text3);align-self:center;width:100%">Cette semaine :</span>
+      ${JOURS_SEMAINE.map(j=>`
+        <label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer">
+          <input type="checkbox" id="rep-${j}" class="rep-jour" style="width:auto" ${j===jour?'checked':''}/>
+          <span>${j.slice(0,3)}</span>
+        </label>`).join('')}
+      <button onclick="toggleRepJours(true)" style="font-size:10px;padding:1px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;margin-left:4px">Tous</button>
+      <button onclick="toggleRepJours(false)" style="font-size:10px;padding:1px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer">Aucun</button>`;
+  }
   const nbEl = document.getElementById('rep-nb-semaines');
   if(nbEl) nbEl.value = 1;
 }
@@ -3763,16 +3774,9 @@ init();
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px">
       <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">⚡ Appliquer sur plusieurs jours</div>
       
-      <!-- Sélection jours de la semaine en cours -->
-      <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
-        <span style="font-size:10px;color:var(--text3);align-self:center;width:100%">Cette semaine :</span>
-        ${['Lundi','Mardi','Mercredi','Jeudi','Vendredi'].map(j=>`
-        <label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer">
-          <input type="checkbox" id="rep-${j}" class="rep-jour" style="width:auto"/>
-          ${j.slice(0,3)}
-        </label>`).join('')}
-        <button onclick="toggleRepJours(true)" style="font-size:10px;padding:1px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;margin-left:4px">Tous</button>
-        <button onclick="toggleRepJours(false)" style="font-size:10px;padding:1px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer">Aucun</button>
+      <!-- Sélection jours de la semaine en cours — générée par JS via initRepJours -->
+      <div id="rep-jours-container" style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
+        <!-- rempli par initRepJours() -->
       </div>
 
       <!-- Répéter sur N semaines -->
