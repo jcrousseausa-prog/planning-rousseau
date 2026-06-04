@@ -1935,13 +1935,36 @@ function renderSaisieHebdo(){
   </div>`;
 
   if(!employes.length){
-    html += `<div class="warn-box">Ajoutez d\'abord vos employés dans l\'onglet "Employés"</div>`;
+    html += `<div class="warn-box">Ajoutez d'abord vos employés dans l'onglet "Employés"</div>`;
     el.innerHTML = html;
     return;
   }
 
-  // Tableau de saisie rapide — toutes les personnes
+  // Filtrer les employés : actifs + fin de mission non dépassée
+  const today = new Date().toISOString().slice(0,10);
   const heuresSem = (state.heures||[]).filter(h=>h.semaine===semSel);
+
+  // Séparer présents / exclus
+  const empActifs = employes.filter(e=>{
+    if(e.inactif) return false;
+    if(e.fin_mission && e.fin_mission < today) return false;
+    return true;
+  });
+  const empExclus = employes.filter(e=>e.inactif || (e.fin_mission && e.fin_mission < today));
+
+  // Parmi les actifs, distinguer ceux avec absences toute la semaine
+  const empAbsents = empActifs.filter(emp=>{
+    const lignes = heuresSem.filter(h=>h.emp_id===emp.id);
+    if(!lignes.length) return false;
+    // Absent toute la semaine = toutes les lignes présence sont des absences sans heures
+    const lignesPresence = lignes.filter(l=>l.type_saisie==='presence');
+    if(!lignesPresence.length) return false;
+    return lignesPresence.every(l=>l.absent && !l.h_mat && !l.h_am);
+  });
+  const empAbsentsIds = new Set(empAbsents.map(e=>e.id));
+
+  // Employés à afficher dans le tableau principal = actifs non-totalement-absents
+  const employes_affichables = empActifs.filter(e=>!empAbsentsIds.has(e.id));
 
   html += `<div class="table-wrap"><table>
     <thead><tr>
@@ -1952,7 +1975,7 @@ function renderSaisieHebdo(){
     </tr></thead>
     <tbody>`;
 
-  employes.forEach(emp=>{
+  employes_affichables.forEach(emp=>{
     const lignes = heuresSem.filter(h=>h.emp_id===emp.id);
     // Total hebdo = seulement les lignes CHANTIER (pas les présences/horaires)
     const lignesChantierSem = lignes.filter(l=>l.chantier1 && l.type_saisie!=='presence' && l.type_saisie!=='affectation_log');
@@ -1990,7 +2013,33 @@ function renderSaisieHebdo(){
     </tr>`;
   });
 
-  html += `</tbody></table></div>`;
+  html += `</tbody>`;
+
+  // Section absents (affichés en grisé)
+  if(empAbsents.length){
+    html += `<tr style="background:#F8F4F0"><td colspan="9" style="padding:6px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text3)">Absents cette semaine</td></tr>`;
+    empAbsents.forEach(emp=>{
+      const lignesAbs = heuresSem.filter(h=>h.emp_id===emp.id&&h.type_saisie==='presence');
+      const absLabel = lignesAbs[0]?.absent||'Absent';
+      const badge = emp.statut==='CDI'?'emp-badge-cdi':emp.statut==='interim'?'emp-badge-interim':'emp-badge-cdd';
+      html += `<tr style="opacity:.55;border-bottom:1px solid var(--border)">
+        <td style="font-size:12px;color:var(--text2);padding:6px 11px">${esc(emp.nom)} ${esc(emp.prenom)}</td>
+        <td><span class="${badge}" style="font-size:9px">${emp.statut==='CDI'?'CDI':'Int.'}</span></td>
+        ${JOURS_SEMAINE.map(j=>`<td style="text-align:center;font-size:11px;color:var(--orange)">${absLabel}</td>`).join('')}
+        <td style="text-align:center;font-size:11px;color:var(--text3)">—</td>
+        <td><button class="btn btn-sm" onclick="openSaisieJours('${emp.id}','${semSel}')">✎</button></td>
+      </tr>`;
+    });
+  }
+
+  // Section exclus (fin de mission / inactifs)
+  if(empExclus.length){
+    html += `<tr style="background:#F5F4F0"><td colspan="9" style="padding:6px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text3)">
+      Inactifs / Fin de mission — <span style="font-weight:400">${empExclus.map(e=>esc(e.nom)+' '+esc(e.prenom)).join(', ')}</span>
+    </td></tr>`;
+  }
+
+  html += `</table></div>`;
   el.innerHTML = html;
 }
 
@@ -2230,10 +2279,10 @@ function saveHeuresSemaine(){
   const {empId, semaine, nbRows} = _ctx;
   const atelier = document.getElementById('sj-atelier').value;
   if(!state.heures) state.heures = [];
-  // Supprimer les lignes chantier (toutes sauf présence/horaires)
+  // Supprimer toutes les lignes chantier ET absences saisies via la grille
+  // (garder uniquement les lignes présence/horaires du planning ressources)
   state.heures = state.heures.filter(h=>!(
     h.emp_id===empId && h.semaine===semaine &&
-    h.chantier1 &&
     h.type_saisie!=='presence' &&
     h.type_saisie!=='affectation_log'
   ));
@@ -2914,10 +2963,26 @@ function renderRecapHeures(){
 
   // Filtrer par période
   const heuresFil = heures.filter(h=>{
-    if(!h.chantier1) return false; // uniquement lignes chantier
+    if(!h.chantier1) return false; // uniquement lignes chantier pour le récap
+    if(h.type_saisie==='presence'||h.type_saisie==='affectation_log') return false;
     if(semDeb && h.semaine < semDeb) return false;
     if(semFin && h.semaine > semFin) return false;
     return true;
+  });
+
+  // Absences par employé sur la même période
+  const absencesFil = heures.filter(h=>{
+    if(!h.absent || h.chantier1) return false;
+    if(semDeb && h.semaine < semDeb) return false;
+    if(semFin && h.semaine > semFin) return false;
+    return true;
+  });
+  const absParEmp = {};
+  absencesFil.forEach(h=>{
+    const emp = employes.find(e=>e.id===h.emp_id);
+    const key = emp ? emp.nom+' '+emp.prenom : h.emp_id;
+    if(!absParEmp[key]) absParEmp[key]={nom:key,jours:{}};
+    absParEmp[key].jours[h.absent] = (absParEmp[key].jours[h.absent]||0)+1;
   });
 
   // Grouper par chantier + atelier + CDI/interim
@@ -3039,6 +3104,34 @@ function renderRecapHeures(){
     }).join('') : `<tr><td colspan="${2+ateliersCols.length*2+1}" style="padding:2rem;text-align:center;color:var(--text3)">Aucune heure chantier pour cette période</td></tr>`}
     </tbody>
   </table></div>`;
+
+  // ── Bloc absences ──
+  if(Object.keys(absParEmp).length){
+    const typesConnus = ['Maladie','CP','RTT','Absent','Formation','Fermeture'];
+    html += `<div style="margin-top:16px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);margin-bottom:8px">📅 Absences sur la période</div>
+      <div class="table-wrap"><table style="min-width:300px">
+        <thead><tr>
+          <th>Employé</th>
+          ${typesConnus.map(t=>`<th style="text-align:center">${t}</th>`).join('')}
+          <th style="text-align:center">Autre</th>
+          <th style="text-align:center">Total j.</th>
+        </tr></thead>
+        <tbody>
+        ${Object.values(absParEmp).map((a,i)=>{
+          const autre = Object.entries(a.jours).filter(([k])=>!typesConnus.includes(k)).reduce((s,[,v])=>s+v,0);
+          const total = Object.values(a.jours).reduce((s,v)=>s+v,0);
+          return '<tr style="'+(i%2?'background:#FAFAF8;':'')+'border-bottom:1px solid var(--border)">' +
+            '<td style="font-weight:500">'+esc(a.nom)+'</td>' +
+            typesConnus.map(t=>'<td style="text-align:center;font-family:DM Mono,monospace;font-size:12px;color:'+(a.jours[t]?'var(--orange)':'var(--text3)')+'">'+( a.jours[t]||'—')+'</td>').join('') +
+            '<td style="text-align:center;font-family:DM Mono,monospace;font-size:12px;color:'+(autre?'var(--orange)':'var(--text3)')+'">'+( autre||'—')+'</td>' +
+            '<td style="text-align:center;font-family:DM Mono,monospace;font-weight:700">'+total+'j</td>' +
+            '</tr>';
+        }).join('')}
+        </tbody>
+      </table></div>
+    </div>`;
+  }
 
   el.innerHTML = html;
 }
