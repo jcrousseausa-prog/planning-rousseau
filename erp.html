@@ -2613,21 +2613,28 @@ function renderRecapHeures(){
     return;
   }
 
-  const semaines = getSemainesDisponibles();
-  const semFil = state._recapSemFil||'';
+  const semaines = getSemainesDisponibles().reverse(); // chrono
+  const semDeb = state._recapSemDeb || '';
+  const semFin = state._recapSemFin || '';
+
+  // Filtrer par période
+  const heuresFil = heures.filter(h=>{
+    if(!h.chantier1) return false; // uniquement lignes chantier
+    if(semDeb && h.semaine < semDeb) return false;
+    if(semFin && h.semaine > semFin) return false;
+    return true;
+  });
 
   // Grouper par chantier + atelier + CDI/interim
   const parChantier = {};
   const ateliersSeen = new Set();
 
-  heures.forEach(h=>{
-    if(semFil && h.semaine !== semFil) return;
+  heuresFil.forEach(h=>{
     const emp = employes.find(e=>e.id===h.emp_id);
     const statut = emp?.statut||h.statut||'CDI';
     const atelier = h.atelier||emp?.atelier||'?';
     const total = (+h.h_mat||0)+(+h.h_am||0);
     if(!total) return;
-
     [h.chantier1, h.chantier2].filter(Boolean).forEach(ch=>{
       const nbCh = [h.chantier1,h.chantier2].filter(Boolean).length;
       const hPart = total / nbCh;
@@ -2643,7 +2650,6 @@ function renderRecapHeures(){
   const rows = Object.values(parChantier).sort((a,b)=>b.total-a.total);
   const ateliersCols = ATELIERS_H.filter(a=>ateliersSeen.has(a));
 
-  // Totaux globaux
   const totParAtelier = {};
   ateliersCols.forEach(at=>{
     totParAtelier[at] = {
@@ -2654,34 +2660,57 @@ function renderRecapHeures(){
   });
   const totGCDI = rows.reduce((s,r)=>s+Object.values(r.parAtelier).reduce((a,b)=>a+b.cdi,0),0);
   const totGInt  = rows.reduce((s,r)=>s+Object.values(r.parAtelier).reduce((a,b)=>a+b.interim,0),0);
+  const totG = totGCDI + totGInt;
 
-  // Aide lecture : chaque atelier = 2 sous-colonnes CDI / Int.
   let html = `
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-    <label style="font-size:12px;font-weight:600;color:var(--text2)">Semaine</label>
-    <select style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
-      onchange="state._recapSemFil=this.value;renderRecapHeures()">
-      <option value="">Toutes les semaines</option>
-      ${semaines.map(s=>`<option value="${s.val}"${s.val===semFil?' selected':''}>${s.label}</option>`).join('')}
-    </select>
+  <!-- Filtres période -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px">
+    <span style="font-size:12px;font-weight:600;color:var(--text2)">Période :</span>
+    <label style="font-size:12px;color:var(--text2)">Du
+      <select style="margin-left:5px;padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+        onchange="state._recapSemDeb=this.value;renderRecapHeures()">
+        <option value="">Début</option>
+        ${semaines.map(s=>`<option value="${s.val}"${s.val===semDeb?' selected':''}>${s.label}</option>`).join('')}
+      </select>
+    </label>
+    <label style="font-size:12px;color:var(--text2)">Au
+      <select style="margin-left:5px;padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+        onchange="state._recapSemFin=this.value;renderRecapHeures()">
+        <option value="">Fin</option>
+        ${semaines.map(s=>`<option value="${s.val}"${s.val===semFin?' selected':''}>${s.label}</option>`).join('')}
+      </select>
+    </label>
+    ${semDeb||semFin?`<button class="btn btn-sm" onclick="state._recapSemDeb='';state._recapSemFin='';renderRecapHeures()">✕ Effacer</button>`:''}
+    <span style="font-size:11px;color:var(--text3);margin-left:auto">${heuresFil.length} ligne${heuresFil.length>1?'s':''} · ${rows.length} chantier${rows.length>1?'s':''}</span>
   </div>
 
-  <!-- Métriques globales -->
-  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-    <div class="metric"><div class="metric-k">H CDI</div><div class="metric-v ok">${Math.round(totGCDI)}h</div></div>
-    <div class="metric"><div class="metric-k">H Intérim</div><div class="metric-v warn">${Math.round(totGInt)}h</div></div>
-    <div class="metric"><div class="metric-k">Total</div><div class="metric-v">${Math.round(totGCDI+totGInt)}h</div></div>
+  <!-- TOTAL en haut -->
+  <div style="background:var(--blue);color:#fff;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+    <div>
+      <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">TOTAL GÉNÉRAL</div>
+      <div style="font-size:26px;font-weight:700;font-family:'DM Mono',monospace">${Math.round(totG)}h</div>
+    </div>
+    <div style="width:1px;background:rgba(255,255,255,.3);align-self:stretch"></div>
+    <div>
+      <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">CDI</div>
+      <div style="font-size:20px;font-weight:600;font-family:'DM Mono',monospace;color:#A3D9B8">${Math.round(totGCDI)}h</div>
+    </div>
+    <div>
+      <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">INTÉRIM</div>
+      <div style="font-size:20px;font-weight:600;font-family:'DM Mono',monospace;color:#F5C98A">${Math.round(totGInt)}h</div>
+    </div>
+    <div style="width:1px;background:rgba(255,255,255,.3);align-self:stretch"></div>
     ${ateliersCols.map(at=>`
-    <div class="metric" style="border-color:var(--blue-border)">
-      <div class="metric-k" style="color:var(--blue)">${at}</div>
-      <div class="metric-v" style="font-size:16px">${Math.round(totParAtelier[at].total)}h</div>
-      <div class="metric-sub">${Math.round(totParAtelier[at].cdi)}h CDI · <span style="color:var(--orange)">${Math.round(totParAtelier[at].interim)}h Int.</span></div>
+    <div>
+      <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">${at}</div>
+      <div style="font-size:18px;font-weight:600;font-family:'DM Mono',monospace">${Math.round(totParAtelier[at].total)}h</div>
+      <div style="font-size:10px;opacity:.8">${Math.round(totParAtelier[at].cdi)}h CDI · <span style="color:#F5C98A">${Math.round(totParAtelier[at].interim)}h Int.</span></div>
     </div>`).join('')}
   </div>
 
   <!-- Tableau détaillé -->
   <div class="table-wrap" style="overflow-x:auto">
-  <table style="min-width:600px">
+  <table style="min-width:500px">
     <thead>
       <tr>
         <th rowspan="2" style="vertical-align:middle">Chantier</th>
@@ -2691,13 +2720,13 @@ function renderRecapHeures(){
       </tr>
       <tr>
         ${ateliersCols.map(()=>`
-          <th style="text-align:right;font-size:10px;background:#EAF1FB;color:var(--green)">CDI</th>
+          <th style="text-align:right;font-size:10px;background:#E8F5EE;color:var(--green)">CDI</th>
           <th style="text-align:right;font-size:10px;background:#FDF3E8;color:var(--orange)">Int.</th>
         `).join('')}
       </tr>
     </thead>
     <tbody>
-    ${rows.map((r,i)=>{
+    ${rows.length ? rows.map((r,i)=>{
       const hCDI = Object.values(r.parAtelier).reduce((s,v)=>s+v.cdi,0);
       const hInt = Object.values(r.parAtelier).reduce((s,v)=>s+v.interim,0);
       const pct = r.total>0?Math.round(hInt/r.total*100):0;
@@ -2712,16 +2741,7 @@ function renderRecapHeures(){
         }).join('')}
         <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${r.total>0?pct+'%':'—'}</td>
       </tr>`;
-    }).join('')}
-    <tr style="background:var(--bg);font-weight:700;border-top:2px solid var(--border2)">
-      <td>TOTAL</td>
-      <td style="text-align:right;font-family:'DM Mono',monospace">${Math.round(totGCDI+totGInt)}h</td>
-      ${ateliersCols.map(at=>`
-        <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--green)">${Math.round(totParAtelier[at].cdi)}h</td>
-        <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--orange)">${Math.round(totParAtelier[at].interim)}h</td>
-      `).join('')}
-      <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${(totGCDI+totGInt)>0?Math.round(totGInt/(totGCDI+totGInt)*100)+'%':'—'}</td>
-    </tr>
+    }).join('') : `<tr><td colspan="${2+ateliersCols.length*2+1}" style="padding:2rem;text-align:center;color:var(--text3)">Aucune heure chantier pour cette période</td></tr>`}
     </tbody>
   </table></div>`;
 
