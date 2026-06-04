@@ -336,6 +336,7 @@ table.bl-lignes td.r{text-align:right}
     <button class="htab" id="htab-planning" onclick="showHTab('planning')">📅 Planning ressources</button>
     <button class="htab" id="htab-recap" onclick="showHTab('recap')">📊 Récap chantiers</button>
     <button class="htab" id="htab-macro" onclick="showHTab('macro')">🗓 Vue macro</button>
+    <button class="htab" id="htab-affectation" onclick="showHTab('affectation')">⚖️ Affectation Log</button>
   </div>
   <!-- Contenus -->
   <div id="hscreen-employes"></div>
@@ -343,6 +344,7 @@ table.bl-lignes td.r{text-align:right}
   <div id="hscreen-planning" style="display:none"></div>
   <div id="hscreen-recap" style="display:none"></div>
   <div id="hscreen-macro" style="display:none"></div>
+  <div id="hscreen-affectation" style="display:none"></div>
 </div>
 
 <!-- MODAL EMPLOYE -->
@@ -374,6 +376,15 @@ table.bl-lignes td.r{text-align:right}
           <option value="Log">Logistique</option>
           <option value="Us">Usinage</option>
         </select>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Rôle spécifique</label>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="me-cariste" style="width:16px;height:16px"/>
+          🚜 Cariste (affectation proportionnelle)
+        </label>
       </div>
     </div>
     <div id="me-interim-fields">
@@ -1750,7 +1761,7 @@ const JOURS_SEMAINE = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
 
 // ── SOUS-ONGLETS ──
 function showHTab(tab){
-  ['employes','saisie','planning','recap','macro'].forEach(t=>{
+  ['employes','saisie','planning','recap','macro','affectation'].forEach(t=>{
     document.getElementById('hscreen-'+t).style.display = t===tab?'':'none';
     document.getElementById('htab-'+t).classList.toggle('active', t===tab);
   });
@@ -1758,6 +1769,7 @@ function showHTab(tab){
   if(tab==='saisie') renderSaisieHebdo();
   if(tab==='planning') renderPlanningRessources();
   if(tab==='recap') renderRecapHeures();
+  if(tab==='affectation') renderAffectationLog();
   if(tab==='macro'){
     // Toujours se positionner sur la semaine en cours à l'ouverture
     state._macroStartSem = getWeekISO(new Date());
@@ -1801,8 +1813,9 @@ function renderEmployes(){
         html += `<div class="emp-card" style="${isInactif?'opacity:.5;filter:grayscale(.8)':''}">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
             <div class="emp-card-name">${esc(e.nom)} ${esc(e.prenom)}</div>
-            <div style="display:flex;gap:4px;align-items:center">
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
               <span class="${badge}">${e.statut==='CDI'?'CDI':e.statut==='interim'?'Intérim':'CDD'}</span>
+              ${e.cariste?'<span style="background:#FFF8E1;color:#F57F17;border:1px solid #FFE082;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:700">🚜 Cariste</span>':''}
               ${isInactif?'<span style="background:#DDD;color:#888;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:700">INACTIF</span>':''}
             </div>
           </div>
@@ -1832,6 +1845,7 @@ function openAddEmploye(){
   document.getElementById('me-matricule').value = '';
   document.getElementById('me-agence').value = '';
   document.getElementById('me-fin-mission').value = '';
+  document.getElementById('me-cariste').checked = false;
   document.getElementById('me-interim-fields').style.display = 'none';
   document.getElementById('me-statut').onchange = function(){
     document.getElementById('me-interim-fields').style.display = this.value==='interim'?'':'none';
@@ -1851,6 +1865,7 @@ function openEditEmploye(id){
   document.getElementById('me-matricule').value = e.matricule||'';
   document.getElementById('me-agence').value = e.agence||'';
   document.getElementById('me-fin-mission').value = e.fin_mission||'';
+  document.getElementById('me-cariste').checked = e.cariste||false;
   document.getElementById('me-interim-fields').style.display = e.statut==='interim'?'':'none';
   document.getElementById('me-statut').onchange = function(){
     document.getElementById('me-interim-fields').style.display = this.value==='interim'?'':'none';
@@ -1873,6 +1888,7 @@ function saveEmploye(){
     atelier: document.getElementById('me-atelier').value,
     agence: document.getElementById('me-agence').value.trim(),
     fin_mission: document.getElementById('me-fin-mission').value||null,
+    cariste: document.getElementById('me-cariste')?.checked||false,
   };
   if(_ctx.type==='edit-employe'){
     const idx = state.employes.findIndex(e=>e.id===_ctx.id);
@@ -1939,7 +1955,7 @@ function renderSaisieHebdo(){
   employes.forEach(emp=>{
     const lignes = heuresSem.filter(h=>h.emp_id===emp.id);
     // Total hebdo = seulement les lignes CHANTIER (pas les présences/horaires)
-    const lignesChantierSem = lignes.filter(l=>l.chantier1);
+    const lignesChantierSem = lignes.filter(l=>l.chantier1 && l.type_saisie!=='presence' && l.type_saisie!=='affectation_log');
     const totalH = Math.round(lignesChantierSem.reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0),0)*10)/10;
     const badge = emp.statut==='CDI'?'emp-badge-cdi':emp.statut==='interim'?'emp-badge-interim':'emp-badge-cdd';
 
@@ -1947,7 +1963,7 @@ function renderSaisieHebdo(){
     const parJour = {};
     JOURS_SEMAINE.forEach(j=>{
       // Lignes chantier = ont un chantier1 renseigné
-      const lignesChantier = lignes.filter(l=>l.jour===j && l.chantier1);
+      const lignesChantier = lignes.filter(l=>l.jour===j && l.chantier1 && l.type_saisie!=='presence' && l.type_saisie!=='affectation_log');
       // Lignes absence pure (sans chantier)
       const lignesAbs = lignes.filter(l=>l.jour===j && l.absent && !l.chantier1 && l.type_saisie!=='presence');
       if(!lignesChantier.length && !lignesAbs.length){ parJour[j]='—'; return; }
@@ -2030,9 +2046,10 @@ function updateAtelierSemaine(empId, semaine, atelier){
 function openSaisieJours(empId, semaine){
   const emp = (state.employes||[]).find(e=>e.id===empId);
   if(!emp) return;
-  // Charger uniquement les lignes de type 'chantier' (pas les présences/horaires du planning)
+  // Charger les lignes chantier (type='chantier' ou sans type, mais pas présence/affectation)
   const existingLignes = (state.heures||[]).filter(h=>
-    h.emp_id===empId && h.semaine===semaine && h.chantier1 && h.type_saisie!=='presence'
+    h.emp_id===empId && h.semaine===semaine && h.chantier1 &&
+    h.type_saisie!=='presence' && h.type_saisie!=='affectation_log'
   );
   const atelier = existingLignes[0]?.atelier || emp.atelier;
 
@@ -2213,8 +2230,13 @@ function saveHeuresSemaine(){
   const {empId, semaine, nbRows} = _ctx;
   const atelier = document.getElementById('sj-atelier').value;
   if(!state.heures) state.heures = [];
-  // Supprimer uniquement les lignes chantier (garder les lignes présence/horaires)
-  state.heures = state.heures.filter(h=>!(h.emp_id===empId&&h.semaine===semaine&&h.chantier1&&h.type_saisie!=='presence'));
+  // Supprimer les lignes chantier (toutes sauf présence/horaires)
+  state.heures = state.heures.filter(h=>!(
+    h.emp_id===empId && h.semaine===semaine &&
+    h.chantier1 &&
+    h.type_saisie!=='presence' &&
+    h.type_saisie!=='affectation_log'
+  ));
   const emp = (state.employes||[]).find(e=>e.id===empId);
 
   // Absences
@@ -2239,7 +2261,8 @@ function saveHeuresSemaine(){
           h_mat: h, h_am: 0,
           total_hebdo: h,
           absent: absences[j]||'',
-          statut: emp?.statut||'CDI'
+          statut: emp?.statut||'CDI',
+          type_saisie: 'chantier'
         });
       }
     });
@@ -2255,7 +2278,8 @@ function saveHeuresSemaine(){
           chantier1: '', chantier2: '',
           h_mat: 0, h_am: 0, total_hebdo: 0,
           absent: absences[j],
-          statut: emp?.statut||'CDI'
+          statut: emp?.statut||'CDI',
+          type_saisie: 'chantier'
         });
       }
     }
@@ -2665,6 +2689,212 @@ function savePauseConfig(){
   closeModal('modal-pause');
   scheduleSave();
   toast('Pauses enregistrées');
+}
+
+// ── AFFECTATION PROPORTIONNELLE LOG/CARISTES ──
+function renderAffectationLog(){
+  const el = document.getElementById('hscreen-affectation');
+  const employes = state.employes||[];
+  const heures = state.heures||[];
+
+  // Caristes uniquement (marqués comme cariste dans leur fiche)
+  const empsSupport = employes.filter(e=>e.cariste && !e.inactif);
+  // Ateliers "production" = B1, B2, B3, Men
+  const ateliersProd = ['B1','B2','B3','Men'];
+
+  const semaines = getSemainesDisponibles();
+  const semSel = state._affectSem || semaines[0]?.val || getWeekISO(new Date());
+  // Atelier cible pour l'affectation
+  const atelierCible = state._affectAtelier || 'B1';
+
+  // Calculer les heures production par chantier pour l'atelier cible cette semaine
+  const hParChantier = {};
+  heures.filter(h=>h.semaine===semSel && h.chantier1 && h.type_saisie!=='presence').forEach(h=>{
+    const emp = employes.find(e=>e.id===h.emp_id);
+    const at = h.atelier || emp?.atelier || '';
+    if(at !== atelierCible) return;
+    const total = (+h.h_mat||0)+(+h.h_am||0);
+    if(!total) return;
+    [h.chantier1, h.chantier2].filter(Boolean).forEach(ch=>{
+      const nbCh = [h.chantier1,h.chantier2].filter(Boolean).length;
+      hParChantier[ch] = (hParChantier[ch]||0) + total/nbCh;
+    });
+  });
+
+  const totalProd = Object.values(hParChantier).reduce((s,v)=>s+v, 0);
+  const chantiersList = Object.entries(hParChantier).sort((a,b)=>b[1]-a[1]);
+
+  // Heures support pour la semaine sélectionnée
+  const hSupport = {};
+  empsSupport.forEach(emp=>{
+    const lignes = heures.filter(h=>h.emp_id===emp.id && h.semaine===semSel);
+    // Prendre les heures présence si dispo, sinon heures chantier
+    const lignesP = lignes.filter(l=>l.type_saisie==='presence'||l.horaire);
+    const total = (lignesP.length ? lignesP : lignes.filter(l=>l.chantier1))
+      .reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0), 0);
+    hSupport[emp.id] = total;
+  });
+
+  let html = `
+  <div style="background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:12px;color:var(--blue)">
+    💡 <strong>Principe :</strong> Les heures des caristes/logisticiens sont réparties proportionnellement sur les chantiers travaillés dans l'atelier sélectionné, en fonction du volume d'heures production de la semaine.
+  </div>
+
+  <!-- Sélecteurs -->
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px">
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Semaine
+      <select style="margin-left:6px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+        onchange="state._affectSem=this.value;renderAffectationLog()">
+        ${semaines.map(s=>`<option value="${s.val}"${s.val===semSel?' selected':''}>${s.label}</option>`).join('')}
+      </select>
+    </label>
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Atelier production
+      <select style="margin-left:6px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+        onchange="state._affectAtelier=this.value;renderAffectationLog()">
+        ${ateliersProd.map(a=>`<option value="${a}"${a===atelierCible?' selected':''}>${a}</option>`).join('')}
+      </select>
+    </label>
+  </div>
+
+  ${!totalProd ? `<div class="warn-box">Aucune heure de production saisie pour l'atelier ${atelierCible} en ${semSel}. Saisissez d'abord les heures chantier de cet atelier.</div>` : ''}
+  ${!empsSupport.length ? `<div class="warn-box">Aucun employé marqué "Cariste". Modifiez la fiche d'un employé et cochez 🚜 Cariste pour l'inclure ici.</div>` : ''}
+
+  ${totalProd && empsSupport.length ? `
+  <!-- Résumé production -->
+  <div style="margin-bottom:20px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);margin-bottom:10px">
+      Production atelier ${atelierCible} — ${semSel} — <strong>${Math.round(totalProd)}h total</strong>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;padding:7px 12px;border-bottom:1px solid var(--border)">Chantier</th>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;padding:7px 12px;border-bottom:1px solid var(--border);text-align:right">H prod.</th>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;padding:7px 12px;border-bottom:1px solid var(--border);text-align:right">% du total</th>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;padding:7px 12px;border-bottom:1px solid var(--border)" colspan="${empsSupport.length+1}">Affectation Log</th>
+        </tr>
+        <tr>
+          <th style="background:var(--bg);padding:5px 12px;border-bottom:1px solid var(--border)" colspan="3"></th>
+          ${empsSupport.map(e=>`<th style="background:#F2EDF9;color:var(--purple);font-size:10px;font-weight:600;padding:5px 12px;border-bottom:1px solid var(--border);text-align:right;border-left:1px solid var(--border)">${esc(e.nom)}<br><span style="font-size:9px;opacity:.7">${hSupport[e.id]>0?hSupport[e.id]+'h tot.':'non saisi'}</span></th>`).join('')}
+          <th style="background:#F2EDF9;color:var(--purple);font-size:10px;font-weight:600;padding:5px 12px;border-bottom:1px solid var(--border);text-align:right;border-left:1px solid var(--border)">Total Log</th>
+        </tr></thead>
+        <tbody>
+          ${chantiersList.map(([ch, hProd],i)=>{
+            const pct = totalProd>0 ? hProd/totalProd : 0;
+            const barW = Math.round(pct*100);
+            return `<tr style="${i%2?'background:#FAFAF8;':''}border-bottom:1px solid var(--border)">
+              <td style="padding:9px 12px;font-weight:500">${esc(ch)}</td>
+              <td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace;font-weight:600">${Math.round(hProd)}h</td>
+              <td style="padding:9px 12px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;min-width:60px">
+                    <div style="width:${barW}%;height:100%;background:var(--blue);border-radius:3px"></div>
+                  </div>
+                  <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--blue);min-width:32px">${Math.round(pct*100)}%</span>
+                </div>
+              </td>
+              ${empsSupport.map(e=>{
+                const hAff = hSupport[e.id]>0 ? Math.round(hSupport[e.id]*pct*10)/10 : 0;
+                return `<td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${hAff>0?'var(--purple)':'var(--text3)'};border-left:1px solid var(--border)">${hAff>0?hAff+'h':'—'}</td>`;
+              }).join('')}
+              <td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--purple);border-left:1px solid var(--border)">
+                ${Math.round(empsSupport.reduce((s,e)=>s+(hSupport[e.id]>0?hSupport[e.id]*pct:0),0)*10)/10}h
+              </td>
+            </tr>`;
+          }).join('')}
+          <!-- Ligne total -->
+          <tr style="background:var(--bg);font-weight:700;border-top:2px solid var(--border2)">
+            <td style="padding:9px 12px">TOTAL</td>
+            <td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace">${Math.round(totalProd)}h</td>
+            <td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace">100%</td>
+            ${empsSupport.map(e=>`<td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace;color:var(--purple);border-left:1px solid var(--border)">${hSupport[e.id]>0?hSupport[e.id]+'h':'—'}</td>`).join('')}
+            <td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace;color:var(--purple);border-left:1px solid var(--border)">${Math.round(empsSupport.reduce((s,e)=>s+hSupport[e.id],0))}h</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bouton appliquer -->
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button class="btn btn-primary" onclick="appliquerAffectationLog('${semSel}','${atelierCible}')">
+      ✓ Appliquer cette affectation dans les heures
+    </button>
+    <span style="font-size:11px;color:var(--text3)">Crée les lignes chantier pour chaque cariste avec la répartition calculée</span>
+  </div>
+  ` : ''}`;
+
+  el.innerHTML = html;
+}
+
+function appliquerAffectationLog(semaine, atelierCible){
+  const employes = state.employes||[];
+  const heures = state.heures||[];
+  const empsSupport = employes.filter(e=>e.cariste && !e.inactif);
+
+  // Recalculer la répartition
+  const hParChantier = {};
+  heures.filter(h=>h.semaine===semaine && h.chantier1 && h.type_saisie!=='presence').forEach(h=>{
+    const emp = employes.find(e=>e.id===h.emp_id);
+    const at = h.atelier || emp?.atelier || '';
+    if(at !== atelierCible) return;
+    const total = (+h.h_mat||0)+(+h.h_am||0);
+    if(!total) return;
+    [h.chantier1, h.chantier2].filter(Boolean).forEach(ch=>{
+      const nbCh = [h.chantier1,h.chantier2].filter(Boolean).length;
+      hParChantier[ch] = (hParChantier[ch]||0) + total/nbCh;
+    });
+  });
+
+  const totalProd = Object.values(hParChantier).reduce((s,v)=>s+v, 0);
+  if(!totalProd){ toast('Aucune heure production trouvée'); return; }
+
+  if(!state.heures) state.heures = [];
+  let count = 0;
+
+  empsSupport.forEach(emp=>{
+    // Calculer les heures totales du support cette semaine
+    const lignes = heures.filter(h=>h.emp_id===emp.id && h.semaine===semaine);
+    const lignesP = lignes.filter(l=>l.type_saisie==='presence'||l.horaire);
+    const hTot = (lignesP.length ? lignesP : lignes.filter(l=>l.chantier1))
+      .reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0), 0);
+    if(!hTot){ return; }
+
+    // Supprimer les anciennes lignes chantier de cet employé pour cette semaine
+    state.heures = state.heures.filter(h=>
+      !(h.emp_id===emp.id && h.semaine===semaine && h.chantier1 && h.type_saisie!=='presence')
+    );
+
+    // Créer une ligne par chantier avec les heures proportionnelles
+    // Répartir sur les jours ouvrés de la semaine (lundi→vendredi)
+    const [yr, sw] = semaine.split('-S');
+    Object.entries(hParChantier).forEach(([ch, hProd])=>{
+      const pct = hProd / totalProd;
+      const hAff = Math.round(hTot * pct * 100) / 100;
+      if(hAff <= 0) return;
+
+      // Répartir équitablement sur les jours (simplification : tout sur lundi)
+      // En pratique on crée une ligne globale par chantier
+      state.heures.push({
+        id: uid(),
+        emp_id: emp.id,
+        semaine, jour: 'Lundi', // ligne agrégée semaine
+        atelier: emp.atelier,
+        chantier1: ch, chantier2: '',
+        h_mat: hAff, h_am: 0,
+        total_hebdo: hAff,
+        absent: '',
+        statut: emp.statut||'CDI',
+        type_saisie: 'affectation_log',
+        comment: `Affectation auto ${atelierCible} — ${Math.round(pct*100)}%`
+      });
+      count++;
+    });
+  });
+
+  scheduleSave();
+  toast(`✓ ${count} ligne${count>1?'s':''} d'affectation créée${count>1?'s':''}`);
+  renderAffectationLog();
 }
 
 // ── RÉCAP HEURES PAR CHANTIER ──
