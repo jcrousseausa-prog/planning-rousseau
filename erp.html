@@ -2065,7 +2065,7 @@ function toast(msg){
 
 // ═══ MODULE HEURES ════════════════════════════════════════════════════════
 
-const ATELIERS_H = ['B1','B2','B3','Men','Log','Us'];
+const ATELIERS_H = ['B1','B2','B3','Men','Log','Us','Transport'];
 const JOURS_SEMAINE = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
 
 // ── SOUS-ONGLETS ──
@@ -2943,7 +2943,7 @@ function renderPlanningRessources(){
     });
     if(!emps.length) return;
 
-    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Atelier Men':at==='Log'?'Logistique':'Usinage';
+    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Atelier Men':at==='Log'?'Logistique':at==='Transport'?'Transport':'Usinage';
     html += `<tr><td colspan="8" style="background:#2C5F8A;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:5px 12px;border:1px solid rgba(255,255,255,.2)">${atLabel}</td></tr>`;
 
     emps.forEach((emp,idx)=>{
@@ -4010,7 +4010,7 @@ function renderVueMacro(){
       return true; // CDI toujours affiché
     });
     if(!empsAt.length) return;
-    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Menuiserie':at==='Log'?'Logistique':'Usinage';
+    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Menuiserie':at==='Log'?'Logistique':at==='Transport'?'Transport':'Usinage';
     const totalCols = 1 + semaines.length * 5;
 
     html += `<tr>
@@ -5016,6 +5016,7 @@ init();
         <option value="B3">Atelier B3</option>
         <option value="Log">Logistique</option>
         <option value="Us">Usinage</option>
+        <option value="Transport">Transport</option>
       </select>
     </div>
 
