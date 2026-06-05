@@ -4259,54 +4259,21 @@ function saveInterim(){
   toast('Heures intérim enregistrées');
 }
 
-const PROD_B2_CSV = 'https://docs.google.com/spreadsheets/d/1HdbsNfFae6GYzNDxUGLbzHZ6cxg5GXVb1jAIss7y-JE/export?format=csv&gid=1854865688';
+// PROD_B2_CSV supprimé — lecture via Apps Script (getProdB2)
 let _prodB2Data = null; // cache des données production
 
 async function loadProdB2() {
   try {
-    const res = await fetch(PROD_B2_CSV);
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const text = await res.text();
-    const lines = text.split('\n').filter(l=>l.trim());
-    if(lines.length<2) return [];
-    // Détecter le séparateur
-    const sep = lines[0].includes('\t')?'\t':',';
-    const headers = lines[0].split(sep).map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
-    
-    // Trouver les indices des colonnes clés
-    const findCol = (names) => {
-      for(const n of names){
-        const i = headers.findIndex(h=>h.includes(n.toLowerCase()));
-        if(i>=0) return i;
-      }
-      return -1;
-    };
-    
-    const iSem = findCol(['semaine','week']);
-    const iM2B = findCol(['m2 bardage','m2bard','bardage']);
-    const iM2S = findCol(['m2 std','m2std','std']);
-    
-    if(iSem<0) { console.warn('Colonne Semaine non trouvée'); return []; }
-    
-    const rows = [];
-    for(let i=1;i<lines.length;i++){
-      const cols = lines[i].split(sep).map(c=>c.trim().replace(/^"|"$/g,'').replace(',','.'));
-      const sem = parseInt(cols[iSem]);
-      if(!sem||isNaN(sem)) continue;
-      const m2b = iM2B>=0?parseFloat(cols[iM2B])||0:0;
-      const m2s = iM2S>=0?parseFloat(cols[iM2S])||0:0;
-      // Chercher si la semaine existe déjà
-      const existing = rows.find(r=>r.semaine===sem);
-      if(existing){
-        existing.m2_barde+=m2b;
-        existing.m2_std+=m2s;
-        existing.m2_total+=m2b+m2s;
-        existing.nb_pieces++;
-      } else {
-        rows.push({semaine:sem, m2_barde:m2b, m2_std:m2s, m2_total:m2b+m2s, nb_pieces:1});
-      }
-    }
-    return rows.sort((a,b)=>a.semaine-b.semaine);
+    // Lecture via Apps Script pour éviter les erreurs CORS
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'getProdB2'})
+    });
+    const r = await res.json();
+    if(r.ok && r.data) return r.data;
+    console.warn('getProdB2:', r.error||'Erreur inconnue');
+    return [];
   } catch(e) {
     console.warn('Erreur lecture Production_B2:', e.message);
     return [];
