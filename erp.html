@@ -3599,6 +3599,7 @@ function renderVueMacro(){
   const nbSem = parseInt(document.getElementById('macro-nb-sem')?.value)||4;
   const startSem = state._macroStartSem || document.getElementById('macro-start-sem')?.value || getWeekISO(new Date());
   const todaySem = getWeekISO(new Date());
+  const today = new Date().toISOString().slice(0,10);
   const todayStr = new Date().toLocaleDateString('fr-FR',{weekday:'short'}).slice(0,3);
 
   // Générer les semaines et leurs jours
