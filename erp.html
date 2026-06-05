@@ -1818,8 +1818,6 @@ function renderEmployes(){
   const nbCDI = employes.filter(e=>e.statut==='CDI').length;
   const nbInterim = employes.filter(e=>e.statut==='interim').length;
   const today = new Date().toISOString().slice(0,10);
-
-  const today = new Date().toISOString().slice(0,10);
   const in7j = new Date(); in7j.setDate(in7j.getDate()+7);
   const in14j = new Date(); in14j.setDate(in14j.getDate()+14);
   const in7jStr = in7j.toISOString().slice(0,10);
