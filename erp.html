@@ -203,7 +203,7 @@ table.bl-lignes td.r{text-align:right}
   </div>
   <div class="header-right">
     <div class="rt-dot"></div><span class="rt-label" id="rt-label">Prêt</span>
-    <a href="index.html" style="font-size:12px;color:var(--text2);text-decoration:none;border:1px solid var(--border);padding:4px 10px;border-radius:7px">← Planning</a>
+    <a href="planning-readonly.html" style="font-size:12px;color:var(--text2);text-decoration:none;border:1px solid var(--border);padding:4px 10px;border-radius:7px">← Planning</a>
     <span class="sync-pill" id="sync-pill" style="display:none">
       <span class="sync-dot"></span>
       <span id="sync-text">Synchronisé</span>
@@ -3954,8 +3954,6 @@ function renderAlertesSaisie(){
 }
 
 async function renderDashboard(){
-  const anneeRef = document.getElementById('db-annee')?.value||'2026';
-  
   if(!_prodB2Data) {
     document.getElementById('dashboard-content').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">⟳ Chargement…</div>';
     _prodB2Data = await loadProdB2();
@@ -3964,72 +3962,60 @@ async function renderDashboard(){
   const employes = state.employes||[];
   const heures = state.heures||[];
 
-  // ── Calculs globaux ──
+  // Semaine courante
   const semCourante = getWeekISO(new Date());
   const semaines12 = [];
   for(let i=1;i<=12;i++){ const d=new Date(); d.setDate(d.getDate()-i*7); semaines12.push(getWeekISO(d)); }
 
-  const totalCDI = employes.filter(e=>e.statut==='CDI'&&!e.inactif).length;
-  const totalInterim = employes.filter(e=>e.statut==='interim'&&!e.inactif).length;
-  const hSaisies = heures.filter(h=>h.chantier1&&semaines12.includes(h.semaine));
-  const hTotCDI = hSaisies.filter(h=>{ const e=employes.find(x=>x.id===h.emp_id); return e?.statut==='CDI'; }).reduce((s,h)=>s+(+h.h_mat||0)+(+h.h_am||0),0);
-  const hTotInt = hSaisies.filter(h=>{ const e=employes.find(x=>x.id===h.emp_id); return e?.statut==='interim'; }).reduce((s,h)=>s+(+h.h_mat||0)+(+h.h_am||0),0);
-  const m2Total = prodData.reduce((s,r)=>s+r.m2_total,0);
-  const m2Sem = prodData.length ? prodData[prodData.length-1].m2_total : 0;
-  const nbChantiers = state.chantiers.length;
-  const nbTranches = state.tranches.length;
-  const arts = state.articles||[];
-  const avMoyen = arts.length ? Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length) : 0;
+  // KPI équipe — uniquement actifs non expirés
+  const today = new Date().toISOString().slice(0,10);
+  const empsActifs = employes.filter(e=>!e.inactif && !(e.fin_mission && e.fin_mission < today));
+  const totalCDI = empsActifs.filter(e=>e.statut==='CDI').length;
+  const totalInterim = empsActifs.filter(e=>e.statut==='interim').length;
 
-  // Alertes non-saisies
-  const alertesNb = employes.filter(e=>!e.inactif).filter(emp=>{
+  // Heures par semaine (saisies chantier uniquement)
+  const hLignes = heures.filter(h=>h.chantier1 && h.type_saisie!=='presence' && h.type_saisie!=='affectation_log');
+
+  // M² prod — atelier B2 uniquement (source Production_B2)
+  const m2Total = prodData.reduce((s,r)=>s+r.m2_total,0);
+  const m2DernSem = prodData.length ? prodData[prodData.length-1] : null;
+
+  // Alertes saisies manquantes
+  const alertesNb = empsActifs.filter(emp=>{
     return semaines12.some(sem=>!heures.find(h=>h.emp_id===emp.id&&h.semaine===sem));
   }).length;
 
   let html = '';
 
-  // ══════════════════════════════════════════════════════
-  // HERO — KPI synthétiques en haut
-  // ══════════════════════════════════════════════════════
-  html += `
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:20px">
-    ${kpiCard('👥','Équipe',totalCDI+totalInterim+' pers.', totalCDI+' CDI · '+totalInterim+' Int.','var(--blue)')}
-    ${kpiCard('⏱️','Heures 12 sem.',Math.round(hTotCDI+hTotInt)+'h', Math.round(hTotCDI)+'h CDI · '+Math.round(hTotInt)+'h Int.','var(--green)')}
-    ${kpiCard('🏗️','Chantiers actifs',nbChantiers, nbTranches+' tranches','var(--purple)')}
-    ${kpiCard('📐','M² produits',Math.round(m2Total)+' m²', 'dernière sem. : '+m2Sem.toFixed(0)+' m²','var(--orange)')}
-    ${kpiCard('📊','Avancement',avMoyen+'%', arts.length+' articles','var(--teal)')}
-    ${alertesNb>0 ? kpiCard('⚠️','Saisies manquantes',alertesNb+' pers.','sur 12 semaines','var(--red)') : kpiCard('✅','Saisies','À jour','toutes semaines','var(--green)')}
+  // ══ KPI CARDS ══
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px">
+    ${kpiCard('👥','Équipe active',totalCDI+totalInterim+' pers.',totalCDI+' CDI · '+totalInterim+' Int.','var(--blue)')}
+    ${kpiCard('📐','M² prod. MOB B2',Math.round(m2Total)+' m²','Atelier B2 — depuis début','var(--teal)')}
+    ${m2DernSem?kpiCard('📅','Dernière semaine','S'+String(m2DernSem.semaine).padStart(2,'0')+' — '+m2DernSem.m2_total.toFixed(0)+' m²','Bardé: '+m2DernSem.m2_barde.toFixed(0)+' · Std: '+m2DernSem.m2_std.toFixed(0),'var(--orange)'):''}
+    ${kpiCard('🏗️','Chantiers',state.chantiers.length+' actifs',state.tranches.length+' tranches','var(--purple)')}
+    ${alertesNb>0 ? kpiCard('⚠️','Saisies manquantes',alertesNb+' pers.','sur 12 semaines','var(--red)') : kpiCard('✅','Pointage','À jour','12 dernières semaines','var(--green)')}
   </div>`;
 
-  // ══════════════════════════════════════════════════════
-  // GRAPHIQUE — Production M² par semaine (barres SVG)
-  // ══════════════════════════════════════════════════════
-  html += accordion('🏭 Production MOB B2 — M² par semaine', buildProdChart(prodData), true);
+  // ══ 1. AVANCEMENT PAR CHANTIER ══
+  html += accordion('📊 Avancement par chantier', buildAvancementTable(), true);
 
-  // ══════════════════════════════════════════════════════
-  // GRAPHIQUE — Heures CDI vs Intérim par semaine
-  // ══════════════════════════════════════════════════════
-  html += accordion('⏱️ Heures CDI vs Intérim — 12 dernières semaines', buildHeuresChart(heures, employes, semaines12), true);
+  // ══ 2. PRODUCTION M² PAR SEMAINE (B2) ══
+  html += accordion('🏭 Production MOB B2 — M² par semaine (Atelier B2)', buildProdChart(prodData), true);
 
-  // ══════════════════════════════════════════════════════
-  // ALERTES SAISIES
-  // ══════════════════════════════════════════════════════
+  // ══ 3. HEURES PAR SEMAINE — compact ══
+  html += accordion('⏱️ Heures CDI vs Intérim par semaine', buildHeuresChart(hLignes, employes, semaines12), false);
+
+  // ══ 4. ALERTES SAISIES ══
   const alertesHtml = renderAlertesSaisie();
-  if(alertesHtml) html += accordion('⚠️ Heures non saisies', alertesHtml, alertesNb>0);
+  if(alertesHtml) html += accordion('⚠️ Heures non saisies — détail', alertesHtml, alertesNb>0);
 
-  // ══════════════════════════════════════════════════════
-  // ABSENCES
-  // ══════════════════════════════════════════════════════
+  // ══ 5. ABSENCES ══
   const absHtml = renderAbsencesDashboard();
   if(absHtml) html += accordion('📅 Absences — 12 dernières semaines', absHtml, false);
 
-  // ══════════════════════════════════════════════════════
-  // AVANCEMENT CHANTIERS
-  // ══════════════════════════════════════════════════════
-  html += accordion('📊 Avancement par chantier', buildAvancementTable(), false);
-
   document.getElementById('dashboard-content').innerHTML = html;
 }
+
 
 // ── Composants UI ──
 function kpiCard(icon, label, value, sub, color){
@@ -4105,58 +4091,62 @@ function buildProdChart(prodData){
   </div>`;
 }
 
-function buildHeuresChart(heures, employes, semaines12){
-  if(!heures.length) return '<div style="text-align:center;color:var(--text3);padding:2rem">Aucune heure saisie</div>';
+function buildHeuresChart(hLignes, employes, semaines12){
+  if(!hLignes.length) return '<div style="text-align:center;color:var(--text3);padding:1rem">Aucune heure saisie</div>';
   
   const sems = [...semaines12].sort();
   const data = sems.map(sem=>{
-    const lignes = heures.filter(h=>h.semaine===sem&&h.chantier1);
+    const lignes = hLignes.filter(h=>h.semaine===sem);
     const hCDI = lignes.filter(h=>{ const e=employes.find(x=>x.id===h.emp_id); return e?.statut==='CDI'; }).reduce((s,h)=>s+(+h.h_mat||0)+(+h.h_am||0),0);
     const hInt = lignes.filter(h=>{ const e=employes.find(x=>x.id===h.emp_id); return e?.statut==='interim'; }).reduce((s,h)=>s+(+h.h_mat||0)+(+h.h_am||0),0);
     const [yr,sw] = sem.split('-S');
-    return {sem, sw, hCDI, hInt, total:hCDI+hInt};
-  });
+    return {sem, sw, yr, hCDI, hInt, total:hCDI+hInt};
+  }).filter(d=>d.total>0);
+
+  if(!data.length) return '<div style="text-align:center;color:var(--text3);padding:1rem">Aucune heure saisie sur cette période</div>';
 
   const maxH = Math.max(...data.map(d=>d.total), 1);
-  const W=600, H=200, padL=44, padB=30, padT=20, padR=10;
-  const bw = Math.floor((W-padL-padR)/sems.length)-4;
+  const W=560, H=160, padL=44, padB=28, padT=16, padR=8;
+  const bw = Math.max(8, Math.floor((W-padL-padR)/data.length)-3);
   const scale = (H-padB-padT)/maxH;
 
   const bars = data.map((d,i)=>{
-    const x = padL + i*((W-padL-padR)/sems.length)+2;
-    const hCDI_px = d.hCDI*scale;
-    const hInt_px = d.hInt*scale;
+    const x = padL + i*((W-padL-padR)/data.length)+2;
+    const hCDI_px = Math.max(0,d.hCDI*scale);
+    const hInt_px = Math.max(0,d.hInt*scale);
     const y1 = H-padB-hCDI_px-hInt_px;
     const y2 = H-padB-hInt_px;
     return `
-      <rect x="${x.toFixed(0)}" y="${y1.toFixed(0)}" width="${bw}" height="${hCDI_px.toFixed(0)}" fill="var(--green)" rx="2" opacity=".8"/>
-      <rect x="${x.toFixed(0)}" y="${y2.toFixed(0)}" width="${bw}" height="${hInt_px.toFixed(0)}" fill="var(--orange)" rx="2" opacity=".8"/>
-      <text x="${(x+bw/2).toFixed(0)}" y="${H-padB+12}" text-anchor="middle" font-size="9" fill="var(--text3)">S${d.sw}</text>
-      ${d.total>0?`<text x="${(x+bw/2).toFixed(0)}" y="${(y1-3).toFixed(0)}" text-anchor="middle" font-size="9" fill="var(--text2)">${Math.round(d.total)}</text>`:''}`;
+      <rect x="${x.toFixed(0)}" y="${y1.toFixed(0)}" width="${bw}" height="${hCDI_px.toFixed(0)}" fill="#1A6640" rx="2" opacity=".8"/>
+      <rect x="${x.toFixed(0)}" y="${y2.toFixed(0)}" width="${bw}" height="${hInt_px.toFixed(0)}" fill="#B85C0A" rx="2" opacity=".8"/>
+      <text x="${(x+bw/2).toFixed(0)}" y="${H-padB+11}" text-anchor="middle" font-size="8" fill="#888">S${d.sw}</text>
+      ${d.total>0?`<text x="${(x+bw/2).toFixed(0)}" y="${(y1-2).toFixed(0)}" text-anchor="middle" font-size="8" fill="#555">${Math.round(d.total)}</text>`:''}`;
   }).join('');
 
-  const gridLines = [0.25,0.5,0.75,1].map(pct=>{
+  const gridLines = [0.5,1].map(pct=>{
     const y = H-padB-pct*(H-padB-padT);
-    return `<line x1="${padL}" y1="${y.toFixed(0)}" x2="${W-padR}" y2="${y.toFixed(0)}" stroke="var(--border)" stroke-width="1"/>
-      <text x="${padL-4}" y="${(y+4).toFixed(0)}" text-anchor="end" font-size="9" fill="var(--text3)">${Math.round(maxH*pct)}h</text>`;
+    return `<line x1="${padL}" y1="${y.toFixed(0)}" x2="${W-padR}" y2="${y.toFixed(0)}" stroke="#E4E2DA" stroke-width="1"/>
+      <text x="${padL-4}" y="${(y+3).toFixed(0)}" text-anchor="end" font-size="8" fill="#888">${Math.round(maxH*pct)}h</text>`;
   }).join('');
 
   const totCDI = Math.round(data.reduce((s,d)=>s+d.hCDI,0));
   const totInt = Math.round(data.reduce((s,d)=>s+d.hInt,0));
+  const pctInt = (totCDI+totInt)>0?Math.round(totInt/(totCDI+totInt)*100):0;
 
   return `
-  <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
+  <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:160px;display:block">
     ${gridLines}
-    <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="var(--border2)" stroke-width="1"/>
-    <line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="var(--border2)" stroke-width="1"/>
+    <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="#C8C5BC" stroke-width="1"/>
+    <line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="#C8C5BC" stroke-width="1"/>
     ${bars}
   </svg>
-  <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--text2)">
-    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;background:var(--green);border-radius:2px;display:inline-block;opacity:.8"></span>CDI — ${totCDI}h</span>
-    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;background:var(--orange);border-radius:2px;display:inline-block;opacity:.8"></span>Intérim — ${totInt}h</span>
-    <span style="margin-left:auto;font-weight:600">% intérim : ${(totCDI+totInt)>0?Math.round(totInt/(totCDI+totInt)*100):0}%</span>
+  <div style="display:flex;gap:16px;margin-top:6px;font-size:11px;color:var(--text2);flex-wrap:wrap">
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#1A6640;border-radius:2px;display:inline-block"></span>CDI — ${totCDI}h</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#B85C0A;border-radius:2px;display:inline-block"></span>Intérim — ${totInt}h</span>
+    <span style="margin-left:auto;font-weight:600;color:${pctInt>40?'var(--red)':'var(--text2)'}">% intérim : ${pctInt}%</span>
   </div>`;
 }
+
 
 function buildAvancementTable(){
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px">';
