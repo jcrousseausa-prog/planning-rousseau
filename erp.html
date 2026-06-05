@@ -237,6 +237,7 @@ table.bl-lignes td.r{text-align:right}
     <button class="btn" onclick="toggleAll(true)">Tout déplier</button>
     <button class="btn" onclick="toggleAll(false)">Tout replier</button>
     <button class="btn btn-orange" onclick="syncCTVX()" title="Synchroniser les dates CTVX depuis l&#39;onglet DATES du fichier pilote">⇅ Sync CTVX</button>
+    <button class="btn btn-green" onclick="syncOFTermines()" title="Récupérer les OF terminés depuis le planning production">✅ Sync OF</button>
     <button class="btn btn-green" onclick="genererDatesSheet()" title="Générer l&#39;onglet DATES dans Google Sheets depuis les tranches ERP">📅 Générer DATES</button>
     <button class="btn btn-primary" onclick="openAddChantier()">+ Chantier</button>
   </div>
@@ -1183,10 +1184,12 @@ async function loadFromSheets() {
 }
 
 // ─── POLLING — rechargement toutes les 45s ────────────────────────────────
+let _ofSyncInterval = null;
+let _lastOFCheck = 0;
+
 function startPolling() {
   if (_pollInterval) clearInterval(_pollInterval);
   _pollInterval = setInterval(async () => {
-    // Ne pas recharger si une sauvegarde est en cours
     if (document.getElementById('sync-text').textContent === 'Enregistrement...') return;
     try {
       const res = await fetch(APPS_SCRIPT_URL, {
@@ -1196,7 +1199,6 @@ function startPolling() {
       });
       const r = await res.json();
       if (r.ok && r.hash && r.hash !== _lastSaveHash) {
-        // Données modifiées par un autre utilisateur
         _lastSaveHash = r.hash;
         const ok = await loadFromSheets();
         if (ok) {
@@ -1205,7 +1207,59 @@ function startPolling() {
         }
       }
     } catch(e) { /* polling silencieux */ }
-  }, 45000); // toutes les 45 secondes
+  }, 45000);
+
+  // Sync OF automatique toutes les 5 minutes (silencieuse)
+  if (_ofSyncInterval) clearInterval(_ofSyncInterval);
+  _ofSyncInterval = setInterval(async () => {
+    const now = Date.now();
+    if(now - _lastOFCheck < 290000) return; // pas avant 5 min
+    _lastOFCheck = now;
+    try {
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'getOFTermines'})
+      });
+      const r = await res.json();
+      if(!r.ok || !r.data?.length) return;
+
+      let updated = 0;
+      r.data.forEach(of=>{
+        const tranche = state.tranches.find(t=>
+          t.nom.trim().toLowerCase()===of.tranche?.trim().toLowerCase()
+        );
+        if(!tranche) return;
+        const phases = state.phases.filter(p=>p.tid===tranche.id);
+        phases.forEach(ph=>{
+          const commentaire = (of.commentaire||'').trim().toLowerCase();
+          let article = state.articles.find(a=>
+            a.pid===ph.id &&
+            (a.libelle||'').trim().toLowerCase()===commentaire &&
+            a.type_source==='OF'
+          );
+          if(article && article.statut!=='termine'){
+            article.statut='termine'; article.avancement=100;
+            article.date_sortie_prod=of.termineLe||new Date().toISOString().slice(0,10);
+            updated++;
+          } else if(!article && commentaire){
+            state.articles.push({
+              id:uid(), pid:ph.id, libelle:of.commentaire||'',
+              operation:of.atelier||'', statut:'termine', avancement:100,
+              date_sortie_prod:of.termineLe||new Date().toISOString().slice(0,10),
+              type_source:'OF', qte_m2:'',qte_m3:'',budget_heures:'',
+              date_ctvx:tranche.ctvx||'', date_sortie_be:''
+            });
+            updated++;
+          }
+        });
+      });
+      if(updated>0){
+        scheduleSave();
+        renderAll();
+        showNotif('✅ '+updated+' OF synchronisé'+(updated>1?'s':'')+' automatiquement');
+      }
+    } catch(e){ /* sync OF silencieuse */ }
+  }, 60000); // vérifier toutes les minutes, mais exécuter max toutes les 5 min
 }
 
 function showNotif(msg) {
@@ -1343,6 +1397,144 @@ async function syncCTVX(){
   }catch(e){
     setSyncPill('error','Erreur sync');
     toast('Erreur : '+e.message);
+  }
+}
+
+// ═══ SYNC OF TERMINÉS ════════════════════════════════════════════════════
+async function syncOFTermines(){
+  setSyncPill('saving','Sync OF...');
+  try{
+    // Récupérer les tranches depuis Apps Script (qui lit Planning Production)
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'getOFTermines'})
+    });
+    const r = await res.json();
+    if(!r.ok) throw new Error(r.error||'Erreur Apps Script');
+
+    const ofsTermines = r.data||[]; // [{tranche, commentaire, termineLe, atelier}]
+
+    if(!ofsTermines.length){
+      toast('Aucun OF terminé trouvé dans le planning production');
+      setSyncPill('ok','Sync OF terminée');
+      return;
+    }
+
+    // Grouper par nom de tranche
+    const parTranche = {};
+    ofsTermines.forEach(of=>{
+      const nom = of.tranche?.trim();
+      if(!nom) return;
+      if(!parTranche[nom]) parTranche[nom] = {ofs:[], tousTermines:true};
+      parTranche[nom].ofs.push(of);
+    });
+
+    // Rapport
+    let updatedArticles = 0;
+    let updatedTranches = 0;
+    const manques = []; // OF terminés sans tranche ERP correspondante
+
+    Object.entries(parTranche).forEach(([nomTranche, data])=>{
+      // Chercher la tranche ERP correspondante
+      const tranche = state.tranches.find(t=>
+        t.nom.trim().toLowerCase() === nomTranche.toLowerCase()
+      );
+      if(!tranche){
+        manques.push(nomTranche);
+        return;
+      }
+
+      // Chercher la phase et les articles de cette tranche
+      const phases = state.phases.filter(p=>p.tid===tranche.id);
+
+      // Créer ou mettre à jour un article par OF terminé
+      data.ofs.forEach(of=>{
+        const commentaire = (of.commentaire||'').trim();
+        // Chercher un article existant avec ce libellé dans une phase de cette tranche
+        let article = null;
+        for(const ph of phases){
+          article = state.articles.find(a=>
+            a.pid===ph.id &&
+            a.libelle?.trim().toLowerCase() === commentaire.toLowerCase() &&
+            a.type_source === 'OF'
+          );
+          if(article) break;
+        }
+
+        if(article){
+          // Mettre à jour l'article existant
+          article.statut = 'termine';
+          article.avancement = 100;
+          article.date_sortie_prod = of.termineLe||new Date().toISOString().slice(0,10);
+          updatedArticles++;
+        } else if(commentaire && phases.length){
+          // Créer l'article dans la première phase de la tranche
+          const ph = phases[0];
+          state.articles.push({
+            id: uid(),
+            pid: ph.id,
+            libelle: commentaire,
+            operation: of.atelier||'',
+            statut: 'termine',
+            avancement: 100,
+            date_sortie_prod: of.termineLe||new Date().toISOString().slice(0,10),
+            type_source: 'OF', // identifier les articles issus des OF
+            qte_m2:'', qte_m3:'', budget_heures:'',
+            date_ctvx: tranche.ctvx||'',
+            date_sortie_be:''
+          });
+          updatedArticles++;
+        }
+      });
+
+      // Vérifier si toutes les lignes de cette tranche dans le planning sont terminées
+      // (on ne peut pas le savoir ici sans avoir tous les OF — on suppose que si on reçoit des OF c'est complet)
+      // Mettre à jour l'avancement de la tranche
+      const allArtsOF = [];
+      phases.forEach(ph=>{
+        state.articles.filter(a=>a.pid===ph.id&&a.type_source==='OF').forEach(a=>allArtsOF.push(a));
+      });
+      const tousTermines = allArtsOF.length>0 && allArtsOF.every(a=>a.statut==='termine');
+      if(tousTermines){
+        tranche.disponible = true;
+        updatedTranches++;
+      }
+    });
+
+    // Afficher rapport
+    const html = `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+        <div style="background:var(--green-bg);border:1px solid var(--green-border);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--green)">${updatedArticles}</div>
+          <div style="font-size:11px;color:var(--green)">articles mis à jour</div>
+        </div>
+        <div style="background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--blue)">${updatedTranches}</div>
+          <div style="font-size:11px;color:var(--blue)">tranches disponibles</div>
+        </div>
+        <div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--orange)">${manques.length}</div>
+          <div style="font-size:11px;color:var(--orange)">sans tranche ERP</div>
+        </div>
+      </div>
+      ${manques.length?`<div style="font-size:12px;font-weight:700;color:var(--orange);margin-bottom:6px">⚠ OF terminés sans tranche ERP correspondante :</div>
+      <div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:7px;padding:8px;max-height:150px;overflow-y:auto;font-size:11px">
+        ${manques.map(n=>`<div style="padding:2px 0;border-bottom:1px solid var(--orange-border)">${esc(n)}</div>`).join('')}
+      </div>`:'<div style="color:var(--green);font-size:12px;font-weight:600">✅ Toutes les tranches ont été mises à jour</div>'}`;
+
+    document.getElementById('modal-title').textContent = '✅ Rapport Sync OF terminés';
+    document.getElementById('modal-body').innerHTML = html;
+    document.getElementById('modal').classList.add('show');
+
+    scheduleSave();
+    renderAll();
+    setSyncPill('ok','Sync OF terminée');
+
+  }catch(e){
+    setSyncPill('error','Erreur sync OF');
+    toast('Erreur : '+e.message);
+    console.error(e);
   }
 }
 
