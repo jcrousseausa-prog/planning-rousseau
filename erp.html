@@ -3230,34 +3230,6 @@ function renderRecapHeures(){
     </tbody>
   </table></div>`;
 
-  // ── Bloc absences ──
-  if(Object.keys(absParEmp).length){
-    const typesConnus = ['Maladie','CP','RTT','Absent','Formation','Fermeture'];
-    html += `<div style="margin-top:16px">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);margin-bottom:8px">📅 Absences sur la période</div>
-      <div class="table-wrap"><table style="min-width:300px">
-        <thead><tr>
-          <th>Employé</th>
-          ${typesConnus.map(t=>`<th style="text-align:center">${t}</th>`).join('')}
-          <th style="text-align:center">Autre</th>
-          <th style="text-align:center">Total j.</th>
-        </tr></thead>
-        <tbody>
-        ${Object.values(absParEmp).map((a,i)=>{
-          const autre = Object.entries(a.jours).filter(([k])=>!typesConnus.includes(k)).reduce((s,[,v])=>s+v,0);
-          const total = Object.values(a.jours).reduce((s,v)=>s+v,0);
-          return '<tr style="'+(i%2?'background:#FAFAF8;':'')+'border-bottom:1px solid var(--border)">' +
-            '<td style="font-weight:500">'+esc(a.nom)+'</td>' +
-            typesConnus.map(t=>'<td style="text-align:center;font-family:DM Mono,monospace;font-size:12px;color:'+(a.jours[t]?'var(--orange)':'var(--text3)')+'">'+( a.jours[t]||'—')+'</td>').join('') +
-            '<td style="text-align:center;font-family:DM Mono,monospace;font-size:12px;color:'+(autre?'var(--orange)':'var(--text3)')+'">'+( autre||'—')+'</td>' +
-            '<td style="text-align:center;font-family:DM Mono,monospace;font-weight:700">'+total+'j</td>' +
-            '</tr>';
-        }).join('')}
-        </tbody>
-      </table></div>
-    </div>`;
-  }
-
   el.innerHTML = html;
 }
 
@@ -3811,6 +3783,72 @@ async function loadProdB2() {
   }
 }
 
+function renderAbsencesDashboard(){
+  const heures = state.heures||[];
+  const employes = state.employes||[];
+  const typesConnus = ['Maladie','CP','RTT','Absent','Formation','Fermeture'];
+
+  // Calculer les absences sur les 12 dernières semaines
+  const today = new Date();
+  const semCourante = getWeekISO(today);
+  const semaines12 = [];
+  for(let i=1; i<=12; i++){
+    const d = new Date(today); d.setDate(d.getDate()-i*7);
+    semaines12.push(getWeekISO(d));
+  }
+
+  const absencesFil = heures.filter(h=>
+    h.absent && !h.chantier1 && semaines12.includes(h.semaine)
+  );
+
+  if(!absencesFil.length) return '';
+
+  const absParEmp = {};
+  absencesFil.forEach(h=>{
+    const emp = employes.find(e=>e.id===h.emp_id);
+    const key = emp ? emp.nom+' '+emp.prenom : h.emp_id;
+    const statut = emp?.statut||'CDI';
+    if(!absParEmp[key]) absParEmp[key]={nom:key,statut,jours:{}};
+    absParEmp[key].jours[h.absent] = (absParEmp[key].jours[h.absent]||0)+1;
+  });
+
+  const rows = Object.values(absParEmp).sort((a,b)=>{
+    const tA = Object.values(a.jours).reduce((s,v)=>s+v,0);
+    const tB = Object.values(b.jours).reduce((s,v)=>s+v,0);
+    return tB-tA;
+  });
+
+  return `<div style="margin-bottom:24px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);margin-bottom:10px">
+      📅 Absences — 12 dernières semaines
+    </div>
+    <div class="table-wrap">
+    <table style="min-width:400px">
+      <thead><tr>
+        <th>Employé</th>
+        <th style="text-align:center;width:60px">Statut</th>
+        ${typesConnus.map(t=>`<th style="text-align:center;white-space:nowrap">${t}</th>`).join('')}
+        <th style="text-align:center">Autre</th>
+        <th style="text-align:center;font-weight:700">Total j.</th>
+      </tr></thead>
+      <tbody>
+      ${rows.map((a,i)=>{
+        const autre = Object.entries(a.jours).filter(([k])=>!typesConnus.includes(k)).reduce((s,[,v])=>s+v,0);
+        const total = Object.values(a.jours).reduce((s,v)=>s+v,0);
+        const badge = a.statut==='CDI'?'emp-badge-cdi':a.statut==='interim'?'emp-badge-interim':'emp-badge-cdd';
+        return '<tr style="'+(i%2?'background:#FAFAF8;':'')+'border-bottom:1px solid var(--border)">' +
+          '<td style="font-weight:500;padding:8px 12px">'+esc(a.nom)+'</td>' +
+          '<td style="text-align:center;padding:8px 12px"><span class="'+badge+'" style="font-size:9px">'+a.statut+'</span></td>' +
+          typesConnus.map(t=>'<td style="text-align:center;font-family:DM Mono,monospace;font-size:12px;padding:8px 12px;color:'+(a.jours[t]?'var(--orange)':'var(--text3)')+'">'+( a.jours[t]||'—')+'</td>').join('') +
+          '<td style="text-align:center;font-family:DM Mono,monospace;font-size:12px;padding:8px 12px;color:'+(autre?'var(--orange)':'var(--text3)')+'">'+( autre||'—')+'</td>' +
+          '<td style="text-align:center;font-family:DM Mono,monospace;font-weight:700;font-size:13px;padding:8px 12px;color:'+(total>=5?'var(--red)':total>=3?'var(--orange)':'var(--text)')+'">'+total+'j</td>' +
+          '</tr>';
+      }).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
 function renderAlertesSaisie(){
   const employes = state.employes||[];
   const heures = state.heures||[];
@@ -3928,9 +3966,13 @@ async function renderDashboard(){
 
   let html = '';
 
-  // ── Section 0 : Alertes heures non saisies ──────────────────────────
+  // ── Section 0a : Alertes heures non saisies ─────────────────────────
   const alertesHtml = renderAlertesSaisie();
   if(alertesHtml) html += alertesHtml;
+
+  // ── Section 0b : Absences 12 dernières semaines ───────────────────────
+  const absHtml = renderAbsencesDashboard();
+  if(absHtml) html += absHtml;
 
   // ── Section 1 : Avancement par chantier ──────────────────────────────
   html += `<div style="margin-bottom:24px">
