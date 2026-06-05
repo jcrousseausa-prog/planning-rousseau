@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ERP — Tableau de Pilotage Rousseau</title>
+<!-- v2026-06-05-1600 -->
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -2649,7 +2650,6 @@ function saveCellPlanningMulti(){
   const jour = _cellJour;
   if(!empId) return;
 
-  const horaire = (document.getElementById('modal-presence-horaire')?.value||'').trim();
   const absent  = document.getElementById('modal-presence-absent')?.value||'';
   const atelier = document.getElementById('modal-presence-atelier')?.value||'B2';
   const comment = (document.getElementById('modal-presence-comment')?.value||'').trim();
@@ -2728,7 +2728,6 @@ function saveCellPlanning(){
   const jour = _cellJour;
   if(!empId) return;
 
-  const horaire = (document.getElementById('modal-presence-horaire')?.value||'').trim();
   const absent  = document.getElementById('modal-presence-absent')?.value||'';
 
   if(!state.heures) state.heures = [];
