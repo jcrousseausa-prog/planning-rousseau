@@ -381,11 +381,22 @@ table.bl-lignes td.r{text-align:right}
     </div>
     <div class="field" style="margin-bottom:10px">
       <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Rôle spécifique</label>
-      <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-          <input type="checkbox" id="me-cariste" style="width:16px;height:16px"/>
+          <input type="checkbox" id="me-cariste" style="width:16px;height:16px" onchange="document.getElementById('me-cariste-atelier-wrap').style.display=this.checked?'flex':'none'"/>
           <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4Ij4KICA8IS0tIENvcnBzIHByaW5jaXBhbCAtLT4KICA8cmVjdCB4PSIxMCIgeT0iMTQiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxMCIgcng9IjEuNSIgZmlsbD0iI0NDMjIwMCIvPgogIDwhLS0gQ2FiaW5lIC0tPgogIDxyZWN0IHg9IjE4IiB5PSI5IiB3aWR0aD0iOCIgaGVpZ2h0PSI4IiByeD0iMSIgZmlsbD0iI0REMzMxMSIvPgogIDwhLS0gVml0cmUgY2FiaW5lIC0tPgogIDxyZWN0IHg9IjE5LjUiIHk9IjEwLjUiIHdpZHRoPSI1IiBoZWlnaHQ9IjUiIHJ4PSIwLjUiIGZpbGw9IiM4OENDRUUiIG9wYWNpdHk9IjAuOCIvPgogIDwhLS0gTcOidCB2ZXJ0aWNhbCAtLT4KICA8cmVjdCB4PSI4IiB5PSI0IiB3aWR0aD0iMi41IiBoZWlnaHQ9IjE4IiByeD0iMSIgZmlsbD0iI0FBMTEwMCIvPgogIDwhLS0gRm91cmNoZXMgLS0+CiAgPHJlY3QgeD0iMiIgeT0iMjAiIHdpZHRoPSI4IiBoZWlnaHQ9IjEuOCIgcng9IjAuOCIgZmlsbD0iIzg4MTEwMCIvPgogIDxyZWN0IHg9IjIiIHk9IjIzIiB3aWR0aD0iOCIgaGVpZ2h0PSIxLjgiIHJ4PSIwLjgiIGZpbGw9IiM4ODExMDAiLz4KICA8IS0tIFJvdWUgYXZhbnQgLS0+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIFJvdWUgYXJyacOocmUgLS0+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIENvbnRyZXBvaWRzIGFycmnDqHJlIC0tPgogIDxyZWN0IHg9IjI0IiB5PSIxNyIgd2lkdGg9IjQiIGhlaWdodD0iNyIgcng9IjEiIGZpbGw9IiM5OTExMDAiLz4KICA8IS0tIEd5cm9waGFyZSAtLT4KICA8Y2lyY2xlIGN4PSIyMiIgY3k9IjguNSIgcj0iMS41IiBmaWxsPSIjRkY2NjAwIi8+CiAgPGNpcmNsZSBjeD0iMjIiIGN5PSI4LjUiIHI9IjAuNyIgZmlsbD0iI0ZGQUEwMCIvPgo8L3N2Zz4=" style="width:18px;height:18px;vertical-align:middle;margin-right:4px"> Cariste (affectation proportionnelle)
         </label>
+      </div>
+      <div id="me-cariste-atelier-wrap" style="display:none;align-items:center;gap:8px;margin-top:8px;background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:7px;padding:8px 12px">
+        <label style="font-size:12px;font-weight:600;color:var(--orange)">Atelier desservi :</label>
+        <select id="me-cariste-atelier" style="padding:5px 9px;border:1px solid var(--orange-border);border-radius:6px;font-family:inherit;font-size:13px;background:var(--surface)">
+          <option value="B1">Charpente B1</option>
+          <option value="B2">MOB B2</option>
+          <option value="B3">Atelier B3</option>
+          <option value="Men">Menuiserie</option>
+          <option value="all">Tous les ateliers</option>
+        </select>
+        <span style="font-size:11px;color:var(--orange)">Heures réparties sur cet atelier</span>
       </div>
     </div>
     <div id="me-interim-fields">
@@ -1847,6 +1858,8 @@ function openAddEmploye(){
   document.getElementById('me-agence').value = '';
   document.getElementById('me-fin-mission').value = '';
   document.getElementById('me-cariste').checked = false;
+  document.getElementById('me-cariste-atelier-wrap').style.display = 'none';
+  document.getElementById('me-cariste-atelier').value = 'B1';
   document.getElementById('me-interim-fields').style.display = 'none';
   document.getElementById('me-statut').onchange = function(){
     document.getElementById('me-interim-fields').style.display = this.value==='interim'?'':'none';
@@ -1867,6 +1880,8 @@ function openEditEmploye(id){
   document.getElementById('me-agence').value = e.agence||'';
   document.getElementById('me-fin-mission').value = e.fin_mission||'';
   document.getElementById('me-cariste').checked = e.cariste||false;
+  document.getElementById('me-cariste-atelier-wrap').style.display = e.cariste ? 'flex' : 'none';
+  if(e.cariste_atelier) document.getElementById('me-cariste-atelier').value = e.cariste_atelier;
   document.getElementById('me-interim-fields').style.display = e.statut==='interim'?'':'none';
   document.getElementById('me-statut').onchange = function(){
     document.getElementById('me-interim-fields').style.display = this.value==='interim'?'':'none';
@@ -1890,6 +1905,7 @@ function saveEmploye(){
     agence: document.getElementById('me-agence').value.trim(),
     fin_mission: document.getElementById('me-fin-mission').value||null,
     cariste: document.getElementById('me-cariste')?.checked||false,
+    cariste_atelier: document.getElementById('me-cariste')?.checked ? (document.getElementById('me-cariste-atelier')?.value||'B1') : null,
   };
   if(_ctx.type==='edit-employe'){
     const idx = state.employes.findIndex(e=>e.id===_ctx.id);
@@ -2877,8 +2893,12 @@ function renderAffectationLog(){
 
   const semaines = getSemainesDisponibles();
   const semSel = state._affectSem || semaines[0]?.val || getWeekISO(new Date());
-  // Atelier cible pour l'affectation
-  const atelierCible = state._affectAtelier || 'B1';
+
+  // Chaque cariste a son propre atelier de rattachement
+  // On affiche un tableau par cariste ou on calcule par atelier unique si tous pareil
+  // Atelier cible = union des ateliers des caristes (ou sélecteur si différents)
+  const ateliersCaristes = [...new Set(empsSupport.map(e=>e.cariste_atelier||'B1'))];
+  const atelierCible = state._affectAtelier || ateliersCaristes[0] || 'B1';
 
   // Calculer les heures production par chantier pour l'atelier cible cette semaine
   const hParChantier = {};
@@ -2921,12 +2941,15 @@ function renderAffectationLog(){
         ${semaines.map(s=>`<option value="${s.val}"${s.val===semSel?' selected':''}>${s.label}</option>`).join('')}
       </select>
     </label>
-    <label style="font-size:12px;font-weight:600;color:var(--text2)">Atelier production
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Atelier
       <select style="margin-left:6px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
         onchange="state._affectAtelier=this.value;renderAffectationLog()">
         ${ateliersProd.map(a=>`<option value="${a}"${a===atelierCible?' selected':''}>${a}</option>`).join('')}
       </select>
     </label>
+    ${empsSupport.length ? `<span style="font-size:11px;color:var(--text3)">
+      Caristes rattachés : ${empsSupport.map(e=>`<strong>${esc(e.nom)}</strong> → ${e.cariste_atelier||'B1'}`).join(' · ')}
+    </span>` : ''}
   </div>
 
   ${!totalProd ? `<div class="warn-box">Aucune heure de production saisie pour l'atelier ${atelierCible} en ${semSel}. Saisissez d'abord les heures chantier de cet atelier.</div>` : ''}
@@ -3046,13 +3069,11 @@ function appliquerAffectationLog(semaine, atelierCible){
       const hAff = Math.round(hTot * pct * 100) / 100;
       if(hAff <= 0) return;
 
-      // Répartir équitablement sur les jours (simplification : tout sur lundi)
-      // En pratique on crée une ligne globale par chantier
       state.heures.push({
         id: uid(),
         emp_id: emp.id,
-        semaine, jour: 'Lundi', // ligne agrégée semaine
-        atelier: emp.atelier,
+        semaine, jour: 'Lundi',
+        atelier: emp.cariste_atelier || emp.atelier,
         chantier1: ch, chantier2: '',
         h_mat: hAff, h_am: 0,
         total_hebdo: hAff,
