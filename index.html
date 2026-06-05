@@ -259,7 +259,7 @@ transition:all .3s;
 <button class="btn" data-edit-only onclick="exportJSON()">💾 Sauvegarder</button>
 <button class="btn" onclick="exportCSV()">Exporter CSV</button>
 <button class="btn" onclick="openChargeModal()" style="background:#EAFAF1;color:#1E8449;border-color:#A9DFBF;font-weight:600">📋 Charge équipes</button>
-<button class="btn btn-primary" data-edit-only onclick="openAddModal()">+ Tranche</button>
+<button class="btn btn-primary" data-edit-only onclick="openAddModal()">+ OF</button>
 </div>
 </header>
 
@@ -288,7 +288,7 @@ transition:all .3s;
 </div>
 <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
 <div class="form-group" style="flex:2;min-width:180px;margin-bottom:0">
-<label>Nom de la tranche</label>
+<label>Nom de l'OF</label>
 <input type="text" id="f-tranche" placeholder="Ex: MCA-B-CP+CT R+2"/>
 </div>
 </div>
@@ -1022,10 +1022,10 @@ style="width:100%;padding:7px 10px 7px 32px;border:1px solid var(--border);borde
 <div class="table-wrap"><table><thead><tr>
 <th style="width:32px">⠿</th>
 <th>Tranche</th><th>Commentaire</th><th>Début</th><th>Fin</th><th>Durée</th>
-<th>Date besoin CTVX</th><th>Statut</th>
+<th>Date besoin CTVX</th><th>Statut</th><th style="width:40px;text-align:center" title="OF terminé">✅</th>
 ${IS_READONLY?'':`<th style="width:28px" title="Figer début">🔒D</th><th style="width:28px" title="Figer fin">🔒F</th><th style="width:28px" title="Parallèle">⇉</th><th style="width:74px"></th>`}
 </tr></thead><tbody>`;
-if(!rows.length) html+=`<tr><td colspan="9" class="empty-state">${q?`Aucun résultat pour "${esc(q)}"`:IS_READONLY?'Aucune tranche planifiée.':'Aucune tranche — cliquez sur "+ Tranche".'}</td></tr>`;
+if(!rows.length) html+=`<tr><td colspan="9" class="empty-state">${q?`Aucun résultat pour "${esc(q)}"`:IS_READONLY?'Aucune tranche planifiée.':'Aucune tranche — cliquez sur "+ OF".'}</td></tr>`;
 rows.forEach((t,i)=>{
 const fin=dateFin(t,atId);
 html+=`<tr draggable="${!q&&!IS_READONLY}" data-id="${t._dbId||t.id||i}"
@@ -1042,10 +1042,17 @@ ondrop="dropRow(event,'${atId}',${i});this.classList.remove('drag-over')">
 <td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}',${i},'duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:58px"/></td>
 <td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${i},'besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
 <td>${statusBadge(t,atId,{})}</td>
+<td style="text-align:center"><span style="font-size:16px;opacity:${t.termine?1:.15}" title="${t.termine?'OF terminé':'Non terminé'}">✅</span></td>
 ${IS_READONLY?'':`
 <td style="text-align:center"><button onclick="toggleFlag('${atId}',${i},'lockDebut')" style="border:none;background:none;cursor:pointer;font-size:14px;opacity:${t.lockDebut?1:.3}">🔒</button></td>
 <td style="text-align:center"><button onclick="toggleFlag('${atId}',${i},'lockFin')" style="border:none;background:none;cursor:pointer;font-size:14px;opacity:${t.lockFin?1:.3}">🔒</button></td>
 <td style="text-align:center"><button onclick="toggleFlag('${atId}',${i},'parallel')" style="border:none;background:none;cursor:pointer;font-size:15px;opacity:${t.parallel?1:.3}">⇉</button></td>
+<td style="text-align:center">
+<button onclick="toggleTermine('${atId}',${i})" title="${t.termine?'OF terminé — cliquer pour annuler':'Marquer cet OF comme terminé'}"
+  style="border:none;background:none;cursor:pointer;font-size:18px;opacity:${t.termine?1:.25};transition:opacity .2s">
+  ✅
+</button>
+</td>
 <td style="display:flex;gap:4px">
 <button class="btn btn-sm" onclick="openEditModal('${atId}',${i})">✎</button>
 <button class="btn btn-sm btn-danger" onclick="removeTranche('${atId}','${t._dbId||t.id}')">✕</button>
@@ -1427,6 +1434,51 @@ async function removeTranche(atId,idOrIdx){
   keepGanttPos();scheduleSave(atId);render();
 }
 
+async function toggleTermine(atId, idx){
+  const t = state.tranches[atId]?.[idx];
+  if(!t) return;
+  t.termine = !t.termine;
+  if(t.termine){
+    t._termineLe = new Date().toISOString().slice(0,10);
+  } else {
+    delete t._termineLe;
+  }
+  saveLS();
+  scheduleSave();
+  renderTable();
+  checkTranchesTerminees(atId, t.tranche);
+  toast(t.termine ? '✅ OF marqué terminé — sync ERP en cours…' : 'OF remis en cours');
+
+  // Sync automatique vers ERP via Apps Script
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({
+        action: 'syncOFToERP',
+        of: {
+          tranche: t.tranche||'',
+          commentaire: t.commentaire||'',
+          atelier: atId||'',
+          termine: t.termine,
+          termineLe: t._termineLe||''
+        }
+      })
+    });
+  } catch(e) {
+    console.warn('Sync ERP silencieuse échouée:', e.message);
+  }
+}
+
+function checkTranchesTerminees(atId, trancheNom){
+  // Compter les OF avec ce nom de tranche
+  const ofs = (state.tranches[atId]||[]).filter(t=>t.tranche===trancheNom);
+  const tousTermines = ofs.length > 0 && ofs.every(t=>t.termine);
+  if(tousTermines){
+    toast(`✅ Tous les OF "${trancheNom}" sont terminés — tranche disponible !`);
+  }
+}
+
 function toggleFlag(atId,idx,flag){
 if(IS_READONLY)return;
 const t=state.tranches[atId][idx];if(!t)return;
@@ -1460,7 +1512,7 @@ document.getElementById('edit-modal').style.display='flex';
 function openEditModal(atId,idx){
 _editAtId=atId;state.editId=idx;
 const t=state.tranches[atId][idx];
-document.getElementById('modal-title').textContent='Modifier la tranche';
+document.getElementById('modal-title').textContent='Modifier l'OF';
 document.getElementById('f-atelier').innerHTML=buildAtelierOptions(atId);
 document.getElementById('f-atelier').onchange=null;
 document.getElementById('f-tranche').value=t.tranche;document.getElementById('f-comment').value=t.comment||'';
