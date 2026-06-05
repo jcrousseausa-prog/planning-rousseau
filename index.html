@@ -1522,7 +1522,7 @@ async function toggleTermine(atId, idx){
       headers: {'Content-Type': 'text/plain'},
       body: JSON.stringify({
         action: 'syncOFToERP',
-        of: {
+        ofData: {
           tranche: t.tranche||'',
           phases: t.phases||[],
           commentaire: t.commentaire||t.comment||'',
