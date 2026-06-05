@@ -2640,9 +2640,31 @@ function renderPlanningRessources(){
       <tbody>`;
 
   ATELIERS_H.forEach(at=>{
+    // Calculer la plage de dates de la semaine sélectionnée
+    const [yr_f, sw_f] = semSel.split('-S');
+    const lundiF = getLundiFromSemaine(parseInt(yr_f), parseInt(sw_f));
+    const vendrediF = new Date(lundiF); vendrediF.setDate(lundiF.getDate()+4);
+    const lundiFStr = lundiF.toISOString().slice(0,10);
+    const vendrediFFStr = vendrediF.toISOString().slice(0,10);
+
     const emps = employes.filter(e=>{
+      if(e.inactif) return false; // exclure les désactivés
       const lignes = heuresSem.filter(h=>h.emp_id===e.id);
-      return (lignes[0]?.atelier||e.atelier)===at;
+      if((lignes[0]?.atelier||e.atelier)!==at) return false;
+      // Pour les intérimaires : vérifier la période de mission
+      if(e.statut==='interim'){
+        const deb = e.debut_mission||'2000-01-01';
+        const fin = e.fin_mission||'2099-12-31';
+        if(deb <= vendrediFFStr && fin >= lundiFStr) return true;
+        // Vérifier contrats historiques
+        if(e.contrats?.some(c=>{
+          const cd = c.debut||'2000-01-01';
+          const cf = c.fin||'2099-12-31';
+          return cd <= vendrediFFStr && cf >= lundiFStr;
+        })) return true;
+        return false;
+      }
+      return true; // CDI toujours affiché si actif
     });
     if(!emps.length) return;
 
@@ -3649,26 +3671,21 @@ function renderVueMacro(){
 
   // Par atelier
   ATELIERS_H.forEach(at=>{
-    // Filtrer : actifs ET en mission pendant la semaine sélectionnée
-    const [yr_s, sw_s] = semSel.split('-S');
-    const lundiSem = getLundiFromSemaine(parseInt(yr_s), parseInt(sw_s));
-    const vendrediSem = new Date(lundiSem); vendrediSem.setDate(lundiSem.getDate()+4);
-    const lundiStr = lundiSem.toISOString().slice(0,10);
-    const vendrediStr = vendrediSem.toISOString().slice(0,10);
+    // Filtre vue macro : actifs ET en mission sur la plage affichée
+    const plageDebStr = semaines.length ? semaines[0].jours[0].date.toISOString().slice(0,10) : '2000-01-01';
+    const plageFinStr = semaines.length ? semaines[semaines.length-1].jours[4].date.toISOString().slice(0,10) : '2099-12-31';
 
     const empsAt = employes.filter(e=>{
       if(e.atelier!==at) return false;
       if(e.inactif) return false;
       if(e.statut==='interim'){
-        // Vérifier contrat en cours
         const deb = e.debut_mission||'2000-01-01';
         const fin = e.fin_mission||'2099-12-31';
-        if(deb <= vendrediStr && fin >= lundiStr) return true;
-        // Vérifier aussi les contrats historiques
+        if(deb <= plageFinStr && fin >= plageDebStr) return true;
         if(e.contrats && e.contrats.some(c=>{
           const cd = c.debut||'2000-01-01';
           const cf = c.fin||'2099-12-31';
-          return cd <= vendrediStr && cf >= lundiStr;
+          return cd <= plageFinStr && cf >= plageDebStr;
         })) return true;
         return false;
       }
