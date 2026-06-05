@@ -1582,7 +1582,7 @@ document.getElementById('edit-modal').style.display='flex';
 function openEditModal(atId,idx){
 _editAtId=atId;state.editId=idx;
 const t=state.tranches[atId][idx];
-document.getElementById('modal-title').textContent='Modifier l'OF';
+document.getElementById('modal-title').textContent="Modifier l'OF";
 document.getElementById('f-atelier').innerHTML=buildAtelierOptions(atId);
 document.getElementById('f-atelier').onchange=null;
 document.getElementById('f-tranche').value=t.tranche;document.getElementById('f-comment').value=t.comment||'';initPhaseTags(t.phases||t.phase||[]);
