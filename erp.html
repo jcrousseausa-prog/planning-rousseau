@@ -358,7 +358,13 @@ table.bl-lignes td.r{text-align:right}
     </div>
     <div class="field" style="margin-bottom:10px">
       <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Matricule / ID</label>
-      <input type="text" id="me-matricule" placeholder="Ex: 215, INT01..." style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"/>
+      <div style="position:relative">
+        <input type="text" id="me-matricule" placeholder="Ex: 215, INT01..." style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" oninput="this.style.background='';this.title=''"/>
+        <button type="button" onclick="if(document.getElementById('me-statut').value==='interim'){const n=getNextInterimId();document.getElementById('me-matricule').value=n;document.getElementById('me-matricule').style.background='var(--orange-bg)';}" 
+          style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;padding:2px 7px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;color:var(--text2)" title="Suggérer le prochain ID intérimaire">
+          Auto
+        </button>
+      </div>
     </div>
     <div class="field-2">
       <div class="field"><label>Statut</label>
@@ -1848,6 +1854,14 @@ function renderEmployes(){
   el.innerHTML = html;
 }
 
+function getNextInterimId(){
+  // Chercher tous les matricules à 4 chiffres parmi les intérimaires
+  const interims = (state.employes||[]).filter(e=>e.statut==='interim' && e.matricule);
+  const nums = interims.map(e=>parseInt(String(e.matricule).trim())).filter(n=>!isNaN(n)&&n>0);
+  if(!nums.length) return '1001';
+  return String(Math.max(...nums) + 1).padStart(4,'0');
+}
+
 function openAddEmploye(){
   document.getElementById('me-title').textContent = 'Ajouter un employé';
   document.getElementById('me-nom').value = '';
@@ -1863,6 +1877,16 @@ function openAddEmploye(){
   document.getElementById('me-interim-fields').style.display = 'none';
   document.getElementById('me-statut').onchange = function(){
     document.getElementById('me-interim-fields').style.display = this.value==='interim'?'':'none';
+    // Auto-remplir l'ID si intérimaire
+    if(this.value==='interim' && !document.getElementById('me-matricule').value){
+      const nextId = getNextInterimId();
+      document.getElementById('me-matricule').value = nextId;
+      document.getElementById('me-matricule').style.background = 'var(--orange-bg)';
+      document.getElementById('me-matricule').title = 'ID suggéré automatiquement — modifiable';
+    } else if(this.value!=='interim'){
+      document.getElementById('me-matricule').style.background = '';
+      document.getElementById('me-matricule').title = '';
+    }
   };
   document.getElementById('modal-employe').classList.add('show');
   _ctx = {type:'add-employe'};
