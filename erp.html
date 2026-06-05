@@ -3559,6 +3559,797 @@ function exportPDFInterim(empId, semaine){
 }
 
 // ── VUE MACRO MULTI-SEMAINES (détail par jour) ──
+
+
+// Saisie inline d'une cellule du planning
+// Variables globales pour la saisie présence
+let _cellEmpId = null, _cellSemaine = null, _cellJour = null;
+
+
+
+// ── HELPERS MODAL PRÉSENCE 2 TRANCHES ──
+function parseHeure(s){
+  if(!s) return null;
+  const m = s.replace(/\s/g,'').match(/^(\d+)h(\d*)$/);
+  if(!m) return null;
+  return parseInt(m[1]) + (parseInt(m[2]||0)/60);
+}
+
+function calcTotalPresence(){
+  const matDeb = parseHeure(document.getElementById('mp-mat-deb')?.value);
+  const matFin = parseHeure(document.getElementById('mp-mat-fin')?.value);
+  const amDeb  = parseHeure(document.getElementById('mp-am-deb')?.value);
+  const amFin  = parseHeure(document.getElementById('mp-am-fin')?.value);
+  let total = 0;
+  let parts = [];
+  if(matDeb!==null && matFin!==null && matFin>matDeb){
+    const h = Math.round((matFin-matDeb)*100)/100;
+    total += h;
+    parts.push(h+'h mat.');
+  }
+  if(amDeb!==null && amFin!==null && amFin>amDeb){
+    const h = Math.round((amFin-amDeb)*100)/100;
+    total += h;
+    parts.push(h+'h AM');
+  }
+  const el = document.getElementById('mp-total');
+  if(el) el.textContent = total>0 ? total+'h ('+parts.join(' + ')+')' : '— h';
+  return total;
+}
+
+function setHorairesRapides(matDeb, matFin, amDeb, amFin, clearOther){
+  if(matDeb!==undefined) document.getElementById('mp-mat-deb').value = matDeb;
+  if(matFin!==undefined) document.getElementById('mp-mat-fin').value = matFin;
+  if(amDeb!==undefined)  document.getElementById('mp-am-deb').value  = amDeb;
+  if(amFin!==undefined)  document.getElementById('mp-am-fin').value  = amFin;
+  calcTotalPresence();
+}
+
+function toggleHorairesPresence(absent){
+  const bloc = document.getElementById('mp-mat-deb')?.closest('div[style*="background:var(--bg)"]');
+  if(bloc) bloc.style.opacity = absent ? '0.4' : '1';
+  if(absent){
+    // Vider les horaires si absence
+    ['mp-mat-deb','mp-mat-fin','mp-am-deb','mp-am-fin'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.value = '';
+    });
+    const el = document.getElementById('mp-total');
+    if(el) el.textContent = '— h';
+  }
+}
+
+function getHorairesFromModal(){
+  const matDeb = parseHeure(document.getElementById('mp-mat-deb')?.value);
+  const matFin = parseHeure(document.getElementById('mp-mat-fin')?.value);
+  const amDeb  = parseHeure(document.getElementById('mp-am-deb')?.value);
+  const amFin  = parseHeure(document.getElementById('mp-am-fin')?.value);
+  let hMat = 0, hAm = 0;
+  let horaireStr = '';
+  if(matDeb!==null && matFin!==null && matFin>matDeb){
+    hMat = Math.round((matFin-matDeb)*100)/100;
+    horaireStr += (document.getElementById('mp-mat-deb').value)+'-'+(document.getElementById('mp-mat-fin').value);
+  }
+  if(amDeb!==null && amFin!==null && amFin>amDeb){
+    hAm = Math.round((amFin-amDeb)*100)/100;
+    if(horaireStr) horaireStr += ' / ';
+    horaireStr += (document.getElementById('mp-am-deb').value)+'-'+(document.getElementById('mp-am-fin').value);
+  }
+  return {hMat, hAm, total: hMat+hAm, horaire: horaireStr};
+}
+
+function initModalPresence(existing, jour){
+  // Remplir les champs depuis une entrée existante
+  const horaire = existing?.horaire||'';
+  // Parser le format "7h00-12h00 / 13h00-16h15" ou "7h00-12h00"
+  const parts = horaire.split('/').map(s=>s.trim());
+  const parsePart = (s) => {
+    const m = s.match(/^(\d+h\d*)[\-:](\d+h\d*)$/);
+    return m ? [m[1],m[2]] : ['',''];
+  };
+  if(parts[0]){
+    const [d,f] = parsePart(parts[0]);
+    document.getElementById('mp-mat-deb').value = d;
+    document.getElementById('mp-mat-fin').value = f;
+  } else {
+    document.getElementById('mp-mat-deb').value = '';
+    document.getElementById('mp-mat-fin').value = '';
+  }
+  if(parts[1]){
+    const [d,f] = parsePart(parts[1]);
+    document.getElementById('mp-am-deb').value = d;
+    document.getElementById('mp-am-fin').value = f;
+  } else {
+    document.getElementById('mp-am-deb').value = '';
+    document.getElementById('mp-am-fin').value = '';
+  }
+  calcTotalPresence();
+  initRepJours(jour);
+}
+
+function toggleRepJours(val){
+  ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'].forEach(j=>{
+    const el = document.getElementById('rep-'+j);
+    if(el) el.checked = val;
+  });
+}
+
+// Cocher le jour courant par défaut quand on ouvre le modal
+function initRepJours(jour){
+  const container = document.getElementById('rep-jours-container');
+  if(container){
+    container.innerHTML = `
+      <span style="font-size:10px;color:var(--text3);align-self:center;width:100%">Cette semaine :</span>
+      ${JOURS_SEMAINE.map(j=>`
+        <label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer">
+          <input type="checkbox" id="rep-${j}" class="rep-jour" style="width:auto" ${j===jour?'checked':''}/>
+          <span>${j.slice(0,3)}</span>
+        </label>`).join('')}
+      <button onclick="toggleRepJours(true)" style="font-size:10px;padding:1px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;margin-left:4px">Tous</button>
+      <button onclick="toggleRepJours(false)" style="font-size:10px;padding:1px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer">Aucun</button>`;
+  }
+  const nbEl = document.getElementById('rep-nb-semaines');
+  if(nbEl) nbEl.value = 1;
+}
+
+function saveCellPlanningMulti(){
+  const empId = _cellEmpId;
+  const semaine = _cellSemaine;
+  const jour = _cellJour;
+  if(!empId) return;
+
+  const absent  = document.getElementById('modal-presence-absent')?.value||'';
+  const atelier = document.getElementById('modal-presence-atelier')?.value||'B2';
+  const comment = (document.getElementById('modal-presence-comment')?.value||'').trim();
+  const nbSem   = Math.max(1, parseInt(document.getElementById('rep-nb-semaines')?.value)||1);
+
+  // Jours cochés
+  const joursCibles = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'].filter(j=>{
+    const el = document.getElementById('rep-'+j);
+    return el?.checked;
+  });
+  if(!joursCibles.length) joursCibles.push(jour); // fallback : jour courant
+
+  if(!state.heures) state.heures = [];
+
+  // Calculer les heures depuis les 2 tranches
+  const tranchesData = getHorairesFromModal();
+  const hTotal = tranchesData.total;
+  const horaire = tranchesData.horaire;
+
+  // Calculer les semaines cibles
+  const [yr0, sw0] = semaine.split('-S');
+  const semaines = [];
+  for(let s=0; s<nbSem; s++){
+    const lundi = getLundiFromSemaine(parseInt(yr0), parseInt(sw0));
+    lundi.setDate(lundi.getDate() + s*7);
+    semaines.push(getWeekISO(lundi));
+  }
+
+  // Appliquer sur chaque semaine × chaque jour coché
+  let count = 0;
+  semaines.forEach(sem=>{
+    joursCibles.forEach(j=>{
+      // Supprimer l'entrée existante
+      state.heures = state.heures.filter(h=>
+        !(h.emp_id===empId && h.semaine===sem && h.jour===j && (h.type_saisie==='presence'||h.horaire))
+      );
+      if(horaire||absent){
+        const emp = (state.employes||[]).find(e=>e.id===empId);
+        state.heures.push({
+          id: uid(), emp_id: empId, semaine: sem, jour: j,
+          atelier, horaire, absent, h_mat: hTotal, h_am: 0,
+          total_hebdo: hTotal, chantier1: '', chantier2: '',
+          statut: emp?.statut||'CDI', type_saisie: 'presence', comment
+        });
+        count++;
+      }
+    });
+  });
+
+  closeModal('modal-presence');
+  state._semHeure = semaine;
+  _cellJour = null;
+  scheduleSave();
+  if(_macroMode){ _macroMode=false; renderVueMacro(); }
+  else renderPlanningRessources();
+  toast(`✓ ${count} saisie${count>1?'s':''} enregistrée${count>1?'s':''}`);
+}
+
+function clearCellPlanning(){
+  const empId = _cellEmpId, semaine = _cellSemaine, jour = _cellJour;
+  if(!empId) return;
+  state.heures = (state.heures||[]).filter(h=>
+    !(h.emp_id===empId && h.semaine===semaine && h.jour===jour && h.type_saisie==='presence')
+  );
+  closeModal('modal-presence');
+  state._semHeure = semaine;
+  _cellJour = null;
+  scheduleSave();
+  if(_macroMode){ _macroMode=false; renderVueMacro(); }
+  else renderPlanningRessources();
+}
+
+
+
+
+// ── CONFIG PAUSES PAR ATELIER ──
+function appliquerFermetures(){
+  const fermetures = state.fermetures||[];
+  if(!fermetures.length){
+    toast('Aucune fermeture chargée depuis le planning');
+    return;
+  }
+  const employes = state.employes||[];
+  if(!employes.length){ toast('Aucun employé'); return; }
+  if(!state.heures) state.heures = [];
+
+  let count = 0;
+  fermetures.forEach(f=>{
+    const date = new Date(f.date);
+    const dayOfWeek = date.getDay(); // 0=dim, 6=sam
+    if(dayOfWeek===0||dayOfWeek===6) return; // ignorer week-end
+    const jourNom = ['','Lundi','Mardi','Mercredi','Jeudi','Vendredi','',''][dayOfWeek];
+    const semaine = getWeekISO(date);
+
+    employes.forEach(emp=>{
+      // Vérifier si une entrée existe déjà pour ce jour
+      const exists = state.heures.find(h=>
+        h.emp_id===emp.id && h.semaine===semaine && h.jour===jourNom
+      );
+      if(exists) return; // ne pas écraser une saisie existante
+
+      state.heures.push({
+        id: uid(),
+        emp_id: emp.id,
+        semaine, jour: jourNom,
+        atelier: emp.atelier||'B1',
+        horaire: '', absent: 'Fermeture',
+        h_mat: 0, h_am: 0, total_hebdo: 0,
+        chantier1: '', chantier2: '',
+        statut: emp.statut||'CDI',
+        type_saisie: 'presence',
+        comment: 'Fermeture atelier'
+      });
+      count++;
+    });
+  });
+
+  if(count>0){
+    scheduleSave();
+    renderPlanningRessources();
+    toast(`✓ ${count} fermeture${count>1?'s':''} appliquée${count>1?'s':''}`);
+  } else {
+    toast('Toutes les fermetures sont déjà renseignées');
+  }
+}
+
+function openPauseConfig(){
+  if(!state.pauseConfig) state.pauseConfig = {B1:0.75,B2:0.75,B3:0.75,Men:0.75,Log:0,Us:0};
+  const cfg = state.pauseConfig;
+  const atelierLabels = {B1:'Charpente B1',B2:'MOB B2',B3:'Atelier B3',Men:'Menuiserie',Log:'Logistique',Us:'Usinage'};
+  document.getElementById('modal-pause-body').innerHTML = `
+    <div class="info-box" style="margin-bottom:12px">La pause est déduite automatiquement du calcul des heures nettes lors de la saisie des horaires (ex: 7h00-16h15 - 0h45 = 8h30).</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr>
+        <th style="padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase">Atelier</th>
+        <th style="padding:7px 10px;text-align:center;border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase">Pause (heures)</th>
+        <th style="padding:7px 10px;text-align:center;border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase">Affichage</th>
+      </tr></thead>
+      <tbody>
+        ${ATELIERS_H.map(at=>`<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px 10px;font-weight:600">${atelierLabels[at]||at}</td>
+          <td style="padding:6px 10px;text-align:center">
+            <input type="number" id="pause-${at}" value="${cfg[at]||0}" 
+              min="0" max="2" step="0.25"
+              style="width:80px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;text-align:center;font-family:'DM Mono',monospace;font-size:13px"/>
+          </td>
+          <td style="padding:8px 10px;text-align:center;font-size:12px;color:var(--text2)">
+            ${(cfg[at]||0)===0?'Pas de pause':`${Math.floor((cfg[at]||0)*60)} min`}
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  document.getElementById('modal-pause').classList.add('show');
+}
+
+function savePauseConfig(){
+  if(!state.pauseConfig) state.pauseConfig = {};
+  ATELIERS_H.forEach(at=>{
+    const val = parseFloat(document.getElementById('pause-'+at)?.value)||0;
+    state.pauseConfig[at] = val;
+  });
+  closeModal('modal-pause');
+  scheduleSave();
+  toast('Pauses enregistrées');
+}
+
+// ── AFFECTATION PROPORTIONNELLE LOG/CARISTES ──
+function renderAffectationLog(){
+  const el = document.getElementById('hscreen-affectation');
+  const employes = state.employes||[];
+  const heures = state.heures||[];
+
+  // Caristes uniquement (marqués comme cariste dans leur fiche)
+  const empsSupport = employes.filter(e=>e.cariste && !e.inactif);
+  // Ateliers "production" = B1, B2, B3, Men
+  const ateliersProd = ['B1','B2','B3','Men'];
+
+  const semaines = getSemainesDisponibles();
+  const semSel = state._affectSem || semaines[0]?.val || getWeekISO(new Date());
+
+  // Chaque cariste a son propre atelier de rattachement
+  // On affiche un tableau par cariste ou on calcule par atelier unique si tous pareil
+  // Atelier cible = union des ateliers des caristes (ou sélecteur si différents)
+  const ateliersCaristes = [...new Set(empsSupport.map(e=>e.cariste_atelier||'B1'))];
+  const atelierCible = state._affectAtelier || ateliersCaristes[0] || 'B1';
+
+  // Calculer les heures production par chantier pour l'atelier cible cette semaine
+  const hParChantier = {};
+  heures.filter(h=>h.semaine===semSel && h.chantier1 && h.type_saisie!=='presence').forEach(h=>{
+    const emp = employes.find(e=>e.id===h.emp_id);
+    const at = h.atelier || emp?.atelier || '';
+    if(at !== atelierCible) return;
+    const total = (+h.h_mat||0)+(+h.h_am||0);
+    if(!total) return;
+    [h.chantier1, h.chantier2].filter(Boolean).forEach(ch=>{
+      const nbCh = [h.chantier1,h.chantier2].filter(Boolean).length;
+      hParChantier[ch] = (hParChantier[ch]||0) + total/nbCh;
+    });
+  });
+
+  const totalProd = Object.values(hParChantier).reduce((s,v)=>s+v, 0);
+  const chantiersList = Object.entries(hParChantier).sort((a,b)=>b[1]-a[1]);
+
+  // Heures support pour la semaine sélectionnée
+  const hSupport = {};
+  empsSupport.forEach(emp=>{
+    const lignes = heures.filter(h=>h.emp_id===emp.id && h.semaine===semSel);
+    // Prendre les heures présence si dispo, sinon heures chantier
+    const lignesP = lignes.filter(l=>l.type_saisie==='presence'||l.horaire);
+    const total = (lignesP.length ? lignesP : lignes.filter(l=>l.chantier1))
+      .reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0), 0);
+    hSupport[emp.id] = total;
+  });
+
+  let html = `
+  <div style="background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:12px;color:var(--blue)">
+    💡 <strong>Principe :</strong> Les heures des caristes/logisticiens sont réparties proportionnellement sur les chantiers travaillés dans l'atelier sélectionné, en fonction du volume d'heures production de la semaine.
+  </div>
+
+  <!-- Sélecteurs -->
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px">
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Semaine
+      <select style="margin-left:6px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+        onchange="state._affectSem=this.value;renderAffectationLog()">
+        ${semaines.map(s=>`<option value="${s.val}"${s.val===semSel?' selected':''}>${s.label}</option>`).join('')}
+      </select>
+    </label>
+    <label style="font-size:12px;font-weight:600;color:var(--text2)">Atelier
+      <select style="margin-left:6px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+        onchange="state._affectAtelier=this.value;renderAffectationLog()">
+        ${ateliersProd.map(a=>`<option value="${a}"${a===atelierCible?' selected':''}>${a}</option>`).join('')}
+      </select>
+    </label>
+    ${empsSupport.length ? `<span style="font-size:11px;color:var(--text3)">
+      Caristes rattachés : ${empsSupport.map(e=>`<strong>${esc(e.nom)}</strong> → ${e.cariste_atelier||'B1'}`).join(' · ')}
+    </span>` : ''}
+  </div>
+
+  ${!totalProd ? `<div class="warn-box">Aucune heure de production saisie pour l'atelier ${atelierCible} en ${semSel}. Saisissez d'abord les heures chantier de cet atelier.</div>` : ''}
+  ${!empsSupport.length ? `<div class="warn-box">Aucun employé marqué "Cariste". Modifiez la fiche d'un employé et cochez <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4Ij4KICA8IS0tIENvcnBzIHByaW5jaXBhbCAtLT4KICA8cmVjdCB4PSIxMCIgeT0iMTQiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxMCIgcng9IjEuNSIgZmlsbD0iI0NDMjIwMCIvPgogIDwhLS0gQ2FiaW5lIC0tPgogIDxyZWN0IHg9IjE4IiB5PSI5IiB3aWR0aD0iOCIgaGVpZ2h0PSI4IiByeD0iMSIgZmlsbD0iI0REMzMxMSIvPgogIDwhLS0gVml0cmUgY2FiaW5lIC0tPgogIDxyZWN0IHg9IjE5LjUiIHk9IjEwLjUiIHdpZHRoPSI1IiBoZWlnaHQ9IjUiIHJ4PSIwLjUiIGZpbGw9IiM4OENDRUUiIG9wYWNpdHk9IjAuOCIvPgogIDwhLS0gTcOidCB2ZXJ0aWNhbCAtLT4KICA8cmVjdCB4PSI4IiB5PSI0IiB3aWR0aD0iMi41IiBoZWlnaHQ9IjE4IiByeD0iMSIgZmlsbD0iI0FBMTEwMCIvPgogIDwhLS0gRm91cmNoZXMgLS0+CiAgPHJlY3QgeD0iMiIgeT0iMjAiIHdpZHRoPSI4IiBoZWlnaHQ9IjEuOCIgcng9IjAuOCIgZmlsbD0iIzg4MTEwMCIvPgogIDxyZWN0IHg9IjIiIHk9IjIzIiB3aWR0aD0iOCIgaGVpZ2h0PSIxLjgiIHJ4PSIwLjgiIGZpbGw9IiM4ODExMDAiLz4KICA8IS0tIFJvdWUgYXZhbnQgLS0+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIFJvdWUgYXJyacOocmUgLS0+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIENvbnRyZXBvaWRzIGFycmnDqHJlIC0tPgogIDxyZWN0IHg9IjI0IiB5PSIxNyIgd2lkdGg9IjQiIGhlaWdodD0iNyIgcng9IjEiIGZpbGw9IiM5OTExMDAiLz4KICA8IS0tIEd5cm9waGFyZSAtLT4KICA8Y2lyY2xlIGN4PSIyMiIgY3k9IjguNSIgcj0iMS41IiBmaWxsPSIjRkY2NjAwIi8+CiAgPGNpcmNsZSBjeD0iMjIiIGN5PSI4LjUiIHI9IjAuNyIgZmlsbD0iI0ZGQUEwMCIvPgo8L3N2Zz4=" style="width:14px;height:14px;vertical-align:middle"> Cariste pour l'inclure ici.</div>` : ''}
+
+  ${totalProd && empsSupport.length ? `
+  <!-- Résumé production -->
+  <div style="margin-bottom:20px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);margin-bottom:10px">
+      Production atelier ${atelierCible} — ${semSel} — <strong>${Math.round(totalProd)}h total</strong>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;padding:7px 12px;border-bottom:1px solid var(--border)">Chantier</th>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;padding:7px 12px;border-bottom:1px solid var(--border);text-align:right">H prod.</th>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;padding:7px 12px;border-bottom:1px solid var(--border);text-align:right">% du total</th>
+          <th style="background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;padding:7px 12px;border-bottom:1px solid var(--border)" colspan="${empsSupport.length+1}">Affectation Log</th>
+        </tr>
+        <tr>
+          <th style="background:var(--bg);padding:5px 12px;border-bottom:1px solid var(--border)" colspan="3"></th>
+          ${empsSupport.map(e=>`<th style="background:#F2EDF9;color:var(--purple);font-size:10px;font-weight:600;padding:5px 12px;border-bottom:1px solid var(--border);text-align:right;border-left:1px solid var(--border)">${esc(e.nom)}<br><span style="font-size:9px;opacity:.7">${hSupport[e.id]>0?hSupport[e.id]+'h tot.':'non saisi'}</span></th>`).join('')}
+          <th style="background:#F2EDF9;color:var(--purple);font-size:10px;font-weight:600;padding:5px 12px;border-bottom:1px solid var(--border);text-align:right;border-left:1px solid var(--border)">Total Log</th>
+        </tr></thead>
+        <tbody>
+          ${chantiersList.map(([ch, hProd],i)=>{
+            const pct = totalProd>0 ? hProd/totalProd : 0;
+            const barW = Math.round(pct*100);
+            return `<tr style="${i%2?'background:#FAFAF8;':''}border-bottom:1px solid var(--border)">
+              <td style="padding:9px 12px;font-weight:500">${esc(ch)}</td>
+              <td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace;font-weight:600">${Math.round(hProd)}h</td>
+              <td style="padding:9px 12px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;min-width:60px">
+                    <div style="width:${barW}%;height:100%;background:var(--blue);border-radius:3px"></div>
+                  </div>
+                  <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--blue);min-width:32px">${Math.round(pct*100)}%</span>
+                </div>
+              </td>
+              ${empsSupport.map(e=>{
+                const hAff = hSupport[e.id]>0 ? Math.round(hSupport[e.id]*pct*10)/10 : 0;
+                return `<td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${hAff>0?'var(--purple)':'var(--text3)'};border-left:1px solid var(--border)">${hAff>0?hAff+'h':'—'}</td>`;
+              }).join('')}
+              <td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--purple);border-left:1px solid var(--border)">
+                ${Math.round(empsSupport.reduce((s,e)=>s+(hSupport[e.id]>0?hSupport[e.id]*pct:0),0)*10)/10}h
+              </td>
+            </tr>`;
+          }).join('')}
+          <!-- Ligne total -->
+          <tr style="background:var(--bg);font-weight:700;border-top:2px solid var(--border2)">
+            <td style="padding:9px 12px">TOTAL</td>
+            <td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace">${Math.round(totalProd)}h</td>
+            <td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace">100%</td>
+            ${empsSupport.map(e=>`<td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace;color:var(--purple);border-left:1px solid var(--border)">${hSupport[e.id]>0?hSupport[e.id]+'h':'—'}</td>`).join('')}
+            <td style="padding:9px 12px;text-align:right;font-family:'DM Mono',monospace;color:var(--purple);border-left:1px solid var(--border)">${Math.round(empsSupport.reduce((s,e)=>s+hSupport[e.id],0))}h</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bouton appliquer -->
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button class="btn btn-primary" onclick="appliquerAffectationLog('${semSel}','${atelierCible}')">
+      ✓ Appliquer cette affectation dans les heures
+    </button>
+    <span style="font-size:11px;color:var(--text3)">Crée les lignes chantier pour chaque cariste avec la répartition calculée</span>
+  </div>
+  ` : ''}`;
+
+  el.innerHTML = html;
+}
+
+function appliquerAffectationLog(semaine, atelierCible){
+  const employes = state.employes||[];
+  const heures = state.heures||[];
+  const empsSupport = employes.filter(e=>e.cariste && !e.inactif);
+
+  // Recalculer la répartition
+  const hParChantier = {};
+  heures.filter(h=>h.semaine===semaine && h.chantier1 && h.type_saisie!=='presence').forEach(h=>{
+    const emp = employes.find(e=>e.id===h.emp_id);
+    const at = h.atelier || emp?.atelier || '';
+    if(at !== atelierCible) return;
+    const total = (+h.h_mat||0)+(+h.h_am||0);
+    if(!total) return;
+    [h.chantier1, h.chantier2].filter(Boolean).forEach(ch=>{
+      const nbCh = [h.chantier1,h.chantier2].filter(Boolean).length;
+      hParChantier[ch] = (hParChantier[ch]||0) + total/nbCh;
+    });
+  });
+
+  const totalProd = Object.values(hParChantier).reduce((s,v)=>s+v, 0);
+  if(!totalProd){ toast('Aucune heure production trouvée'); return; }
+
+  if(!state.heures) state.heures = [];
+  let count = 0;
+
+  empsSupport.forEach(emp=>{
+    // Calculer les heures totales du support cette semaine
+    const lignes = heures.filter(h=>h.emp_id===emp.id && h.semaine===semaine);
+    const lignesP = lignes.filter(l=>l.type_saisie==='presence'||l.horaire);
+    const hTot = (lignesP.length ? lignesP : lignes.filter(l=>l.chantier1))
+      .reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0), 0);
+    if(!hTot){ return; }
+
+    // Supprimer les anciennes lignes chantier de cet employé pour cette semaine
+    state.heures = state.heures.filter(h=>
+      !(h.emp_id===emp.id && h.semaine===semaine && h.chantier1 && h.type_saisie!=='presence')
+    );
+
+    // Créer une ligne par chantier avec les heures proportionnelles
+    // Répartir sur les jours ouvrés de la semaine (lundi→vendredi)
+    const [yr, sw] = semaine.split('-S');
+    Object.entries(hParChantier).forEach(([ch, hProd])=>{
+      const pct = hProd / totalProd;
+      const hAff = Math.round(hTot * pct * 100) / 100;
+      if(hAff <= 0) return;
+
+      state.heures.push({
+        id: uid(),
+        emp_id: emp.id,
+        semaine, jour: 'Lundi',
+        atelier: emp.cariste_atelier || emp.atelier,
+        chantier1: ch, chantier2: '',
+        h_mat: hAff, h_am: 0,
+        total_hebdo: hAff,
+        absent: '',
+        statut: emp.statut||'CDI',
+        type_saisie: 'affectation_log',
+        comment: `Affectation auto ${atelierCible} — ${Math.round(pct*100)}%`
+      });
+      count++;
+    });
+  });
+
+  scheduleSave();
+  toast(`✓ ${count} ligne${count>1?'s':''} d'affectation créée${count>1?'s':''}`);
+  renderAffectationLog();
+}
+
+// ── RÉCAP HEURES PAR CHANTIER ──
+function renderRecapHeures(){
+  const el = document.getElementById('hscreen-recap');
+  const heures = state.heures||[];
+  const employes = state.employes||[];
+
+  if(!heures.length){
+    el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune heure saisie</div>';
+    return;
+  }
+
+  const semaines = getSemainesDisponibles().reverse(); // chrono
+  const semDeb = state._recapSemDeb || '';
+  const semFin = state._recapSemFin || '';
+
+  // Filtrer par période
+  const heuresFil = heures.filter(h=>{
+    if(!h.chantier1) return false; // uniquement lignes chantier pour le récap
+    if(h.type_saisie==='presence'||h.type_saisie==='affectation_log') return false;
+    if(semDeb && h.semaine < semDeb) return false;
+    if(semFin && h.semaine > semFin) return false;
+    return true;
+  });
+
+  // Absences par employé sur la même période
+  const absencesFil = heures.filter(h=>{
+    if(!h.absent || h.chantier1) return false;
+    if(semDeb && h.semaine < semDeb) return false;
+    if(semFin && h.semaine > semFin) return false;
+    return true;
+  });
+  const absParEmp = {};
+  absencesFil.forEach(h=>{
+    const emp = employes.find(e=>e.id===h.emp_id);
+    const key = emp ? emp.nom+' '+emp.prenom : h.emp_id;
+    if(!absParEmp[key]) absParEmp[key]={nom:key,jours:{}};
+    absParEmp[key].jours[h.absent] = (absParEmp[key].jours[h.absent]||0)+1;
+  });
+
+  // Grouper par chantier + atelier + CDI/interim
+  const parChantier = {};
+  const ateliersSeen = new Set();
+
+  heuresFil.forEach(h=>{
+    const emp = employes.find(e=>e.id===h.emp_id);
+    const statut = emp?.statut||h.statut||'CDI';
+    const atelier = h.atelier||emp?.atelier||'?';
+    const total = (+h.h_mat||0)+(+h.h_am||0);
+    if(!total) return;
+    [h.chantier1, h.chantier2].filter(Boolean).forEach(ch=>{
+      const nbCh = [h.chantier1,h.chantier2].filter(Boolean).length;
+      const hPart = total / nbCh;
+      if(!parChantier[ch]) parChantier[ch]={nom:ch,total:0,parAtelier:{}};
+      if(!parChantier[ch].parAtelier[atelier]) parChantier[ch].parAtelier[atelier]={cdi:0,interim:0};
+      if(statut==='interim') parChantier[ch].parAtelier[atelier].interim += hPart;
+      else parChantier[ch].parAtelier[atelier].cdi += hPart;
+      parChantier[ch].total += hPart;
+      ateliersSeen.add(atelier);
+    });
+  });
+
+  const rows = Object.values(parChantier).sort((a,b)=>b.total-a.total);
+  const ateliersCols = ATELIERS_H.filter(a=>ateliersSeen.has(a));
+
+  const totParAtelier = {};
+  ateliersCols.forEach(at=>{
+    totParAtelier[at] = {
+      cdi: rows.reduce((s,r)=>s+(r.parAtelier[at]?.cdi||0),0),
+      interim: rows.reduce((s,r)=>s+(r.parAtelier[at]?.interim||0),0),
+    };
+    totParAtelier[at].total = totParAtelier[at].cdi + totParAtelier[at].interim;
+  });
+  const totGCDI = rows.reduce((s,r)=>s+Object.values(r.parAtelier).reduce((a,b)=>a+b.cdi,0),0);
+  const totGInt  = rows.reduce((s,r)=>s+Object.values(r.parAtelier).reduce((a,b)=>a+b.interim,0),0);
+  const totG = totGCDI + totGInt;
+
+  let html = `
+  <!-- Filtres période -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px">
+    <span style="font-size:12px;font-weight:600;color:var(--text2)">Période :</span>
+    <label style="font-size:12px;color:var(--text2)">Du
+      <select style="margin-left:5px;padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+        onchange="state._recapSemDeb=this.value;renderRecapHeures()">
+        <option value="">Début</option>
+        ${semaines.map(s=>`<option value="${s.val}"${s.val===semDeb?' selected':''}>${s.label}</option>`).join('')}
+      </select>
+    </label>
+    <label style="font-size:12px;color:var(--text2)">Au
+      <select style="margin-left:5px;padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+        onchange="state._recapSemFin=this.value;renderRecapHeures()">
+        <option value="">Fin</option>
+        ${semaines.map(s=>`<option value="${s.val}"${s.val===semFin?' selected':''}>${s.label}</option>`).join('')}
+      </select>
+    </label>
+    ${semDeb||semFin?`<button class="btn btn-sm" onclick="state._recapSemDeb='';state._recapSemFin='';renderRecapHeures()">✕ Effacer</button>`:''}
+    <span style="font-size:11px;color:var(--text3);margin-left:auto">${heuresFil.length} ligne${heuresFil.length>1?'s':''} · ${rows.length} chantier${rows.length>1?'s':''}</span>
+  </div>
+
+  <!-- TOTAL en haut -->
+  <div style="background:var(--blue);color:#fff;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+    <div>
+      <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">TOTAL GÉNÉRAL</div>
+      <div style="font-size:26px;font-weight:700;font-family:'DM Mono',monospace">${Math.round(totG)}h</div>
+    </div>
+    <div style="width:1px;background:rgba(255,255,255,.3);align-self:stretch"></div>
+    <div>
+      <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">CDI</div>
+      <div style="font-size:20px;font-weight:600;font-family:'DM Mono',monospace;color:#A3D9B8">${Math.round(totGCDI)}h</div>
+    </div>
+    <div>
+      <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">INTÉRIM</div>
+      <div style="font-size:20px;font-weight:600;font-family:'DM Mono',monospace;color:#F5C98A">${Math.round(totGInt)}h</div>
+    </div>
+    <div style="width:1px;background:rgba(255,255,255,.3);align-self:stretch"></div>
+    ${ateliersCols.map(at=>`
+    <div>
+      <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">${at}</div>
+      <div style="font-size:18px;font-weight:600;font-family:'DM Mono',monospace">${Math.round(totParAtelier[at].total)}h</div>
+      <div style="font-size:10px;opacity:.8">${Math.round(totParAtelier[at].cdi)}h CDI · <span style="color:#F5C98A">${Math.round(totParAtelier[at].interim)}h Int.</span></div>
+    </div>`).join('')}
+  </div>
+
+  <!-- Tableau détaillé -->
+  <div class="table-wrap" style="overflow-x:auto">
+  <table style="min-width:500px">
+    <thead>
+      <tr>
+        <th rowspan="2" style="vertical-align:middle">Chantier</th>
+        <th rowspan="2" style="text-align:right;vertical-align:middle">Total</th>
+        ${ateliersCols.map(at=>`<th colspan="2" style="text-align:center;background:#EAF1FB;color:var(--blue);border-bottom:1px solid var(--blue-border)">${at}</th>`).join('')}
+        <th rowspan="2" style="text-align:right;vertical-align:middle">% Int.</th>
+      </tr>
+      <tr>
+        ${ateliersCols.map(()=>`
+          <th style="text-align:right;font-size:10px;background:#E8F5EE;color:var(--green)">CDI</th>
+          <th style="text-align:right;font-size:10px;background:#FDF3E8;color:var(--orange)">Int.</th>
+        `).join('')}
+      </tr>
+    </thead>
+    <tbody>
+    ${rows.length ? rows.map((r,i)=>{
+      const hCDI = Object.values(r.parAtelier).reduce((s,v)=>s+v.cdi,0);
+      const hInt = Object.values(r.parAtelier).reduce((s,v)=>s+v.interim,0);
+      const pct = r.total>0?Math.round(hInt/r.total*100):0;
+      return `<tr style="${i%2?'background:#FAFAF8;':''}border-bottom:1px solid var(--border)">
+        <td style="font-weight:500">${esc(r.nom)}</td>
+        <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700">${Math.round(r.total)}h</td>
+        ${ateliersCols.map(at=>{
+          const v = r.parAtelier[at]||{cdi:0,interim:0};
+          return `
+          <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${v.cdi>0?'var(--green)':'var(--text3)'}">${v.cdi>0?Math.round(v.cdi)+'h':'—'}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${v.interim>0?'var(--orange)':'var(--text3)'}">${v.interim>0?Math.round(v.interim)+'h':'—'}</td>`;
+        }).join('')}
+        <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${r.total>0?pct+'%':'—'}</td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="${2+ateliersCols.length*2+1}" style="padding:2rem;text-align:center;color:var(--text3)">Aucune heure chantier pour cette période</td></tr>`}
+    </tbody>
+  </table></div>`;
+
+  el.innerHTML = html;
+}
+
+
+// ── EXPORT PDF INTÉRIMAIRE ──
+function openPDFInterim(empId){
+  // Choisir la semaine
+  const semaines = getSemainesDisponibles();
+  const semSel = state._semHeure || semaines[0]?.val || getWeekISO(new Date());
+  const emp = (state.employes||[]).find(e=>e.id===empId);
+  const choix = prompt(
+    'Relevé PDF — ' + (emp?emp.nom+' '+emp.prenom:'') +
+    '\nEntrez le numéro de semaine (ex: 23) ou laissez vide pour la semaine en cours (' + semSel + ')'
+  );
+  if(choix === null) return; // Annulé
+  let semaine = semSel;
+  if(choix.trim()){
+    const yr = new Date().getFullYear();
+    semaine = yr + '-S' + String(parseInt(choix)).padStart(2,'0');
+  }
+  exportPDFInterim(empId, semaine);
+}
+
+function exportPDFInterim(empId, semaine){
+  const emp = (state.employes||[]).find(e=>e.id===empId);
+  if(!emp) return;
+  const lignes = (state.heures||[]).filter(h=>h.emp_id===empId&&h.semaine===semaine);
+  const totalH = lignes.reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0),0);
+  const [yr,sw] = semaine.split('-S');
+  const wn = parseInt(sw);
+  const jan4 = new Date(parseInt(yr),0,4);
+  const lundi = new Date(jan4);
+  lundi.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(wn-1)*7);
+
+  // Générer le HTML dans un Blob pour éviter les bloqueurs de popups
+  const htmlContent = `<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>Relevé heures — ${emp.nom} ${emp.prenom} — S${sw}</title>
+    <style>
+      body{font-family:Arial,sans-serif;font-size:12px;margin:30px;color:#222}
+      .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+      .logo-placeholder{width:80px;height:60px;border:2px solid #1A4F8A;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#1A4F8A;text-align:center;padding:4px}
+      .title{text-align:center;font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+      .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;background:#f5f5f5;padding:12px;border-radius:6px}
+      .info-row{font-size:11px}.info-label{font-weight:700;color:#555}
+      table{width:100%;border-collapse:collapse;margin-bottom:20px}
+      th{background:#1A4F8A;color:#fff;padding:7px 10px;text-align:left;font-size:11px}
+      td{padding:7px 10px;border-bottom:1px solid #ddd;font-size:12px}
+      .total-row{font-weight:700;background:#f0f0f0;font-size:13px}
+      .total-box{display:inline-block;border:2px solid #1A4F8A;padding:8px 20px;font-size:18px;font-weight:700;color:#1A4F8A;border-radius:6px}
+      .signature{margin-top:30px;display:flex;justify-content:space-between}
+      .sig-block{text-align:center;width:200px}
+      .sig-line{border-top:1px solid #333;margin-top:40px;padding-top:5px;font-size:11px}
+      @media print{body{margin:15px}button{display:none}}
+    </style>
+  </head><body>
+    <div class="header">
+      <div class="logo-placeholder">ROUSSEAU<br>CONSTRUCTION</div>
+      <div class="title">Relevé d'heures hebdomadaire<br><span style="font-size:13px;font-weight:400">Intérimaire</span></div>
+      <div style="text-align:right;font-size:12px">
+        <div>Semaine N° : <strong>${wn}</strong></div>
+        <div>Agence : <strong>${esc(emp.agence||'—')}</strong></div>
+      </div>
+    </div>
+    <div class="info-grid">
+      <div class="info-row"><span class="info-label">Entreprise utilisatrice :</span> ROUSSEAU CONSTRUCTION</div>
+      <div class="info-row"><span class="info-label">Intérimaire :</span> ${esc(emp.nom)} ${esc(emp.prenom)}</div>
+      <div class="info-row"><span class="info-label">Atelier :</span> ${esc(lignes[0]?.atelier||emp.atelier||'—')}</div>
+      <div class="info-row"><span class="info-label">Période :</span> du ${String(lundi.getDate()).padStart(2,'0')}/${String(lundi.getMonth()+1).padStart(2,'0')} au ${String(new Date(lundi.getTime()+4*86400000).getDate()).padStart(2,'0')}/${String(new Date(lundi.getTime()+4*86400000).getMonth()+1).padStart(2,'0')}/${yr}</div>
+    </div>
+    <table>
+      <thead><tr><th>Jour</th><th>Date</th><th>H Matin</th><th>H Après-midi</th><th>Total</th><th>Chantier(s)</th></tr></thead>
+      <tbody>
+        ${JOURS_SEMAINE.map((j,i)=>{
+          const d = new Date(lundi.getTime()+i*86400000);
+          const dateStr = String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+yr;
+          const l = lignes.find(x=>x.jour===j);
+          const hMat = l?.h_mat||0;
+          const hAm = l?.h_am||0;
+          const total = hMat+hAm;
+          const abs = l?.absent||'';
+          const chantiers = [l?.chantier1,l?.chantier2].filter(Boolean).join(' / ');
+          return '<tr><td><strong>'+j+'</strong></td><td>'+dateStr+'</td><td style="text-align:center">'+(abs?abs:(hMat>0?hMat+'h':'—'))+'</td><td style="text-align:center">'+(abs?'':(hAm>0?hAm+'h':'—'))+'</td><td style="text-align:center;font-weight:600">'+(abs?abs:(total>0?total+'h':'—'))+'</td><td>'+chantiers+'</td></tr>';
+        }).join('')}
+        <tr class="total-row">
+          <td colspan="4" style="text-align:right;padding-right:20px">TOTAL HEBDOMADAIRE :</td>
+          <td colspan="2"><div class="total-box">${totalH}h</div></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="signature">
+      <div class="sig-block"><div class="sig-line">Signature intérimaire</div></div>
+      <div class="sig-block"><div class="sig-line">Cachet et signature agence</div></div>
+      <div class="sig-block"><div class="sig-line">Signature Rousseau Construction</div></div>
+    </div>
+    <div style="text-align:center;margin-top:20px">
+      <button onclick="window.print()" style="padding:10px 24px;background:#1A4F8A;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer">🖨 Imprimer / Enregistrer PDF</button>
+    </div>
+  </body></html>`;
+
+  const blob = new Blob([htmlContent], {type:'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if(!win) {
+    // Si popup bloqué, créer un lien de téléchargement
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'releve_heures_'+emp.nom+'_'+emp.prenom+'_S'+sw+'.html';
+    a.click();
+    toast('PDF généré — ouvrez le fichier téléchargé et imprimez');
+  } else {
+    setTimeout(()=>{ URL.revokeObjectURL(url); }, 10000);
+  }
+}
+
+// ── VUE MACRO MULTI-SEMAINES (détail par jour) ──
 function renderVueMacro(){
   const el = document.getElementById('hscreen-macro');
   const employes = state.employes||[];
