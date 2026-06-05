@@ -2619,7 +2619,7 @@ function openSaisieJours(empId, semaine){
     h.emp_id===empId && h.semaine===semaine && h.chantier1 &&
     h.type_saisie!=='presence' && h.type_saisie!=='affectation_log'
   );
-  const atelier = existingLignes[0]?.atelier || emp.atelier;
+  const atelier = existingLignes[0]?.atelier || emp.atelier || 'B2';
 
   // Structure : une ligne = un chantier + heures par jour
   // Récupérer les lignes existantes regroupées par chantier
@@ -2796,7 +2796,8 @@ function updateTotalSemaine(){
 
 function saveHeuresSemaine(){
   const {empId, semaine, nbRows} = _ctx;
-  const atelier = document.getElementById('sj-atelier').value;
+  const atelierSelect = document.getElementById('sj-atelier')?.value;
+  const atelier = atelierSelect || emp?.atelier || 'B2';
   if(!state.heures) state.heures = [];
   // Supprimer toutes les lignes chantier ET absences saisies via la grille
   // (garder uniquement les lignes présence/horaires du planning ressources)
@@ -3627,7 +3628,7 @@ function renderRecapHeures(){
   heuresFil.forEach(h=>{
     const emp = employes.find(e=>e.id===h.emp_id);
     const statut = emp?.statut||h.statut||'CDI';
-    const atelier = h.atelier||emp?.atelier||'?';
+    const atelier = (h.atelier && h.atelier!=='?') ? h.atelier : (emp?.atelier||'?');
     const total = (+h.h_mat||0)+(+h.h_am||0);
     if(!total) return;
     [h.chantier1, h.chantier2].filter(Boolean).forEach(ch=>{
