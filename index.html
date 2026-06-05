@@ -293,8 +293,24 @@ transition:all .3s;
 </div>
 </div>
 <div class="form-group">
-<label>Commentaire</label>
-<input type="text" id="f-comment" placeholder="Ex: 286 m² — Sortie BE OK"/>
+<label>Phase(s) <span style="font-size:11px;color:var(--text3);font-weight:400">(optionnel — plusieurs possibles)</span></label>
+<div style="border:1px solid var(--border);border-radius:8px;padding:6px 10px;background:var(--surface);min-height:40px;display:flex;flex-wrap:wrap;gap:4px;align-items:center" id="f-phases-wrap" onclick="document.getElementById('f-phase-input').focus()">
+  <div id="f-phases-tags" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+  <input type="text" id="f-phase-input" placeholder="Ajouter une phase… (Entrée pour valider)"
+    style="border:none;outline:none;font-family:inherit;font-size:13px;min-width:160px;flex:1;background:transparent"
+    onkeydown="addPhaseTag(event)"
+    list="phases-suggestions"/>
+  <datalist id="phases-suggestions">
+    <option value="Murs"/><option value="Charpente"/><option value="Bardage"/>
+    <option value="Caissons"/><option value="Menuiserie"/><option value="Coursives"/>
+    <option value="Balcons"/><option value="Terrasses"/><option value="Isolation"/>
+  </datalist>
+</div>
+<input type="hidden" id="f-phase" value=""/>
+</div>
+<div class="form-group">
+<label>Commentaire <span style="font-size:11px;color:var(--text3);font-weight:400">(libellé de l'article ERP)</span></label>
+<input type="text" id="f-comment" placeholder="Ex: Ph116 - 175m2 caissons"/>
 </div>
 <div class="form-row">
 <div class="form-group">
@@ -1035,8 +1051,12 @@ ondragover="event.preventDefault();this.classList.add('drag-over')"
 ondragleave="this.classList.remove('drag-over')"
 ondrop="dropRow(event,'${atId}',${i});this.classList.remove('drag-over')">
 <td><span class="drag-handle">${q||IS_READONLY?i+1:'⠿'}</span></td>
-<td>${IS_READONLY?`<div style="padding:3px 0">${esc(t.tranche)}</div>`:`<input type="text" value="${esc(t.tranche)}" onchange="updT('${atId}',${i},'tranche',this.value)"/>`}</td>
-<td>${IS_READONLY?`<div style="padding:3px 0;font-size:13px;color:var(--text2)">${esc(t.comment||'')}</div>`:`<input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${i},'comment',this.value)"/>`}</td>
+<td>
+  ${IS_READONLY?`<div style="padding:3px 0">${esc(t.tranche)}</div>`:`<input type="text" value="${esc(t.tranche)}" onchange="updT('${atId}',${i},'tranche',this.value)"/>`}</td>
+<td>
+  ${(t.phases&&t.phases.length)?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:2px">${t.phases.map(p=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600">${esc(p)}</span>`).join('')}</div>`:''}
+  ${IS_READONLY?`<div style="padding:3px 0;font-size:13px;color:var(--text2)">${esc(t.comment||'')}</div>`:`<input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${i},'comment',this.value)"/>`}
+</td>
 <td><input type="date" value="${t.debut}" onchange="updT('${atId}',${i},'debut',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
 <td><span class="normal-date">${fmtDate(fin)}</span></td>
 <td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}',${i},'duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:58px"/></td>
@@ -1434,6 +1454,52 @@ async function removeTranche(atId,idOrIdx){
   keepGanttPos();scheduleSave(atId);render();
 }
 
+// ── Gestion tags phases ──
+let _currentPhaseTags = [];
+
+function initPhaseTags(phases){
+  _currentPhaseTags = Array.isArray(phases) ? [...phases] : (phases ? [phases] : []);
+  renderPhaseTags();
+}
+
+function renderPhaseTags(){
+  const wrap = document.getElementById('f-phases-tags');
+  if(!wrap) return;
+  wrap.innerHTML = _currentPhaseTags.map((p,i)=>`
+    <span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:5px;padding:2px 8px;font-size:12px;display:flex;align-items:center;gap:4px;white-space:nowrap">
+      ${esc(p)}
+      <button onclick="removePhaseTag(${i})" style="border:none;background:none;cursor:pointer;color:var(--blue);font-size:12px;padding:0;line-height:1">×</button>
+    </span>`).join('');
+  document.getElementById('f-phase').value = _currentPhaseTags.join(',');
+}
+
+function addPhaseTag(event){
+  if(event.key==='Enter'||event.key===','){
+    event.preventDefault();
+    const val = event.target.value.trim().replace(/,$/,'');
+    if(val && !_currentPhaseTags.includes(val)){
+      _currentPhaseTags.push(val);
+      renderPhaseTags();
+    }
+    event.target.value = '';
+  }
+}
+
+function removePhaseTag(idx){
+  _currentPhaseTags.splice(idx,1);
+  renderPhaseTags();
+}
+
+function getPhaseArray(){
+  // Ajouter la valeur en cours si non validée
+  const input = document.getElementById('f-phase-input');
+  if(input?.value?.trim() && !_currentPhaseTags.includes(input.value.trim())){
+    _currentPhaseTags.push(input.value.trim());
+    input.value = '';
+  }
+  return [..._currentPhaseTags];
+}
+
 async function toggleTermine(atId, idx){
   const t = state.tranches[atId]?.[idx];
   if(!t) return;
@@ -1458,7 +1524,8 @@ async function toggleTermine(atId, idx){
         action: 'syncOFToERP',
         of: {
           tranche: t.tranche||'',
-          commentaire: t.commentaire||'',
+          phases: t.phases||[],
+          commentaire: t.commentaire||t.comment||'',
           atelier: atId||'',
           termine: t.termine,
           termineLe: t._termineLe||''
@@ -1495,7 +1562,7 @@ function buildAtelierOptions(selectedId){return ATELIERS.map(a=>`<option value="
 
 function openAddModal(){
 _editAtId=state.atelier;state.editId=null;
-document.getElementById('modal-title').textContent='Ajouter une tranche';
+document.getElementById('modal-title').textContent='Ajouter une tranche';initPhaseTags([]);
 document.getElementById('f-atelier').innerHTML=buildAtelierOptions(_editAtId);
 const tr=state.tranches[_editAtId];
 const lastFin=tr.length?addWorkDays(dateFin(tr[tr.length-1],_editAtId),1,_editAtId):today();
@@ -1515,7 +1582,7 @@ const t=state.tranches[atId][idx];
 document.getElementById('modal-title').textContent='Modifier l'OF';
 document.getElementById('f-atelier').innerHTML=buildAtelierOptions(atId);
 document.getElementById('f-atelier').onchange=null;
-document.getElementById('f-tranche').value=t.tranche;document.getElementById('f-comment').value=t.comment||'';
+document.getElementById('f-tranche').value=t.tranche;document.getElementById('f-comment').value=t.comment||'';initPhaseTags(t.phases||t.phase||[]);
 document.getElementById('f-debut').value=t.debut;document.getElementById('f-duree').value=t.duree;
 document.getElementById('f-besoin').value=t.besoin||'';
 document.getElementById('f-lockDebut').checked=!!t.lockDebut;document.getElementById('f-lockFin').checked=!!t.lockFin;
@@ -1534,7 +1601,7 @@ const debutVal=document.getElementById('f-debut').value;
 if(!debutVal){document.getElementById('f-debut').style.borderColor='var(--red)';return;}
 document.getElementById('f-debut').style.borderColor='';
 const data={
-tranche:document.getElementById('f-tranche').value||'(sans nom)',
+tranche:document.getElementById('f-tranche').value||'(sans nom)',phases:getPhaseArray(),
 comment:document.getElementById('f-comment').value,
 debut:debutVal,duree:Math.max(1,+document.getElementById('f-duree').value||1),
 besoin:document.getElementById('f-besoin').value||null,
