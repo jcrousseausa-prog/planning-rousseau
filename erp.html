@@ -407,7 +407,23 @@ table.bl-lignes td.r{text-align:right}
     </div>
     <div id="me-interim-fields">
       <div class="field"><label>Agence intérim</label><input type="text" id="me-agence" placeholder="Ex: Manpower, Adecco..."/></div>
-      <div class="field"><label>Date fin de mission</label><input type="date" id="me-fin-mission"/></div>
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);margin-bottom:8px">
+          Contrat en cours
+        </div>
+        <div class="field-2">
+          <div class="field"><label>Début</label><input type="date" id="me-debut-mission"/></div>
+          <div class="field"><label>Fin</label><input type="date" id="me-fin-mission"/></div>
+        </div>
+        <button type="button" class="btn btn-sm btn-green" onclick="renouvelerContrat()" style="font-size:11px;margin-top:4px">
+          + Nouveau contrat (renouvellement)
+        </button>
+      </div>
+      <!-- Historique contrats -->
+      <div id="me-contrats-historique" style="display:none;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);margin-bottom:6px">Historique des contrats</div>
+        <div id="me-contrats-list" style="font-size:12px"></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-employe')">Annuler</button>
@@ -1803,21 +1819,111 @@ function renderEmployes(){
   const nbInterim = employes.filter(e=>e.statut==='interim').length;
   const today = new Date().toISOString().slice(0,10);
 
+  const today = new Date().toISOString().slice(0,10);
+  const in7j = new Date(); in7j.setDate(in7j.getDate()+7);
+  const in14j = new Date(); in14j.setDate(in14j.getDate()+14);
+  const in7jStr = in7j.toISOString().slice(0,10);
+  const in14jStr = in14j.toISOString().slice(0,10);
+
+  // Contrats intérim actifs avec date de fin
+  const contratsActifs = employes.filter(e=>e.statut==='interim'&&e.fin_mission&&!e.inactif)
+    .sort((a,b)=>a.fin_mission.localeCompare(b.fin_mission));
+  const contratsExpires = contratsActifs.filter(e=>e.fin_mission < today);
+  const contratsUrgents = contratsActifs.filter(e=>e.fin_mission>=today&&e.fin_mission<=in7jStr);
+  const contratsProches = contratsActifs.filter(e=>e.fin_mission>in7jStr&&e.fin_mission<=in14jStr);
+  const contratsOk = contratsActifs.filter(e=>e.fin_mission>in14jStr);
+
   let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
     <span style="font-size:13px;color:var(--text2)">${employes.length} employés — <b>${nbCDI}</b> CDI · <b>${nbInterim}</b> Intérim</span>
     <button class="btn btn-primary" style="margin-left:auto" onclick="openAddEmploye()">+ Employé</button>
-  </div>
-  <div style="background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--blue);margin-bottom:14px">
-    💾 Les données (employés + heures) sont sauvegardées dans <strong>Google Sheets</strong> (feuilles ERP_Employes et ERP_Heures) et en local dans votre navigateur. 
-    Pour modifier une saisie, cliquez ✎ sur l'employé dans "Saisie semaine".
   </div>`;
 
-  if(!employes.length){
-    html += `<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun employé — cliquez sur "+ Employé" pour commencer</div>`;
+  // ── Tableau de bord contrats intérim ──
+  if(contratsActifs.length){
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px">
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+        <span style="font-size:13px;font-weight:700">📋 Contrats intérim — suivi des fins de mission</span>
+        <div style="display:flex;gap:8px;margin-left:auto;font-size:11px">
+          ${contratsExpires.length?`<span style="background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);padding:2px 8px;border-radius:5px;font-weight:700">⚠ ${contratsExpires.length} expiré${contratsExpires.length>1?'s':''}</span>`:''}
+          ${contratsUrgents.length?`<span style="background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);padding:2px 8px;border-radius:5px;font-weight:700">⏱ ${contratsUrgents.length} cette semaine</span>`:''}
+          ${contratsProches.length?`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);padding:2px 8px;border-radius:5px">📅 ${contratsProches.length} semaine prochaine</span>`:''}
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--bg)">
+          <th style="padding:7px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);text-align:left;border-bottom:1px solid var(--border)">Intérimaire</th>
+          <th style="padding:7px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);text-align:left;border-bottom:1px solid var(--border)">Agence</th>
+          <th style="padding:7px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);text-align:left;border-bottom:1px solid var(--border)">Atelier</th>
+          <th style="padding:7px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);text-align:center;border-bottom:1px solid var(--border)">Début</th>
+          <th style="padding:7px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);text-align:center;border-bottom:1px solid var(--border)">Fin</th>
+          <th style="padding:7px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);text-align:center;border-bottom:1px solid var(--border)">Durée</th>
+          <th style="padding:7px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);text-align:center;border-bottom:1px solid var(--border)">Statut</th>
+          <th style="padding:7px 12px;border-bottom:1px solid var(--border)"></th>
+        </tr></thead>
+        <tbody>
+        ${contratsActifs.map((e,i)=>{
+          const jRestants = Math.round((new Date(e.fin_mission)-new Date(today))/86400000);
+          let statutBadge, rowBg;
+          if(jRestants < 0){
+            statutBadge = `<span style="background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px">⚠ Expiré ${Math.abs(jRestants)}j</span>`;
+            rowBg = 'background:#FFF8F8;';
+          } else if(jRestants<=7){
+            statutBadge = `<span style="background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px">⏱ ${jRestants}j restants</span>`;
+            rowBg = 'background:#FFFBF5;';
+          } else if(jRestants<=14){
+            statutBadge = `<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);font-size:10px;padding:2px 8px;border-radius:5px">📅 ${jRestants}j</span>`;
+            rowBg = '';
+          } else {
+            statutBadge = `<span style="background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);font-size:10px;padding:2px 8px;border-radius:5px">✓ ${jRestants}j</span>`;
+            rowBg = '';
+          }
+          return `<tr style="${rowBg}border-bottom:1px solid var(--border)">
+            <td style="padding:8px 12px;font-weight:600">
+              ${esc(e.nom)} ${esc(e.prenom)} 
+              <span style="font-size:10px;color:var(--text3)">#${esc(e.matricule||'—')}</span>
+              ${e.contrats?.length?`<span style="font-size:9px;background:var(--purple-bg);color:var(--purple);padding:1px 5px;border-radius:4px;margin-left:4px">${e.contrats.length} contrat${e.contrats.length>1?'s':''} passé${e.contrats.length>1?'s':''}</span>`:''}
+            </td>
+            <td style="padding:8px 12px;font-size:12px;color:var(--text2)">${esc(e.agence||'—')}</td>
+            <td style="padding:8px 12px"><span style="font-size:11px;background:var(--blue-bg);color:var(--blue);padding:1px 6px;border-radius:4px">${esc(e.atelier||'—')}</span></td>
+            <td style="padding:8px 12px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${e.debut_mission?fmtDate(e.debut_mission):'—'}</td>
+            <td style="padding:8px 12px;text-align:center;font-family:'DM Mono',monospace;font-size:12px;font-weight:600">${fmtDate(e.fin_mission)}</td>
+            <td style="padding:8px 12px;text-align:center;font-size:11px;color:var(--text2)">${(()=>{
+              if(!e.debut_mission||!e.fin_mission) return '—';
+              const d = Math.round((new Date(e.fin_mission)-new Date(e.debut_mission))/604800000);
+              return d+'sem.';
+            })()}</td>
+            <td style="padding:8px 12px;text-align:center">${statutBadge}</td>
+            <td style="padding:8px 12px;text-align:right;white-space:nowrap">
+              <button class="btn btn-sm btn-primary" onclick="openEditEmploye('${e.id}')" style="font-size:10px">✎ Modifier</button>
+              <button class="btn btn-sm btn-green" onclick="openRenouvellerDirect('${e.id}')" style="font-size:10px;margin-left:4px">↻ Renouveler</button>
+            </td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  const showInactifs = state._showInactifs||false;
+  const empsFiltres = showInactifs ? employes : employes.filter(e=>!e.inactif);
+  const nbInactifs = employes.filter(e=>e.inactif).length;
+
+  // Bouton afficher/masquer inactifs
+  if(nbInactifs>0){
+    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:7px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:12px">
+      <span style="color:var(--text3)">${nbInactifs} employé${nbInactifs>1?'s':''} inactif${nbInactifs>1?'s':''} masqué${nbInactifs>1?'s':''}</span>
+      <button class="btn btn-sm" onclick="state._showInactifs=!state._showInactifs;renderEmployes()" style="margin-left:auto">
+        ${showInactifs ? '👁 Masquer les inactifs' : '👁 Voir les inactifs'}
+      </button>
+    </div>`;
+  }
+
+  if(!empsFiltres.length){
+    html += `<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun employé${showInactifs?'':' actif'} — cliquez sur "+ Employé" pour commencer</div>`;
   } else {
     // Grouper par atelier
     ATELIERS_H.forEach(at=>{
-      const emps = employes.filter(e=>e.atelier===at);
+      const emps = empsFiltres.filter(e=>e.atelier===at);
       if(!emps.length) return;
       html += `<div style="margin-bottom:20px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);margin-bottom:8px">${at}</div>
@@ -1870,7 +1976,10 @@ function openAddEmploye(){
   document.getElementById('me-atelier').value = 'B2';
   document.getElementById('me-matricule').value = '';
   document.getElementById('me-agence').value = '';
+  document.getElementById('me-debut-mission').value = new Date().toISOString().slice(0,10);
   document.getElementById('me-fin-mission').value = '';
+  _ctx._contratsEdit = [];
+  renderContratsList();
   document.getElementById('me-cariste').checked = false;
   document.getElementById('me-cariste-atelier-wrap').style.display = 'none';
   document.getElementById('me-cariste-atelier').value = 'B1';
@@ -1902,7 +2011,11 @@ function openEditEmploye(id){
   document.getElementById('me-atelier').value = e.atelier;
   document.getElementById('me-matricule').value = e.matricule||'';
   document.getElementById('me-agence').value = e.agence||'';
+  document.getElementById('me-debut-mission').value = e.debut_mission||'';
   document.getElementById('me-fin-mission').value = e.fin_mission||'';
+  // Charger l'historique des contrats
+  _ctx._contratsEdit = e.contrats ? JSON.parse(JSON.stringify(e.contrats)) : [];
+  renderContratsList();
   document.getElementById('me-cariste').checked = e.cariste||false;
   document.getElementById('me-cariste-atelier-wrap').style.display = e.cariste ? 'flex' : 'none';
   if(e.cariste_atelier) document.getElementById('me-cariste-atelier').value = e.cariste_atelier;
@@ -1912,6 +2025,55 @@ function openEditEmploye(id){
   };
   document.getElementById('modal-employe').classList.add('show');
   _ctx = {type:'edit-employe', id};
+}
+
+function openRenouvellerDirect(empId){
+  // Ouvrir la fiche et déclencher le renouvellement automatiquement
+  openEditEmploye(empId);
+  setTimeout(()=>renouvelerContrat(), 200);
+}
+
+function renouvelerContrat(){
+  // Archiver le contrat en cours et créer un nouveau
+  const debut = document.getElementById('me-debut-mission').value;
+  const fin = document.getElementById('me-fin-mission').value;
+  const agence = document.getElementById('me-agence').value.trim();
+  if(debut || fin){
+    if(!_ctx._contratsEdit) _ctx._contratsEdit = [];
+    _ctx._contratsEdit.unshift({
+      id: uid(),
+      debut, fin, agence,
+      statut: 'termine',
+      archive_le: new Date().toISOString().slice(0,10)
+    });
+  }
+  // Réinitialiser le contrat en cours
+  document.getElementById('me-debut-mission').value = new Date().toISOString().slice(0,10);
+  document.getElementById('me-fin-mission').value = '';
+  renderContratsList();
+  toast('Contrat archivé — saisissez les nouvelles dates');
+}
+
+function supprimerContratHistorique(idx){
+  if(!_ctx._contratsEdit) return;
+  _ctx._contratsEdit.splice(idx, 1);
+  renderContratsList();
+}
+
+function renderContratsList(){
+  const contrats = _ctx._contratsEdit||[];
+  const wrap = document.getElementById('me-contrats-historique');
+  const list = document.getElementById('me-contrats-list');
+  if(!wrap || !list) return;
+  wrap.style.display = contrats.length ? 'block' : 'none';
+  if(!contrats.length){ list.innerHTML = ''; return; }
+  list.innerHTML = contrats.map((c,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:4px">
+      <span style="font-size:10px;background:var(--green-bg);color:var(--green);padding:1px 5px;border-radius:4px;font-weight:600">✓ Terminé</span>
+      <span style="font-family:'DM Mono',monospace;font-size:11px">${fmtDate(c.debut)||'?'} → ${fmtDate(c.fin)||'?'}</span>
+      ${c.agence?`<span style="font-size:11px;color:var(--text3)">${esc(c.agence)}</span>`:''}
+      <button onclick="supprimerContratHistorique(${i})" style="margin-left:auto;border:none;background:none;cursor:pointer;color:var(--text3);font-size:12px">✕</button>
+    </div>`).join('');
 }
 
 function saveEmploye(){
@@ -1927,7 +2089,9 @@ function saveEmploye(){
     statut: document.getElementById('me-statut').value,
     atelier: document.getElementById('me-atelier').value,
     agence: document.getElementById('me-agence').value.trim(),
+    debut_mission: document.getElementById('me-debut-mission').value||null,
     fin_mission: document.getElementById('me-fin-mission').value||null,
+    contrats: _ctx._contratsEdit||undefined,
     cariste: document.getElementById('me-cariste')?.checked||false,
     cariste_atelier: document.getElementById('me-cariste')?.checked ? (document.getElementById('me-cariste-atelier')?.value||'B1') : null,
   };
@@ -2472,6 +2636,7 @@ function renderPlanningRessources(){
           <th style="background:#1A4F8A;color:#fff;padding:8px 8px;text-align:center;border:1px solid rgba(255,255,255,.2);width:60px">Statut</th>
           ${JOURS_SEMAINE.map((j,i)=>`<th style="background:#1A4F8A;color:#fff;padding:8px 10px;text-align:center;border:1px solid rgba(255,255,255,.2);min-width:120px">${j}<br><span style="font-size:10px;opacity:.8;font-weight:400">${dateJours[i]}</span></th>`).join('')}
           <th style="background:#1A4F8A;color:#fff;padding:8px 8px;text-align:center;border:1px solid rgba(255,255,255,.2);width:70px">Total H</th>
+          <th style="background:#1A4F8A;color:#fff;padding:8px 8px;text-align:center;border:1px solid rgba(255,255,255,.2);width:80px"></th>
         </tr>
       </thead>
       <tbody>`;
@@ -2521,6 +2686,12 @@ function renderPlanningRessources(){
           </td>`;
         }).join('')}
         <td style="padding:6px 8px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'};border:1px solid var(--border)">${totalH>0?totalH+'h':'—'}</td>
+        ${emp.statut==='interim'?`<td style="padding:4px 6px;border:1px solid var(--border)">
+          <button onclick="toggleActifEmploye('${emp.id}');renderPlanningRessources()" 
+            class="btn btn-sm btn-orange" style="font-size:10px;white-space:nowrap">
+            Désactiver
+          </button>
+        </td>`:'<td style="border:1px solid var(--border)"></td>'}
       </tr>`;
     });
   });
@@ -3474,7 +3645,31 @@ function renderVueMacro(){
 
   // Par atelier
   ATELIERS_H.forEach(at=>{
-    const empsAt = employes.filter(e=>e.atelier===at);
+    // Filtrer : actifs ET en mission pendant la semaine sélectionnée
+    const [yr_s, sw_s] = semSel.split('-S');
+    const lundiSem = getLundiFromSemaine(parseInt(yr_s), parseInt(sw_s));
+    const vendrediSem = new Date(lundiSem); vendrediSem.setDate(lundiSem.getDate()+4);
+    const lundiStr = lundiSem.toISOString().slice(0,10);
+    const vendrediStr = vendrediSem.toISOString().slice(0,10);
+
+    const empsAt = employes.filter(e=>{
+      if(e.atelier!==at) return false;
+      if(e.inactif) return false;
+      if(e.statut==='interim'){
+        // Vérifier contrat en cours
+        const deb = e.debut_mission||'2000-01-01';
+        const fin = e.fin_mission||'2099-12-31';
+        if(deb <= vendrediStr && fin >= lundiStr) return true;
+        // Vérifier aussi les contrats historiques
+        if(e.contrats && e.contrats.some(c=>{
+          const cd = c.debut||'2000-01-01';
+          const cf = c.fin||'2099-12-31';
+          return cd <= vendrediStr && cf >= lundiStr;
+        })) return true;
+        return false;
+      }
+      return true; // CDI toujours affiché
+    });
     if(!empsAt.length) return;
     const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Menuiserie':at==='Log'?'Logistique':'Usinage';
     const totalCols = 1 + semaines.length * 5;
