@@ -4330,18 +4330,15 @@ async function renderCoherenceTranches(){
   el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3)">⟳ Chargement…</div>';
 
   try {
-    // 1. Tranches onglet DATES (source de vérité)
-    const resD = await fetch(DATES_CSV_URL);
-    if(!resD.ok) throw new Error('DATES inaccessible ('+resD.status+')');
-    const textD = await resD.text();
-    const linesD = textD.split('\n').filter(l=>l.trim());
-    const sepD = linesD[0].includes('\t')?'\t':',';
-    const datesNoms = new Set();
-    for(let i=1;i<linesD.length;i++){
-      const cols = linesD[i].split(sepD).map(c=>c.trim().replace(/^"|"$/g,''));
-      const nom = (cols[4]||'').trim().toLowerCase();
-      if(nom) datesNoms.add(nom);
-    }
+    // 1. Tranches onglet DATES via Apps Script (évite CORS)
+    const resD = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'getDATES'})
+    });
+    const rD = await resD.json();
+    if(!rD.ok) throw new Error(rD.error||'DATES inaccessible');
+    const datesNoms = new Set((rD.data||[]).map(t=>t.nom.trim().toLowerCase()).filter(Boolean));
+    if(!datesNoms.size) throw new Error('Onglet DATES vide ou introuvable');
 
     // 2. Tranches ERP
     const erpNoms = new Set((state.tranches||[]).map(t=>t.nom.trim().toLowerCase()));
