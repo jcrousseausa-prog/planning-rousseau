@@ -4362,10 +4362,11 @@ async function renderCoherenceTranches(){
         body: JSON.stringify({action:'getTranches'})
       });
       const rP = await resP.json();
+      console.log('getTranches réponse:', rP.ok, 'nb tranches:', (rP.tranches||[]).length, 'ex:', (rP.tranches||[]).slice(0,2).map(t=>t.nom));
       if(rP.ok && rP.tranches){
         rP.tranches.forEach(t=>{ const n=norm(t.nom||''); if(n) prodNoms.add(n); });
       }
-    } catch(e){ console.warn('getTranches:', e); }
+    } catch(e){ console.warn('getTranches ERREUR:', e.message); }
 
     const total     = datesNoms.size;
     const dansERP   = [...datesNoms].filter(n=>erpNoms.has(n));
