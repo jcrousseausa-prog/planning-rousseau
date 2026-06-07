@@ -4323,6 +4323,115 @@ async function loadProdB2() {
   }
 }
 
+// ══ INDICATEUR COHÉRENCE TRANCHES ════════════════════════════════════════
+async function renderCoherenceTranches(){
+  const el = document.getElementById('coherence-tranches-content');
+  if(!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3)">⟳ Chargement…</div>';
+
+  try {
+    // 1. Tranches onglet DATES (source de vérité)
+    const resD = await fetch(DATES_CSV_URL);
+    if(!resD.ok) throw new Error('DATES inaccessible ('+resD.status+')');
+    const textD = await resD.text();
+    const linesD = textD.split('\n').filter(l=>l.trim());
+    const sepD = linesD[0].includes('\t')?'\t':',';
+    const datesNoms = new Set();
+    for(let i=1;i<linesD.length;i++){
+      const cols = linesD[i].split(sepD).map(c=>c.trim().replace(/^"|"$/g,''));
+      const nom = (cols[4]||'').trim().toLowerCase();
+      if(nom) datesNoms.add(nom);
+    }
+
+    // 2. Tranches ERP
+    const erpNoms = new Set((state.tranches||[]).map(t=>t.nom.trim().toLowerCase()));
+
+    // 3. Tranches planning prod
+    let prodNoms = new Set();
+    try {
+      const resP = await fetch(APPS_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'getTranches'})
+      });
+      const rP = await resP.json();
+      if(rP.ok && rP.tranches){
+        rP.tranches.forEach(t=>{ const n=(t.nom||'').trim().toLowerCase(); if(n) prodNoms.add(n); });
+      }
+    } catch(e){ console.warn('getTranches:', e); }
+
+    const total     = datesNoms.size;
+    const dansERP   = [...datesNoms].filter(n=>erpNoms.has(n));
+    const dansProd  = prodNoms.size ? [...datesNoms].filter(n=>prodNoms.has(n)) : null;
+    const absERP    = [...datesNoms].filter(n=>!erpNoms.has(n));
+    const absProd   = prodNoms.size ? [...datesNoms].filter(n=>!prodNoms.has(n)) : null;
+    const erpPasProd= prodNoms.size ? dansERP.filter(n=>!prodNoms.has(n)) : [];
+
+    const pctERP  = total ? Math.round(dansERP.length/total*100) : 0;
+    const pctProd = dansProd ? Math.round(dansProd.length/total*100) : null;
+
+    const colorBar = (pct) => pct===100?'var(--green)':pct>80?'var(--blue)':'var(--orange)';
+
+    let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">';
+
+    // Carte ERP
+    html += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:12px">' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:8px">' +
+      '<span style="font-size:12px;font-weight:600">📋 ERP</span>' +
+      '<span style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:'+colorBar(pctERP)+'">'+pctERP+'%</span>' +
+      '</div>' +
+      '<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:5px">' +
+      '<div style="width:'+pctERP+'%;height:100%;background:'+colorBar(pctERP)+';border-radius:4px"></div></div>' +
+      '<div style="font-size:11px;color:var(--text3)">'+dansERP.length+' / '+total+' tranches présentes</div>' +
+      '</div>';
+
+    // Carte Planning prod
+    const pctProdDisp = pctProd!==null ? pctProd : 0;
+    html += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:12px">' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:8px">' +
+      '<span style="font-size:12px;font-weight:600">🏭 Planning prod</span>' +
+      '<span style="font-size:20px;font-weight:700;font-family:DM Mono,monospace;color:'+(pctProd!==null?colorBar(pctProd):'var(--text3)')+'">'+( pctProd!==null?pctProd+'%':'—')+'</span>' +
+      '</div>' +
+      '<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:5px">' +
+      '<div style="width:'+pctProdDisp+'%;height:100%;background:'+(pctProd!==null?colorBar(pctProd):'var(--border)')+';border-radius:4px"></div></div>' +
+      '<div style="font-size:11px;color:var(--text3)">'+(dansProd?dansProd.length+' / '+total+' tranches planifiées':'Non disponible')+'</div>' +
+      '</div>';
+
+    html += '</div>';
+
+    // Bouton détail
+    const showAbs = state._coherenceShowAbs||false;
+    const nbEcarts = absERP.length + (absProd?absProd.length:0);
+
+    if(nbEcarts>0){
+      html += '<button class="btn btn-sm" onclick="state._coherenceShowAbs='+(!showAbs)+';renderCoherenceTranches()" style="margin-bottom:10px">'+
+        (showAbs?'▲ Masquer le détail':'▼ Voir le détail — '+nbEcarts+' écarts')+
+        '</button>';
+    } else {
+      html += '<div style="text-align:center;padding:8px;color:var(--green);font-weight:600;font-size:12px">✅ Toutes les tranches sont cohérentes</div>';
+    }
+
+    if(showAbs){
+      const renderList = (title, items, bgColor, borderColor) => {
+        if(!items || !items.length) return '';
+        return '<div style="margin-bottom:10px">' +
+          '<div style="font-size:11px;font-weight:700;margin-bottom:5px;color:'+borderColor+'">'+title+' ('+items.length+')</div>' +
+          '<div style="background:'+bgColor+';border:1px solid '+borderColor+';border-radius:6px;padding:7px 10px;max-height:160px;overflow-y:auto">' +
+          items.map(n=>'<div style="font-size:11px;padding:2px 0;border-bottom:1px solid '+borderColor+'">'+esc(n)+'</div>').join('') +
+          '</div></div>';
+      };
+
+      html += renderList('⚠ Dans DATES, absentes de l\'ERP', absERP, 'var(--orange-bg)', 'var(--orange)');
+      html += renderList('📅 Dans DATES, non planifiées en prod', absProd, 'var(--blue-bg)', 'var(--blue)');
+      html += renderList('ℹ Dans ERP+DATES, pas encore en prod', erpPasProd, 'var(--bg)', 'var(--border)');
+    }
+
+    el.innerHTML = html;
+
+  } catch(e){
+    el.innerHTML = '<div style="color:var(--red);font-size:12px;padding:8px">Erreur : '+e.message+'</div>';
+  }
+}
+
 function renderAbsencesDashboard(){
   const heures = state.heures||[];
   const employes = state.employes||[];
@@ -4537,6 +4646,11 @@ async function renderDashboard(){
     ${alertesNb>0 ? kpiCard('⚠️','Saisies manquantes',alertesNb+' pers.','sur 12 semaines','var(--red)') : kpiCard('✅','Pointage','À jour','12 dernières semaines','var(--green)')}
   </div>`;
 
+  // ══ 0. COHÉRENCE TRANCHES ══
+  html += accordion('🔗 Cohérence tranches — DATES / ERP / Planning prod',
+    '<div id="coherence-tranches-content"><div style="text-align:center;padding:12px;color:var(--text3)">⟳ Chargement…</div></div>',
+    false);
+
   // ══ 1. AVANCEMENT PAR CHANTIER ══
   html += accordion('📊 Avancement par chantier', buildAvancementTable(), true);
 
@@ -4555,6 +4669,8 @@ async function renderDashboard(){
   if(absHtml) html += accordion('📅 Absences — 12 dernières semaines', absHtml, false);
 
   document.getElementById('dashboard-content').innerHTML = html;
+  // Cohérence tranches en arrière-plan
+  setTimeout(()=>renderCoherenceTranches(), 800);
 }
 
 
