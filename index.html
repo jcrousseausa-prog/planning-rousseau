@@ -566,11 +566,17 @@ async function initApp() {
   setConnBar('connecting', 'Chargement...');
   loadLS();
   try {
-    const res = await fetch(SHEETS_CSV_URL);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = await res.text();
-    const lines = text.split('\n').filter(l => l.trim());
-    if (lines.length < 2) throw new Error('Vide');
+    // Essayer CSV d'abord, sinon Apps Script en fallback
+    let tranches = {b1:[],b2:[],b3:[],men:[]};
+    let total = 0;
+    let source = 'CSV';
+
+    try {
+      const res = await fetch(SHEETS_CSV_URL);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) throw new Error('Vide');
     const sep = lines[0].includes('\t') ? '\t' : ',';
     const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
     const get = (cols, h) => { const j = headers.indexOf(h); return j>=0?(cols[j]||'').trim().replace(/^"|"$/g,''):''; };
@@ -589,10 +595,39 @@ async function initApp() {
       };
       if (t.tranche) tranches[atId].push(t);
     }
-    for (const atId in tranches) tranches[atId].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
+      for (const atId in tranches) tranches[atId].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
+      total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
+    } catch(csvErr) {
+      // Fallback Apps Script
+      console.warn('CSV échoué ('+csvErr.message+'), tentative Apps Script...');
+      source = 'Apps Script';
+      const resAS = await fetch(APPS_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'getTranches'})
+      });
+      const rAS = await resAS.json();
+      if(!rAS.ok) throw new Error(rAS.error||'Apps Script getTranches échoué');
+      const ATELIERS_V = ['b1','b2','b3','men'];
+      ATELIERS_V.forEach(a=>tranches[a]=[]);
+      (rAS.tranches||[]).forEach((t,i)=>{
+        const atId = String(t.atelier_id||'').toLowerCase().trim();
+        if(!atId||!tranches[atId]) return;
+        tranches[atId].push({
+          _dbId:t.id||'', id:t.id||'',
+          tranche:t.nom||'', comment:t.commentaire||'',
+          debut:t.date_debut||'', duree:parseInt(t.duree_jours)||1,
+          besoin:t.date_besoin||null, ordre:parseInt(t.ordre)||i,
+          lockDebut:t.lock_debut==='TRUE'||t.lock_debut===true,
+          lockFin:t.lock_fin==='TRUE'||t.lock_fin===true,
+          lockFinDate:t.lock_fin_date||null, parallel:t.parallel==='TRUE'||t.parallel===true,
+        });
+      });
+      for(const atId in tranches) tranches[atId].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
+      total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
+    }
+
     state.tranches = tranches;
-    const total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
-    setConnBar('connected', 'Google Sheets — ' + total + ' tranches');
+    setConnBar('connected', source+' — ' + total + ' tranches');
 
     // ══════════════════════════════════════════════════════════
     // FERMETURES : Google Sheets = source principale
