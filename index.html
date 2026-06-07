@@ -513,63 +513,61 @@ pill.className = 'sync-pill ' + (mode==='ok'?'':mode);
 document.getElementById('sync-text').textContent = text;
 }
 
-async function loadFromSheets() {
+// Chargement CSV direct — méthode principale fiable
+async function loadFromCSV() {
 try {
-  // Charger via Apps Script pour éviter CORS et pb de virgules dans les noms
-  const res = await fetch(APPS_SCRIPT_URL, {
-    method:'POST', headers:{'Content-Type':'text/plain'},
-    body: JSON.stringify({action:'getTranches'})
-  });
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  const r = await res.json();
-  if(!r.ok) throw new Error(r.error||'Erreur Apps Script');
-
-  // Construire state.tranches par atelier
+  const res = await fetch(SHEETS_CSV_URL);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const text = await res.text();
+  const lines = text.split('\n').filter(l => l.trim());
+  if (lines.length < 2) throw new Error('Feuille vide');
+  const sep = lines[0].includes('\t') ? '\t' : ',';
+  const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+  const get = (cols, h) => { const j = headers.indexOf(h); return j>=0?(cols[j]||'').trim().replace(/^"|"$/g,''):''; };
   const ATELIERS_VALIDES = ['b1','b2','b3','men','log','us','transport'];
   const tranches = {};
   ATELIERS_VALIDES.forEach(a=>tranches[a]=[]);
-
-  (r.tranches||[]).forEach((t,i)=>{
-    const atId = String(t.atelier_id||'').toLowerCase().trim();
-    if(!atId) return;
-    if(!tranches[atId]) tranches[atId]=[];
-    const tr = {
-      _dbId: t.id||'', id: t.id||'',
-      tranche: t.nom||'', comment: t.commentaire||'',
-      debut: t.date_debut||'',
-      duree: parseInt(t.duree_jours)||1,
-      besoin: t.date_besoin||null,
-      ordre: parseInt(t.ordre)||i,
-      lockDebut: t.lock_debut==='TRUE'||t.lock_debut===true,
-      lockFin: t.lock_fin==='TRUE'||t.lock_fin===true,
-      lockFinDate: t.lock_fin_date||null,
-      parallel: t.parallel==='TRUE'||t.parallel===true,
-      termine: t.termine==='TRUE'||t.termine===true,
-      _termineLe: t._terminele||t._termineLe||'',
-      phases: t.phases ? (()=>{try{return JSON.parse(t.phases);}catch(e){return t.phases.split(',').map(p=>p.trim()).filter(Boolean);}})() : []
+  for (let i=1; i<lines.length; i++) {
+    const cols = lines[i].split(sep);
+    if (cols.length < 3) continue;
+    const atId = get(cols,'atelier_id').toLowerCase();
+    if (!atId) continue;
+    if (!tranches[atId]) tranches[atId]=[];
+    const t = {
+      _dbId: get(cols,'id'), id: get(cols,'id'),
+      tranche: get(cols,'nom'), comment: get(cols,'commentaire'),
+      debut: get(cols,'date_debut')||'', duree: parseInt(get(cols,'duree_jours'))||1,
+      besoin: get(cols,'date_besoin')||null, ordre: parseInt(get(cols,'ordre'))||i,
+      lockDebut: get(cols,'lock_debut')==='TRUE', lockFin: get(cols,'lock_fin')==='TRUE',
+      lockFinDate: get(cols,'lock_fin_date')||null, parallel: get(cols,'parallel')==='TRUE',
+      termine: get(cols,'termine')==='TRUE', _termineLe: get(cols,'_terminele')||'',
+      phases: (()=>{const p=get(cols,'phases');if(!p)return[];try{return JSON.parse(p);}catch(e){return p.split(',').map(x=>x.trim()).filter(Boolean);}})()
     };
-    if(tr.tranche) tranches[atId].push(tr);
-  });
-
-  // Trier par ordre
-  for(const atId in tranches) tranches[atId].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
+    if (t.tranche) tranches[atId].push(t);
+  }
+  for (const atId in tranches) tranches[atId].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
   state.tranches = tranches;
   const total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
-  setConnBar('connected','Google Sheets — '+total+' tranches');
-  console.log('Apps Script: '+total+' tranches chargées');
+  console.log('CSV: '+total+' tranches chargées');
   return total;
 } catch(e) {
-console.warn('Sheets error:', e.message);
-return 0;
+  console.error('loadFromCSV ERREUR:', e.message);
+  loadLS();
+  return 0;
 }
+}
+
+// Chargement via Apps Script — utilisé pour l'indicateur de cohérence uniquement
+async function loadFromSheets() {
+  return loadFromCSV();
 }
 
 async function initApp() {
   setConnBar('connecting', 'Chargement...');
   loadLS();
   try {
-    // Charger les tranches via Apps Script (évite CORS + gère virgules dans les noms)
-    const total = await loadFromSheets();
+    // Charger via CSV publié (méthode principale — fiable)
+    const total = await loadFromCSV();
     setConnBar('connected', 'Google Sheets — ' + total + ' tranches');
 
     // ══════════════════════════════════════════════════════════
@@ -612,9 +610,10 @@ async function initApp() {
     setSyncPill('ok', 'Synchronisé');
     render();
   } catch(e) {
-    console.warn('Sheets error:', e.message);
-    setConnBar('connected', 'Données locales');
-    setSyncPill('ok', 'Local');
+    console.error('initApp ERREUR:', e.message);
+    setConnBar('error', 'Erreur chargement: '+e.message);
+    setSyncPill('error', 'Erreur');
+    loadLS(); // Fallback localStorage
     render();
   }
 }
