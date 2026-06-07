@@ -515,42 +515,49 @@ document.getElementById('sync-text').textContent = text;
 
 async function loadFromSheets() {
 try {
-const res = await fetch(SHEETS_CSV_URL);
-if (!res.ok) throw new Error('HTTP ' + res.status);
-const text = await res.text();
-const lines = text.split('\n').filter(l => l.trim());
-if (lines.length < 2) throw new Error('Feuille vide');
-const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
-const idx = h => headers.indexOf(h);
-const get = (cols, h) => {
-const i = idx(h);
-return i >= 0 ? (cols[i] || '').trim().replace(/^"|"$/g,'') : '';
-};
-const tranches = {b1:[],b2:[],b3:[],men:[]};
-for (let i = 1; i < lines.length; i++) {
-const cols = lines[i].split(',');
-if (cols.length < 3) continue;
-const atId = get(cols,'atelier_id');
-if (!atId || !tranches[atId]) continue;
-const t = {
-_dbId: get(cols,'id'), id: get(cols,'id'),
-tranche: get(cols,'nom'), comment: get(cols,'commentaire'),
-debut: get(cols,'date_debut'),
-duree: parseInt(get(cols,'duree_jours')) || 1,
-besoin: get(cols,'date_besoin') || null,
-ordre: parseInt(get(cols,'ordre')) || i,
-lockDebut: get(cols,'lock_debut') === 'TRUE',
-lockFin: get(cols,'lock_fin') === 'TRUE',
-lockFinDate: get(cols,'lock_fin_date') || null,
-parallel: get(cols,'parallel') === 'TRUE',
-};
-if (t.tranche) tranches[atId].push(t);
-}
-for (const atId in tranches) tranches[atId].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
-state.tranches = tranches;
-const total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
-console.log('Google Sheets: ' + total + ' tranches chargées');
-return total;
+  // Charger via Apps Script pour éviter CORS et pb de virgules dans les noms
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method:'POST', headers:{'Content-Type':'text/plain'},
+    body: JSON.stringify({action:'getTranches'})
+  });
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const r = await res.json();
+  if(!r.ok) throw new Error(r.error||'Erreur Apps Script');
+
+  // Construire state.tranches par atelier
+  const ATELIERS_VALIDES = ['b1','b2','b3','men','log','us','transport'];
+  const tranches = {};
+  ATELIERS_VALIDES.forEach(a=>tranches[a]=[]);
+
+  (r.tranches||[]).forEach((t,i)=>{
+    const atId = String(t.atelier_id||'').toLowerCase().trim();
+    if(!atId) return;
+    if(!tranches[atId]) tranches[atId]=[];
+    const tr = {
+      _dbId: t.id||'', id: t.id||'',
+      tranche: t.nom||'', comment: t.commentaire||'',
+      debut: t.date_debut||'',
+      duree: parseInt(t.duree_jours)||1,
+      besoin: t.date_besoin||null,
+      ordre: parseInt(t.ordre)||i,
+      lockDebut: t.lock_debut==='TRUE'||t.lock_debut===true,
+      lockFin: t.lock_fin==='TRUE'||t.lock_fin===true,
+      lockFinDate: t.lock_fin_date||null,
+      parallel: t.parallel==='TRUE'||t.parallel===true,
+      termine: t.termine==='TRUE'||t.termine===true,
+      _termineLe: t._terminele||t._termineLe||'',
+      phases: t.phases ? (()=>{try{return JSON.parse(t.phases);}catch(e){return t.phases.split(',').map(p=>p.trim()).filter(Boolean);}})() : []
+    };
+    if(tr.tranche) tranches[atId].push(tr);
+  });
+
+  // Trier par ordre
+  for(const atId in tranches) tranches[atId].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
+  state.tranches = tranches;
+  const total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
+  setConnBar('connected','Google Sheets — '+total+' tranches');
+  console.log('Apps Script: '+total+' tranches chargées');
+  return total;
 } catch(e) {
 console.warn('Sheets error:', e.message);
 return 0;
