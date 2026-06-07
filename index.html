@@ -566,8 +566,32 @@ async function initApp() {
   setConnBar('connecting', 'Chargement...');
   loadLS();
   try {
-    // Charger via CSV publié (méthode principale — fiable)
-    const total = await loadFromCSV();
+    const res = await fetch(SHEETS_CSV_URL);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const lines = text.split('\n').filter(l => l.trim());
+    if (lines.length < 2) throw new Error('Vide');
+    const sep = lines[0].includes('\t') ? '\t' : ',';
+    const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+    const get = (cols, h) => { const j = headers.indexOf(h); return j>=0?(cols[j]||'').trim().replace(/^"|"$/g,''):''; };
+    const tranches = {b1:[],b2:[],b3:[],men:[]};
+    for (let i=1; i<lines.length; i++) {
+      const cols = lines[i].split(sep);
+      const atId = get(cols,'atelier_id');
+      if (!atId || !tranches[atId]) continue;
+      const t = {
+        _dbId: get(cols,'id'), id: get(cols,'id'),
+        tranche: get(cols,'nom'), comment: get(cols,'commentaire'),
+        debut: get(cols,'date_debut')||'', duree: parseInt(get(cols,'duree_jours'))||1,
+        besoin: get(cols,'date_besoin')||null, ordre: parseInt(get(cols,'ordre'))||i,
+        lockDebut: get(cols,'lock_debut')==='TRUE', lockFin: get(cols,'lock_fin')==='TRUE',
+        lockFinDate: get(cols,'lock_fin_date')||null, parallel: get(cols,'parallel')==='TRUE',
+      };
+      if (t.tranche) tranches[atId].push(t);
+    }
+    for (const atId in tranches) tranches[atId].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
+    state.tranches = tranches;
+    const total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
     setConnBar('connected', 'Google Sheets — ' + total + ' tranches');
 
     // ══════════════════════════════════════════════════════════
