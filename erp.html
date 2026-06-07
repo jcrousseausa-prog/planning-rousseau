@@ -4356,6 +4356,11 @@ async function renderCoherenceTranches(){
       }
     } catch(e){ console.warn('getTranches:', e); }
 
+    // DEBUG — afficher les 3 premiers noms de chaque source
+    console.log('DATES ('+datesNoms.size+'):', [...datesNoms].slice(0,3));
+    console.log('ERP ('+erpNoms.size+'):', [...erpNoms].slice(0,3));
+    console.log('PROD ('+prodNoms.size+'):', [...prodNoms].slice(0,3));
+
     const total     = datesNoms.size;
     const dansERP   = [...datesNoms].filter(n=>erpNoms.has(n));
     const dansProd  = prodNoms.size ? [...datesNoms].filter(n=>prodNoms.has(n)) : null;
@@ -5186,3 +5191,4 @@ init();
 
 </body>
 </html>
+  
