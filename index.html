@@ -566,26 +566,20 @@ async function initApp() {
   setConnBar('connecting', 'Chargement...');
   loadLS();
   try {
-    // Essayer CSV d'abord, sinon Apps Script en fallback
-    let tranches = {b1:[],b2:[],b3:[],men:[]};
-    let total = 0;
-    let source = 'CSV';
-
-    try {
-      const res = await fetch(SHEETS_CSV_URL);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const text = await res.text();
-      const lines = text.split('\n').filter(l => l.trim());
-      if (lines.length < 2) throw new Error('Vide');
+    // ── Chargement tranches depuis CSV ──────────────────────
+    const res = await fetch(SHEETS_CSV_URL);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const lines = text.split('\n').filter(l => l.trim());
+    if (lines.length < 2) throw new Error('CSV vide');
     const sep = lines[0].includes('\t') ? '\t' : ',';
     const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
     const get = (cols, h) => { const j = headers.indexOf(h); return j>=0?(cols[j]||'').trim().replace(/^"|"$/g,''):''; };
-    // Réinitialiser la variable tranches externe (pas de redéclaration)
-    tranches = {b1:[],b2:[],b3:[],men:[]};
+    const tr = {b1:[],b2:[],b3:[],men:[]};
     for (let i=1; i<lines.length; i++) {
       const cols = lines[i].split(sep);
       const atId = get(cols,'atelier_id');
-      if (!atId || !tranches[atId]) continue;
+      if (!atId || !tr[atId]) continue;
       const t = {
         _dbId: get(cols,'id'), id: get(cols,'id'),
         tranche: get(cols,'nom'), comment: get(cols,'commentaire'),
@@ -594,51 +588,17 @@ async function initApp() {
         lockDebut: get(cols,'lock_debut')==='TRUE', lockFin: get(cols,'lock_fin')==='TRUE',
         lockFinDate: get(cols,'lock_fin_date')||null, parallel: get(cols,'parallel')==='TRUE',
       };
-      if (t.tranche) tranches[atId].push(t);
+      if (t.tranche) tr[atId].push(t);
     }
-      for (const atId in tranches) tranches[atId].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
-      total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
-    } catch(csvErr) {
-      // Fallback Apps Script
-      console.warn('CSV échoué ('+csvErr.message+'), tentative Apps Script...');
-      source = 'Apps Script';
-      const resAS = await fetch(APPS_SCRIPT_URL, {
-        method:'POST', headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({action:'getTranches'})
-      });
-      const rAS = await resAS.json();
-      console.log('getTranches réponse complète:', JSON.stringify(rAS).slice(0,300));
-      if(!rAS.ok) throw new Error((rAS.error||'Apps Script getTranches échoué') + ' | onglets: '+(rAS.sheets_disponibles||[]).join(', '));
-      const ATELIERS_V = ['b1','b2','b3','men'];
-      ATELIERS_V.forEach(a=>tranches[a]=[]);
-      (rAS.tranches||[]).forEach((t,i)=>{
-        const atId = String(t.atelier_id||'').toLowerCase().trim();
-        if(!atId||!tranches[atId]) return;
-        tranches[atId].push({
-          _dbId:t.id||'', id:t.id||'',
-          tranche:t.nom||'', comment:t.commentaire||'',
-          debut:t.date_debut||'', duree:parseInt(t.duree_jours)||1,
-          besoin:t.date_besoin||null, ordre:parseInt(t.ordre)||i,
-          lockDebut:t.lock_debut==='TRUE'||t.lock_debut===true,
-          lockFin:t.lock_fin==='TRUE'||t.lock_fin===true,
-          lockFinDate:t.lock_fin_date||null, parallel:t.parallel==='TRUE'||t.parallel===true,
-        });
-      });
-      for(const atId in tranches) tranches[atId].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
-      total = Object.values(tranches).reduce((s,a)=>s+a.length,0);
-    }
+    for (const a in tr) tr[a].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
+    state.tranches = tr;
+    const total = Object.values(tr).reduce((s,a)=>s+a.length,0);
+    setConnBar('connected', 'CSV — ' + total + ' tranches');
 
-    state.tranches = tranches;
-    setConnBar('connected', source+' — ' + total + ' tranches');
-
-    // ══════════════════════════════════════════════════════════
-    // FERMETURES : Google Sheets = source principale
-    // Fallback localStorage si Sheets inaccessible
-    // ══════════════════════════════════════════════════════════
+    // ── Chargement calendrier ──────────────────────────────
     try {
       const rc = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: {'Content-Type': 'text/plain'},
+        method: 'POST', headers: {'Content-Type': 'text/plain'},
         body: JSON.stringify({action: 'getCalendrier'})
       });
       const cal = await rc.json();
@@ -649,21 +609,15 @@ async function initApp() {
           .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
         state.fermetures = fermApps;
         if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
-        // Mettre en cache dans localStorage après réception réussie
         try { localStorage.setItem('fermetures_cache', JSON.stringify(fermApps)); } catch(e) {}
       }
     } catch(ce) {
       console.warn('Calendrier non chargé:', ce.message);
-      // Fallback : recharger depuis le cache localStorage
       try {
         const cached = localStorage.getItem('fermetures_cache');
         if (cached) {
-          const fermCached = JSON.parse(cached)
-            .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
-          if (fermCached.length) {
-            state.fermetures = fermCached;
-            console.log('Fermetures rechargées depuis cache:', fermCached.length);
-          }
+          const fermCached = JSON.parse(cached).filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
+          if (fermCached.length) state.fermetures = fermCached;
         }
       } catch(e) {}
     }
@@ -672,9 +626,9 @@ async function initApp() {
     render();
   } catch(e) {
     console.error('initApp ERREUR:', e.message);
-    setConnBar('error', 'Erreur chargement: '+e.message);
+    setConnBar('error', 'Erreur: '+e.message);
     setSyncPill('error', 'Erreur');
-    loadLS(); // Fallback localStorage
+    loadLS();
     render();
   }
 }
