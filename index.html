@@ -580,7 +580,8 @@ async function initApp() {
     const sep = lines[0].includes('\t') ? '\t' : ',';
     const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
     const get = (cols, h) => { const j = headers.indexOf(h); return j>=0?(cols[j]||'').trim().replace(/^"|"$/g,''):''; };
-    const tranches = {b1:[],b2:[],b3:[],men:[]};
+    // Réinitialiser la variable tranches externe (pas de redéclaration)
+    tranches = {b1:[],b2:[],b3:[],men:[]};
     for (let i=1; i<lines.length; i++) {
       const cols = lines[i].split(sep);
       const atId = get(cols,'atelier_id');
@@ -606,7 +607,8 @@ async function initApp() {
         body: JSON.stringify({action:'getTranches'})
       });
       const rAS = await resAS.json();
-      if(!rAS.ok) throw new Error(rAS.error||'Apps Script getTranches échoué');
+      console.log('getTranches réponse complète:', JSON.stringify(rAS).slice(0,300));
+      if(!rAS.ok) throw new Error((rAS.error||'Apps Script getTranches échoué') + ' | onglets: '+(rAS.sheets_disponibles||[]).join(', '));
       const ATELIERS_V = ['b1','b2','b3','men'];
       ATELIERS_V.forEach(a=>tranches[a]=[]);
       (rAS.tranches||[]).forEach((t,i)=>{
