@@ -746,6 +746,8 @@ async function saveToSupabase(atId) {
       date_besoin: t.besoin||'', ordre: t.ordre||0,
       lock_debut: t.lockDebut?'TRUE':'FALSE', lock_fin: t.lockFin?'TRUE':'FALSE',
       lock_fin_date: t.lockFinDate||'', parallel: t.parallel?'TRUE':'FALSE',
+      termine: t.termine?'TRUE':'FALSE', _termineLe: t._termineLe||'',
+      phases: t.phases ? JSON.stringify(t.phases) : '',
     }));
   }
   try {
