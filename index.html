@@ -770,8 +770,11 @@ try { await sbDelete('tranches', dbId); } catch(e) { console.warn('Delete error:
 }
 
 function scheduleSave(atId) {
-if (_saveTimeout) clearTimeout(_saveTimeout);
-_saveTimeout = setTimeout(() => saveToSheets(atId), 2000);
+  // Protection anti-écrasement accidentel
+  const total = Object.values(state.tranches||{}).reduce((s,a)=>s+(Array.isArray(a)?a.length:0),0);
+  if(total === 0) { console.warn('scheduleSave bloqué — tranches vides, sauvegarde annulée'); return; }
+  if (_saveTimeout) clearTimeout(_saveTimeout);
+  _saveTimeout = setTimeout(() => saveToSheets(atId), 2000);
 }
 
 async function importFromLocalStorage() {
@@ -1071,6 +1074,12 @@ ${IS_READONLY?'':`
 <button onclick="toggleTermine('${atId}',${i})" title="${t.termine?'OF terminé — cliquer pour annuler':'Marquer cet OF comme terminé'}"
   style="border:none;background:none;cursor:pointer;font-size:18px;opacity:${t.termine?1:.25};transition:opacity .2s">
   ✅
+</button>
+</td>
+<td style="text-align:center">
+<button onclick="toggleProduit('${atId}',${i})" title="${t.produit?'OF produit — cliquer pour annuler':'Marquer cet OF comme produit'}"
+  style="border:none;background:none;cursor:pointer;font-size:18px;opacity:${t.produit?1:.25};transition:opacity .2s">
+  📦
 </button>
 </td>
 <td style="display:flex;gap:4px">
@@ -1500,6 +1509,66 @@ function getPhaseArray(){
   return [..._currentPhaseTags];
 }
 
+// Calculer date de fin d'un OF
+function calcDateFin(debut, duree, atId) {
+  if(!debut) return '';
+  try {
+    const d = new Date(debut);
+    const jours = state.joursOff[atId]||[5,6];
+    let count = 0, cur = new Date(d);
+    while(count < (duree||1)-1) {
+      cur.setDate(cur.getDate()+1);
+      if(!jours.includes(cur.getDay())) count++;
+    }
+    return cur.toISOString().slice(0,10);
+  } catch(e) { return ''; }
+}
+
+// Créer article dans ERP_Suivi_Production (non bloquant)
+async function creerArticleProdAsync(payload) {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'creerArticleProd', ...payload})
+    });
+    const r = await res.json();
+    if(r.ok) {
+      console.log('Article produit créé:', r.id);
+      // Stocker l'id ERP sur l'OF pour retrouver l'article plus tard
+      const t = state.tranches[payload.atelier.toLowerCase()]?.find(x=>String(x.id)===String(payload.of_id));
+      if(t) { t._erpProdId = r.id; scheduleSave(payload.atelier.toLowerCase()); }
+    }
+  } catch(e) { console.warn('creerArticleProd échoué:', e.message); }
+}
+
+// Marquer un OF comme Produit / non produit
+async function toggleProduit(atId, idx) {
+  const t = state.tranches[atId]?.[idx];
+  if(!t) return;
+  t.produit = !t.produit;
+  t._produitLe = t.produit ? new Date().toISOString().slice(0,10) : '';
+
+  // Mettre à jour l'article ERP
+  if(t._erpProdId) {
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({
+          action:'updateArticleProd',
+          id: t._erpProdId,
+          statut: t.produit ? 'produit' : 'en_cours',
+          commentaire: t.comment||'',
+          date_fin_prod: calcDateFin(t.debut, t.duree, atId)
+        })
+      });
+    } catch(e) { console.warn('updateArticleProd:', e.message); }
+  }
+
+  scheduleSave(atId);
+  render();
+  toast(t.produit ? '✅ OF marqué produit' : 'OF remis en cours');
+}
+
 async function toggleTermine(atId, idx){
   const t = state.tranches[atId]?.[idx];
   if(!t) return;
@@ -1622,8 +1691,17 @@ state.atelier=newAtId;
 }
 } else {
 const maxOrdre=state.tranches[newAtId].length?Math.max(...state.tranches[newAtId].map(t=>t.ordre))+1:1;
-state.tranches[newAtId].push({id:Date.now(),ordre:maxOrdre,...data});
+const newId = Date.now();
+state.tranches[newAtId].push({id:newId,ordre:maxOrdre,...data});
 rechainAtelier(newAtId);state.atelier=newAtId;
+// Créer l'article dans ERP_Suivi_Production
+creerArticleProdAsync({
+  of_id: String(newId),
+  tranche: data.tranche,
+  atelier: newAtId.toUpperCase(),
+  commentaire: data.comment||'',
+  date_fin_prod: calcDateFin(data.debut, data.duree, newAtId)
+});
 }
 closeModal();keepGanttPos();scheduleSave(newAtId);render();
 }
