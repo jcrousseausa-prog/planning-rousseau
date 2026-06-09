@@ -579,23 +579,28 @@ async function initApp() {
       });
       if (!resAS.ok) throw new Error('AS HTTP ' + resAS.status);
       const rAS = await resAS.json();
+      console.log('getTranches:', rAS.ok, 'nb:', rAS.tranches?.length, 'ateliers:', [...new Set((rAS.tranches||[]).map(t=>t.atelier_id))]);
       if (!rAS.ok || !rAS.tranches?.length) throw new Error(rAS.error||'getTranches vide');
       const tr = {b1:[],b2:[],b3:[],men:[],log:[],us:[],transport:[]};
       (rAS.tranches||[]).forEach((t,i)=>{
         const atId = String(t.atelier_id||'').toLowerCase().trim();
         if (!atId) return;
         if (!tr[atId]) tr[atId] = [];
+        // Normaliser les dates (tronquer ISO → yyyy-MM-dd)
+        const normD = s => { if(!s) return ''; const d=String(s).trim(); return d.length>10?d.slice(0,10):d; };
+        // Normaliser phases (string JSON ou tableau)
+        const normP = p => { if(!p) return []; if(Array.isArray(p)) return p; try{const r=JSON.parse(p);return Array.isArray(r)?r:[r];}catch(e){return String(p).split(',').map(x=>x.trim()).filter(Boolean);} };
         tr[atId].push({
           _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
-          debut:String(t.date_debut||''), duree:parseInt(t.duree_jours)||1,
-          besoin:t.date_besoin||null, ordre:parseInt(t.ordre)||i,
+          debut:normD(t.date_debut), duree:parseInt(t.duree_jours)||1,
+          besoin:normD(t.date_besoin)||null, ordre:parseInt(t.ordre)||i,
           lockDebut:t.lock_debut==='TRUE'||t.lock_debut===true,
           lockFin:t.lock_fin==='TRUE'||t.lock_fin===true,
-          lockFinDate:t.lock_fin_date||null,
+          lockFinDate:normD(t.lock_fin_date)||null,
           parallel:t.parallel==='TRUE'||t.parallel===true,
           termine:t.termine==='TRUE'||t.termine===true,
-          _termineLe:t._terminele||t._termineLe||'',
-          phases:(()=>{const p=t.phases||'';if(!p)return[];try{return JSON.parse(p);}catch(e){return p.split(',').map(x=>x.trim()).filter(Boolean);}})()
+          _termineLe:normD(t._terminele||t._termineLe||''),
+          phases:normP(t.phases)
         });
       });
       for (const a in tr) tr[a].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
