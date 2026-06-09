@@ -580,10 +580,11 @@ async function initApp() {
       if (!resAS.ok) throw new Error('AS HTTP ' + resAS.status);
       const rAS = await resAS.json();
       if (!rAS.ok || !rAS.tranches?.length) throw new Error(rAS.error||'getTranches vide');
-      const tr = {b1:[],b2:[],b3:[],men:[]};
+      const tr = {b1:[],b2:[],b3:[],men:[],log:[],us:[],transport:[]};
       (rAS.tranches||[]).forEach((t,i)=>{
-        const atId = String(t.atelier_id||'').toLowerCase();
-        if (!atId || !tr[atId]) return;
+        const atId = String(t.atelier_id||'').toLowerCase().trim();
+        if (!atId) return;
+        if (!tr[atId]) tr[atId] = [];
         tr[atId].push({
           _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
           debut:String(t.date_debut||''), duree:parseInt(t.duree_jours)||1,
