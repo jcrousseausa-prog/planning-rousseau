@@ -206,7 +206,7 @@ table.bl-lignes td.r{text-align:right}
   </div>
   <div class="header-right">
     <div class="rt-dot"></div><span class="rt-label" id="rt-label">Prêt</span>
-    <a href="planning-readonly.html" style="font-size:12px;color:var(--text2);text-decoration:none;border:1px solid var(--border);padding:4px 10px;border-radius:7px">← Planning</a>
+    <a href="index.html?readonly" style="font-size:12px;color:var(--text2);text-decoration:none;border:1px solid var(--border);padding:4px 10px;border-radius:7px">← Planning</a>
     <span class="sync-pill" id="sync-pill" style="display:none">
       <span class="sync-dot"></span>
       <span id="sync-text">Synchronisé</span>
@@ -4854,6 +4854,130 @@ function renderRetoursMetrics(){
     <div class="metric"><div class="metric-k">Nouveaux</div><div class="metric-v${nouveaux>0?' warn':' ok'}">${nouveaux}</div></div>
     <div class="metric"><div class="metric-k">En cours</div><div class="metric-v">${enCours}</div></div>
     <div class="metric"><div class="metric-k">Urgents</div><div class="metric-v${urgents>0?' alert':' ok'}">${urgents}</div></div>`;
+}
+
+// ══ SUIVI PRODUCTION ════════════════════════════════════════════════════
+async function renderSuiviProd(){
+  const el = document.getElementById('screen-suivi_prod');
+  if(!el) return;
+  el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">⟳ Chargement…</div>';
+
+  let articles = [], prochainEffacement = null;
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'getSuiviProd'})
+    });
+    const r = await res.json();
+    if(r.ok){ articles = r.articles||[]; prochainEffacement = r.prochain_effacement; }
+  } catch(e){ console.warn('getSuiviProd:', e.message); }
+
+  // Purge automatique si des articles sont expirés
+  const today = new Date().toISOString().slice(0,10);
+  const aExpirer = articles.filter(a=>a.expire_le && a.expire_le <= today);
+  if(aExpirer.length) {
+    fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'purgerAnciens'})});
+    articles = articles.filter(a=>!a.expire_le || a.expire_le > today);
+  }
+
+  // Grouper par tranche
+  const parTranche = {};
+  articles.forEach(a=>{
+    const k = a.tranche||'(sans tranche)';
+    if(!parTranche[k]) parTranche[k]={articles:[],atelier:a.atelier||''};
+    parTranche[k].articles.push(a);
+  });
+
+  // Stats
+  const total = articles.length;
+  const produits = articles.filter(a=>a.statut==='produit').length;
+  const enCours = total - produits;
+
+  let html = `<div style="padding:16px 20px">`;
+
+  // Bandeau avertissement effacement
+  if(prochainEffacement) {
+    const dateAff = prochainEffacement.split('-').reverse().join('/');
+    html += `<div style="background:#fef3cd;border:1px solid #f0c040;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#7d5a00">
+      ⚠ Les articles produits sont automatiquement supprimés 12 mois après leur création.
+      <strong>Prochain effacement : ${dateAff}</strong>
+    </div>`;
+  }
+
+  // KPI rapides
+  html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:var(--blue)">${total}</div>
+      <div style="font-size:11px;color:var(--text3)">OF créés</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:var(--green)">${produits}</div>
+      <div style="font-size:11px;color:var(--text3)">Produits</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:var(--orange)">${enCours}</div>
+      <div style="font-size:11px;color:var(--text3)">En cours</div>
+    </div>
+  </div>`;
+
+  if(!total){
+    html += '<div style="text-align:center;padding:2rem;color:var(--text3)">Aucun OF enregistré — créez des OF dans le planning prod</div>';
+  } else {
+    // Tableau par tranche
+    html += `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:var(--blue);color:#fff">
+          <th style="padding:8px 10px;text-align:left">ID</th>
+          <th style="padding:8px 10px;text-align:left">Tranche</th>
+          <th style="padding:8px 10px;text-align:left">Atelier</th>
+          <th style="padding:8px 10px;text-align:left">Commentaire</th>
+          <th style="padding:8px 10px;text-align:center">Fin prod</th>
+          <th style="padding:8px 10px;text-align:center">Créé le</th>
+          <th style="padding:8px 10px;text-align:center">Produit le</th>
+          <th style="padding:8px 10px;text-align:center">Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${articles.map((a,i)=>{
+          const statColor = a.statut==='produit'?'var(--green)':'var(--orange)';
+          const statLabel = a.statut==='produit'?'✅ Produit':'🔧 En cours';
+          const rowBg = i%2===0?'':'background:var(--bg)';
+          return '<tr style="'+rowBg+'">' +
+            '<td style="padding:7px 10px;font-family:monospace;font-weight:600;color:var(--blue)">'+esc(a.id||'')+'</td>' +
+            '<td style="padding:7px 10px;font-weight:500">'+esc(a.tranche||'')+'</td>' +
+            '<td style="padding:7px 10px;color:var(--text2)">'+esc(a.atelier||'')+'</td>' +
+            '<td style="padding:7px 10px;color:var(--text2)">'+esc(a.commentaire||'')+'</td>' +
+            '<td style="padding:7px 10px;text-align:center">'+esc(a.date_fin_prod||'—')+'</td>' +
+            '<td style="padding:7px 10px;text-align:center;color:var(--text3)">'+esc(a.date_creation||'')+'</td>' +
+            '<td style="padding:7px 10px;text-align:center;color:var(--text3)">'+esc(a.date_production||'—')+'</td>' +
+            '<td style="padding:7px 10px;text-align:center;font-weight:600;color:'+statColor+'">'+statLabel+'</td>' +
+            '</tr>';
+        }).join('')}
+      </tbody>
+    </table>
+
+    <!-- Résumé par tranche -->
+    <div style="margin-top:20px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)">Avancement par tranche</div>
+      ${Object.entries(parTranche).map(([tranche, data])=>{
+        const tot = data.articles.length;
+        const prod = data.articles.filter(a=>a.statut==='produit').length;
+        const pct = Math.round(prod/tot*100);
+        const color = pct===100?'var(--green)':pct>50?'var(--blue)':'var(--orange)';
+        return '<div style="margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:8px 12px">' +
+          '<div style="display:flex;justify-content:space-between;margin-bottom:5px">' +
+          '<span style="font-size:12px;font-weight:600">'+esc(tranche)+'</span>' +
+          '<span style="font-size:12px;font-weight:700;color:'+color+'">'+prod+'/'+tot+'</span>' +
+          '</div>' +
+          '<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">' +
+          '<div style="width:'+pct+'%;height:100%;background:'+color+';border-radius:3px"></div>' +
+          '</div></div>';
+      }).join('')}
+    </div>
+  `}
+
+  html += '</div>';
+  el.innerHTML = html;
 }
 
 function renderRetours(){
