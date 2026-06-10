@@ -579,7 +579,6 @@ async function initApp() {
       });
       if (!resAS.ok) throw new Error('AS HTTP ' + resAS.status);
       const rAS = await resAS.json();
-      console.log('getTranches:', rAS.ok, 'nb:', rAS.tranches?.length, 'ateliers:', [...new Set((rAS.tranches||[]).map(t=>t.atelier_id))]);
       if (!rAS.ok || !rAS.tranches?.length) throw new Error(rAS.error||'getTranches vide');
       const tr = {b1:[],b2:[],b3:[],men:[],log:[],us:[],transport:[]};
       (rAS.tranches||[]).forEach((t,i)=>{
