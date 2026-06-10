@@ -808,8 +808,11 @@ async function saveToSupabase(atId) {
       body: JSON.stringify({action: 'saveTranches', tranches: allTranches, fermetures: state.fermetures, joursOff: state.joursOff})
     });
     const r = await res.json();
-    if (r.ok) setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-    else throw new Error(r.error);
+    if (r.ok) {
+      setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+      // Sync tous les OF vers ERP_Suivi_Production
+      syncAllOFToERP();
+    } else throw new Error(r.error);
   } catch(e) {
     console.warn('Save error:', e.message);
     setSyncPill('error', 'Erreur - local OK');
@@ -1130,12 +1133,7 @@ ${IS_READONLY?'':`
   ✅
 </button>
 </td>
-<td style="text-align:center">
-<button onclick="toggleProduit('${atId}',${i})" title="${t.produit?'OF produit — cliquer pour annuler':'Marquer cet OF comme produit'}"
-  style="border:none;background:none;cursor:pointer;font-size:18px;opacity:${t.produit?1:.25};transition:opacity .2s">
-  📦
-</button>
-</td>
+
 <td style="text-align:center;padding:2px;white-space:nowrap">
 <button class="btn btn-xs" onclick="openEditModal('${atId}',${i})" title="Modifier">✎</button>
 <button class="btn btn-xs btn-danger" onclick="removeTranche('${atId}','${t._dbId||t.id}')" title="Supprimer">✕</button>
@@ -1578,49 +1576,32 @@ function calcDateFin(debut, duree, atId) {
   } catch(e) { return ''; }
 }
 
-// Créer article dans ERP_Suivi_Production (non bloquant)
-async function creerArticleProdAsync(payload) {
+
+
+
+
+// Synchroniser tous les OF du planning prod vers ERP_Suivi_Production
+async function syncAllOFToERP() {
   try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST', headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify({action:'creerArticleProd', ...payload})
-    });
-    const r = await res.json();
-    if(r.ok) {
-      console.log('Article produit créé:', r.id);
-      // Stocker l'id ERP sur l'OF pour retrouver l'article plus tard
-      const t = state.tranches[payload.atelier.toLowerCase()]?.find(x=>String(x.id)===String(payload.of_id));
-      if(t) { t._erpProdId = r.id; scheduleSave(payload.atelier.toLowerCase()); }
-    }
-  } catch(e) { console.warn('creerArticleProd échoué:', e.message); }
-}
-
-// Marquer un OF comme Produit / non produit
-async function toggleProduit(atId, idx) {
-  const t = state.tranches[atId]?.[idx];
-  if(!t) return;
-  t.produit = !t.produit;
-  t._produitLe = t.produit ? new Date().toISOString().slice(0,10) : '';
-
-  // Mettre à jour l'article ERP
-  if(t._erpProdId) {
-    try {
-      await fetch(APPS_SCRIPT_URL, {
-        method:'POST', headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({
-          action:'updateArticleProd',
-          id: t._erpProdId,
-          statut: t.produit ? 'produit' : 'en_cours',
+    const allOF = [];
+    for (const atId in state.tranches) {
+      (state.tranches[atId]||[]).forEach(t => {
+        allOF.push({
+          of_id: String(t._dbId||t.id||''),
+          tranche: t.tranche||'',
+          atelier: atId.toUpperCase(),
           commentaire: t.comment||'',
-          date_fin_prod: calcDateFin(t.debut, t.duree, atId)
-        })
+          date_fin_prod: dateFin(t, atId),
+          termine: t.termine ? 'TRUE' : 'FALSE',
+          _termineLe: t._termineLe||''
+        });
       });
-    } catch(e) { console.warn('updateArticleProd:', e.message); }
-  }
-
-  scheduleSave(atId);
-  render();
-  toast(t.produit ? '✅ OF marqué produit' : 'OF remis en cours');
+    }
+    await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'syncAllOF', ofs: allOF})
+    });
+  } catch(e) { console.warn('syncAllOFToERP:', e.message); }
 }
 
 async function toggleTermine(atId, idx){
@@ -1748,14 +1729,7 @@ const maxOrdre=state.tranches[newAtId].length?Math.max(...state.tranches[newAtId
 const newId = Date.now();
 state.tranches[newAtId].push({id:newId,ordre:maxOrdre,...data});
 rechainAtelier(newAtId);state.atelier=newAtId;
-// Créer l'article dans ERP_Suivi_Production
-creerArticleProdAsync({
-  of_id: String(newId),
-  tranche: data.tranche,
-  atelier: newAtId.toUpperCase(),
-  commentaire: data.comment||'',
-  date_fin_prod: calcDateFin(data.debut, data.duree, newAtId)
-});
+
 }
 closeModal();keepGanttPos();scheduleSave(newAtId);render();
 }
