@@ -1085,8 +1085,8 @@ style="width:100%;padding:7px 10px 7px 32px;border:1px solid var(--border);borde
 <div class="table-wrap"><table><thead><tr>
 <th style="width:32px">⠿</th>
 <th>Tranche</th><th>Commentaire</th><th>Début</th><th>Fin</th><th>Durée</th>
-<th>Date besoin CTVX</th><th>Statut</th><th style="width:40px;text-align:center" title="OF terminé">✅</th>
-${IS_READONLY?'':`<th style="width:28px" title="Figer début">🔒D</th><th style="width:28px" title="Figer fin">🔒F</th><th style="width:28px" title="Parallèle">⇉</th><th style="width:74px"></th>`}
+<th>Date besoin CTVX</th><th>Statut</th><th style="width:32px;text-align:center" title="OF terminé">✅</th>
+${IS_READONLY?'':`<th style="width:24px;text-align:center;font-size:10px" title="Figer début">🔒D</th><th style="width:24px;text-align:center;font-size:10px" title="Figer fin">🔒F</th><th style="width:24px;text-align:center;font-size:10px" title="Parallèle">⇉</th><th style="width:60px"></th>`}
 </tr></thead><tbody>`;
 if(!rows.length) html+=`<tr><td colspan="9" class="empty-state">${q?`Aucun résultat pour "${esc(q)}"`:IS_READONLY?'Aucune tranche planifiée.':'Aucune tranche — cliquez sur "+ OF".'}</td></tr>`;
 rows.forEach((t,i)=>{
@@ -1099,7 +1099,7 @@ ondragleave="this.classList.remove('drag-over')"
 ondrop="dropRow(event,'${atId}',${i});this.classList.remove('drag-over')">
 <td><span class="drag-handle">${q||IS_READONLY?i+1:'⠿'}</span></td>
 <td>
-  ${IS_READONLY?`<div style="padding:3px 0">${esc(t.tranche)}</div>`:`<input type="text" value="${esc(t.tranche)}" onchange="updT('${atId}',${i},'tranche',this.value)"/>`}</td>
+  ${IS_READONLY?`<div style="padding:3px 0;word-break:break-word">${esc(t.tranche)}</div>`:`<input type="text" value="${esc(t.tranche)}" onclick="this.select()" onchange="updT('${atId}',${i},'tranche',this.value)" style="min-width:0;word-break:break-word"/>`}</td>
 <td>
   ${(t.phases&&t.phases.length)?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:2px">${t.phases.map(p=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600">${esc(p)}</span>`).join('')}</div>`:''}
   ${IS_READONLY?`<div style="padding:3px 0;font-size:13px;color:var(--text2)">${esc(t.comment||'')}</div>`:`<input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${i},'comment',this.value)"/>`}
@@ -1111,9 +1111,9 @@ ondrop="dropRow(event,'${atId}',${i});this.classList.remove('drag-over')">
 <td>${statusBadge(t,atId,{})}</td>
 <td style="text-align:center"><span style="font-size:16px;opacity:${t.termine?1:.15}" title="${t.termine?'OF terminé':'Non terminé'}">✅</span></td>
 ${IS_READONLY?'':`
-<td style="text-align:center"><button onclick="toggleFlag('${atId}',${i},'lockDebut')" style="border:none;background:none;cursor:pointer;font-size:14px;opacity:${t.lockDebut?1:.3}">🔒</button></td>
-<td style="text-align:center"><button onclick="toggleFlag('${atId}',${i},'lockFin')" style="border:none;background:none;cursor:pointer;font-size:14px;opacity:${t.lockFin?1:.3}">🔒</button></td>
-<td style="text-align:center"><button onclick="toggleFlag('${atId}',${i},'parallel')" style="border:none;background:none;cursor:pointer;font-size:15px;opacity:${t.parallel?1:.3}">⇉</button></td>
+<td style="text-align:center;padding:2px"><button onclick="toggleFlag('${atId}',${i},'lockDebut')" style="border:none;background:none;cursor:pointer;font-size:12px;opacity:${t.lockDebut?1:.25}" title="Figer début">🔒</button></td>
+<td style="text-align:center;padding:2px"><button onclick="toggleFlag('${atId}',${i},'lockFin')" style="border:none;background:none;cursor:pointer;font-size:12px;opacity:${t.lockFin?1:.25}" title="Figer fin">🔒</button></td>
+<td style="text-align:center;padding:2px"><button onclick="toggleFlag('${atId}',${i},'parallel')" style="border:none;background:none;cursor:pointer;font-size:12px;opacity:${t.parallel?1:.25}" title="Parallèle">⇉</button></td>
 <td style="text-align:center">
 <button onclick="toggleTermine('${atId}',${i})" title="${t.termine?'OF terminé — cliquer pour annuler':'Marquer cet OF comme terminé'}"
   style="border:none;background:none;cursor:pointer;font-size:18px;opacity:${t.termine?1:.25};transition:opacity .2s">
@@ -1126,9 +1126,9 @@ ${IS_READONLY?'':`
   📦
 </button>
 </td>
-<td style="display:flex;gap:4px">
-<button class="btn btn-sm" onclick="openEditModal('${atId}',${i})">✎</button>
-<button class="btn btn-sm btn-danger" onclick="removeTranche('${atId}','${t._dbId||t.id}')">✕</button>
+<td style="text-align:center;padding:2px;white-space:nowrap">
+<button class="btn btn-xs" onclick="openEditModal('${atId}',${i})" title="Modifier">✎</button>
+<button class="btn btn-xs btn-danger" onclick="removeTranche('${atId}','${t._dbId||t.id}')" title="Supprimer">✕</button>
 </td>`}
 </tr>`;
 });
