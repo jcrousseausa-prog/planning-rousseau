@@ -836,8 +836,7 @@ async function saveToSupabase(atId) {
     const r = await res.json();
     if (r.ok) {
       setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-      // Sync tous les OF vers ERP_Suivi_Production
-      syncAllOFToERP();
+      // syncAllOFToERP(); // Désactivé temporairement
     } else throw new Error(r.error);
   } catch(e) {
     console.warn('Save error:', e.message);
