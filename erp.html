@@ -239,9 +239,9 @@ table.bl-lignes td.r{text-align:right}
     </div>
     <button class="btn" onclick="toggleAll(true)">Tout déplier</button>
     <button class="btn" onclick="toggleAll(false)">Tout replier</button>
-    <button class="btn btn-orange" onclick="syncCTVX()" title="Synchroniser les dates CTVX depuis l&#39;onglet DATES du fichier pilote">⇅ Sync CTVX</button>
-    <button class="btn btn-green" onclick="syncOFTermines()" title="Récupérer les OF terminés depuis le planning production">✅ Sync OF</button>
-    <button class="btn btn-green" onclick="genererDatesSheet()" title="Générer l&#39;onglet DATES dans Google Sheets depuis les tranches ERP">📅 Générer DATES</button>
+    
+    
+    
     <button class="btn btn-primary" onclick="openAddChantier()">+ Chantier</button>
   </div>
   <div class="table-wrap">
@@ -1157,7 +1157,7 @@ async function loadFromSheets() {
     });
     const r = await res.json();
     if (r.ok && r.data && r.data.chantiers?.length >= 5) {
-      state.chantiers = r.data.chantiers;
+      state.chantiers = (r.data.chantiers||[]).sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
       state.tranches = r.data.tranches||[];
       state.phases = r.data.phases||[];
       state.articles = r.data.articles||[];
