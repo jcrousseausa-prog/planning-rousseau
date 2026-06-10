@@ -329,29 +329,25 @@ transition:all .3s;
 <label>Date besoin CTVX</label>
 <input type="date" id="f-besoin"/>
 </div>
-<div style="border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem;margin-bottom:.5rem">
-<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.65rem">⚙ Options de planification</div>
-<div style="display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:.75rem">
-<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;flex:1;min-width:180px;padding:8px 10px;border:1px solid var(--blue-border);border-radius:8px;background:var(--blue-bg)">
-<input type="checkbox" id="f-lockDebut" style="width:auto;margin-top:2px;accent-color:#1A5276" onchange="toggleLockDebutUI()"/>
-<span><span style="font-size:12px;font-weight:600;color:#1A5276">🔒 Figer le début</span><br>
-<span style="font-size:11px;color:var(--text2)">Le décalage des autres tranches ne déplace pas cette date.</span></span>
-</label>
-<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;flex:1;min-width:180px;padding:8px 10px;border:1px solid var(--purple-border);border-radius:8px;background:var(--purple-bg)">
-<input type="checkbox" id="f-lockFin" style="width:auto;margin-top:2px;accent-color:#6C3483" onchange="toggleLockFinUI()"/>
-<span><span style="font-size:12px;font-weight:600;color:#6C3483">🔒 Figer la fin</span><br>
-<span style="font-size:11px;color:var(--text2)">La date de fin reste fixe ; le début s'adapte.</span></span>
-</label>
+<div style="border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:.5rem">
+<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px">⚙ Options de planification</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 8px;border:1px solid var(--blue-border);border-radius:6px;background:var(--blue-bg);font-size:12px;color:#1A5276;font-weight:600;white-space:nowrap">
+    <input type="checkbox" id="f-lockDebut" style="width:auto;accent-color:#1A5276" onchange="toggleLockDebutUI()"/>
+    🔒 Figer début
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 8px;border:1px solid var(--purple-border);border-radius:6px;background:var(--purple-bg);font-size:12px;color:#6C3483;font-weight:600;white-space:nowrap">
+    <input type="checkbox" id="f-lockFin" style="width:auto;accent-color:#6C3483" onchange="toggleLockFinUI()"/>
+    🔒 Figer fin
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 8px;border:1px solid var(--orange-border);border-radius:6px;background:var(--orange-bg);font-size:12px;color:#D68910;font-weight:600;white-space:nowrap">
+    <input type="checkbox" id="f-parallel" style="width:auto;accent-color:#D68910"/>
+    ⇉ Parallèle
+  </label>
+  <div id="f-lockFinDate-group" style="display:none">
+    <input type="date" id="f-lockFinDate" style="padding:4px 7px;border:1px solid var(--purple-border);border-radius:6px;font-family:inherit;font-size:12px"/>
+  </div>
 </div>
-<div id="f-lockFinDate-group" style="display:none;margin-bottom:.75rem">
-<label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;display:block;margin-bottom:4px">Date de fin figée</label>
-<input type="date" id="f-lockFinDate" style="width:160px;padding:6px 8px;border:1px solid var(--purple-border);border-radius:7px;font-family:inherit;font-size:13px"/>
-</div>
-<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:8px 10px;border:1px solid var(--orange-border);border-radius:8px;background:var(--orange-bg)">
-<input type="checkbox" id="f-parallel" style="width:auto;margin-top:2px;accent-color:#D68910"/>
-<span><span style="font-size:12px;font-weight:600;color:#D68910">⇉ Tranche parallèle</span><br>
-<span style="font-size:11px;color:var(--text2)">Se superpose sans décaler les autres.</span></span>
-</label>
 </div>
 <div class="modal-footer">
 <button class="btn" onclick="closeModal()">Annuler</button>
