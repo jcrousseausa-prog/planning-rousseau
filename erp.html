@@ -1160,6 +1160,8 @@ async function loadFromSheets() {
       state.chantiers = (r.data.chantiers||[]).sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
       // Charger le fichier DATES source en arrière-plan
       loadDATESSource();
+      // Charger le suivi production (OF du planning prod)
+      loadSuiviProd();
       state.tranches = r.data.tranches||[];
       state.phases = r.data.phases||[];
       state.articles = r.data.articles||[];
@@ -1586,8 +1588,9 @@ function renderPlanning(){
   const tbody=document.getElementById('planning-tbody');
   let html='';
   const q=_search;
+  const chantiersTries = [...state.chantiers].sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
 
-  for(const ch of state.chantiers){
+  for(const ch of chantiersTries){
     const trs=state.tranches.filter(t=>t.cid===ch.id);
     if(q&&!ch.nom.toLowerCase().includes(q)){
       const hasTr=trs.some(t=>t.nom.toLowerCase().includes(q));
@@ -1599,7 +1602,11 @@ function renderPlanning(){
       if(q&&!ch.nom.toLowerCase().includes(q)&&!tr.nom.toLowerCase().includes(q))continue;
       const phs=state.phases.filter(p=>p.tid===tr.id);
       const arts=state.articles.filter(a=>phs.some(p=>p.id===a.pid));
-      html+=renderTrRow(tr,phs.length,arts);
+      // Récupérer les OF du planning prod pour cette tranche
+      const ofs_prod = (state.suivi_prod||[]).filter(o=>
+        (o.tranche||'').trim().toLowerCase() === (tr.nom||'').trim().toLowerCase()
+      );
+      html+=renderTrRow(tr,phs.length,arts,ofs_prod);
       if(!tr.open&&!q)continue;
       for(const ph of phs){
         const phArts=state.articles.filter(a=>a.pid===ph.id);
@@ -1627,18 +1634,65 @@ function renderChRow(ch,nbTr){
     </td></tr>`;
 }
 
-function renderTrRow(tr,nbPh,arts){
+function renderTrRow(tr,nbPh,arts,ofs_prod){
+  ofs_prod = ofs_prod||[];
   const o=tr.open;
   const avMoyen=arts.length?Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length):0;
-  const ctvxBadge=tr.ctvx?`<span class="dp dp-orange" style="margin-left:6px">${fmtDate(tr.ctvx)}</span>`:'';
+
+  // Date CTVX — depuis state.dates_erp (fichier DATES source, date la plus tôt)
+  const datesSrc = (state.dates_erp||[]).filter(d=>(d.tranche||'').trim().toLowerCase()===(tr.nom||'').trim().toLowerCase());
+  const ctvxSrc = datesSrc.length ? datesSrc.reduce((min,d)=>(!min||d.date_ctvx<min)?d.date_ctvx:min, '') : '';
+  const ctvx = ctvxSrc || tr.ctvx || '';
+  const ctvxBadge = ctvx ? `<span style="font-size:10px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;margin-left:4px">📅 ${fmtDate(ctvx)}</span>` : '';
+
+  // Date sortie prod — date de fin la plus tardive parmi les OF
+  const datesSortie = ofs_prod.map(o=>o.date_fin_prod||'').filter(Boolean).sort();
+  const dateSortie = datesSortie.length ? datesSortie[datesSortie.length-1] : '';
+  const sortieBadge = dateSortie ? `<span style="font-size:10px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 5px;margin-left:4px">🏭 ${fmtDate(dateSortie)}</span>` : '';
+
+  // Statut production
+  let statutBadge = '';
+  if(ofs_prod.length) {
+    const nbTermines = ofs_prod.filter(o=>o.statut==='termine').length;
+    const today = new Date().toISOString().slice(0,10);
+    const enCours = ofs_prod.some(o=>o.statut!=='termine' && o.date_fin_prod && o.date_fin_prod <= today);
+    if(nbTermines === ofs_prod.length) {
+      statutBadge = `<span style="font-size:10px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 5px;margin-left:4px">✅ Terminé</span>`;
+    } else if(nbTermines > 0 || enCours) {
+      statutBadge = `<span style="font-size:10px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 5px;margin-left:4px">🔧 En cours</span>`;
+    } else {
+      statutBadge = `<span style="font-size:10px;background:var(--bg);color:var(--text3);border:1px solid var(--border);border-radius:4px;padding:1px 5px;margin-left:4px">📋 Planifié</span>`;
+    }
+  }
+
+  // Lignes OF du planning prod
+  let ofsHtml = '';
+  if(o && ofs_prod.length) {
+    ofsHtml = ofs_prod.map(of=>`
+      <tr class="row-article" style="background:var(--bg)">
+        <td></td>
+        <td style="padding-left:3rem;font-size:11px;color:var(--text2)" colspan="5">
+          <span style="font-family:monospace;color:var(--blue);font-size:10px;margin-right:6px">${esc(of.id||'')}</span>
+          🏭 ${esc(of.atelier||'')} — ${esc(of.commentaire||of.tranche||'')}
+        </td>
+        <td style="font-size:11px;font-family:monospace;color:var(--text2)">${of.date_fin_prod?fmtDate(of.date_fin_prod):''}</td>
+        <td colspan="3" style="font-size:11px">
+          ${of.statut==='termine'
+            ? '<span style="color:var(--green);font-weight:600">✅ Terminé</span>'
+            : '<span style="color:var(--blue)">🔧 En cours</span>'}
+        </td>
+      </tr>`).join('');
+  }
+
   return`<tr class="row-tranche" onclick="toggleNode('tr','${tr.id}')">
     <td><span class="chevron${o?' open':''}">▶</span></td>
-    <td colspan="7">${tr.conduc?`<span style="font-size:10px;color:var(--text3);margin-right:4px">${esc(tr.conduc)}</span>`:''}${esc(tr.nom)}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbPh} phase${nbPh!==1?'s':''}${ctvxBadge}</span></td>
+    <td colspan="5">${tr.conduc?`<span style="font-size:10px;color:var(--text3);margin-right:4px">${esc(tr.conduc)}</span>`:''}${esc(tr.nom)}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbPh} phase${nbPh!==1?'s':''}</span>${ctvxBadge}${sortieBadge}${statutBadge}</td>
     <td colspan="2">${arts.length?progHtml(avMoyen,'prog-blue'):''}</td>
+    <td colspan="2"></td>
     <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="event.stopPropagation();openEditTranche('${tr.id}')">✎</button>
       <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deleteTranche('${tr.id}')">✕</button>
-    </td></tr>`;
+    </td></tr>${ofsHtml}`;
 }
 
 function renderPhRow(ph,nbArt,arts){
@@ -4444,6 +4498,20 @@ async function renderCoherenceTranches(){
 }
 
 // ─── CHARGEMENT FICHIER DATES SOURCE ────────────────────────────────────────
+async function loadSuiviProd() {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'getSuiviProd'})
+    });
+    const r = await res.json();
+    if(r.ok) {
+      state.suivi_prod = r.articles||[];
+      console.log('Suivi prod:', state.suivi_prod.length, 'OF');
+    }
+  } catch(e) { console.warn('loadSuiviProd:', e.message); }
+}
+
 async function loadDATESSource() {
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
