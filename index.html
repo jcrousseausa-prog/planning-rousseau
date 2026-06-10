@@ -588,7 +588,19 @@ async function initApp() {
         // Normaliser les dates (tronquer ISO → yyyy-MM-dd)
         const normD = s => { if(!s) return ''; const d=String(s).trim(); return d.length>10?d.slice(0,10):d; };
         // Normaliser phases (string JSON ou tableau)
-        const normP = p => { if(!p) return []; if(Array.isArray(p)) return p; try{const r=JSON.parse(p);return Array.isArray(r)?r:[r];}catch(e){return String(p).split(',').map(x=>x.trim()).filter(Boolean);} };
+        const normP = p => {
+          if(!p) return [];
+          if(Array.isArray(p)) return p.filter(x=>x&&String(x).trim());
+          const s = String(p).trim();
+          if(!s || s==='[]' || s==='""' || s==='null') return [];
+          try {
+            const r = JSON.parse(s);
+            if(Array.isArray(r)) return r.map(x=>String(x).replace(/^"|"$/g,'')).filter(Boolean);
+            return r ? [String(r).replace(/^"|"$/g,'')] : [];
+          } catch(e) {
+            return s.replace(/^\[|\]$/g,'').split(',').map(x=>x.trim().replace(/^"|"$/g,'')).filter(Boolean);
+          }
+        };
         tr[atId].push({
           _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
           debut:normD(t.date_debut), duree:parseInt(t.duree_jours)||1,
@@ -1073,6 +1085,7 @@ const tr=state.tranches[atId]||[];
 const sorted=[...tr].sort((a,b)=>a.ordre-b.ordre);
 const q=_tableSearch.trim().toLowerCase();
 const rows=q?sorted.filter(t=>t.tranche.toLowerCase().includes(q)||(t.comment||'').toLowerCase().includes(q)):sorted;
+const inSearch = !!q; // en mode recherche → affichage texte, clic = ouvrir modal
 let html=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:.75rem">
 <div style="position:relative;flex:1;max-width:360px">
 <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px;pointer-events:none">🔍</span>
@@ -1098,9 +1111,9 @@ ondragleave="this.classList.remove('drag-over')"
 ondrop="dropRow(event,'${atId}',${i});this.classList.remove('drag-over')">
 <td><span class="drag-handle">${q||IS_READONLY?i+1:'⠿'}</span></td>
 <td>
-  ${IS_READONLY?`<div style="padding:3px 0;font-size:11px">${esc(t.tranche)}</div>`:`<input type="text" value="${esc(t.tranche)}" onclick="this.select()" onchange="updT('${atId}',${i},'tranche',this.value)" style="font-size:11px;min-width:0"/>`}</td>
+  ${(IS_READONLY||inSearch)?`<div style="padding:3px 0;font-size:11px;cursor:${inSearch?'pointer':''}" onclick="${inSearch?`openEditModal('${atId}',${i})`:''}"">${esc(t.tranche)}</div>`:`<input type="text" value="${esc(t.tranche)}" onclick="this.select()" onchange="updT('${atId}',${i},'tranche',this.value)" style="font-size:11px;min-width:0"/>`}</td>
 <td>
-  ${(t.phases&&t.phases.length)?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:2px">${t.phases.map(p=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600">${esc(p)}</span>`).join('')}</div>`:''}
+  ${(t.phases&&t.phases.length&&t.phases.some(p=>p.trim()))?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:2px">${t.phases.filter(p=>p.trim()).map(p=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600">${esc(p.trim())}</span>`).join('')}</div>`:''}
   ${IS_READONLY?`<div style="padding:3px 0;font-size:13px;color:var(--text2)">${esc(t.comment||'')}</div>`:`<input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${i},'comment',this.value)"/>`}
 </td>
 <td><input type="date" value="${t.debut}" onchange="updT('${atId}',${i},'debut',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
