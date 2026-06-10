@@ -645,19 +645,7 @@ async function initApp() {
       source = 'CSV';
     }
     setConnBar('connected', source + ' — ' + total + ' tranches');
-    // Restaurer les statuts terminé depuis localStorage
-    try {
-      const termineMap = JSON.parse(localStorage.getItem('planning_termine')||'{}');
-      for(const atId in state.tranches) {
-        (state.tranches[atId]||[]).forEach(t => {
-          const key = String(t._dbId||t.id);
-          if(termineMap[key]) {
-            t.termine = true;
-            t._termineLe = termineMap[key]._termineLe||'';
-          }
-        });
-      }
-    } catch(e) {}
+
 
     // ── Chargement calendrier ──────────────────────────────
     try {
@@ -686,19 +674,7 @@ async function initApp() {
       } catch(e) {}
     }
 
-    // Restaurer les statuts terminé depuis localStorage
-    try {
-      const termineMap = JSON.parse(localStorage.getItem('planning_termine')||'{}');
-      for(const atId in state.tranches) {
-        (state.tranches[atId]||[]).forEach(t => {
-          const key = String(t._dbId||t.id);
-          if(termineMap[key]) {
-            t.termine = true;
-            t._termineLe = termineMap[key]._termineLe||'';
-          }
-        });
-      }
-    } catch(e) {}
+
     setSyncPill('ok', 'Synchronisé');
     render();
   } catch(e) {
@@ -905,16 +881,9 @@ el.style.color = 'var(--red)';
 // ══════════════════════════════════════════════════════════════
 function saveLS() {
 try {
-// Sauvegarder les statuts terminé séparément (indexed par id)
-const termineMap = {};
-for(const atId in state.tranches) {
-  (state.tranches[atId]||[]).forEach(t => {
-    if(t.termine) termineMap[String(t._dbId||t.id)] = {termine:true, _termineLe:t._termineLe||''};
-  });
-}
-localStorage.setItem('planning_termine', JSON.stringify(termineMap));
+// Ne pas sauvegarder les tranches dans localStorage — source unique = Google Sheets
 localStorage.setItem('planning_state', JSON.stringify({
-tranches:state.tranches, joursOff:state.joursOff,
+joursOff:state.joursOff,
 nextId:state.nextId, gsUrl:state.gsUrl,
 }));
 // Mettre à jour le cache fermetures séparément
