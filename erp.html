@@ -1158,6 +1158,8 @@ async function loadFromSheets() {
     const r = await res.json();
     if (r.ok && r.data && r.data.chantiers?.length >= 5) {
       state.chantiers = (r.data.chantiers||[]).sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
+      // Charger le fichier DATES source en arrière-plan
+      loadDATESSource();
       state.tranches = r.data.tranches||[];
       state.phases = r.data.phases||[];
       state.articles = r.data.articles||[];
@@ -4441,6 +4443,54 @@ async function renderCoherenceTranches(){
   }
 }
 
+// ─── CHARGEMENT FICHIER DATES SOURCE ────────────────────────────────────────
+async function loadDATESSource() {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'loadDATES'})
+    });
+    const r = await res.json();
+    if (!r.ok) { console.warn('loadDATES:', r.error); return; }
+
+    state.dates_erp     = r.tranches_erp     || [];
+    state.dates_atelier = r.tranches_atelier || [];
+
+    // Appliquer les dates CTVX sur les tranches ERP existantes
+    let updated = 0;
+    state.dates_erp.forEach(d => {
+      const nom = d.tranche.trim().toLowerCase();
+      state.tranches.forEach(t => {
+        if((t.nom||'').trim().toLowerCase() === nom) {
+          if(d.date_ctvx && d.date_ctvx !== t.date_ctvx) {
+            t.date_ctvx = d.date_ctvx;
+            updated++;
+          }
+          // Vérifier chantier associé
+          if(d.dossier) {
+            const ch = state.chantiers.find(c => 
+              c.nom.trim().toLowerCase() === d.dossier.trim().toLowerCase()
+            );
+            if(!ch) {
+              if(!state.dates_chantiers_manquants) state.dates_chantiers_manquants = new Set();
+              state.dates_chantiers_manquants.add(d.dossier + ' → ' + d.tranche);
+            }
+          }
+        }
+      });
+    });
+
+    console.log('DATES source chargé:', r.tranches_erp.length, 'tranches ERP,', r.tranches_atelier.length, 'tranches atelier');
+    if(updated) console.log(updated, 'dates CTVX mises à jour');
+
+    // Rafraîchir le tableau de bord si ouvert
+    if(state.currentTab === 'dashboard') renderDashboard();
+
+  } catch(e) {
+    console.warn('loadDATESSource:', e.message);
+  }
+}
+
 function renderAbsencesDashboard(){
   const heures = state.heures||[];
   const employes = state.employes||[];
@@ -4654,6 +4704,40 @@ async function renderDashboard(){
     ${kpiCard('🏗️','Chantiers',state.chantiers.length+' actifs',state.tranches.length+' tranches','var(--purple)')}
     ${alertesNb>0 ? kpiCard('⚠️','Saisies manquantes',alertesNb+' pers.','sur 12 semaines','var(--red)') : kpiCard('✅','Pointage','À jour','12 dernières semaines','var(--green)')}
   </div>`;
+
+  // ══ ALERTE CHANTIERS MANQUANTS ══
+  if(state.dates_chantiers_manquants?.size) {
+    html += `<div style="background:#fdecea;border:1px solid #f5b7b1;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#922b21">
+      ⚠ <strong>${state.dates_chantiers_manquants.size} tranche(s) du fichier DATES rattachées à des chantiers introuvables dans l'ERP :</strong>
+      <div style="margin-top:6px;max-height:100px;overflow-y:auto">
+        ${[...state.dates_chantiers_manquants].map(s=>`<div style="padding:2px 0;border-bottom:1px solid #f5b7b1">${esc(s)}</div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // ══ INDICATEUR TRANCHES À PLANIFIER (col K) ══
+  if(state.dates_atelier?.length) {
+    const tranchesOK = state.dates_atelier.filter(d => {
+      const nom = d.tranche.trim().toLowerCase();
+      return state.tranches.some(t=>(t.nom||'').trim().toLowerCase()===nom);
+    });
+    const tranchesKO = state.dates_atelier.filter(d => {
+      const nom = d.tranche.trim().toLowerCase();
+      return !state.tranches.some(t=>(t.nom||'').trim().toLowerCase()===nom);
+    });
+    const pct = state.dates_atelier.length ? Math.round(tranchesOK.length/state.dates_atelier.length*100) : 0;
+    const color = pct===100?'var(--green)':pct>70?'var(--blue)':'var(--orange)';
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:600">🏭 Tranches à planifier en atelier</span>
+        <span style="font-size:18px;font-weight:700;font-family:monospace;color:${color}">${tranchesOK.length}/${state.dates_atelier.length}</span>
+      </div>
+      <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:8px">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:4px"></div>
+      </div>
+      ${tranchesKO.length?`<div style="font-size:11px;color:var(--orange)">⚠ ${tranchesKO.length} tranche(s) non encore planifiées : ${tranchesKO.slice(0,3).map(d=>esc(d.tranche)).join(', ')}${tranchesKO.length>3?'…':''}</div>`:'<div style="font-size:11px;color:var(--green)">✅ Toutes les tranches sont planifiées</div>'}
+    </div>`;
+  }
 
   // ══ 0. COHÉRENCE TRANCHES ══
   html += accordion('🔗 Cohérence tranches — DATES / ERP / Planning prod',
