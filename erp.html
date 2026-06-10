@@ -1687,7 +1687,7 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
   return`<tr class="row-tranche" onclick="toggleNode('tr','${tr.id}')">
     <td><span class="chevron${o?' open':''}">▶</span></td>
     <td colspan="5">${tr.conduc?`<span style="font-size:10px;color:var(--text3);margin-right:4px">${esc(tr.conduc)}</span>`:''}${esc(tr.nom)}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbPh} phase${nbPh!==1?'s':''}</span>${ctvxBadge}${sortieBadge}${statutBadge}</td>
-    <td colspan="2">${arts.length?progHtml(avMoyen,'prog-blue'):''}</td>
+    <td colspan="2"></td>
     <td colspan="2"></td>
     <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="event.stopPropagation();openEditTranche('${tr.id}')">✎</button>
@@ -1702,7 +1702,7 @@ function renderPhRow(ph,nbArt,arts){
   return`<tr class="row-phase" onclick="toggleNode('ph','${ph.id}')">
     <td><span class="chevron${o?' open':''}">▶</span></td>
     <td colspan="7">${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}<b>${esc(ph.nom)}</b><span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}${bh?` · ${bh}h`:''}</span></td>
-    <td colspan="2">${arts.length?progHtml(avMoyen,'prog-blue'):''}</td>
+    <td colspan="2"></td>
     <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="event.stopPropagation();openEditPhase('${ph.id}')">✎</button>
       <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deletePhase('${ph.id}')">✕</button>
