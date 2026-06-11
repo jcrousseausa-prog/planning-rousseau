@@ -2737,6 +2737,9 @@ function openSaisieJours(empId, semaine){
 
   <!-- Tableau heures par chantier -->
   <div style="overflow-x:auto">
+  <datalist id="sj-ch-list">
+    ${state.chantiers.map(c=>`<option value="${esc(c.nom)}">`).join('')}
+  </datalist>
   <table id="sj-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:600px">
     <thead>
       <tr style="background:var(--bg)">
@@ -2808,13 +2811,20 @@ function addSaisieRow(){
   const chantiersList = ['<option value="">— Chantier —</option>',
     ...state.chantiers.map(c=>`<option value="${esc(c.nom)}">${esc(c.nom)}</option>`)
   ].join('');
+  const atelier = document.getElementById('sj-atelier')?.value || 'B1';
   const tr = document.createElement('tr');
   tr.id = 'sj-row-'+i;
   tr.style.borderBottom = '1px solid var(--border)';
   tr.innerHTML = `
     <td style="padding:5px;border:1px solid var(--border)">
-      <select id="sj-ch-${i}" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px" onchange="updateTotalRow(${i})">
-        ${chantiersList}
+      <input type="text" id="sj-ch-${i}" list="sj-ch-list"
+        placeholder="Rechercher un chantier…"
+        style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"
+        oninput="updateTotalRow(${i})"/>
+    </td>
+    <td style="padding:4px;border:1px solid var(--border)">
+      <select id="sj-at-${i}" style="width:100%;padding:4px 5px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:11px;color:var(--blue)">
+        ${ATELIERS_H.map(a=>`<option value="${a}"${a===atelier?' selected':''}>${a}</option>`).join('')}
       </select>
     </td>
     ${JOURS_SEMAINE.map(j=>`
