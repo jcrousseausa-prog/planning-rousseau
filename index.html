@@ -647,6 +647,35 @@ async function initApp() {
     setConnBar('connected', source + ' — ' + total + ' tranches');
 
 
+    // ── Chargement phases ERP ─────────────────────────────
+    try {
+      const rPh = await fetch(APPS_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'getPhases'})
+      });
+      const ph = await rPh.json();
+      if(ph.ok && ph.phases?.length) {
+        state.phases_erp = ph.phases;
+        // Mettre à jour le datalist des suggestions
+        const dl = document.getElementById('phases-suggestions');
+        if(dl) dl.innerHTML = ph.phases.map(p=>`<option value="${esc(p)}">`).join('');
+      }
+    } catch(e) { console.warn('getPhases:', e.message); }
+
+    // ── Chargement phases ERP ────────────────────────────────
+    try {
+      const rPh = await fetch(APPS_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'getPhases'})
+      });
+      const ph = await rPh.json();
+      if(ph.ok && ph.phases?.length) {
+        state.phases_erp = ph.phases;
+        const dl = document.getElementById('phases-suggestions');
+        if(dl) dl.innerHTML = ph.phases.map(p=>`<option value="${esc(p)}">`).join('');
+      }
+    } catch(e) { console.warn('getPhases:', e.message); }
+
     // ── Chargement calendrier ──────────────────────────────
     try {
       const rc = await fetch(APPS_SCRIPT_URL, {
