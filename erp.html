@@ -2500,12 +2500,34 @@ function renderSaisieHebdo(){
   const heuresSem = (state.heures||[]).filter(h=>h.semaine===semSel);
 
   // Séparer présents / exclus
+  // Calculer le lundi de la semaine sélectionnée
+  const lundiSemSel = (()=>{
+    const [yr, sw] = semSel.split('-S');
+    const jan4 = new Date(+yr, 0, 4);
+    const lundi = new Date(jan4);
+    lundi.setDate(jan4.getDate() - (jan4.getDay()||7) + 1 + (+sw-1)*7);
+    return lundi.toISOString().slice(0,10);
+  })();
+  const vendrediSemSel = (()=>{
+    const d = new Date(lundiSemSel);
+    d.setDate(d.getDate()+4);
+    return d.toISOString().slice(0,10);
+  })();
+
   const empActifs = employes.filter(e=>{
     if(e.inactif) return false;
-    if(e.fin_mission && e.fin_mission < today) return false;
+    // Intérimaire : visible si contrat actif pendant la semaine sélectionnée
+    // (debut_mission <= vendredi semaine ET fin_mission >= lundi semaine)
+    if(e.statut === 'interim' || e.statut === 'intérimaire') {
+      if(e.debut_mission && e.debut_mission > vendrediSemSel) return false;
+      if(e.fin_mission && e.fin_mission < lundiSemSel) return false;
+      return true;
+    }
+    // CDI/autre : visible si pas fin_mission ou fin_mission >= lundi semaine
+    if(e.fin_mission && e.fin_mission < lundiSemSel) return false;
     return true;
   });
-  const empExclus = employes.filter(e=>e.inactif || (e.fin_mission && e.fin_mission < today));
+  const empExclus = employes.filter(e=>e.inactif || (e.fin_mission && e.fin_mission < lundiSemSel));
 
   // Parmi les actifs, distinguer ceux avec absences toute la semaine
   const empAbsents = empActifs.filter(emp=>{
