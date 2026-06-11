@@ -2741,6 +2741,7 @@ function openSaisieJours(empId, semaine){
     <thead>
       <tr style="background:var(--bg)">
         <th style="padding:7px 10px;text-align:left;border:1px solid var(--border);min-width:180px">Chantier</th>
+        <th style="padding:7px 8px;text-align:center;border:1px solid var(--border);min-width:70px;font-size:11px;color:var(--blue)">Atelier</th>
         ${JOURS_SEMAINE.map(j=>`<th style="padding:7px 8px;text-align:center;border:1px solid var(--border);min-width:60px">${j.slice(0,3)}<br><span style="font-size:9px;font-weight:400;color:var(--text3)">heures</span></th>`).join('')}
         <th style="padding:7px 8px;text-align:center;border:1px solid var(--border);background:#EAF2FB;color:var(--blue);font-weight:700">Total</th>
         <th style="padding:7px 8px;border:1px solid var(--border);width:30px"></th>
