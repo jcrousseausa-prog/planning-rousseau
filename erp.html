@@ -2680,10 +2680,12 @@ function openSaisieJours(empId, semaine){
   // Structure : une ligne = un chantier + heures par jour
   // Récupérer les lignes existantes regroupées par chantier
   const chantiersSaisis = {};
+  const atelierParChantier = {};
   existingLignes.forEach(l=>{
     if(l.chantier1){
       if(!chantiersSaisis[l.chantier1]) chantiersSaisis[l.chantier1] = {};
       chantiersSaisis[l.chantier1][l.jour] = (chantiersSaisis[l.chantier1][l.jour]||0) + (+l.h_mat||0);
+      if(l.atelier) atelierParChantier[l.chantier1] = l.atelier;
     }
     if(l.chantier2){
       if(!chantiersSaisis[l.chantier2]) chantiersSaisis[l.chantier2] = {};
@@ -2752,6 +2754,11 @@ function openSaisieJours(empId, semaine){
             ${chantiersList}
           </select>
         </td>
+        <td style="padding:4px;border:1px solid var(--border)">
+          <select id="sj-at-${i}" style="width:100%;padding:4px 5px;border:1px solid var(--border);border-radius:5px;font-family:inherit;font-size:11px;color:var(--blue)">
+            ${ATELIERS_H.map(a=>`<option value="${a}"${a===atelier?' selected':''}>${a}</option>`).join('')}
+          </select>
+        </td>
         ${JOURS_SEMAINE.map(j=>`
         <td style="padding:4px;border:1px solid var(--border)">
           <input type="number" id="sj-h-${i}-${j}" value="${hJours[j]||''}" min="0" max="24" step="0.5"
@@ -2783,7 +2790,11 @@ function openSaisieJours(empId, semaine){
 
   // Remettre les valeurs des selects chantier
   lignesChantiers.forEach(([ch], i)=>{
-    if(ch) document.getElementById('sj-ch-'+i).value = ch;
+    if(ch){
+      document.getElementById('sj-ch-'+i).value = ch;
+      const atEl = document.getElementById('sj-at-'+i);
+      if(atEl && atelierParChantier[ch]) atEl.value = atelierParChantier[ch];
+    }
     updateTotalRow(i);
   });
   updateTotalSemaine();
@@ -2877,11 +2888,12 @@ function saveHeuresSemaine(){
     if(!chEl) continue;
     const chantier = chEl.value;
     if(!chantier) continue;
+    const atelierLigne = document.getElementById('sj-at-'+i)?.value || atelier;
     JOURS_SEMAINE.forEach(j=>{
       const h = parseFloat(document.getElementById('sj-h-'+i+'-'+j)?.value)||0;
       if(h>0){
         state.heures.push({
-          id: uid(), emp_id: empId, semaine, jour: j, atelier,
+          id: uid(), emp_id: empId, semaine, jour: j, atelier: atelierLigne,
           chantier1: chantier, chantier2: '',
           h_mat: h, h_am: 0,
           total_hebdo: h,
