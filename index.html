@@ -611,11 +611,11 @@ async function initApp() {
           _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
           debut:normD(t.date_debut), duree:parseInt(t.duree_jours)||1,
           besoin:normD(t.date_besoin)||null, ordre:parseInt(t.ordre)||i,
-          lockDebut:t.lock_debut==='TRUE'||t.lock_debut===true,
-          lockFin:t.lock_fin==='TRUE'||t.lock_fin===true,
+          lockDebut:(()=>{const v=String(t.lock_debut||'').toUpperCase().trim();return v==='TRUE'||v==='OUI';})(),
+          lockFin:(()=>{const v=String(t.lock_fin||'').toUpperCase().trim();return v==='TRUE'||v==='OUI';})(),
           lockFinDate:normD(t.lock_fin_date)||null,
-          parallel:t.parallel==='TRUE'||t.parallel===true,
-          termine: String(t.termine).toUpperCase()==='TRUE',
+          parallel:(()=>{const v=String(t.parallel||'').toUpperCase().trim();return v==='TRUE'||v==='OUI';})(),
+          termine: (()=>{const v=String(t.termine||'').toUpperCase().trim();return v==='TRUE'||v==='OUI';})(),
           _termineLe:normD(t._terminele||t._termineLe||''),
           phases:normP(t.phases)
         });
@@ -623,9 +623,6 @@ async function initApp() {
       for (const a in tr) tr[a].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
       state.tranches = tr;
       total = Object.values(tr).reduce((s,a)=>s+a.length,0);
-      // Debug termine
-      const nbT = Object.values(tr).flat().filter(x=>x.termine).length;
-      console.log('LOAD: total='+Object.values(tr).flat().length+' terminées='+nbT+' ex_termine='+JSON.stringify(tr.b1?.[0]?.termine)+' ex_nom='+tr.b1?.[0]?.tranche);
       source = 'Sheets';
     } catch(asErr) {
       console.warn('Apps Script échoué:', asErr.message, '— fallback CSV');
