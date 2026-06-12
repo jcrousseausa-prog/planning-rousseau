@@ -623,6 +623,9 @@ async function initApp() {
       for (const a in tr) tr[a].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
       state.tranches = tr;
       total = Object.values(tr).reduce((s,a)=>s+a.length,0);
+      // Debug termine
+      const nbT = Object.values(tr).flat().filter(x=>x.termine).length;
+      console.log('LOAD: total='+Object.values(tr).flat().length+' terminées='+nbT+' ex_termine='+JSON.stringify(tr.b1?.[0]?.termine)+' ex_nom='+tr.b1?.[0]?.tranche);
       source = 'Sheets';
     } catch(asErr) {
       console.warn('Apps Script échoué:', asErr.message, '— fallback CSV');
