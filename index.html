@@ -1114,10 +1114,13 @@ let _dragRow = null;
 function renderTable() {
 const atId=state.atelier;
 const tr=state.tranches[atId]||[];
-const sorted=[...tr].sort((a,b)=>a.ordre-b.ordre);
+// Trier par indices pour garder la référence vers state.tranches[atId]
+const sortedIdx = tr.map((_,i)=>i).sort((a,b)=>(tr[a].ordre||0)-(tr[b].ordre||0));
 const q=_tableSearch.trim().toLowerCase();
-const rows=q?sorted.filter(t=>t.tranche.toLowerCase().includes(q)||(t.comment||'').toLowerCase().includes(q)):sorted;
-const inSearch = !!q; // en mode recherche → affichage texte, clic = ouvrir modal
+const rows=q
+  ? sortedIdx.filter(i=>tr[i].tranche.toLowerCase().includes(q)||(tr[i].comment||'').toLowerCase().includes(q))
+  : sortedIdx;
+const inSearch = !!q;
 let html=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:.75rem">
 <div style="position:relative;flex:1;max-width:360px">
 <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px;pointer-events:none">🔍</span>
@@ -1132,9 +1135,9 @@ style="width:100%;padding:7px 10px 7px 32px;border:1px solid var(--border);borde
 <th>Date besoin CTVX</th><th>Statut</th><th style="width:32px;text-align:center" title="OF terminé">✅</th>
 ${IS_READONLY?'':`<th style="width:24px;text-align:center;font-size:10px" title="Figer début">🔒D</th><th style="width:24px;text-align:center;font-size:10px" title="Figer fin">🔒F</th><th style="width:24px;text-align:center;font-size:10px" title="Parallèle">⇉</th><th style="width:60px"></th>`}
 </tr></thead><tbody>`;
-if(!rows.length) html+=`<tr><td colspan="9" class="empty-state">${q?`Aucun résultat pour "${esc(q)}"`:IS_READONLY?'Aucune tranche planifiée.':'Aucune tranche — cliquez sur "+ OF".'}</td></tr>`;
-rows.forEach((t)=>{
-const realIdx = state.tranches[atId].indexOf(t);
+if(!rows.length) html+=`<tr><td colspan="12" class="empty-state">${q?`Aucun résultat pour "${esc(q)}"`:IS_READONLY?'Aucune tranche planifiée.':'Aucune tranche — cliquez sur "+ OF".'}</td></tr>`;
+rows.forEach((realIdx)=>{
+const t = tr[realIdx];
 const fin=dateFin(t,atId);
 html+=`<tr draggable="${!q&&!IS_READONLY}" data-id="${t._dbId||t.id||realIdx}"
 ondragstart="_dragRow=this;this.classList.add('dragging')"
