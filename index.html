@@ -536,7 +536,7 @@ try {
       besoin: get(cols,'date_besoin')||null, ordre: parseInt(get(cols,'ordre'))||i,
       lockDebut: get(cols,'lock_debut')==='TRUE', lockFin: get(cols,'lock_fin')==='TRUE',
       lockFinDate: get(cols,'lock_fin_date')||null, parallel: get(cols,'parallel')==='TRUE',
-      termine: get(cols,'termine')==='TRUE', _termineLe: get(cols,'_terminele')||'',
+      termine: String(get(cols,'termine')||'').toUpperCase()==='TRUE', _termineLe: get(cols,'_terminele')||'',
       phases: (()=>{const p=get(cols,'phases');if(!p)return[];try{return JSON.parse(p);}catch(e){return p.split(',').map(x=>x.trim()).filter(Boolean);}})()
     };
     if (t.tranche) tranches[atId].push(t);
@@ -607,7 +607,7 @@ async function initApp() {
           lockFin:t.lock_fin==='TRUE'||t.lock_fin===true,
           lockFinDate:normD(t.lock_fin_date)||null,
           parallel:t.parallel==='TRUE'||t.parallel===true,
-          termine:t.termine==='TRUE'||t.termine===true,
+          termine: String(t.termine).toUpperCase()==='TRUE',
           _termineLe:normD(t._terminele||t._termineLe||''),
           phases:normP(t.phases)
         });
@@ -1177,18 +1177,12 @@ ${IS_READONLY?'':`
 });
 document.getElementById('view-area').innerHTML=html+`</tbody></table></div>`;
 }
-let _searchTimeout = null;
 function onSearchInput(el){
-  const val=el.value;
+  _tableSearch=el.value;
   const pos=el.selectionStart;
-  _tableSearch=val;
-  // Debounce 200ms pour éviter de re-render à chaque frappe
-  clearTimeout(_searchTimeout);
-  _searchTimeout = setTimeout(()=>{
-    renderTable();
-    const newEl=document.getElementById('table-search-input');
-    if(newEl){newEl.focus();newEl.setSelectionRange(pos,pos);}
-  }, 200);
+  renderTable();
+  const newEl=document.getElementById('table-search-input');
+  if(newEl){newEl.focus();try{newEl.setSelectionRange(pos,pos);}catch(e){}}
 }
 function statusBadge(t,atId,simDates){
 const fin=simDates?.[t.id]?.fin||dateFin(t,atId);
