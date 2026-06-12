@@ -1135,8 +1135,8 @@ if(searchArea) searchArea.style.display = 'block';
 let html=`
 <div class="table-wrap"><table><thead><tr>
 <th style="width:32px">⠿</th>
-<th>Tranche</th><th>Commentaire</th><th>Début</th><th>Fin</th><th>Durée</th>
-<th>Date besoin CTVX</th><th>Statut</th><th style="width:32px;text-align:center" title="Marquer terminé — retire la ligne du planning">✅</th>
+<th>Tranche</th><th>Commentaire</th><th style="color:var(--text3);font-size:10px">Début</th><th style="font-size:12px;color:var(--blue);font-weight:700">Fin prod</th><th style="color:var(--text3);font-size:10px">Dur.</th>
+<th>CTVX</th><th>Statut</th><th style="width:32px;text-align:center" title="Marquer terminé — retire la ligne du planning">✅</th>
 ${IS_READONLY?'':`<th style="width:24px;text-align:center;font-size:10px" title="Figer début">🔒D</th><th style="width:24px;text-align:center;font-size:10px" title="Figer fin">🔒F</th><th style="width:24px;text-align:center;font-size:10px" title="Parallèle">⇉</th><th style="width:60px"></th>`}
 </tr></thead><tbody>`;
 if(!rows.length) html+=`<tr><td colspan="12" class="empty-state">${q?`Aucun résultat pour "${esc(q)}"`:IS_READONLY?'Aucune tranche planifiée.':'Aucune tranche — cliquez sur "+ OF".'}</td></tr>`;
@@ -1156,10 +1156,16 @@ ondrop="dropRow(event,'${atId}',${realIdx});this.classList.remove('drag-over')">
   ${(t.phases&&t.phases.length&&t.phases.some(p=>p.trim()))?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:2px">${t.phases.filter(p=>p.trim()).map(p=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600">${esc(p.trim())}</span>`).join('')}</div>`:''}
   <input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${realIdx},'comment',this.value)" ${IS_READONLY?'readonly style="background:transparent;border-color:transparent"':''}/>
 </td>
-<td><input type="date" value="${t.debut}" onchange="updT('${atId}',${realIdx},'debut',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
-<td><span class="normal-date">${fmtDate(fin)}</span></td>
-<td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}',${realIdx},'duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:58px"/></td>
-<td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${realIdx},'besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:128px"/></td>
+<td><input type="date" value="${t.debut}" onchange="updT('${atId}',${realIdx},'debut',this.value)" ${IS_READONLY?'readonly':''} style="width:110px;font-size:11px;color:var(--text3)"/></td>
+<td>
+  <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block;
+    background:${fin<today()&&!t.besoin?'var(--red-bg)':t.besoin&&fin>t.besoin?'var(--red-bg)':t.besoin&&diffDays(fin,t.besoin)<=3?'var(--orange-bg)':'var(--blue-bg)'};
+    color:${fin<today()&&!t.besoin?'var(--red)':t.besoin&&fin>t.besoin?'var(--red)':t.besoin&&diffDays(fin,t.besoin)<=3?'var(--orange)':'var(--blue)'}">
+    ${fmtDate(fin)}
+  </span>
+</td>
+<td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}',${realIdx},'duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:48px;font-size:11px;color:var(--text3)"/></td>
+<td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${realIdx},'besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:110px;font-size:11px"/></td>
 <td>${statusBadge(t,atId,{})}</td>
 <td style="text-align:center"><span style="font-size:16px;opacity:${t.termine?1:.15}" title="${t.termine?'OF terminé':'Non terminé'}">✅</span></td>
 ${IS_READONLY?'':`
@@ -1639,6 +1645,25 @@ async function syncAllOFToERP() {
   } catch(e) { console.warn('syncAllOFToERP:', e.message); }
 }
 
+// Créer article dans ERP_Suivi_Production à la création d'un OF
+async function creerArticleProdAsync(payload) {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'creerArticleProd', ...payload})
+    });
+    const r = await res.json();
+    if(r.ok) {
+      console.log('Article ERP créé:', r.id);
+      // Stocker l'ID ERP sur l'OF
+      for(const atId in state.tranches) {
+        const t = state.tranches[atId].find(x=>String(x.id)===String(payload.of_id));
+        if(t) { t._erpProdId = r.id; break; }
+      }
+    }
+  } catch(e) { console.warn('creerArticleProd:', e.message); }
+}
+
 async function toggleTermine(atId, idx){
   const t = state.tranches[atId]?.[idx];
   if(!t) return;
@@ -1765,7 +1790,14 @@ const maxOrdre=state.tranches[newAtId].length?Math.max(...state.tranches[newAtId
 const newId = Date.now();
 state.tranches[newAtId].push({id:newId,ordre:maxOrdre,...data});
 rechainAtelier(newAtId);state.atelier=newAtId;
-
+// Créer l'article dans ERP_Suivi_Production
+creerArticleProdAsync({
+  of_id: String(newId),
+  tranche: data.tranche,
+  atelier: newAtId.toUpperCase(),
+  commentaire: data.comment||'',
+  date_fin_prod: dateFin({debut:data.debut,duree:data.duree}, newAtId)
+});
 }
 closeModal();keepGanttPos();scheduleSave(newAtId);render();
 }
