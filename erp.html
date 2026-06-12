@@ -5118,8 +5118,16 @@ async function renderSuiviProd(){
     </div>
   </div>`;
 
+  // Bouton sync initiale
+  html += `<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+    <button class="btn btn-sm btn-sim" onclick="syncInitialeOF()" style="font-size:12px">
+      🔄 Importer les OF depuis le planning prod
+    </button>
+    <span style="font-size:11px;color:var(--text3)">Synchronise tous les OF actuels du planning prod vers ce suivi</span>
+  </div>`;
+
   if(!total){
-    html += '<div style="text-align:center;padding:2rem;color:var(--text3)">Aucun OF enregistré — créez des OF dans le planning prod</div>';
+    html += '<div style="text-align:center;padding:2rem;color:var(--text3)">Aucun OF enregistré — créez des OF dans le planning prod ou cliquez "Importer"</div>';
   } else {
     // Tableau par tranche
     html += `<table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -5176,6 +5184,48 @@ async function renderSuiviProd(){
 
   html += '</div>';
   el.innerHTML = html;
+}
+
+async function syncInitialeOF() {
+  if(!confirm('Importer tous les OF du planning prod vers le suivi production ?\nCela créera les articles manquants.')) return;
+  toast('⟳ Import en cours…');
+  try {
+    // Charger les tranches depuis Apps Script
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'getTranches'})
+    });
+    const r = await res.json();
+    if(!r.ok) throw new Error(r.error);
+
+    // Construire la liste des OF
+    const ofs = [];
+    (r.tranches||[]).forEach(t=>{
+      ofs.push({
+        of_id: String(t.id||''),
+        tranche: t.nom||'',
+        atelier: String(t.atelier_id||'').toUpperCase(),
+        commentaire: t.commentaire||'',
+        date_fin_prod: t.date_fin||'',
+        termine: 'NON',
+        _termineLe: ''
+      });
+    });
+
+    // Envoyer à syncAllOF
+    const res2 = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'syncAllOF', ofs: ofs})
+    });
+    const r2 = await res2.json();
+    if(r2.ok) {
+      toast('✅ ' + (r2.added||0) + ' OF importés, ' + (r2.updated||0) + ' mis à jour');
+      await loadSuiviProd();
+      renderSuiviProd();
+    }
+  } catch(e) {
+    toast('Erreur: ' + e.message);
+  }
 }
 
 function renderRetours(){
