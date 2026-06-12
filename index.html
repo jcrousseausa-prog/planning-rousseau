@@ -544,7 +544,7 @@ try {
       besoin: get(cols,'date_besoin')||null, ordre: parseInt(get(cols,'ordre'))||i,
       lockDebut: get(cols,'lock_debut')==='TRUE', lockFin: get(cols,'lock_fin')==='TRUE',
       lockFinDate: get(cols,'lock_fin_date')||null, parallel: get(cols,'parallel')==='TRUE',
-      termine: String(get(cols,'termine')||'').toUpperCase()==='TRUE', _termineLe: get(cols,'_terminele')||'',
+      termine: false, _termineLe: '',
       phases: (()=>{const p=get(cols,'phases');if(!p)return[];try{return JSON.parse(p);}catch(e){return p.split(',').map(x=>x.trim()).filter(Boolean);}})()
     };
     if (t.tranche) tranches[atId].push(t);
@@ -615,7 +615,7 @@ async function initApp() {
           lockFin:(()=>{const v=String(t.lock_fin||'').toUpperCase().trim();return v==='TRUE'||v==='OUI';})(),
           lockFinDate:normD(t.lock_fin_date)||null,
           parallel:(()=>{const v=String(t.parallel||'').toUpperCase().trim();return v==='TRUE'||v==='OUI';})(),
-          termine: (()=>{const v=String(t.termine||'').toUpperCase().trim();return v==='TRUE'||v==='OUI';})(),
+          termine: false, // Statut géré localement
           _termineLe:normD(t._terminele||t._termineLe||''),
           phases:normP(t.phases)
         });
@@ -836,7 +836,7 @@ async function saveToSupabase(atId) {
       date_besoin: t.besoin||'', ordre: t.ordre||0,
       lock_debut: t.lockDebut?'TRUE':'FALSE', lock_fin: t.lockFin?'TRUE':'FALSE',
       lock_fin_date: t.lockFinDate||'', parallel: t.parallel?'TRUE':'FALSE',
-      termine: t.termine?'TRUE':'FALSE', _termineLe: t._termineLe||'',
+      // termine géré séparément
       phases: t.phases ? JSON.stringify(t.phases) : '',
     }));
   }
@@ -1136,7 +1136,7 @@ let html=`
 <div class="table-wrap"><table><thead><tr>
 <th style="width:32px">⠿</th>
 <th>Tranche</th><th>Commentaire</th><th>Début</th><th>Fin</th><th>Durée</th>
-<th>Date besoin CTVX</th><th>Statut</th><th style="width:32px;text-align:center" title="OF terminé">✅</th>
+<th>Date besoin CTVX</th><th>Statut</th><th style="width:32px;text-align:center" title="Marquer terminé — retire la ligne du planning">✅</th>
 ${IS_READONLY?'':`<th style="width:24px;text-align:center;font-size:10px" title="Figer début">🔒D</th><th style="width:24px;text-align:center;font-size:10px" title="Figer fin">🔒F</th><th style="width:24px;text-align:center;font-size:10px" title="Parallèle">⇉</th><th style="width:60px"></th>`}
 </tr></thead><tbody>`;
 if(!rows.length) html+=`<tr><td colspan="12" class="empty-state">${q?`Aucun résultat pour "${esc(q)}"`:IS_READONLY?'Aucune tranche planifiée.':'Aucune tranche — cliquez sur "+ OF".'}</td></tr>`;
@@ -1642,37 +1642,38 @@ async function syncAllOFToERP() {
 async function toggleTermine(atId, idx){
   const t = state.tranches[atId]?.[idx];
   if(!t) return;
-  t.termine = !t.termine;
-  if(t.termine){
-    t._termineLe = new Date().toISOString().slice(0,10);
-  } else {
-    delete t._termineLe;
-  }
-  saveLS();
-  scheduleSave(atId);
-  renderTable();
-  checkTranchesTerminees(atId, t.tranche);
-  toast(t.termine ? '✅ OF marqué terminé — sync ERP en cours…' : 'OF remis en cours');
 
-  // Sync automatique vers ERP via Apps Script
-  try {
-    await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({
-        action: 'syncOFToERP',
-        ofData: {
+  if(!t.termine) {
+    // Marquer terminé → supprimer du planning + mettre à jour ERP
+    if(!confirm('Marquer "' + t.tranche + '" comme terminé ? La ligne sera retirée du planning.')) return;
+    t.termine = true;
+    t._termineLe = new Date().toISOString().slice(0,10);
+
+    // Mettre à jour ERP_Suivi_Production
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({
+          action: 'updateArticleProd',
+          id: t._erpProdId||'',
+          of_id: String(t._dbId||t.id||''),
+          statut: 'termine',
+          commentaire: t.comment||'',
+          date_fin_prod: dateFin(t, atId),
           tranche: t.tranche||'',
-          phases: t.phases||[],
-          commentaire: t.commentaire||t.comment||'',
-          atelier: atId||'',
-          termine: t.termine,
-          termineLe: t._termineLe||''
-        }
-      })
-    });
-  } catch(e) {
-    console.warn('Sync ERP silencieuse échouée:', e.message);
+          atelier: atId.toUpperCase()
+        })
+      });
+    } catch(e) { console.warn('updateArticleProd:', e.message); }
+
+    // Supprimer la ligne du planning
+    state.tranches[atId].splice(idx, 1);
+    // Réordonner
+    state.tranches[atId].forEach((x,i)=>x.ordre=i+1);
+    scheduleSave(atId);
+    renderTable();
+    checkTranchesTerminees(atId, t.tranche);
+    toast('✅ OF terminé — retiré du planning');
   }
 }
 
