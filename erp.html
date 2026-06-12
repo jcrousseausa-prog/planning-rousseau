@@ -226,6 +226,7 @@ table.bl-lignes td.r{text-align:right}
   <button class="app-tab" id="tab-heures" onclick="showScreen('heures')">Heures</button>
   <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global</button>
   <button class="app-tab" id="tab-retours" onclick="showScreen('retours')">Retours équipes</button>
+  <button class="app-tab" id="tab-suivi-prod" onclick="showScreen('suivi-prod')">📦 Suivi production</button>
 </div>
 
 <main>
@@ -468,6 +469,11 @@ table.bl-lignes td.r{text-align:right}
     <button class="btn" onclick="exportPlanningGlobalCSV()">📥 Export CSV</button>
   </div>
   <div id="pg-content"></div>
+</div>
+
+<!-- ══ SUIVI PRODUCTION ══ -->
+<div class="screen" id="screen-suivi-prod">
+  <div id="suivi-prod-content" style="padding:16px 20px"></div>
 </div>
 
 <!-- ══ RETOURS ÉQUIPES ══ -->
@@ -2110,6 +2116,7 @@ function showScreen(id){
   if(id==='heures'){showHTab('employes');}
   if(id==='planning-global'){initPlanningGlobal();renderPlanningGlobal();}
   if(id==='dashboard')renderDashboard();
+  if(id==='suivi-prod')renderSuiviProd();
   if(id==='retours')renderRetours();
 }
 
@@ -5056,7 +5063,7 @@ function renderRetoursMetrics(){
 
 // ══ SUIVI PRODUCTION ════════════════════════════════════════════════════
 async function renderSuiviProd(){
-  const el = document.getElementById('screen-suivi_prod');
+  const el = document.getElementById('suivi-prod-content') || document.getElementById('screen-suivi_prod');
   if(!el) return;
   el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">⟳ Chargement…</div>';
 
@@ -5118,8 +5125,8 @@ async function renderSuiviProd(){
     </div>
   </div>`;
 
-  // Bouton sync initiale
-  html += `<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+  // Bouton sync initiale — visible seulement si aucun article
+  if(!total) html += `<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
     <button class="btn btn-sm btn-sim" onclick="syncInitialeOF()" style="font-size:12px">
       🔄 Importer les OF depuis le planning prod
     </button>
