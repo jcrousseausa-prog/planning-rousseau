@@ -4769,7 +4769,9 @@ async function loadSuiviProd() {
     const r = await res.json();
     if(r.ok) {
       state.suivi_prod = r.articles||[];
-      console.log('Suivi prod:', state.suivi_prod.length, 'OF');
+      console.log('Suivi prod chargé:', state.suivi_prod.length, 'OF');
+      // Log des 3 premiers pour debug
+      state.suivi_prod.slice(0,3).forEach((a,i)=>console.log('OF['+i+']:', JSON.stringify({id:a.id, tranche:a.tranche, of_id:a.of_id})));
     }
   } catch(e) { console.warn('loadSuiviProd:', e.message); }
 }
