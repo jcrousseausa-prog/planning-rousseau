@@ -2150,6 +2150,125 @@ function showHTab(tab){
 }
 
 // ── EMPLOYÉS ──
+function genererFicheRH(empId) {
+  const emp = (state.employes||[]).find(e=>e.id===empId);
+  if(!emp) return;
+
+  // Récupérer toutes les heures de cet employé
+  const heures = (state.heures||[]).filter(h=>h.emp_id===empId);
+
+  // Grouper par semaine
+  const parSemaine = {};
+  heures.forEach(h=>{
+    if(!parSemaine[h.semaine]) parSemaine[h.semaine]={total:0,jours:{},absences:{}};
+    const hVal = (+h.h_mat||0)+(+h.h_am||0);
+    parSemaine[h.semaine].total += hVal;
+    if(h.jour) {
+      if(!parSemaine[h.semaine].jours[h.jour]) parSemaine[h.semaine].jours[h.jour]=0;
+      parSemaine[h.semaine].jours[h.jour] += hVal;
+      if(h.absent) parSemaine[h.semaine].absences[h.jour] = h.absent;
+    }
+  });
+
+  const semaines = Object.keys(parSemaine).sort();
+  const JOURS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
+
+  const html = `<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8">
+<title>Fiche RH — ${emp.prenom} ${emp.nom}</title>
+<style>
+  @page { margin: 1.5cm; }
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; }
+  h1 { font-size: 18px; margin: 0 0 4px 0; }
+  .subtitle { font-size: 12px; color: #555; margin-bottom: 16px; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; padding: 12px; background: #f5f5f5; border-radius: 6px; }
+  .info-item { display: flex; flex-direction: column; }
+  .info-label { font-size: 9px; text-transform: uppercase; color: #888; font-weight: 700; }
+  .info-val { font-size: 12px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  th { background: #1a3a5c; color: white; padding: 6px 8px; text-align: left; font-size: 10px; }
+  td { padding: 5px 8px; border-bottom: 1px solid #eee; font-size: 10px; }
+  tr:nth-child(even) td { background: #f9f9f9; }
+  .total-row td { font-weight: 700; background: #EAF2FB; border-top: 2px solid #1a3a5c; }
+  .abs { color: #D68910; font-style: italic; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; border-bottom: 2px solid #1a3a5c; padding-bottom: 12px; }
+  .logo-area { text-align: right; font-size: 10px; color: #888; }
+</style></head><body>
+<div class="header">
+  <div>
+    <h1>${emp.prenom} ${emp.nom}</h1>
+    <div class="subtitle">Fiche RH — Rousseau Construction</div>
+  </div>
+  <div class="logo-area">
+    Généré le ${new Date().toLocaleDateString('fr-FR')}<br>
+    ERP Rousseau Construction
+  </div>
+</div>
+
+<div class="info-grid">
+  <div class="info-item"><span class="info-label">Statut</span><span class="info-val">${emp.statut?.toUpperCase()||'—'}</span></div>
+  <div class="info-item"><span class="info-label">Atelier</span><span class="info-val">${emp.atelier||'—'}</span></div>
+  ${emp.statut==='interim'?`
+  <div class="info-item"><span class="info-label">Début de mission</span><span class="info-val">${emp.debut_mission?new Date(emp.debut_mission).toLocaleDateString('fr-FR'):'—'}</span></div>
+  <div class="info-item"><span class="info-label">Fin de mission</span><span class="info-val">${emp.fin_mission?new Date(emp.fin_mission).toLocaleDateString('fr-FR'):'—'}</span></div>
+  <div class="info-item"><span class="info-label">Agence</span><span class="info-val">${emp.agence||'—'}</span></div>
+  `:''}
+  ${emp.poste?`<div class="info-item"><span class="info-label">Poste</span><span class="info-val">${emp.poste}</span></div>`:''}
+</div>
+
+${semaines.length?`
+<table>
+  <thead>
+    <tr>
+      <th>Semaine</th>
+      ${JOURS.map(j=>`<th>${j.slice(0,3)}</th>`).join('')}
+      <th>Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${semaines.map(sem=>{
+      const s = parSemaine[sem];
+      return `<tr>
+        <td><strong>${sem}</strong></td>
+        ${JOURS.map(j=>{
+          const abs = s.absences[j];
+          const h = s.jours[j]||0;
+          if(abs) return `<td class="abs">${abs}</td>`;
+          return `<td>${h>0?h+'h':'—'}</td>`;
+        }).join('')}
+        <td><strong>${s.total}h</strong></td>
+      </tr>`;
+    }).join('')}
+    <tr class="total-row">
+      <td>TOTAL</td>
+      ${JOURS.map(j=>{
+        const tot = semaines.reduce((s,sem)=>s+(parSemaine[sem].jours[j]||0),0);
+        return `<td>${tot>0?tot+'h':'—'}</td>`;
+      }).join('')}
+      <td>${semaines.reduce((s,sem)=>s+parSemaine[sem].total,0)}h</td>
+    </tr>
+  </tbody>
+</table>`:'<p style="color:#888;font-style:italic">Aucune heure saisie pour cet employé.</p>'}
+
+<div style="margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <div>
+    <div style="font-size:9px;color:#888;text-transform:uppercase;font-weight:700;margin-bottom:4px">Signature employé</div>
+    <div style="border-bottom:1px solid #ccc;height:40px"></div>
+  </div>
+  <div>
+    <div style="font-size:9px;color:#888;text-transform:uppercase;font-weight:700;margin-bottom:4px">Signature responsable</div>
+    <div style="border-bottom:1px solid #ccc;height:40px"></div>
+  </div>
+</div>
+</body></html>`;
+
+  // Ouvrir dans un nouvel onglet et imprimer
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  setTimeout(()=>win.print(), 500);
+}
+
 function renderEmployes(){
   const el = document.getElementById('hscreen-employes');
   const employes = state.employes||[];
@@ -2232,6 +2351,7 @@ function renderEmployes(){
             <td style="padding:8px 12px;text-align:right;white-space:nowrap">
               <button class="btn btn-sm btn-primary" onclick="openEditEmploye('${e.id}')" style="font-size:10px">✎ Modifier</button>
               <button class="btn btn-sm btn-green" onclick="openRenouvellerDirect('${e.id}')" style="font-size:10px;margin-left:4px">↻ Renouveler</button>
+              <button class="btn btn-sm" onclick="genererFicheRH('${e.id}')" style="font-size:10px;margin-left:4px;background:var(--red-bg);color:var(--red);border-color:var(--red-border)">📄 Fiche PDF</button>
             </td>
           </tr>`;
         }).join('')}
@@ -2805,6 +2925,10 @@ function openSaisieJours(empId, semaine){
             oninput="updateTotalRow(${i});updateTotalSemaine()"/>
         </td>`).join('')}
         <td style="padding:5px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:var(--blue);background:#EAF2FB;border:1px solid var(--border)" id="sj-tot-${i}">0h</td>
+        <td style="padding:4px;border:1px solid var(--border);display:none" class="sj-tours-cell">
+          <input type="number" id="sj-tours-${i}" min="0" max="99" step="1" placeholder="0"
+            style="width:44px;padding:4px;border:1px solid var(--border);border-radius:5px;text-align:center;font-family:inherit;font-size:12px;color:var(--orange);font-weight:600"/>
+        </td>
         <td style="padding:4px;text-align:center;border:1px solid var(--border)">
           <button onclick="removeSaisieRow(${i})" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:14px">✕</button>
         </td>
