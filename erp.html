@@ -2815,6 +2815,7 @@ function openSaisieJours(empId, semaine){
         <td style="padding:7px 10px;border:1px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase">TOTAL JOUR</td>
         <td style="border:1px solid var(--border);background:var(--bg)"></td>
         ${JOURS_SEMAINE.map(j=>`<td style="padding:7px 8px;text-align:center;font-family:'DM Mono',monospace;font-size:13px;border:1px solid var(--border)" id="sj-totjour-${j}">—</td>`).join('')}
+        <td id="sj-tfoot-tours" style="border:1px solid var(--border);background:var(--bg);display:none"></td>
         <td style="padding:7px 8px;text-align:center;font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--green);border:1px solid var(--border);background:#EAFAF1" id="sj-totsem">0h</td>
         <td style="border:1px solid var(--border)"></td>
       </tr>
@@ -2922,6 +2923,8 @@ function toggleToursColumn() {
   const showTours = atelier === 'Transport';
   const th = document.getElementById('sj-th-tours');
   if(th) th.style.display = showTours ? '' : 'none';
+  const tf = document.getElementById('sj-tfoot-tours');
+  if(tf) tf.style.display = showTours ? '' : 'none';
   document.querySelectorAll('.sj-tours-cell').forEach(td => td.style.display = showTours ? '' : 'none');
 }
 
