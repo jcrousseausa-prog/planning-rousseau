@@ -2708,18 +2708,28 @@ function renderSaisieHebdo(){
 
     // Résumé par jour — heures chantier + absences (toutes sources)
     const parJour = {};
+    // Ventilation par atelier (pour Log/caristes)
+    const parAtelier = {};
     JOURS_SEMAINE.forEach(j=>{
-      const lignesChantier = lignes.filter(l=>l.jour===j && l.chantier1 && l.type_saisie!=='presence' && l.type_saisie!=='affectation_log');
-      // Absences : depuis grille chantier OU depuis planning ressources
+      const lignesChantier = lignes.filter(l=>l.jour===j && l.type_saisie!=='presence' && l.type_saisie!=='affectation_log');
       const lignesAbs = lignes.filter(l=>l.jour===j && l.absent && !l.chantier1);
       if(!lignesChantier.length && !lignesAbs.length){ parJour[j]='—'; return; }
       if(!lignesChantier.length && lignesAbs.length){
         parJour[j] = lignesAbs[0].absent; return;
       }
       const total = lignesChantier.reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0),0);
-      // Si heures + absence sur le même jour, montrer les heures
       parJour[j] = total>0 ? total.toFixed(1)+'h' : (lignesAbs[0]?.absent||'—');
     });
+    // Ventilation heures par atelier pour Log
+    const atelierEmp = lignes[0]?.atelier || emp.atelier || '';
+    if(atelierEmp === 'Log') {
+      const lignesLog = lignes.filter(l=>l.type_saisie!=='presence' && l.type_saisie!=='affectation_log');
+      lignesLog.forEach(l=>{
+        const at = l.atelier || 'Log';
+        const h = (+l.h_mat||0)+(+l.h_am||0);
+        if(h>0) parAtelier[at] = (parAtelier[at]||0) + h;
+      });
+    }
 
     html += `<tr style="border-bottom:1px solid var(--border)">
       <td style="font-weight:600;font-size:13px;white-space:nowrap">${esc(emp.nom)} ${esc(emp.prenom)}<br><span class="${badge}" style="font-size:9px">${emp.statut==='interim'?'Intérim':'CDI'}</span></td>
@@ -2729,7 +2739,10 @@ function renderSaisieHebdo(){
         </select>
       </td>
       ${JOURS_SEMAINE.map(j=>`<td style="text-align:center;font-size:12px;font-family:'DM Mono',monospace;color:${parJour[j]==='—'?'var(--text3)':'var(--text)'}">${parJour[j]}</td>`).join('')}
-      <td style="text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'}">${totalH>0?totalH+'h':'—'}</td>
+      <td style="text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'}">
+        ${totalH>0?totalH+'h':'—'}
+        ${Object.keys(parAtelier).length>0?`<div style="font-size:9px;font-weight:400;color:var(--text2);margin-top:2px">${Object.entries(parAtelier).map(([at,h])=>`${at}:${h}h`).join(' | ')}</div>`:''}
+      </td>
       <td style="display:flex;gap:4px;padding:4px">
         <button class="btn btn-sm btn-primary" onclick="openSaisieJours('${emp.id}','${semSel}')">✎</button>
         ${emp.statut==='interim'?`<button class="btn btn-sm" onclick="exportPDFInterim('${emp.id}','${semSel}')" style="background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)" title="Relevé PDF">🖨</button>`:''}
