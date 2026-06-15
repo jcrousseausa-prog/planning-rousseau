@@ -1166,8 +1166,8 @@ async function loadFromSheets() {
       state.chantiers = (r.data.chantiers||[]).sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
       // Charger le fichier DATES source en arrière-plan
       loadDATESSource();
-      // Charger le suivi production (OF du planning prod)
-      loadSuiviProd();
+      // Charger le suivi production (OF du planning prod) — await pour avoir les données avant le rendu
+      await loadSuiviProd();
       state.tranches = r.data.tranches||[];
       state.phases = r.data.phases||[];
       state.articles = r.data.articles||[];
@@ -4776,6 +4776,8 @@ async function loadDATESSource() {
 
     state.dates_erp     = r.tranches_erp     || [];
     state.dates_atelier = r.tranches_atelier || [];
+    // Re-render le planning avec les nouvelles données CTVX
+    if(state.currentTab === 'pilotage') renderPlanning();
 
     // Appliquer les dates CTVX sur les tranches ERP existantes
     let updated = 0;
