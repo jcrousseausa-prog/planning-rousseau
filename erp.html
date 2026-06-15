@@ -2154,115 +2154,132 @@ function genererFicheRH(empId) {
   const emp = (state.employes||[]).find(e=>e.id===empId);
   if(!emp) return;
 
-  // Récupérer toutes les heures de cet employé
   const heures = (state.heures||[]).filter(h=>h.emp_id===empId);
-
-  // Grouper par semaine
   const parSemaine = {};
   heures.forEach(h=>{
-    if(!parSemaine[h.semaine]) parSemaine[h.semaine]={total:0,jours:{},absences:{}};
+    if(!parSemaine[h.semaine]) parSemaine[h.semaine]={total:0,jours:{},absences:{},ateliers:{}};
     const hVal = (+h.h_mat||0)+(+h.h_am||0);
     parSemaine[h.semaine].total += hVal;
     if(h.jour) {
       if(!parSemaine[h.semaine].jours[h.jour]) parSemaine[h.semaine].jours[h.jour]=0;
       parSemaine[h.semaine].jours[h.jour] += hVal;
       if(h.absent) parSemaine[h.semaine].absences[h.jour] = h.absent;
+      if(hVal>0 && h.atelier) {
+        const at = h.atelier;
+        parSemaine[h.semaine].ateliers[at] = (parSemaine[h.semaine].ateliers[at]||0)+hVal;
+      }
     }
   });
 
   const semaines = Object.keys(parSemaine).sort();
   const JOURS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
+  const totalGlobal = semaines.reduce((s,sem)=>s+parSemaine[sem].total,0);
+  const isInterim = emp.statut==='interim';
+  const LOGO = 'data:image/png;base64,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';
 
   const html = `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8">
-<title>Fiche RH — ${emp.prenom} ${emp.nom}</title>
+<title>Fiche — ${emp.prenom} ${emp.nom}</title>
 <style>
-  @page { margin: 1.5cm; }
-  body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; }
-  h1 { font-size: 18px; margin: 0 0 4px 0; }
-  .subtitle { font-size: 12px; color: #555; margin-bottom: 16px; }
-  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; padding: 12px; background: #f5f5f5; border-radius: 6px; }
-  .info-item { display: flex; flex-direction: column; }
-  .info-label { font-size: 9px; text-transform: uppercase; color: #888; font-weight: 700; }
-  .info-val { font-size: 12px; font-weight: 600; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-  th { background: #1a3a5c; color: white; padding: 6px 8px; text-align: left; font-size: 10px; }
-  td { padding: 5px 8px; border-bottom: 1px solid #eee; font-size: 10px; }
-  tr:nth-child(even) td { background: #f9f9f9; }
-  .total-row td { font-weight: 700; background: #EAF2FB; border-top: 2px solid #1a3a5c; }
-  .abs { color: #D68910; font-style: italic; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; border-bottom: 2px solid #1a3a5c; padding-bottom: 12px; }
-  .logo-area { text-align: right; font-size: 10px; color: #888; }
+  @page { margin:1.2cm 1.5cm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,sans-serif; font-size:11px; color:#1a1a1a; }
+  .header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #1a3a5c; padding-bottom:10px; margin-bottom:14px; }
+  .header img { height:40px; width:auto; }
+  .header-right { text-align:right; }
+  .header-right h1 { font-size:16px; color:#1a3a5c; }
+  .header-right .sub { font-size:11px; color:#555; }
+  .info-box { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; background:#f0f4f8; border-radius:6px; padding:10px 12px; margin-bottom:14px; }
+  .info-item .lbl { font-size:8px; text-transform:uppercase; color:#888; font-weight:700; }
+  .info-item .val { font-size:12px; font-weight:700; color:#1a3a5c; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:9px; font-weight:700; text-transform:uppercase; }
+  .badge-cdi { background:#EAFAF1; color:#1E8449; border:1px solid #A9DFBF; }
+  .badge-interim { background:#FEF9E7; color:#D68910; border:1px solid #FAD7A0; }
+  table { width:100%; border-collapse:collapse; margin-bottom:14px; font-size:10px; }
+  thead tr { background:#1a3a5c; color:#fff; }
+  thead th { padding:6px 7px; text-align:center; font-weight:600; }
+  thead th:first-child { text-align:left; }
+  tbody tr:nth-child(even) td { background:#f8f8f8; }
+  tbody td { padding:5px 7px; border-bottom:1px solid #eee; text-align:center; }
+  tbody td:first-child { text-align:left; font-weight:600; }
+  .abs { color:#D68910; font-style:italic; }
+  .tfoot-row td { background:#EAF2FB; font-weight:700; border-top:2px solid #1a3a5c; padding:6px 7px; text-align:center; color:#1a3a5c; font-size:11px; }
+  .tfoot-row td:first-child { text-align:left; }
+  .section-title { font-size:10px; font-weight:700; text-transform:uppercase; color:#1a3a5c; letter-spacing:.05em; border-bottom:1px solid #1a3a5c; padding-bottom:3px; margin-bottom:8px; }
+  .signatures { display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-top:20px; }
+  .sig-box .sig-label { font-size:9px; color:#888; text-transform:uppercase; font-weight:700; margin-bottom:4px; }
+  .sig-box .sig-line { border-bottom:1px solid #999; height:35px; }
+  .footer { margin-top:14px; font-size:8px; color:#aaa; text-align:center; border-top:1px solid #eee; padding-top:6px; }
 </style></head><body>
+
 <div class="header">
-  <div>
+  <img src="${LOGO}" alt="Rousseau Construction"/>
+  <div class="header-right">
     <h1>${emp.prenom} ${emp.nom}</h1>
-    <div class="subtitle">Fiche RH — Rousseau Construction</div>
-  </div>
-  <div class="logo-area">
-    Généré le ${new Date().toLocaleDateString('fr-FR')}<br>
-    ERP Rousseau Construction
+    <div class="sub">${isInterim?'Fiche intérimaire':'Fiche employé'} — Rousseau Construction Bois</div>
   </div>
 </div>
 
-<div class="info-grid">
-  <div class="info-item"><span class="info-label">Statut</span><span class="info-val">${emp.statut?.toUpperCase()||'—'}</span></div>
-  <div class="info-item"><span class="info-label">Atelier</span><span class="info-val">${emp.atelier||'—'}</span></div>
-  ${emp.statut==='interim'?`
-  <div class="info-item"><span class="info-label">Début de mission</span><span class="info-val">${emp.debut_mission?new Date(emp.debut_mission).toLocaleDateString('fr-FR'):'—'}</span></div>
-  <div class="info-item"><span class="info-label">Fin de mission</span><span class="info-val">${emp.fin_mission?new Date(emp.fin_mission).toLocaleDateString('fr-FR'):'—'}</span></div>
-  <div class="info-item"><span class="info-label">Agence</span><span class="info-val">${emp.agence||'—'}</span></div>
-  `:''}
-  ${emp.poste?`<div class="info-item"><span class="info-label">Poste</span><span class="info-val">${emp.poste}</span></div>`:''}
+<div class="info-box">
+  <div class="info-item"><div class="lbl">Statut</div><div class="val"><span class="badge ${isInterim?'badge-interim':'badge-cdi'}">${isInterim?'Intérimaire':'CDI'}</span></div></div>
+  <div class="info-item"><div class="lbl">Atelier</div><div class="val">${emp.atelier||'—'}</div></div>
+  <div class="info-item"><div class="lbl">Poste</div><div class="val">${emp.poste||'—'}</div></div>
+  ${isInterim?`
+  <div class="info-item"><div class="lbl">Agence</div><div class="val">${emp.agence||'—'}</div></div>
+  <div class="info-item"><div class="lbl">Début mission</div><div class="val">${emp.debut_mission?new Date(emp.debut_mission).toLocaleDateString('fr-FR'):'—'}</div></div>
+  <div class="info-item"><div class="lbl">Fin mission</div><div class="val">${emp.fin_mission?new Date(emp.fin_mission).toLocaleDateString('fr-FR'):'—'}</div></div>
+  `:'<div></div><div></div><div></div>'}
 </div>
+
+<div class="section-title">Récapitulatif des heures</div>
 
 ${semaines.length?`
 <table>
   <thead>
     <tr>
-      <th>Semaine</th>
+      <th style="width:80px">Semaine</th>
       ${JOURS.map(j=>`<th>${j.slice(0,3)}</th>`).join('')}
-      <th>Total</th>
+      <th style="background:#2a5a8c">Total</th>
     </tr>
   </thead>
   <tbody>
     ${semaines.map(sem=>{
       const s = parSemaine[sem];
+      const atelVentil = Object.keys(s.ateliers||{}).length>1
+        ? Object.entries(s.ateliers).map(([at,h])=>`${at}:${h}h`).join(' | ')
+        : '';
       return `<tr>
-        <td><strong>${sem}</strong></td>
+        <td>${sem}${atelVentil?`<br><span style="font-size:8px;color:#888;font-weight:400">${atelVentil}</span>`:''}</td>
         ${JOURS.map(j=>{
           const abs = s.absences[j];
           const h = s.jours[j]||0;
           if(abs) return `<td class="abs">${abs}</td>`;
           return `<td>${h>0?h+'h':'—'}</td>`;
         }).join('')}
-        <td><strong>${s.total}h</strong></td>
+        <td style="font-weight:700;color:#1a3a5c">${s.total>0?s.total+'h':'—'}</td>
       </tr>`;
     }).join('')}
-    <tr class="total-row">
+  </tbody>
+  <tfoot>
+    <tr class="tfoot-row">
       <td>TOTAL</td>
       ${JOURS.map(j=>{
         const tot = semaines.reduce((s,sem)=>s+(parSemaine[sem].jours[j]||0),0);
         return `<td>${tot>0?tot+'h':'—'}</td>`;
       }).join('')}
-      <td>${semaines.reduce((s,sem)=>s+parSemaine[sem].total,0)}h</td>
+      <td>${totalGlobal}h</td>
     </tr>
-  </tbody>
-</table>`:'<p style="color:#888;font-style:italic">Aucune heure saisie pour cet employé.</p>'}
+  </tfoot>
+</table>`:'<p style="color:#aaa;font-style:italic;margin-bottom:14px">Aucune heure saisie.</p>'}
 
-<div style="margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:20px">
-  <div>
-    <div style="font-size:9px;color:#888;text-transform:uppercase;font-weight:700;margin-bottom:4px">Signature employé</div>
-    <div style="border-bottom:1px solid #ccc;height:40px"></div>
-  </div>
-  <div>
-    <div style="font-size:9px;color:#888;text-transform:uppercase;font-weight:700;margin-bottom:4px">Signature responsable</div>
-    <div style="border-bottom:1px solid #ccc;height:40px"></div>
-  </div>
+<div class="signatures">
+  <div class="sig-box"><div class="sig-label">Signature employé</div><div class="sig-line"></div></div>
+  <div class="sig-box"><div class="sig-label">Signature responsable</div><div class="sig-line"></div></div>
 </div>
+
+<div class="footer">ERP Rousseau Construction — Généré le ${new Date().toLocaleDateString('fr-FR')} — www.rousseausa.fr</div>
 </body></html>`;
 
-  // Ouvrir dans un nouvel onglet et imprimer
   const win = window.open('', '_blank');
   win.document.write(html);
   win.document.close();
