@@ -2704,6 +2704,10 @@ function openSaisieJours(empId, semaine){
     h.emp_id===empId && h.semaine===semaine && h.chantier1 &&
     h.type_saisie!=='presence' && h.type_saisie!=='affectation_log'
   );
+  // Lignes d'absences (sans chantier)
+  const existingAbsences = (state.heures||[]).filter(h=>
+    h.emp_id===empId && h.semaine===semaine && !h.chantier1 && h.absent
+  );
   const atelier = existingLignes[0]?.atelier || emp.atelier || 'B2';
 
   // Structure : une ligne = un chantier + heures par jour
@@ -2725,6 +2729,7 @@ function openSaisieJours(empId, semaine){
   // Absences par jour
   const absences = {};
   existingLignes.forEach(l=>{ if(l.absent) absences[l.jour]=l.absent; });
+  existingAbsences.forEach(l=>{ if(l.absent) absences[l.jour]=l.absent; });
 
   // Chantiers disponibles
   const chantiersList = ['<option value="">— Chantier —</option>',
