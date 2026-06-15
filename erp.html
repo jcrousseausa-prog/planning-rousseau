@@ -1681,11 +1681,13 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
           <span style="font-family:monospace;color:var(--blue);font-size:10px;margin-right:6px">${esc(of.id||'')}</span>
           🏭 ${esc(of.atelier||'')} — ${esc(of.commentaire||of.tranche||'')}
         </td>
-        <td style="font-size:11px;font-family:monospace;color:var(--text2)">${of.date_fin_prod?fmtDate(of.date_fin_prod):''}</td>
+        <td style="font-size:11px;font-family:monospace;color:var(--text2)">${of.date_fin_prod?(()=>{const d=String(of.date_fin_prod);return fmtDate(d.length>10?d.slice(0,10):d);})():''}</td>
         <td colspan="3" style="font-size:11px">
           ${of.statut==='termine'
             ? '<span style="color:var(--green);font-weight:600">✅ Terminé</span>'
-            : '<span style="color:var(--blue)">🔧 En cours</span>'}
+            : of.statut==='en_cours'
+              ? '<span style="color:var(--blue)">🔧 En cours</span>'
+              : '<span style="color:var(--text3)">📋 Planifié</span>'}
         </td>
       </tr>`).join('');
   }
