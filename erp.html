@@ -1236,39 +1236,8 @@ function startPolling() {
       const r = await res.json();
       if(!r.ok || !r.data?.length) return;
 
-      let updated = 0;
-      r.data.forEach(of=>{
-        const tranche = state.tranches.find(t=>
-          t.nom.trim().toLowerCase()===of.tranche?.trim().toLowerCase()
-        );
-        if(!tranche) return;
-        // Trouver ou créer la phase "OF" de la tranche (conteneur unique)
-        let phOF = state.phases.find(p=>p.tid===tranche.id&&p.nom==='OF');
-        if(!phOF){
-          phOF={id:uid(),tid:tranche.id,num:'OF',nom:'OF',open:true};
-          state.phases.push(phOF);
-        }
-        const commentaire=(of.commentaire||'').trim();
-        let article=state.articles.find(a=>
-          a.pid===phOF.id&&
-          (a.libelle||'').trim().toLowerCase()===commentaire.toLowerCase()&&
-          a.type_source==='OF'
-        );
-        if(article&&article.statut!=='termine'){
-          article.statut='termine';article.avancement=100;
-          article.date_sortie_prod=of.termineLe||new Date().toISOString().slice(0,10);
-          updated++;
-        } else if(!article&&commentaire){
-          state.articles.push({
-            id:uid(),pid:phOF.id,libelle:commentaire,
-            operation:of.atelier||'',statut:'termine',avancement:100,
-            date_sortie_prod:of.termineLe||new Date().toISOString().slice(0,10),
-            type_source:'OF',qte_m2:'',qte_m3:'',budget_heures:'',
-            date_ctvx:tranche.ctvx||'',date_sortie_be:''
-          });
-          updated++;
-        }
-      });
+      // Polling OF désactivé — le suivi se fait via ERP_Suivi_Production
+      const updated = 0;
       if(updated>0){
         scheduleSave();
         renderAll();
@@ -4769,9 +4738,6 @@ async function loadSuiviProd() {
     const r = await res.json();
     if(r.ok) {
       state.suivi_prod = r.articles||[];
-      console.log('Suivi prod chargé:', state.suivi_prod.length, 'OF');
-      // Log des 3 premiers pour debug
-      state.suivi_prod.slice(0,3).forEach((a,i)=>console.log('OF['+i+']:', JSON.stringify({id:a.id, tranche:a.tranche, of_id:a.of_id})));
     }
   } catch(e) { console.warn('loadSuiviProd:', e.message); }
 }
