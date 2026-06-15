@@ -2748,6 +2748,7 @@ function renderSaisieHebdo(){
       <td style="display:flex;gap:4px;padding:4px">
         <button class="btn btn-sm btn-primary" onclick="openSaisieJours('${emp.id}','${semSel}')">✎</button>
         ${emp.statut==='interim'?`<button class="btn btn-sm" onclick="exportPDFInterim('${emp.id}','${semSel}')" style="background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)" title="Relevé PDF">🖨</button>`:''}
+     ${emp.statut==='CDI'?`<button class="btn btn-sm" onclick="exportPDFCDI('${emp.id}','${semSel}')" style="background:var(--green-bg);color:var(--green);border-color:var(--green-border)" title="Fiche CDI">📋</button>`:''}
       </td>
     </tr>`;
   });
