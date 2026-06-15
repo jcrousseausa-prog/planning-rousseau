@@ -2953,7 +2953,7 @@ function saveHeuresSemaine(){
     const chantier = chEl.value;
     const atelierLigne = document.getElementById('sj-at-'+i)?.value || atelier;
     // Ateliers sans obligation de chantier
-    const ateliersSansChantier = ['Us','Usinage','us'];
+    const ateliersSansChantier = ['Us','Usinage','us','Log','log','Transport','transport'];
     // Vérifier si des heures sont saisies sur cette ligne
     const hasHeures = JOURS_SEMAINE.some(j=>parseFloat(document.getElementById('sj-h-'+i+'-'+j)?.value)||0);
     if(!chantier && hasHeures && !ateliersSansChantier.includes(atelierLigne)) {
