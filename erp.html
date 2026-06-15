@@ -2735,7 +2735,13 @@ function renderSaisieHebdo(){
         parJour[j] = lignesAbs[0].absent; return;
       }
       const total = lignesChantier.reduce((s,l)=>s+(+l.h_mat||0)+(+l.h_am||0),0);
-      parJour[j] = total>0 ? total.toFixed(1)+'h' : (lignesAbs[0]?.absent||'—');
+      const totalTours = lignesChantier.reduce((s,l)=>s+(+l.nb_tours||0),0);
+      const isTransport = lignesChantier.some(l=>l.atelier==='Transport');
+      if(total>0 && isTransport && totalTours>0) {
+        parJour[j] = total.toFixed(1)+'h\n'+totalTours+' trajet'+(totalTours>1?'s':'');
+      } else {
+        parJour[j] = total>0 ? total.toFixed(1)+'h' : (lignesAbs[0]?.absent||'—');
+      }
     });
     // Ventilation heures par atelier pour Log
     const atelierEmp = lignes[0]?.atelier || emp.atelier || '';
@@ -2755,7 +2761,15 @@ function renderSaisieHebdo(){
           ${ATELIERS_H.map(a=>`<option value="${a}"${(lignes[0]?.atelier||emp.atelier)===a?' selected':''}>${a}</option>`).join('')}
         </select>
       </td>
-      ${JOURS_SEMAINE.map(j=>`<td style="text-align:center;font-size:12px;font-family:'DM Mono',monospace;color:${parJour[j]==='—'?'var(--text3)':'var(--text)'}">${parJour[j]}</td>`).join('')}
+      ${JOURS_SEMAINE.map(j=>{
+        const val = parJour[j]||'—';
+        const parts = val.split('\n');
+        const color = val==='—'?'var(--text3)':'var(--text)';
+        return `<td style="text-align:center;font-size:12px;font-family:'DM Mono',monospace;color:${color}">
+          <span>${parts[0]}</span>
+          ${parts[1]?`<br><span style="font-size:9px;color:var(--orange);font-weight:600">${parts[1]}</span>`:''}
+        </td>`;
+      }).join('')}
       <td style="text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'}">
         ${totalH>0?totalH+'h':'—'}
         ${Object.keys(parAtelier).length>0?`<div style="font-size:9px;font-weight:400;color:var(--text2);margin-top:2px">${Object.entries(parAtelier).map(([at,h])=>`${at}:${h}h`).join(' | ')}</div>`:''}
