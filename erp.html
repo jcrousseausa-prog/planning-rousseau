@@ -1111,7 +1111,16 @@ let _currentBLId = null;
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function fmtDate(s){if(!s)return'';try{if(/^\d{2}\/\d{2}\/\d{4}$/.test(s))return s;const[y,m,d]=s.split('-');return`${d}/${m}/${y}`;}catch(e){return s;}}
+function fmtDate(s){if(!s)return'';try{
+  s=String(s).trim();
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(s))return s;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)){const[y,m,d]=s.split('-');return`${d}/${m}/${y}`;}
+  // Handle Date object strings like "Tue Jun 16 2026 00:00:00 GMT+0200..."
+  const dt=new Date(s);
+  if(!isNaN(dt.getTime())){
+    return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
+  }
+  return s;}catch(e){return s;}}
 function parseDate(s){if(!s)return null;s=String(s).trim().replace(/[""]/g,'');if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return null;}
 function progHtml(pct,cls){return`<div class="prog"><div class="prog-bar"><div class="prog-fill ${cls||'prog-blue'}" style="width:${Math.min(pct,100)}%"></div></div><span class="prog-label">${pct}%</span></div>`;}
 function statusBadge(s){
