@@ -244,6 +244,9 @@ table.bl-lignes td.r{text-align:right}
     
     
     <button class="btn btn-primary" onclick="openAddChantier()">+ Chantier</button>
+    <div style="width:1px;height:24px;background:var(--border);margin:0 2px"></div>
+    <button class="btn" onclick="syncPlanningERPOnly()" title="Sync Planning prod → Articles ERP (sans purge)" style="background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)">🔄 Sync ERP</button>
+    <button class="btn btn-orange" onclick="purgeAndSyncPlanningERP()" title="Purger et recréer tous les articles OF depuis le planning prod">♻️ Purge + Sync</button>
   </div>
   <div class="table-wrap">
     <table>
@@ -5714,6 +5717,59 @@ async function genererDatesSheet(){
   } catch(e) {
     setSyncPill('error', 'Erreur');
     toast('Erreur : ' + e.message);
+  }
+}
+
+
+// ═══ SYNC PLANNING PROD → ERP ARTICLES ═══════════════════════════════════════
+async function purgeAndSyncPlanningERP(){
+  if(!confirm('Cette opération va :\n1. Supprimer tous les articles de type OF existants\n2. Recréer un article par ligne du planning prod\n\nContinuer ?')) return;
+  setSyncPill('saving','Purge + Sync...');
+  try {
+    // Étape 1 : purger
+    const r1 = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'purgeOFArticles'})
+    });
+    const d1 = await r1.json();
+    if(!d1.ok) throw new Error('Purge: '+d1.error);
+    toast('✓ '+d1.purged+' articles supprimés — sync en cours...');
+
+    // Étape 2 : sync
+    const r2 = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'syncPlanningToERP'})
+    });
+    const d2 = await r2.json();
+    if(!d2.ok) throw new Error('Sync: '+d2.error);
+
+    // Recharger l'ERP
+    await loadFromSheets();
+    renderAll();
+    setSyncPill('ok','Sync terminée');
+    toast('✅ '+d2.message);
+  } catch(e) {
+    setSyncPill('error','Erreur');
+    toast('Erreur: '+e.message);
+  }
+}
+
+async function syncPlanningERPOnly(){
+  setSyncPill('saving','Sync Planning → ERP...');
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'syncPlanningToERP'})
+    });
+    const d = await res.json();
+    if(!d.ok) throw new Error(d.error);
+    await loadFromSheets();
+    renderAll();
+    setSyncPill('ok','Sync terminée');
+    toast('✅ '+d.message);
+  } catch(e) {
+    setSyncPill('error','Erreur');
+    toast('Erreur: '+e.message);
   }
 }
 
