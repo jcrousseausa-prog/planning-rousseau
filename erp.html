@@ -251,18 +251,18 @@ table.bl-lignes td.r{text-align:right}
   <div class="table-wrap">
     <table>
       <thead><tr>
-        <th style="width:20px"></th>
-        <th>Chantier / Tranche / Phase / Article</th>
-        <th>Opération</th>
-        <th style="width:72px">m²</th>
-        <th style="width:72px">m³</th>
-        <th style="width:98px">CTVX</th>
-        <th style="width:98px">Sortie BE</th>
-        <th style="width:98px">Sortie Prod</th>
-        <th style="width:72px">Budget h</th>
-        <th style="width:100px">Avancement</th>
-        <th style="width:90px">Statut</th>
-        <th style="width:68px"></th>
+        <th style="width:20px;position:sticky;top:97px;z-index:10;background:var(--bg)"></th>
+        <th style="position:sticky;top:97px;z-index:10;background:var(--bg)">Chantier / Tranche / Phase / Article</th>
+        <th style="position:sticky;top:97px;z-index:10;background:var(--bg)">Opération</th>
+        <th style="width:72px;position:sticky;top:97px;z-index:10;background:var(--bg)">m²</th>
+        <th style="width:72px;position:sticky;top:97px;z-index:10;background:var(--bg)">m³</th>
+        <th style="width:110px;position:sticky;top:97px;z-index:10;background:var(--bg)">CTVX</th>
+        <th style="width:98px;position:sticky;top:97px;z-index:10;background:var(--bg)">Sortie BE</th>
+        <th style="width:110px;position:sticky;top:97px;z-index:10;background:var(--bg)">Fin Prod</th>
+        <th style="width:72px;position:sticky;top:97px;z-index:10;background:var(--bg)">Budget h</th>
+        <th style="width:100px;position:sticky;top:97px;z-index:10;background:var(--bg)">Avancement</th>
+        <th style="width:110px;position:sticky;top:97px;z-index:10;background:var(--bg)">Statut</th>
+        <th style="width:68px;position:sticky;top:97px;z-index:10;background:var(--bg)"></th>
       </tr></thead>
       <tbody id="planning-tbody"></tbody>
     </table>
@@ -1624,64 +1624,113 @@ function renderChRow(ch,nbTr){
 function renderTrRow(tr,nbPh,arts,ofs_prod){
   ofs_prod = ofs_prod||[];
   const o=tr.open;
-  const avMoyen=arts.length?Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length):0;
+  const today = new Date().toISOString().slice(0,10);
 
-  // Date CTVX — depuis state.dates_erp (fichier DATES source, date la plus tôt)
+  // Date CTVX — depuis state.dates_erp (date la plus tôt) ou tr.ctvx
   const datesSrc = (state.dates_erp||[]).filter(d=>(d.tranche||'').trim().toLowerCase()===(tr.nom||'').trim().toLowerCase());
   const ctvxSrc = datesSrc.length ? datesSrc.reduce((min,d)=>(!min||d.date_ctvx<min)?d.date_ctvx:min, '') : '';
   const ctvx = ctvxSrc || tr.ctvx || '';
-  const ctvxBadge = ctvx ? `<span style="font-size:10px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;margin-left:4px">📅 ${fmtDate(ctvx)}</span>` : '';
 
-  // Date sortie prod — date de fin la plus tardive parmi les OF
+  // Date fin prod — la plus tardive parmi les OF
   const datesSortie = ofs_prod.map(o=>o.date_fin_prod||'').filter(Boolean).sort();
   const dateSortie = datesSortie.length ? datesSortie[datesSortie.length-1] : '';
-  const sortieBadge = dateSortie ? `<span style="font-size:10px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 5px;margin-left:4px">🏭 ${fmtDate(dateSortie)}</span>` : '';
 
   // Statut production
-  let statutBadge = '';
+  let statut = 'non_planifie';
   if(ofs_prod.length) {
     const nbTermines = ofs_prod.filter(o=>o.statut==='termine').length;
-    const today = new Date().toISOString().slice(0,10);
-    const enCours = ofs_prod.some(o=>o.statut!=='termine' && o.date_fin_prod && o.date_fin_prod <= today);
-    if(nbTermines === ofs_prod.length) {
-      statutBadge = `<span style="font-size:10px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 5px;margin-left:4px">✅ Terminé</span>`;
-    } else if(nbTermines > 0 || enCours) {
-      statutBadge = `<span style="font-size:10px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 5px;margin-left:4px">🔧 En cours</span>`;
-    } else {
-      statutBadge = `<span style="font-size:10px;background:var(--bg);color:var(--text3);border:1px solid var(--border);border-radius:4px;padding:1px 5px;margin-left:4px">📋 Planifié</span>`;
-    }
+    const enCours = ofs_prod.some(o=>o.statut==='en_cours');
+    if(nbTermines === ofs_prod.length) statut = 'termine';
+    else if(nbTermines > 0 || enCours) statut = 'en_cours';
+    else statut = 'planifie';
   }
 
-  // Lignes OF du planning prod
+  // Indicateur date fin prod vs CTVX
+  let dateColor = 'var(--text2)';
+  let dateBg = 'var(--bg)';
+  let dateBorder = 'var(--border)';
+  let dateIcon = '';
+  if(dateSortie && ctvx) {
+    const jours = Math.round((new Date(ctvx) - new Date(dateSortie)) / 86400000);
+    if(dateSortie > ctvx) {
+      dateColor = 'var(--red)'; dateBg = 'var(--red-bg)'; dateBorder = 'var(--red-border)';
+      dateIcon = `<span style="font-size:9px;margin-left:3px">⚠ +${Math.abs(jours)}j</span>`;
+    } else if(jours <= 7) {
+      dateColor = 'var(--orange)'; dateBg = 'var(--orange-bg)'; dateBorder = 'var(--orange-border)';
+      dateIcon = `<span style="font-size:9px;margin-left:3px">⏱ ${jours}j</span>`;
+    } else {
+      dateColor = 'var(--green)'; dateBg = 'var(--green-bg)'; dateBorder = 'var(--green-border)';
+      dateIcon = `<span style="font-size:9px;margin-left:3px">✓ +${jours}j</span>`;
+    }
+  } else if(dateSortie) {
+    dateColor = 'var(--blue)'; dateBg = 'var(--blue-bg)'; dateBorder = 'var(--blue-border)';
+  }
+
+  const statutConfig = {
+    non_planifie: {bg:'var(--red-bg)',   color:'var(--red)',   border:'var(--red-border)',   icon:'⊘', label:'Non planifié'},
+    planifie:     {bg:'var(--bg)',        color:'var(--text2)', border:'var(--border)',        icon:'📋', label:'Planifié'},
+    en_cours:     {bg:'var(--blue-bg)',   color:'var(--blue)',  border:'var(--blue-border)',   icon:'🔧', label:'En cours'},
+    termine:      {bg:'var(--green-bg)',  color:'var(--green)', border:'var(--green-border)',  icon:'✅', label:'Terminé'},
+  };
+  const sc = statutConfig[statut];
+  const statutHtml = `<span style="font-size:10px;background:${sc.bg};color:${sc.color};border:1px solid ${sc.border};border-radius:5px;padding:2px 7px;font-weight:600;white-space:nowrap">${sc.icon} ${sc.label}</span>`;
+
+  const ctvxHtml = ctvx
+    ? `<span style="font-size:11px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace">${fmtDate(ctvx)}</span>`
+    : '<span style="color:var(--text3);font-size:11px">—</span>';
+
+  const finProdHtml = dateSortie
+    ? `<span style="font-size:11px;background:${dateBg};color:${dateColor};border:1px solid ${dateBorder};border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(dateSortie)}${dateIcon}</span>`
+    : '<span style="color:var(--text3);font-size:11px">—</span>';
+
+  // Lignes OF sous la tranche (quand déplié)
   let ofsHtml = '';
   if(o && ofs_prod.length) {
-    ofsHtml = ofs_prod.map(of=>`
-      <tr class="row-article" style="background:var(--bg)">
+    ofsHtml = ofs_prod.map(of=>{
+      const ofDate = of.date_fin_prod ? (String(of.date_fin_prod).length>10 ? String(of.date_fin_prod).slice(0,10) : String(of.date_fin_prod)) : '';
+      const ofSc = statutConfig[of.statut==='termine'?'termine':of.statut==='en_cours'?'en_cours':'planifie'];
+      return `<tr class="row-article" style="background:#FAFAF8">
         <td></td>
-        <td style="padding-left:3rem;font-size:11px;color:var(--text2)" colspan="5">
-          <span style="font-family:monospace;color:var(--blue);font-size:10px;margin-right:6px">${esc(of.id||'')}</span>
-          🏭 ${esc(of.atelier||'')} — ${esc(of.commentaire||of.tranche||'')}
+        <td style="padding-left:2.5rem;font-size:12px;font-weight:500" colspan="2">
+          <span style="font-size:10px;background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple-border);border-radius:4px;padding:1px 6px;font-family:'DM Mono',monospace;margin-right:6px">${esc(of.atelier||'')}</span>
+          ${esc(of.commentaire||of.tranche||'')}
         </td>
-        <td style="font-size:11px;font-family:monospace;color:var(--text2)">${of.date_fin_prod?(()=>{const d=String(of.date_fin_prod);return fmtDate(d.length>10?d.slice(0,10):d);})():''}</td>
-        <td colspan="3" style="font-size:11px">
-          ${of.statut==='termine'
-            ? '<span style="color:var(--green);font-weight:600">✅ Terminé</span>'
-            : of.statut==='en_cours'
-              ? '<span style="color:var(--blue)">🔧 En cours</span>'
-              : '<span style="color:var(--text3)">📋 Planifié</span>'}
+        <td colspan="2" style="font-size:11px;color:var(--text3)">${esc(of.tranche||'')}</td>
+        <td></td>
+        <td></td>
+        <td style="font-size:11px;font-family:'DM Mono',monospace">
+          ${ofDate ? `<span style="color:var(--blue)">${fmtDate(ofDate)}</span>` : '—'}
         </td>
-      </tr>`).join('');
+        <td></td>
+        <td style="font-size:11px">
+          ${of.date_production ? `<span style="color:var(--green);font-size:10px">✓ ${fmtDate(of.date_production)}</span>` : ''}
+        </td>
+        <td style="font-size:11px">
+          <span style="background:${ofSc.bg};color:${ofSc.color};border:1px solid ${ofSc.border};border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">${ofSc.icon} ${ofSc.label}</span>
+        </td>
+        <td></td>
+      </tr>`;
+    }).join('');
   }
 
-  return`<tr class="row-tranche" onclick="toggleNode('tr','${tr.id}')">
+  return`<tr class="row-tranche" onclick="toggleNode('tr','${tr.id}')" style="border-left:3px solid ${sc.border}">
     <td><span class="chevron${o?' open':''}">▶</span></td>
-    <td colspan="5">${tr.conduc?`<span style="font-size:10px;color:var(--text3);margin-right:4px">${esc(tr.conduc)}</span>`:''}${esc(tr.nom)}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbPh} phase${nbPh!==1?'s':''}</span>${ctvxBadge}${sortieBadge}${statutBadge}</td>
-    <td colspan="2"></td>
-    <td colspan="2"></td>
+    <td colspan="4" style="font-weight:600">
+      ${tr.conduc?`<span style="font-size:10px;color:var(--text3);margin-right:4px">${esc(tr.conduc)}</span>`:''}
+      ${esc(tr.nom)}
+      <span style="font-size:10px;color:var(--text3);margin-left:6px">${nbPh} phase${nbPh!==1?'s':''}</span>
+    </td>
+    <td style="text-align:center">${ctvxHtml}</td>
+    <td></td>
+    <td style="text-align:center">${finProdHtml}</td>
+    <td></td>
+    <td></td>
+    <td>${statutHtml}</td>
     <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="event.stopPropagation();openEditTranche('${tr.id}')">✎</button>
       <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deleteTranche('${tr.id}')">✕</button>
-    </td></tr>${ofsHtml}`;
+    </td>
+  </tr>${ofsHtml}`;
 }
 
 function renderPhRow(ph,nbArt,arts){
