@@ -245,8 +245,7 @@ table.bl-lignes td.r{text-align:right}
     
     <button class="btn btn-primary" onclick="openAddChantier()">+ Chantier</button>
     <div style="width:1px;height:24px;background:var(--border);margin:0 2px"></div>
-    <button class="btn" onclick="syncPlanningERPOnly()" title="Sync Planning prod → Articles ERP (sans purge)" style="background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)">🔄 Sync ERP</button>
-    <button class="btn btn-orange" onclick="purgeAndSyncPlanningERP()" title="Purger et recréer tous les articles OF depuis le planning prod">♻️ Purge + Sync</button>
+    <button class="btn" onclick="reloadSuiviProd()" title="Recharger le suivi production depuis le planning" style="background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)">🔄 Sync</button>
   </div>
   <div class="table-wrap" style="max-height:calc(100vh - 160px);overflow-y:auto">
     <table>
@@ -1636,13 +1635,21 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
   const dateSortie = datesSortie.length ? datesSortie[datesSortie.length-1] : '';
 
   // Statut production
+  // Règle : Terminé = coché terminé | En cours = date_debut <= today ET date_fin_prod >= today | Planifié = pas encore commencé
   let statut = 'non_planifie';
   if(ofs_prod.length) {
     const nbTermines = ofs_prod.filter(o=>o.statut==='termine').length;
-    const enCours = ofs_prod.some(o=>o.statut==='en_cours');
-    if(nbTermines === ofs_prod.length) statut = 'termine';
-    else if(nbTermines > 0 || enCours) statut = 'en_cours';
-    else statut = 'planifie';
+    if(nbTermines === ofs_prod.length) {
+      statut = 'termine';
+    } else {
+      // En cours = au moins un OF dont date_debut est passée ET date_fin_prod est dans le futur
+      const enCours = ofs_prod.some(o=>
+        o.date_debut && o.date_debut <= today &&
+        o.date_fin_prod && o.date_fin_prod >= today
+      );
+      // Planifié = tous les OF ont date_debut dans le futur (pas encore commencé)
+      statut = enCours ? 'en_cours' : 'planifie';
+    }
   }
 
   // Indicateur date fin prod vs CTVX
@@ -4954,6 +4961,14 @@ async function renderCoherenceTranches(){
 }
 
 // ─── CHARGEMENT FICHIER DATES SOURCE ────────────────────────────────────────
+async function reloadSuiviProd(){
+  setSyncPill('saving','Sync...');
+  await loadSuiviProd();
+  renderPlanning();
+  setSyncPill('ok','Synchronisé');
+  toast('✅ Suivi prod rechargé');
+}
+
 async function loadSuiviProd() {
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
