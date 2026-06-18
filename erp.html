@@ -1167,44 +1167,44 @@ async function saveToSheets() {
 
 async function loadFromSheets() {
   try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({action: 'getERP'})
-    });
-    const r = await res.json();
+    // Un seul appel qui retourne tout
+    const [resERP, resSuivi] = await Promise.all([
+      fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERP'})}),
+      fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getSuiviProd'})})
+    ]);
+    const [r, rSuivi] = await Promise.all([resERP.json(), resSuivi.json()]);
+
     if (r.ok && r.data && r.data.chantiers?.length >= 5) {
       state.chantiers = (r.data.chantiers||[]).sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
-      // Charger le fichier DATES source en arrière-plan
+      state.tranches  = r.data.tranches||[];
+      state.phases    = r.data.phases||[];
+      state.articles  = r.data.articles||[];
+      state.cdes      = r.data.cdes||[];
+      state.stock     = r.data.stock||[];
+      state.bls       = r.data.bls||[];
+      state.retours   = r.data.retours||[];
+      state.interim   = r.data.interim||[];
+      if(rSuivi.ok) state.suivi_prod = rSuivi.articles||[];
+      // DATES et fermetures en arrière-plan (non bloquants)
       loadDATESSource();
-      // Charger le suivi production (OF du planning prod) — await pour avoir les données avant le rendu
-      await loadSuiviProd();
-      state.tranches = r.data.tranches||[];
-      state.phases = r.data.phases||[];
-      state.articles = r.data.articles||[];
-      state.cdes = r.data.cdes||[];
-      state.stock = r.data.stock||[];
-      state.bls = r.data.bls||[];
-      state.retours = r.data.retours||[];
-      state.interim = r.data.interim||[];
-      // Charger les fermetures depuis getCalendrier
-      try {
-        const rc = await fetch(APPS_SCRIPT_URL, {
-          method:'POST', headers:{'Content-Type':'text/plain'},
-          body: JSON.stringify({action:'getCalendrier'})
-        });
-        const cal = await rc.json();
-        if(cal.ok && cal.data?.fermetures) {
-          state.fermetures = cal.data.fermetures
-            .map(f=>typeof f==='string'?{date:f,atelier:'all'}:f)
-            .filter(f=>f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
-        }
-      } catch(e){ console.warn('fermetures ERP:', e); }
+      loadFermetures();
       saveLS();
       return true;
     }
   } catch(e) { console.warn('getERP:', e); }
   return false;
+}
+
+async function loadFermetures() {
+  try {
+    const rc = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getCalendrier'})});
+    const cal = await rc.json();
+    if(cal.ok && cal.data?.fermetures) {
+      state.fermetures = cal.data.fermetures
+        .map(f=>typeof f==='string'?{date:f,atelier:'all'}:f)
+        .filter(f=>f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
+    }
+  } catch(e){ console.warn('fermetures ERP:', e); }
 }
 
 // ─── POLLING — rechargement toutes les 45s ────────────────────────────────
@@ -1536,23 +1536,28 @@ async function syncOFTermines(){
 
 // ═══ INIT ═════════════════════════════════════════════════════════════════
 async function init(){
-  const hasLocal=loadLS();
-  if(!hasLocal||!state.chantiers.length){
+  // 1. Afficher immédiatement depuis le cache
+  const hasLocal = loadLS();
+  if(!state.retours) state.retours=[];
+  if(!hasLocal || !state.chantiers.length){
     INIT_DATA.forEach(item=>{
       if(item.type==='chantier') state.chantiers.push({id:item.id,nom:item.nom,conduc:item.conduc||'',open:false});
       else if(item.type==='tranche') state.tranches.push({id:item.id,cid:item.cid,nom:item.nom,conduc:'',open:false,ctvx:''});
     });
-    saveLS();
   }
-  if(!state.retours)state.retours=[];
-  const ok=await loadFromSheets();
+  // Afficher tout de suite avec les données en cache
   renderAll();
-  setSyncPill('ok','Synchronisé');
-  document.getElementById('rt-label').textContent='Connecté';
-  // Démarrer le polling toutes les 45s
+  setSyncPill('saving','Chargement...');
+
+  // 2. Charger depuis Sheets en parallèle (non bloquant sur l'affichage)
+  const ok = await loadFromSheets();
+  if(ok) {
+    renderAll();
+    setSyncPill('ok','Synchronisé');
+    document.getElementById('rt-label').textContent='Connecté';
+  }
   startPolling();
 }
-
 // ═══ RENDER ALL ═══════════════════════════════════════════════════════════
 function renderAll(){
   renderPlanning();
