@@ -1127,8 +1127,8 @@ const tr=state.tranches[atId]||[];
 const sortedIdx = tr.map((_,i)=>i).sort((a,b)=>(tr[a].ordre||0)-(tr[b].ordre||0));
 const q=_tableSearch.trim().toLowerCase();
 const rows=q
-  ? sortedIdx.filter(i=>tr[i].tranche.toLowerCase().includes(q)||(tr[i].comment||'').toLowerCase().includes(q))
-  : sortedIdx;
+  ? sortedIdx.filter(i=>!tr[i].termine && (tr[i].tranche.toLowerCase().includes(q)||(tr[i].comment||'').toLowerCase().includes(q)))
+  : sortedIdx.filter(i=>!tr[i].termine);
 const inSearch = !!q;
 // Afficher le champ de recherche permanent
 const searchArea = document.getElementById('search-area');
@@ -1669,23 +1669,39 @@ async function toggleTermine(atId, idx){
   const t = state.tranches[atId]?.[idx];
   if(!t) return;
 
-  if(!t.termine) {
-    if(!confirm('Marquer "' + t.tranche + '" comme terminé ? La ligne sera retirée du planning.')) return;
-    t.termine = true;
-    t._termineLe = new Date().toISOString().slice(0,10);
+ if(!t.termine) {
+  if(!confirm('Marquer "' + t.tranche + '" comme terminé ? La ligne sera retirée du planning.')) return;
+  t.termine = true;
+  t._termineLe = new Date().toISOString().slice(0,10);
 
-    // Sauvegarder D'ABORD avec termine=TRUE (avant suppression du state)
-    // → Apps Script voit termine=OUI et met à jour ERP_Suivi_Production
-    toast('✅ OF terminé — sauvegarde en cours...');
-    await saveToSupabase(atId);
+  // Mettre à jour ERP_Suivi_Production directement
+  try {
+    fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({
+        action: 'syncAllOF',
+        ofs: [{
+          of_id: String(t._dbId||t.id||''),
+          tranche: t.tranche||'',
+          atelier: atId.toUpperCase(),
+          commentaire: t.comment||'',
+          date_debut: t.debut||'',
+          date_fin_prod: dateFin(t, atId),
+          termine: 'TRUE',
+          _termineLe: t._termineLe
+        }]
+      })
+    });
+  } catch(e) { console.warn('syncAllOF:', e.message); }
 
-    // Ensuite supprimer la ligne du planning localement
-    state.tranches[atId].splice(idx, 1);
-    state.tranches[atId].forEach((x,i)=>x.ordre=i+1);
-    renderTable();
-    checkTranchesTerminees(atId, t.tranche);
-    toast('✅ OF terminé et synchronisé');
-  }
+  // Supprimer du state et sauvegarder
+  state.tranches[atId].splice(idx, 1);
+  state.tranches[atId].forEach((x,i)=>x.ordre=i+1);
+  renderTable();
+  checkTranchesTerminees(atId, t.tranche);
+  toast('✅ OF terminé');
+  scheduleSave(atId);
+}
 }
 
 function checkTranchesTerminees(atId, trancheNom){
