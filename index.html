@@ -836,7 +836,8 @@ async function saveToSupabase(atId) {
       date_besoin: t.besoin||'', ordre: t.ordre||0,
       lock_debut: t.lockDebut?'TRUE':'FALSE', lock_fin: t.lockFin?'TRUE':'FALSE',
       lock_fin_date: t.lockFinDate||'', parallel: t.parallel?'TRUE':'FALSE',
-      // termine géré séparément
+      termine: t.termine?'TRUE':'FALSE',
+      _termineLe: t._termineLe||'',
       phases: t.phases ? JSON.stringify(t.phases) : '',
     }));
   }
@@ -1669,36 +1670,21 @@ async function toggleTermine(atId, idx){
   if(!t) return;
 
   if(!t.termine) {
-    // Marquer terminé → supprimer du planning + mettre à jour ERP
     if(!confirm('Marquer "' + t.tranche + '" comme terminé ? La ligne sera retirée du planning.')) return;
     t.termine = true;
     t._termineLe = new Date().toISOString().slice(0,10);
 
-    // Mettre à jour ERP_Suivi_Production
-    try {
-      await fetch(APPS_SCRIPT_URL, {
-        method:'POST', headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({
-          action: 'updateArticleProd',
-          id: t._erpProdId||'',
-          of_id: String(t._dbId||t.id||''),
-          statut: 'termine',
-          commentaire: t.comment||'',
-          date_fin_prod: dateFin(t, atId),
-          tranche: t.tranche||'',
-          atelier: atId.toUpperCase()
-        })
-      });
-    } catch(e) { console.warn('updateArticleProd:', e.message); }
+    // Sauvegarder D'ABORD avec termine=TRUE (avant suppression du state)
+    // → Apps Script voit termine=OUI et met à jour ERP_Suivi_Production
+    toast('✅ OF terminé — sauvegarde en cours...');
+    await saveToSupabase(atId);
 
-    // Supprimer la ligne du planning
+    // Ensuite supprimer la ligne du planning localement
     state.tranches[atId].splice(idx, 1);
-    // Réordonner
     state.tranches[atId].forEach((x,i)=>x.ordre=i+1);
-    scheduleSave(atId);
     renderTable();
     checkTranchesTerminees(atId, t.tranche);
-    toast('✅ OF terminé — retiré du planning');
+    toast('✅ OF terminé et synchronisé');
   }
 }
 
