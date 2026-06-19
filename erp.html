@@ -1581,11 +1581,9 @@ function renderPlanning(){
   const q=_search;
   const chantiersTries = [...state.chantiers].sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
 
-  for(const ch of chantiersTries){
-    const trs=state.tranches.filter(t=>t.cid===ch.id);
-    if(q&&!ch.nom.toLowerCase().includes(q)){
-      const hasTr=trs.some(t=>t.nom.toLowerCase().includes(q));
-      if(!hasTr)continue;
+ for(const ch of chantiersTries){
+  const trs=state.tranches.filter(t=>t.cid===ch.id);
+  if(q&&!ch.nom.toLowerCase().includes(q)) continue;
     }
     html+=renderChRow(ch,trs.length);
     if(!ch.open&&!q)continue;
