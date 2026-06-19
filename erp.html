@@ -1585,7 +1585,9 @@ function renderPlanning(){
  for(const ch of chantiersTries){
   const trs=state.tranches.filter(t=>t.cid===ch.id);
   if(q&&!ch.nom.toLowerCase().includes(q)) continue;
-    }
+  html+=renderChRow(ch,trs.length);
+  if(!ch.open&&!q)continue;
+    
     html+=renderChRow(ch,trs.length);
     if(!ch.open&&!q)continue;
     for(const tr of trs){
