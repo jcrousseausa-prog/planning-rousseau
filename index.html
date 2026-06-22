@@ -1259,14 +1259,17 @@ if(t.besoin&&/^\d{4}-\d{2}-\d{2}$/.test(t.besoin))allDates.push(t.besoin);
 if(!allDates.length)return{days:[]};
 const timestamps=allDates.map(d=>new Date(d).getTime()).filter(n=>!isNaN(n));
 if(!timestamps.length)return{days:[]};
-const minD=new Date(Math.min(...timestamps));const maxD=new Date(Math.max(...timestamps));
-minD.setDate(minD.getDate()-2);maxD.setDate(maxD.getDate()+5);
-const days=[];let cur=new Date(minD);
+// Construire en local pour éviter décalage UTC→FR
+const toLD = s => { const p=s.split('-'); return new Date(+p[0],+p[1]-1,+p[2]); };
+const allLocal = allDates.map(toLD).filter(d=>!isNaN(d.getTime()));
+if(!allLocal.length) return {days:[]};
+const minTS=Math.min(...allLocal), maxTS=Math.max(...allLocal);
+const minD=new Date(minTS), maxD=new Date(maxTS);
+minD.setDate(minD.getDate()-2); maxD.setDate(maxD.getDate()+5);
+const days=[]; let cur=new Date(minD.getFullYear(),minD.getMonth(),minD.getDate());
 while(cur<=maxD){
   const ds=`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
-  // Calculer le jour depuis la chaîne ISO pour éviter les décalages de fuseau horaire
-  const parts=ds.split('-');const dtLocal=new Date(+parts[0],+parts[1]-1,+parts[2]);
-  const dow0=dtLocal.getDay();const dIdx=dow0===0?6:dow0-1;
+  const dow0=cur.getDay(); const dIdx=dow0===0?6:dow0-1;
   days.push({date:ds,weekend:dIdx>=5,ferie:FERIES_FR.includes(ds),isToday:ds===today()});
   cur.setDate(cur.getDate()+1);
 }
