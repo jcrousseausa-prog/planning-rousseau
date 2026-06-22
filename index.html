@@ -1264,9 +1264,11 @@ minD.setDate(minD.getDate()-2);maxD.setDate(maxD.getDate()+5);
 const days=[];let cur=new Date(minD);
 while(cur<=maxD){
   const ds=`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
-const dow0=cur.getDay();const dIdx=dow0===0?6:dow0-1;
-days.push({date:ds,weekend:dIdx>=5,ferie:FERIES_FR.includes(ds),isToday:ds===today()});
-cur.setDate(cur.getDate()+1);
+  // Calculer le jour depuis la chaîne ISO pour éviter les décalages de fuseau horaire
+  const parts=ds.split('-');const dtLocal=new Date(+parts[0],+parts[1]-1,+parts[2]);
+  const dow0=dtLocal.getDay();const dIdx=dow0===0?6:dow0-1;
+  days.push({date:ds,weekend:dIdx>=5,ferie:FERIES_FR.includes(ds),isToday:ds===today()});
+  cur.setDate(cur.getDate()+1);
 }
 return{days};
 }
