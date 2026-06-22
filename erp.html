@@ -1733,6 +1733,15 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
       ${tr.conduc?`<span style="font-size:10px;color:var(--text3);margin-right:4px">${esc(tr.conduc)}</span>`:''}
       ${esc(tr.nom)}
       <span style="font-size:10px;color:var(--text3);margin-left:6px">${nbPh} phase${nbPh!==1?'s':''}</span>
+      ${(()=>{
+        const d = datesSrc[0]||{};
+        const coches = [];
+        if(d.besoin_atelier) coches.push('<span style="font-size:10px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 6px;margin-left:4px">✓ Atelier</span>');
+        if(d.assemblage)     coches.push('<span style="font-size:10px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 6px;margin-left:4px">✓ Assemblage</span>');
+        if(d.equipement)     coches.push('<span style="font-size:10px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 6px;margin-left:4px">✓ Équipement</span>');
+        if(d.taillage)       coches.push('<span style="font-size:10px;background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple-border);border-radius:4px;padding:1px 6px;margin-left:4px">✓ Taillage</span>');
+        return coches.join('');
+      })()}
     </td>
     <td style="text-align:center">${ctvxHtml}</td>
     <td></td>
@@ -4998,7 +5007,14 @@ async function loadDATESSource() {
     const r = await res.json();
     if (!r.ok) { console.warn('loadDATES:', r.error); return; }
 
-    state.dates_erp     = r.tranches_erp     || [];
+    // Normaliser les champs booléens des tranches ERP
+    state.dates_erp = (r.tranches_erp||[]).map(d=>({
+      ...d,
+      besoin_atelier: d.besoin_atelier===true||String(d.besoin_atelier||'').toUpperCase()==='TRUE',
+      assemblage:     d.assemblage===true||String(d.assemblage||'').toUpperCase()==='TRUE',
+      equipement:     d.equipement===true||String(d.equipement||'').toUpperCase()==='TRUE',
+      taillage:       d.taillage===true||String(d.taillage||'').toUpperCase()==='TRUE',
+    }));
     state.dates_atelier = r.tranches_atelier || [];
     // Re-render le planning avec les nouvelles données CTVX
     if(state.currentTab === 'pilotage') renderPlanning();
