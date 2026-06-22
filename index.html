@@ -1127,7 +1127,7 @@ const tr=state.tranches[atId]||[];
 const sortedIdx = tr.map((_,i)=>i).sort((a,b)=>(tr[a].ordre||0)-(tr[b].ordre||0));
 const q=_tableSearch.trim().toLowerCase();
 const rows=q
-  ? sortedIdx.filter(i=>!tr[i].termine && (tr[i].tranche.toLowerCase().includes(q)||(tr[i].comment||'').toLowerCase().includes(q)))
+ ? sortedIdx.filter(i=>!tr[i].termine && (tr[i].tranche.toLowerCase().includes(q)||String(tr[i].comment||'').toLowerCase().includes(q)))
   : sortedIdx.filter(i=>!tr[i].termine);
 const inSearch = !!q;
 // Afficher le champ de recherche permanent
