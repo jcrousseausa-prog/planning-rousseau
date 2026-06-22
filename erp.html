@@ -1223,14 +1223,16 @@ function startPolling() {
         body: JSON.stringify({action: 'getERPHash'})
       });
       const r = await res.json();
-      if (r.ok && r.hash && r.hash !== _lastSaveHash) {
-        _lastSaveHash = r.hash;
-        const ok = await loadFromSheets();
-        if (ok) {
-          renderAll();
-          showNotif('🔄 Planning mis à jour par un autre utilisateur');
-        }
-      }
+     if (r.ok && r.hash && r.hash !== _lastSaveHash) {
+  _lastSaveHash = r.hash;
+  // Ne recharger que si aucune modal ouverte et pas d'édition en cours
+  const modalOuverte = document.querySelector('.modal-bg.show');
+  if (!modalOuverte) {
+    const ok = await loadFromSheets();
+    if (ok) renderAll();
+    // Pas de popup intempestif — juste mettre à jour silencieusement
+  }
+}
     } catch(e) { /* polling silencieux */ }
   }, 45000);
 
