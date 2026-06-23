@@ -1214,6 +1214,8 @@ let _lastOFCheck = 0;
 
 function startPolling() {
   if (_pollInterval) clearInterval(_pollInterval);
+  // Recharger les CTVX depuis fichier DATES toutes les 10 minutes
+  setInterval(() => { loadDATESSource(); }, 10 * 60 * 1000);
   _pollInterval = setInterval(async () => {
     if (document.getElementById('sync-text').textContent === 'Enregistrement...') return;
     try {
