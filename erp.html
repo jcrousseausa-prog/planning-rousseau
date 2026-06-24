@@ -4741,7 +4741,15 @@ function renderPlanningGlobal(){
       // Recherche texte
       if(q && !ch.nom.toLowerCase().includes(q) && !tr.nom.toLowerCase().includes(q)) return;
 
-      rows.push({ch, tr, dateDebutBE, dateDebutProd, dateCTVX, statutCTVX, joursRestants, av, nbArts:arts.length});
+      // Récupérer date_debut depuis suivi_prod
+      const ofsProd = (state.suivi_prod||[]).filter(o=>{
+        const norm = s=>String(s||'').trim().toLowerCase().replace(/\s*-\s*/g,'-');
+        return norm(o.tranche)===norm(tr.nom);
+      });
+      const datesDebut = ofsProd.map(o=>o.date_debut).filter(d=>d&&/^\d{4}-\d{2}-\d{2}$/.test(d));
+      const dateDebut = datesDebut.length ? datesDebut.sort()[0] : null;
+
+      rows.push({ch, tr, dateDebutBE, dateDebutProd, dateCTVX, statutCTVX, joursRestants, av, nbArts:arts.length, dateDebut});
     });
   });
 
@@ -4750,8 +4758,11 @@ function renderPlanningGlobal(){
     return;
   }
 
-  // Trier par date CTVX (retards en premier, puis urgents, puis par date)
+  // Trier par date_debut (depuis suivi_prod), puis CTVX en fallback
   rows.sort((a,b)=>{
+    if(a.dateDebut && b.dateDebut) return a.dateDebut.localeCompare(b.dateDebut);
+    if(a.dateDebut) return -1;
+    if(b.dateDebut) return 1;
     const order={retard:0,urgent:1,ok:2,vide:3};
     if(order[a.statutCTVX]!==order[b.statutCTVX]) return order[a.statutCTVX]-order[b.statutCTVX];
     if(a.dateCTVX&&b.dateCTVX) return a.dateCTVX.localeCompare(b.dateCTVX);
@@ -4765,6 +4776,7 @@ function renderPlanningGlobal(){
         <thead><tr>
           <th>Chantier</th>
           <th>Tranche</th>
+          <th style="width:110px">Début atelier</th>
           <th style="width:110px">Début BE</th>
           <th style="width:110px">Début Prod</th>
           <th style="width:110px">Date CTVX</th>
@@ -4786,6 +4798,7 @@ function renderPlanningGlobal(){
             return `<tr style="${bg}border-bottom:1px solid var(--border)">
               <td style="font-weight:600;font-size:12px">${esc(r.ch.nom)}</td>
               <td style="font-size:12px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.tr.nom)}">${esc(r.tr.nom)}</td>
+              <td>${r.dateDebut?`<span class="dp dp-green">${fmtDate(r.dateDebut)}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
               <td>${r.dateDebutBE?`<span class="dp dp-blue">${fmtDate(r.dateDebutBE)}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
               <td>${r.dateDebutProd?`<span class="dp dp-purple">${fmtDate(r.dateDebutProd)}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
               <td>${r.dateCTVX?`<span class="dp dp-orange">${fmtDate(r.dateCTVX)}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
