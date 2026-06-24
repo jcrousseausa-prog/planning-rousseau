@@ -1109,6 +1109,7 @@ let _ctx = {};
 let _search = '';
 let _saveTimeout = null;
 let _pollInterval = null;
+let _sheetsLoaded = false;
 let _lastSaveHash = '';
 let _currentBLId = null;
 
@@ -1152,10 +1153,19 @@ function scheduleSave() {
 async function saveToSheets() {
   saveLS();
   try {
+    // Protection : ne jamais envoyer heures/interim/employes vides si état non chargé
+    const payload = Object.assign({}, state);
+    if (!_sheetsLoaded) {
+      // Sheets pas encore chargé — on ne touche pas aux données sensibles
+      delete payload.heures;
+      delete payload.interim;
+      delete payload.employes;
+      console.warn('saveToSheets: heures/interim/employes non envoyés (sheets pas encore chargé)');
+    }
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({action: 'saveERP', data: state})
+      body: JSON.stringify({action: 'saveERP', data: payload})
     });
     const r = await res.json();
     if (r.ok) setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
@@ -1190,6 +1200,7 @@ async function loadFromSheets() {
       loadDATESSource();
       loadFermetures();
       saveLS();
+      _sheetsLoaded = true;
       return true;
     }
   } catch(e) { console.warn('getERP:', e); }
