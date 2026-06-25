@@ -172,6 +172,41 @@ table.bl-lignes td.r{text-align:right}
   header,.app-tabs,.toolbar,#bl-actions{display:none!important}
   body{background:#fff}
 }
+/* ── BANDEAU OFFLINE ── */
+#offline-bar{
+  display:none;position:sticky;top:49px;z-index:200;
+  background:#7B1111;color:#fff;
+  padding:0;border-bottom:3px solid #5A0000;
+  box-shadow:0 4px 20px rgba(123,17,17,.5);
+}
+#offline-bar.show{display:flex}
+.offline-inner{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 20px;width:100%;flex-wrap:wrap;
+}
+.offline-pulse{
+  width:12px;height:12px;border-radius:50%;background:#FF6B6B;flex-shrink:0;
+  animation:offpulse 1s infinite;
+}
+@keyframes offpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.offline-title{font-size:13px;font-weight:700;letter-spacing:.02em}
+.offline-msg{font-size:12px;opacity:.85}
+.offline-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-shrink:0}
+.offline-retry{
+  background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);
+  color:#fff;padding:5px 14px;border-radius:7px;font-family:inherit;
+  font-size:12px;font-weight:600;cursor:pointer;transition:background .15s;
+}
+.offline-retry:hover{background:rgba(255,255,255,.35)}
+.offline-dismiss{
+  background:none;border:none;color:rgba(255,255,255,.6);
+  font-size:18px;cursor:pointer;padding:0 4px;line-height:1;
+}
+.offline-savewarn{
+  width:100%;font-size:11px;background:rgba(0,0,0,.25);
+  padding:5px 20px;margin-top:0;display:flex;align-items:center;gap:6px;
+}
+@media print{#offline-bar{display:none!important}}
 
 /* ── HEURES MODULE ── */
 .htab { padding:9px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s; }
@@ -261,6 +296,23 @@ table.bl-lignes td.r{text-align:right}
 </header>
 
 <div id="notif-bar" style="display:none;background:var(--blue);color:#fff;padding:7px 20px;font-size:12px;font-weight:500;align-items:center;gap:10px;position:sticky;top:49px;z-index:45"></div>
+
+<!-- ── BANDEAU OFFLINE ── -->
+<div id="offline-bar">
+  <div class="offline-inner">
+    <div class="offline-pulse"></div>
+    <span class="offline-title">⚠ Connexion perdue</span>
+    <span class="offline-msg" id="offline-msg">Impossible de joindre le serveur — les modifications restent en local uniquement</span>
+    <div class="offline-actions">
+      <span id="offline-attempts" style="font-size:11px;opacity:.7"></span>
+      <button class="offline-retry" onclick="retryConnection()">↻ Réessayer</button>
+      <button class="offline-dismiss" onclick="dismissOfflineBar()" title="Masquer (ne résout pas le problème)">✕</button>
+    </div>
+  </div>
+  <div class="offline-savewarn">
+    🔒 <strong>Sauvegardes bloquées</strong> — aucune écriture ne sera envoyée tant que la connexion n'est pas rétablie. Vos données restent sauvegardées localement.
+  </div>
+</div>
 
 <div class="app-tabs" style="position:sticky;top:49px;z-index:40">
   <button class="app-tab active" id="tab-planning" onclick="showScreen('planning')">Tableau de pilotage</button>
@@ -1205,7 +1257,71 @@ function scheduleSave() {
   _saveTimeout = setTimeout(saveToSheets, 2000);
 }
 
+// ── GESTION OFFLINE ──────────────────────────────────────────────────────
+let _isOffline = false;
+let _offlineErrors = 0;
+let _lastSuccessTime = Date.now();
+
+function setOffline(errorMsg) {
+  _isOffline = true;
+  _offlineErrors++;
+  const bar = document.getElementById('offline-bar');
+  const msg = document.getElementById('offline-msg');
+  const att = document.getElementById('offline-attempts');
+  if (bar) bar.classList.add('show');
+  if (msg) msg.textContent = errorMsg || 'Impossible de joindre le serveur — les modifications restent en local uniquement';
+  if (att && _offlineErrors > 1) att.textContent = _offlineErrors + ' tentative' + (_offlineErrors>1?'s':'') + ' échouée' + (_offlineErrors>1?'s':'');
+  setSyncPill('error', 'Hors ligne');
+  // Faire clignoter le titre de l'onglet
+  if (!_tabBlink) _tabBlink = setInterval(() => {
+    document.title = document.title.startsWith('⚠') ? 'ERP — Tableau de Pilotage Rousseau' : '⚠ CONNEXION PERDUE — ERP Rousseau';
+  }, 1500);
+}
+
+function setOnline() {
+  _isOffline = false;
+  _offlineErrors = 0;
+  _lastSuccessTime = Date.now();
+  const bar = document.getElementById('offline-bar');
+  if (bar) bar.classList.remove('show');
+  if (_tabBlink) { clearInterval(_tabBlink); _tabBlink = null; document.title = 'ERP — Tableau de Pilotage Rousseau'; }
+}
+
+let _tabBlink = null;
+
+function dismissOfflineBar() {
+  const bar = document.getElementById('offline-bar');
+  if (bar) bar.classList.remove('show');
+}
+
+async function retryConnection() {
+  const btn = document.querySelector('.offline-retry');
+  if (btn) { btn.textContent = '⟳ Test...'; btn.disabled = true; }
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST', headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'getERPHash'})
+    });
+    const r = await res.json();
+    if (r.ok) {
+      setOnline();
+      toast('✅ Connexion rétablie — synchronisation en cours...');
+      setSyncPill('saving', 'Sync...');
+      await saveToSheets(); // rejouer la dernière sauvegarde
+    } else throw new Error(r.error || 'Réponse invalide');
+  } catch(e) {
+    setOffline('Serveur toujours inaccessible : ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = '↻ Réessayer'; btn.disabled = false; }
+  }
+}
+
 async function saveToSheets() {
+  // Bloquer si hors ligne
+  if (_isOffline) {
+    setSyncPill('error', 'Hors ligne — sauvegarde bloquée');
+    return;
+  }
   saveLS();
   try {
     // Protection : ne jamais envoyer heures/interim/employes vides si état non chargé
@@ -1223,10 +1339,12 @@ async function saveToSheets() {
       body: JSON.stringify({action: 'saveERP', data: payload})
     });
     const r = await res.json();
-    if (r.ok) setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-    else throw new Error(r.error);
+    if (r.ok) {
+      setOnline();
+      setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+    } else throw new Error(r.error);
   } catch(e) {
-    setSyncPill('error', 'Local OK');
+    setOffline('Erreur sauvegarde : ' + e.message);
     console.warn('saveERP error:', e);
   }
 }
@@ -1256,9 +1374,13 @@ async function loadFromSheets() {
       loadFermetures();
       saveLS();
       _sheetsLoaded = true;
+      setOnline(); // ← connexion confirmée
       return true;
     }
-  } catch(e) { console.warn('getERP:', e); }
+  } catch(e) {
+    setOffline('Chargement impossible : ' + (e.message || 'erreur réseau'));
+    console.warn('getERP:', e);
+  }
   return false;
 }
 
@@ -1300,8 +1422,12 @@ function startPolling() {
     if (ok) renderAll();
     // Pas de popup intempestif — juste mettre à jour silencieusement
   }
+} else if (r.ok) {
+  setOnline(); // hash inchangé mais serveur répond → online
 }
-    } catch(e) { /* polling silencieux */ }
+    } catch(e) {
+      setOffline('Polling : ' + (e.message || 'erreur réseau'));
+    }
   }, 45000);
 
   // Sync OF automatique toutes les 5 minutes (silencieuse)
