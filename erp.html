@@ -194,6 +194,10 @@ table.bl-lignes td.r{text-align:right}
   .app-tab,.htab,.btn,.toolbar,#conn-bar,header,.tabs,#jours-panel-area { display:none!important; }
   .screen { display:block!important; }
   .planning-print { border:none; }
+  .atelier-hidden-print { display:none!important; }
+  .no-print { display:none!important; }
+  .print-only { display:block!important; }
+  #modal-print-ateliers { display:none!important; }
 }
 </style>
 </head>
@@ -3286,7 +3290,7 @@ function renderPlanningRessources(){
     <select id="plan-sem-sel" style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px" onchange="state._semHeure=this.value;renderPlanningRessources()">
       ${semaines.map(s=>`<option value="${s.val}"${s.val===semSel?' selected':''}>${s.label}</option>`).join('')}
     </select>
-    <button class="btn btn-primary" onclick="window.print()">🖨 Imprimer</button>
+    <button class="btn btn-primary" onclick="openPrintAteliers()">🖨 Imprimer</button>
     <button class="btn" onclick="openPauseConfig()" title="Configurer les pauses par atelier">⚙ Pauses</button>
     <button class="btn btn-orange" onclick="appliquerFermetures()" title="Pré-remplir les absences depuis les fermetures du planning production">📅 Fermetures</button>
     <span style="font-size:11px;color:var(--text3);margin-left:8px">Cliquez pour saisir les horaires</span>
@@ -6112,5 +6116,148 @@ init();
   </div>
 </div>
 
+<!-- ── MODALE IMPRESSION ATELIERS ── -->
+<div id="modal-print-ateliers" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:14px;padding:28px 32px;min-width:340px;max-width:420px;box-shadow:0 8px 40px rgba(0,0,0,.18)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div style="font-size:16px;font-weight:700">🖨️ Imprimer — Choix des ateliers</div>
+      <button onclick="document.getElementById('modal-print-ateliers').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2)">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px">Sélectionnez les ateliers à inclure dans l'impression :</div>
+    <div id="print-ateliers-checkboxes" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="printAteliersSelectAll(true)" class="btn btn-sm" style="font-size:11px">Tout cocher</button>
+      <button onclick="printAteliersSelectAll(false)" class="btn btn-sm" style="font-size:11px">Tout décocher</button>
+      <button onclick="lancerImpressionAteliers()" class="btn btn-primary" style="margin-left:8px">🖨️ Imprimer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ATELIERS_LABELS_H = {B1:'Charpente B1',B2:'MOB B2',B3:'Atelier B3',Men:'Menuiserie',Log:'Logistique',Us:'Usinage',Transport:'Transport'};
+
+function openPrintAteliers(){
+  // Détecter les ateliers qui ont des employés cette semaine
+  const employes = state.employes||[];
+  const semSel = state._semHeure || getWeekISO(new Date());
+  const heuresSem = (state.heures||[]).filter(h=>h.semaine===semSel);
+
+  const container = document.getElementById('print-ateliers-checkboxes');
+  container.innerHTML = '';
+
+  ATELIERS_H.forEach(at=>{
+    const hasEmps = employes.some(e=>{
+      if(e.inactif) return false;
+      const lignes = heuresSem.filter(h=>h.emp_id===e.id);
+      return (lignes[0]?.atelier||e.atelier)===at;
+    });
+
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 12px;border-radius:8px;border:1px solid var(--border);'+(hasEmps?'':'opacity:.45;');
+    row.innerHTML = `
+      <input type="checkbox" id="prat-${at}" value="${at}" ${hasEmps?'checked':''} style="width:16px;height:16px;cursor:pointer;accent-color:#1A4F8A">
+      <span style="font-size:13px;font-weight:600">${ATELIERS_LABELS_H[at]||at}</span>
+      ${hasEmps?'':'<span style="font-size:10px;color:var(--text3);margin-left:auto">vide cette semaine</span>'}
+    `;
+    container.appendChild(row);
+  });
+
+  document.getElementById('modal-print-ateliers').style.display = 'flex';
+}
+
+function printAteliersSelectAll(checked){
+  ATELIERS_H.forEach(at=>{
+    const cb = document.getElementById('prat-'+at);
+    if(cb) cb.checked = checked;
+  });
+}
+
+function lancerImpressionAteliers(){
+  // Récupérer les ateliers cochés
+  const selected = ATELIERS_H.filter(at=>{
+    const cb = document.getElementById('prat-'+at);
+    return cb && cb.checked;
+  });
+
+  if(!selected.length){
+    alert('Veuillez sélectionner au moins un atelier.');
+    return;
+  }
+
+  // Masquer les ateliers non sélectionnés via une classe CSS temporaire
+  // On cherche les lignes <tr> qui contiennent le label d'atelier
+  const rows = document.querySelectorAll('#hscreen-planning tr');
+  const markedRows = [];
+
+  let currentAt = null;
+  let atHeaderRow = null;
+  let atBodyRows = [];
+
+  // Parcourir toutes les lignes pour trouver les blocs atelier
+  rows.forEach(tr=>{
+    const td = tr.querySelector('td[colspan="8"]');
+    if(td){
+      // C'est un header atelier — identifier l'atelier
+      const label = td.textContent.trim();
+      const at = ATELIERS_H.find(a=>(ATELIERS_LABELS_H[a]||a)===label);
+      if(at){
+        currentAt = at;
+        atHeaderRow = tr;
+        atBodyRows = [];
+      }
+    } else if(currentAt && atHeaderRow){
+      atBodyRows.push(tr);
+    }
+
+    // Si on est sur un header, décider si le bloc précédent était caché
+    if(td && atHeaderRow && !selected.includes(currentAt)){
+      // On est sur un nouveau header, donc le bloc précédent (currentAt) n'est pas sélectionné
+      // Mais on vient de le mettre à jour — donc on gère en fin de boucle
+    }
+  });
+
+  // Approche plus simple : marquer par data-atelier sur chaque ligne de tbody
+  // et utiliser CSS. On va ajouter/supprimer la classe.
+
+  // Réinitialiser
+  document.querySelectorAll('#hscreen-planning tr.atelier-print-row').forEach(r=>{
+    r.classList.remove('atelier-hidden-print','atelier-print-row');
+  });
+  document.querySelectorAll('#hscreen-planning tr.atelier-header-row').forEach(r=>{
+    r.classList.remove('atelier-hidden-print','atelier-header-row');
+  });
+
+  // Marquer les lignes par bloc atelier
+  let curAt = null;
+  document.querySelectorAll('#hscreen-planning tr').forEach(tr=>{
+    const td = tr.querySelector('td[colspan="8"]');
+    if(td){
+      const label = td.textContent.trim();
+      const at = ATELIERS_H.find(a=>(ATELIERS_LABELS_H[a]||a)===label);
+      if(at){
+        curAt = at;
+        tr.dataset.printAtelier = at;
+        tr.classList.add('atelier-header-row');
+        if(!selected.includes(at)) tr.classList.add('atelier-hidden-print');
+      }
+    } else if(curAt){
+      tr.dataset.printAtelier = curAt;
+      tr.classList.add('atelier-print-row');
+      if(!selected.includes(curAt)) tr.classList.add('atelier-hidden-print');
+    }
+  });
+
+  // Fermer la modale et lancer l'impression
+  document.getElementById('modal-print-ateliers').style.display = 'none';
+
+  setTimeout(()=>{
+    window.print();
+    // Après impression, tout réafficher
+    setTimeout(()=>{
+      document.querySelectorAll('.atelier-hidden-print').forEach(r=>r.classList.remove('atelier-hidden-print'));
+    }, 1000);
+  }, 150);
+}
+</script>
 </body>
 </html>
