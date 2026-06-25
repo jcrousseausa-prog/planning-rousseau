@@ -33,16 +33,32 @@ transition: background .3s;
 }
 .conn-bar.connecting { background: var(--orange-bg); color: var(--orange); border-bottom: 1px solid var(--orange-border); }
 .conn-bar.connected  { background: var(--green-bg);  color: var(--green);  border-bottom: 1px solid var(--green-border); }
-.conn-bar.error      { background: var(--red-bg);    color: var(--red);    border-bottom: 1px solid var(--red-border); }
+.conn-bar.error      { background: #7B1111; color: #fff; border-bottom: 3px solid #5A0000; box-shadow: 0 4px 20px rgba(123,17,17,.4); }
 .conn-bar.readonly   { background: var(--blue-bg);   color: var(--blue);   border-bottom: 1px solid var(--blue-border); }
 .conn-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .conn-bar.connecting .conn-dot { background: var(--orange); animation: blink 1s infinite; }
 .conn-bar.connected  .conn-dot { background: var(--realtime-green); }
-.conn-bar.error      .conn-dot { background: var(--red); }
+.conn-bar.error      .conn-dot { background: #FF6B6B; animation: offpulse 1s infinite; }
 .conn-bar.readonly   .conn-dot { background: var(--blue); }
 @keyframes blink { 0%,100%{opacity:1}50%{opacity:.3} }
+@keyframes offpulse { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)} }
 .conn-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 .conn-users { font-size: 11px; }
+/* Bandeau complémentaire blocage sauvegarde */
+#offline-savewarn {
+  display:none; background:#5A0000; color:#fff;
+  padding:5px 1.5rem; font-size:11px; font-weight:600;
+  align-items:center; gap:8px; border-bottom:1px solid #7B1111;
+}
+#offline-savewarn.show { display:flex; }
+.offline-retry-btn {
+  background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.4);
+  color:#fff; padding:3px 12px; border-radius:6px;
+  font-family:inherit; font-size:11px; font-weight:600;
+  cursor:pointer; margin-left:auto; transition:background .15s;
+}
+.offline-retry-btn:hover { background:rgba(255,255,255,.35); }
+.conn-bar.error .conn-error-count { font-size:10px; opacity:.75; }
 .mode-badge {
 font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 700;
 letter-spacing: .04em; text-transform: uppercase;
@@ -235,6 +251,7 @@ transition:all .3s;
 <div class="conn-bar connected" id="conn-bar">
 <div class="conn-dot"></div>
 <span id="conn-text">Google Sheets</span>
+<span id="conn-error-detail" style="font-size:11px;margin-left:6px;opacity:.85;display:none"></span>
 <div class="conn-right">
 <span class="conn-users" id="conn-users"></span>
 <span class="mode-badge" id="mode-badge"></span>
@@ -242,6 +259,13 @@ transition:all .3s;
 <span class="sync-dot-anim"></span>
 <span id="sync-text">Synchronisé</span>
 </span>
+<button id="conn-retry-btn" onclick="retryConnectionIndex()" style="display:none" class="offline-retry-btn">↻ Réessayer</button>
+</div>
+</div>
+<!-- Bandeau blocage sauvegarde -->
+<div id="offline-savewarn">
+  🔒 <strong>Sauvegardes bloquées</strong> — connexion perdue, aucune écriture envoyée. Vos modifications sont sauvegardées localement.
+  <button class="offline-retry-btn" onclick="retryConnectionIndex()">↻ Réessayer maintenant</button>
 </div>
 </div>
 
@@ -713,11 +737,11 @@ async function initApp() {
 
 
     setSyncPill('ok', 'Synchronisé');
+    setOnlineIndex();
     render();
   } catch(e) {
     console.error('initApp ERREUR:', e.message);
-    setConnBar('error', 'Erreur: '+e.message);
-    setSyncPill('error', 'Erreur');
+    setOfflineIndex('Chargement impossible : ' + e.message);
     loadLS();
     render();
   }
@@ -841,6 +865,13 @@ async function saveToSupabase(atId) {
       phases: Array.isArray(t.phases) ? t.phases.join(',') : (t.phases||''),
     }));
   }
+
+  // Bloquer si hors ligne
+  if (_isOfflineIndex) {
+    setSyncPill('error', 'Hors ligne — sauvegarde bloquée');
+    return;
+  }
+
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
@@ -849,15 +880,77 @@ async function saveToSupabase(atId) {
     });
     const r = await res.json();
     if (r.ok) {
+      setOnlineIndex();
       setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
       // syncAllOFToERP(); // Désactivé temporairement
     } else throw new Error(r.error);
   } catch(e) {
+    setOfflineIndex('Erreur sauvegarde : ' + e.message);
     console.warn('Save error:', e.message);
-    setSyncPill('error', 'Erreur - local OK');
   }
 }
 function saveToSheets(atId) { return saveToSupabase(atId); }
+
+// ── GESTION OFFLINE — Planning Production ────────────────────────────────
+let _isOfflineIndex = false;
+let _offlineErrorsIndex = 0;
+let _tabBlinkIndex = null;
+
+function setOfflineIndex(errorMsg) {
+  _isOfflineIndex = true;
+  _offlineErrorsIndex++;
+  setConnBar('error', '⚠ Connexion perdue — ' + (errorMsg || 'erreur réseau'));
+  const detail = document.getElementById('conn-error-detail');
+  if (detail) { detail.textContent = '(' + _offlineErrorsIndex + ' erreur' + (_offlineErrorsIndex>1?'s':'') + ')'; detail.style.display='inline'; }
+  const retryBtn = document.getElementById('conn-retry-btn');
+  if (retryBtn) retryBtn.style.display = 'inline-block';
+  const savewarn = document.getElementById('offline-savewarn');
+  if (savewarn) savewarn.classList.add('show');
+  setSyncPill('error', 'Hors ligne');
+  if (!_tabBlinkIndex) _tabBlinkIndex = setInterval(() => {
+    document.title = document.title.startsWith('⚠') ? 'Planning Production — Rousseau' : '⚠ CONNEXION PERDUE — Planning';
+  }, 1500);
+}
+
+function setOnlineIndex() {
+  _isOfflineIndex = false;
+  _offlineErrorsIndex = 0;
+  setConnBar('connected', 'Google Sheets');
+  const detail = document.getElementById('conn-error-detail');
+  if (detail) detail.style.display = 'none';
+  const retryBtn = document.getElementById('conn-retry-btn');
+  if (retryBtn) retryBtn.style.display = 'none';
+  const savewarn = document.getElementById('offline-savewarn');
+  if (savewarn) savewarn.classList.remove('show');
+  if (_tabBlinkIndex) { clearInterval(_tabBlinkIndex); _tabBlinkIndex = null; document.title = 'Planning Production — Rousseau'; }
+}
+
+async function retryConnectionIndex() {
+  const btns = document.querySelectorAll('.offline-retry-btn, #conn-retry-btn');
+  btns.forEach(b => { b.textContent = '⟳ Test...'; b.disabled = true; });
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST', headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'getTranches'})
+    });
+    const r = await res.json();
+    if (r.ok) {
+      setOnlineIndex();
+      setSyncPill('saving', 'Reconnexion...');
+      // Rejouer la sauvegarde en attente
+      for (const atId of Object.keys(state.tranches)) {
+        await saveToSupabase(atId);
+        break; // une seule suffit pour confirmer
+      }
+    } else throw new Error(r.error || 'Réponse invalide');
+  } catch(e) {
+    setOfflineIndex('Serveur toujours inaccessible : ' + e.message);
+  } finally {
+    btns.forEach(b => { b.textContent = '↻ Réessayer'; b.disabled = false; });
+  }
+}
+
+
 
 async function deleteFromSupabase(dbId) {
 if (!_sbConnected || IS_READONLY || !dbId) return;
