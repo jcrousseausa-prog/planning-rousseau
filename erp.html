@@ -198,10 +198,47 @@ table.bl-lignes td.r{text-align:right}
   .no-print { display:none!important; }
   .print-only { display:block!important; }
   #modal-print-ateliers { display:none!important; }
+  #login-screen { display:none!important; }
 }
+/* ── LOGIN SCREEN ── */
+#login-screen{position:fixed;inset:0;background:var(--bg);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 40px;width:380px;max-width:100%;box-shadow:0 8px 40px rgba(0,0,0,.12)}
+.login-logo{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.login-logo .logo-text{font-size:18px;font-weight:700;letter-spacing:-.02em}
+.login-logo .logo-sub{font-size:12px;color:var(--text3);font-weight:400;display:block;margin-top:1px}
+.login-field{margin-bottom:14px}
+.login-field label{display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.login-field input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-family:inherit;font-size:14px;background:var(--surface);color:var(--text);transition:border-color .15s}
+.login-field input:focus{outline:none;border-color:var(--blue)}
+.login-btn{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:9px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;margin-top:6px;transition:background .15s}
+.login-btn:hover{background:#153f6e}
+.login-error{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:7px;padding:8px 12px;font-size:12px;margin-top:10px;display:none}
 </style>
 </head>
 <body>
+
+<!-- ══ ÉCRAN LOGIN ══ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div>
+        <div class="logo-text">ERP <span style="color:var(--text3);font-weight:400">Rousseau Construction</span></div>
+        <span class="logo-sub">Connexion requise pour accéder</span>
+      </div>
+    </div>
+    <div class="login-field">
+      <label>Identifiant</label>
+      <input type="text" id="login-user" placeholder="Votre identifiant" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()"/>
+    </div>
+    <div class="login-field">
+      <label>Mot de passe</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
+    </div>
+    <button class="login-btn" onclick="doLogin()" id="login-btn-submit">Se connecter</button>
+    <div class="login-error" id="login-error">Identifiant ou mot de passe incorrect.</div>
+    <div id="login-loading" style="text-align:center;font-size:12px;color:var(--text3);margin-top:10px;display:none">⟳ Vérification en cours…</div>
+  </div>
+</div>
 
 <header>
   <div style="display:flex;align-items:center;gap:12px">
@@ -216,6 +253,10 @@ table.bl-lignes td.r{text-align:right}
       <span class="sync-dot"></span>
       <span id="sync-text">Synchronisé</span>
     </span>
+    <span id="user-pill" style="display:none;font-size:11px;color:var(--text2);background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:20px;align-items:center;gap:6px">
+      <span id="user-pill-name"></span>
+      <button onclick="doLogout()" style="background:none;border:none;font-size:10px;cursor:pointer;color:var(--text3);padding:0;margin-left:4px" title="Se déconnecter">⏏</button>
+    </span>
   </div>
 </header>
 
@@ -229,7 +270,7 @@ table.bl-lignes td.r{text-align:right}
   <button class="app-tab" id="tab-bl" onclick="showScreen('bl')">Bons de livraison<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-charge" onclick="showScreen('charge')">Charge équipes</button>
   <button class="app-tab" id="tab-heures" onclick="showScreen('heures')">Heures</button>
-  <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global</button>
+  <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global production</button>
   <button class="app-tab" id="tab-retours" onclick="showScreen('retours')">Retours équipes</button>
   <button class="app-tab" id="tab-suivi-prod" onclick="showScreen('suivi-prod')">📦 Suivi production</button>
 </div>
@@ -1566,7 +1607,126 @@ async function syncOFTermines(){
 }
 
 // ═══ INIT ═════════════════════════════════════════════════════════════════
+// ═══ SYSTÈME AUTH ════════════════════════════════════════════════════════
+
+// Droits par défaut (fallback si ERP_Droits non configuré dans Sheets)
+// Format : { profil: { onglet: 'full'|'read'|'none' } }
+const DEFAULT_DROITS = {
+  admin:        { planning:'full', dashboard:'full', achats:'full', stock:'full', bl:'full', charge:'full', heures:'full', 'planning-global':'full', retours:'full', 'suivi-prod':'full' },
+  chef:         { planning:'full', dashboard:'read', achats:'read', stock:'full', bl:'full', charge:'full', heures:'read', 'planning-global':'full', retours:'full', 'suivi-prod':'full' },
+  collaborateur:{ planning:'full', dashboard:'none', achats:'read', stock:'none', bl:'none',  charge:'full', heures:'none', 'planning-global':'full', retours:'full', 'suivi-prod':'full' },
+  lecture:      { planning:'read', dashboard:'none', achats:'none', stock:'none', bl:'none',  charge:'read', heures:'none', 'planning-global':'read', retours:'none', 'suivi-prod':'read' },
+};
+
+let _currentUser = null;   // { login, nom, profil, droits:{} }
+let _droitsCache = null;   // droits lus depuis Sheets
+
+async function doLogin(){
+  const login = document.getElementById('login-user').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  const loadEl= document.getElementById('login-loading');
+  const btnEl = document.getElementById('login-btn-submit');
+  errEl.style.display = 'none';
+  if(!login||!pass){ errEl.textContent='Veuillez remplir les deux champs.'; errEl.style.display='block'; return; }
+
+  loadEl.style.display = 'block';
+  btnEl.disabled = true;
+
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({ action:'checkLogin', login, pass })
+    });
+    const r = await res.json();
+    if(r.ok && r.user){
+      _currentUser = r.user; // { login, nom, profil, droits }
+      sessionStorage.setItem('erp_user', JSON.stringify(_currentUser));
+      hideLoginScreen();
+    } else {
+      errEl.textContent = r.error || 'Identifiant ou mot de passe incorrect.';
+      errEl.style.display = 'block';
+      document.getElementById('login-pass').value = '';
+    }
+  } catch(e) {
+    errEl.textContent = 'Erreur de connexion — vérifiez votre réseau.';
+    errEl.style.display = 'block';
+  } finally {
+    loadEl.style.display = 'none';
+    btnEl.disabled = false;
+  }
+}
+
+function doLogout(){
+  if(!confirm('Se déconnecter ?')) return;
+  sessionStorage.removeItem('erp_user');
+  _currentUser = null;
+  document.getElementById('user-pill').style.display = 'none';
+  // Recharger la page pour repartir proprement
+  window.location.reload();
+}
+
+function hideLoginScreen(){
+  document.getElementById('login-screen').style.display = 'none';
+  // Afficher la pilule utilisateur
+  const pill = document.getElementById('user-pill');
+  pill.style.display = 'inline-flex';
+  document.getElementById('user-pill-name').textContent =
+    (_currentUser.nom || _currentUser.login) + ' · ' + (_currentUser.profil||'?');
+  applyDroits();
+  init();
+}
+
+function applyDroits(){
+  if(!_currentUser) return;
+  const droits = _currentUser.droits || DEFAULT_DROITS[_currentUser.profil] || DEFAULT_DROITS.lecture;
+  const onglets = ['planning','dashboard','achats','stock','bl','charge','heures','planning-global','retours','suivi-prod'];
+  onglets.forEach(id=>{
+    const d = droits[id] || 'none';
+    const tabEl = document.getElementById('tab-'+id);
+    const screenEl = document.getElementById('screen-'+id);
+    if(tabEl){
+      if(d==='none'){ tabEl.style.display='none'; }
+      else { tabEl.style.display=''; }
+    }
+    // Stocker le niveau de droit sur le screen pour usage ultérieur
+    if(screenEl) screenEl.dataset.droit = d;
+  });
+
+  // Mode lecture : désactiver les boutons d'ajout/modification sur les onglets en read
+  onglets.forEach(id=>{
+    const d = droits[id] || 'none';
+    if(d==='read'){
+      const screenEl = document.getElementById('screen-'+id);
+      if(screenEl) screenEl.dataset.readonly = 'true';
+    }
+  });
+
+  // Si aucun onglet visible n'est actif, activer le premier visible
+  const firstVisible = onglets.find(id=>{ const t=document.getElementById('tab-'+id); return t && t.style.display!=='none'; });
+  if(firstVisible) showScreen(firstVisible);
+}
+
+function canEdit(screenId){
+  const screenEl = document.getElementById('screen-'+screenId);
+  if(!screenEl) return true;
+  return screenEl.dataset.readonly !== 'true';
+}
+
+// Vérifier si déjà connecté (sessionStorage)
+function checkExistingSession(){
+  try {
+    const stored = sessionStorage.getItem('erp_user');
+    if(stored){
+      _currentUser = JSON.parse(stored);
+      return true;
+    }
+  } catch(e){}
+  return false;
+}
+
 async function init(){
+
   // 1. Afficher immédiatement depuis le cache
   const hasLocal = loadLS();
   if(!state.retours) state.retours=[];
@@ -5911,7 +6071,13 @@ async function syncPlanningERPOnly(){
 const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-(day-1));
 document.getElementById('charge-debut').value=d.toISOString().slice(0,10);
 
-init();
+// Démarrage — vérifier session existante ou afficher login
+(function startApp(){
+  if(checkExistingSession()){
+    hideLoginScreen();
+  }
+  // Sinon l'écran login reste visible, init() sera appelé après doLogin()
+})();
 </script>
 <!-- MODAL RETOUR -->
 <div class="modal-bg" id="modal-retour" onclick="if(event.target===this)closeModal('modal-retour')">
