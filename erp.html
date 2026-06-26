@@ -3479,7 +3479,7 @@ function openSaisieJours(empId, semaine){
         <th style="padding:7px 10px;text-align:left;border:1px solid var(--border);min-width:180px">Chantier</th>
         <th style="padding:7px 8px;text-align:center;border:1px solid var(--border);min-width:70px;font-size:11px;color:var(--blue)">Atelier</th>
         ${JOURS_SEMAINE.map(j=>`<th style="padding:7px 8px;text-align:center;border:1px solid var(--border);min-width:60px">${j.slice(0,3)}<br><span style="font-size:9px;font-weight:400;color:var(--text3)">heures</span></th>`).join('')}
-
+        <th class="sj-tours-cell" style="display:none;padding:7px 8px;text-align:center;border:1px solid var(--orange-border);background:var(--orange-bg);color:var(--orange);font-weight:700;font-size:11px">Trajets</th>
         <th style="padding:7px 8px;text-align:center;border:1px solid var(--border);background:#EAF2FB;color:var(--blue);font-weight:700">Total</th>
         <th style="padding:7px 8px;border:1px solid var(--border);width:30px"></th>
       </tr>
@@ -3503,12 +3503,12 @@ function openSaisieJours(empId, semaine){
             style="width:52px;padding:4px;border:1px solid var(--border);border-radius:5px;text-align:center;font-family:inherit;font-size:12px"
             oninput="updateTotalRow(${i});updateTotalSemaine()"/>
         </td>`).join('')}
+        <td class="sj-tours-cell" style="display:none;padding:4px;border:1px solid var(--border)">
+          <input type="number" id="sj-tours-${i}" min="0" max="99" step="1" placeholder="0 trajet"
+            style="width:60px;padding:4px;border:1px solid var(--orange-border);border-radius:4px;text-align:center;font-family:inherit;font-size:11px;color:var(--orange);background:var(--orange-bg)"/>
+        </td>
         <td style="padding:4px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:12px;color:var(--blue);background:#EAF2FB;border:1px solid var(--border)" id="sj-tot-${i}">
           <span id="sj-tot-val-${i}">0h</span>
-          <div class="sj-tours-cell" style="display:none;margin-top:3px">
-            <input type="number" id="sj-tours-${i}" min="0" max="99" step="1" placeholder="0 trajet"
-              style="width:60px;padding:2px 4px;border:1px solid var(--orange-border);border-radius:4px;text-align:center;font-family:inherit;font-size:11px;color:var(--orange);background:var(--orange-bg)"/>
-          </div>
         </td>
         <td style="padding:4px;text-align:center;border:1px solid var(--border)">
           <button onclick="removeSaisieRow(${i})" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:14px">✕</button>
@@ -3520,7 +3520,7 @@ function openSaisieJours(empId, semaine){
         <td style="padding:7px 10px;border:1px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase">TOTAL JOUR</td>
         <td style="border:1px solid var(--border);background:var(--bg)"></td>
         ${JOURS_SEMAINE.map(j=>`<td style="padding:7px 8px;text-align:center;font-family:'DM Mono',monospace;font-size:13px;border:1px solid var(--border)" id="sj-totjour-${j}">—</td>`).join('')}
-
+        <td class="sj-tours-cell" style="display:none;border:1px solid var(--orange-border);background:var(--orange-bg)"></td>
         <td style="padding:7px 8px;text-align:center;font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--green);border:1px solid var(--border);background:#EAFAF1" id="sj-totsem">0h</td>
         <td style="border:1px solid var(--border)"></td>
       </tr>
@@ -3577,20 +3577,18 @@ function addSaisieRow(){
     </td>`).join('')}
 
     <td style="padding:4px;border:1px solid var(--border);display:none" class="sj-tours-cell">
-      <input type="number" id="sj-tours-${i}" min="0" max="99" step="1" placeholder="0"
-        style="width:44px;padding:4px;border:1px solid var(--border);border-radius:5px;text-align:center;font-family:inherit;font-size:12px"/>
+      <input type="number" id="sj-tours-${i}" min="0" max="99" step="1" placeholder="0 trajet"
+        style="width:60px;padding:4px;border:1px solid var(--orange-border);border-radius:4px;text-align:center;font-family:inherit;font-size:11px;color:var(--orange);background:var(--orange-bg)"/>
     </td>
     <td style="padding:4px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:12px;color:var(--blue);background:#EAF2FB;border:1px solid var(--border)" id="sj-tot-${i}">
       <span id="sj-tot-val-${i}">0h</span>
-      <div class="sj-tours-cell" style="display:none;margin-top:3px">
-        <input type="number" id="sj-tours-${i}" min="0" max="99" step="1" placeholder="0 trajet"
-          style="width:60px;padding:2px 4px;border:1px solid var(--orange-border);border-radius:4px;text-align:center;font-family:inherit;font-size:11px;color:var(--orange);background:var(--orange-bg)"/>
-      </div>
     </td>
     <td style="padding:4px;text-align:center;border:1px solid var(--border)">
       <button onclick="removeSaisieRow(${i})" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:14px">✕</button>
     </td>`;
   document.getElementById('sj-tbody').appendChild(tr);
+  // Appliquer immédiatement l'état Transport si actif
+  toggleToursColumn();
 }
 
 function removeSaisieRow(i){
@@ -3632,7 +3630,11 @@ function updateTotalSemaine(){
 function toggleToursColumn() {
   const atelier = document.getElementById('sj-atelier')?.value || '';
   const showTours = atelier === 'Transport';
-  document.querySelectorAll('.sj-tours-cell').forEach(el => el.style.display = showTours ? 'block' : 'none');
+  document.querySelectorAll('.sj-tours-cell').forEach(el => {
+    // th → table-cell, td → table-cell, div → block
+    const tag = el.tagName.toLowerCase();
+    el.style.display = showTours ? (tag==='div' ? 'block' : 'table-cell') : 'none';
+  });
 }
 
 function saveHeuresSemaine(){
