@@ -86,6 +86,9 @@ tr:last-child td{border-bottom:none}
 .badge-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
 .badge-blue{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border)}
 .badge-purple{background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple-border)}
+/* Bouton statut cliquable */
+.statut-btn{cursor:pointer;border:none;background:none;padding:0;font-family:inherit;display:inline-flex;align-items:center;gap:3px;}
+.statut-btn:hover .badge{filter:brightness(.92);}
 .badge-gray{background:var(--bg);color:var(--text2);border:1px solid var(--border)}
 .badge-teal{background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-border)}
 .prog{display:flex;align-items:center;gap:6px;min-width:80px}
@@ -1235,9 +1238,108 @@ function fmtDate(s){if(!s)return'';try{
 function parseDate(s){if(!s)return null;s=String(s).trim().replace(/[""]/g,'');if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return null;}
 function progHtml(pct,cls){return`<div class="prog"><div class="prog-bar"><div class="prog-fill ${cls||'prog-blue'}" style="width:${Math.min(pct,100)}%"></div></div><span class="prog-label">${pct}%</span></div>`;}
 function statusBadge(s){
-  const m={Terminé:'badge-green',Reçue:'badge-green','En cours':'badge-blue',Planifié:'badge-gray',planifie:'badge-gray',en_cours:'badge-blue',termine:'badge-green',bloque:'badge-red',attente:'badge-orange',Retard:'badge-red',Litige:'badge-red','Réception partielle':'badge-orange',Envoyée:'badge-orange',Validée:'badge-blue',Brouillon:'badge-gray',brouillon:'badge-gray',valide:'badge-green',reserve:'badge-orange',en_stock:'badge-green',sorti:'badge-gray'};
-  const labels={planifie:'Planifié',en_cours:'En cours',termine:'Terminé',bloque:'Bloqué',attente:'Attente BE',brouillon:'Brouillon',valide:'Validé',reserve:'Réservé',en_stock:'En stock',sorti:'Sorti'};
+  const m={Terminé:'badge-green',Reçue:'badge-green','En cours':'badge-blue',Planifié:'badge-gray',planifie:'badge-gray',en_cours:'badge-blue',termine:'badge-green',livre:'badge-purple',bloque:'badge-red',attente:'badge-orange',Retard:'badge-red',Litige:'badge-red','Réception partielle':'badge-orange',Envoyée:'badge-orange',Validée:'badge-blue',Brouillon:'badge-gray',brouillon:'badge-gray',valide:'badge-green',reserve:'badge-orange',en_stock:'badge-green',sorti:'badge-gray'};
+  const labels={planifie:'Planifié',en_cours:'En cours',termine:'Terminé',livre:'Livré',bloque:'Bloqué',attente:'Attente BE',brouillon:'Brouillon',valide:'Validé',reserve:'Réservé',en_stock:'En stock',sorti:'Sorti'};
   return`<span class="badge ${m[s]||'badge-gray'}">${labels[s]||s}</span>`;
+}
+
+// ── Changement de statut rapide (tranche/phase/article/OF) ───────────────
+function quickStatutTranche(id, newStatut, e){
+  e.stopPropagation();
+  const t = state.tranches.find(x=>x.id===id);
+  if(!t) return;
+  const today = new Date().toISOString().slice(0,10);
+  if(newStatut==='termine'){
+    t.statut_erp = 'termine';
+    t.date_termine = today;
+    t.date_livre = null;
+  } else if(newStatut==='livre'){
+    t.statut_erp = 'livre';
+    t.date_livre = today;
+    if(!t.date_termine) t.date_termine = today;
+  } else {
+    t.statut_erp = newStatut;
+  }
+  scheduleSave(); renderPlanning();
+  toast(newStatut==='livre'?'✅ Tranche marquée Livrée':'✅ Tranche marquée Terminée');
+}
+
+function quickStatutPhase(id, newStatut, e){
+  e.stopPropagation();
+  const p = state.phases.find(x=>x.id===id);
+  if(!p) return;
+  const today = new Date().toISOString().slice(0,10);
+  p.statut = newStatut;
+  if(newStatut==='termine') p.date_termine = today;
+  if(newStatut==='livre')   { p.statut='livre'; p.date_livre = today; }
+  scheduleSave(); renderPlanning();
+  toast(newStatut==='livre'?'✅ Phase marquée Livrée':'✅ Phase marquée Terminée');
+}
+
+function quickStatutArticle(id, newStatut, e){
+  e.stopPropagation();
+  const a = state.articles.find(x=>x.id===id);
+  if(!a) return;
+  const today = new Date().toISOString().slice(0,10);
+  a.statut = newStatut;
+  if(newStatut==='termine'){ a.avancement=100; a.date_sortie_prod=a.date_sortie_prod||today; }
+  if(newStatut==='livre')  { a.statut='livre'; a.avancement=100; }
+  scheduleSave(); renderPlanning();
+  toast('✅ Article mis à jour');
+}
+
+function quickStatutOF(ofId, newStatut, e){
+  e.stopPropagation();
+  // Les OF sont dans state.suivi_prod — on met à jour localement
+  const of = (state.suivi_prod||[]).find(x=>x.id===ofId||x.of_id===ofId);
+  if(!of) return;
+  of.statut = newStatut;
+  if(newStatut==='termine') of.date_production = new Date().toISOString().slice(0,10);
+  scheduleSave(); renderPlanning();
+  toast('✅ OF mis à jour');
+}
+
+// Raccourci : menu contextuel statut inline
+function openStatutMenu(type, id, currentStatut, e){
+  e.stopPropagation();
+  // Supprimer menu existant
+  document.querySelectorAll('.statut-menu').forEach(m=>m.remove());
+
+  const options = type==='tranche'
+    ? [{v:'en_cours',l:'🔧 En cours'},{v:'termine',l:'✅ Terminé'},{v:'livre',l:'📦 Livré'}]
+    : type==='phase'
+    ? [{v:'planifie',l:'📋 Planifié'},{v:'en_cours',l:'🔧 En cours'},{v:'termine',l:'✅ Terminé'},{v:'livre',l:'📦 Livré'}]
+    : [{v:'planifie',l:'📋 Planifié'},{v:'en_cours',l:'🔧 En cours'},{v:'termine',l:'✅ Terminé'},{v:'livre',l:'📦 Livré'},{v:'bloque',l:'🚫 Bloqué'}];
+
+  const rect = e.currentTarget.getBoundingClientRect();
+  const menu = document.createElement('div');
+  menu.className = 'statut-menu';
+  menu.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.bottom+4}px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.15);z-index:500;overflow:hidden;min-width:160px`;
+
+  options.forEach(opt=>{
+    const btn = document.createElement('button');
+    const isCurrent = currentStatut===opt.v;
+    btn.style.cssText = `display:block;width:100%;text-align:left;padding:9px 14px;border:none;background:${isCurrent?'var(--blue-bg)':'var(--surface)'};color:${isCurrent?'var(--blue)':'var(--text)'};cursor:pointer;font-family:inherit;font-size:13px;font-weight:${isCurrent?'700':'400'};`;
+    btn.textContent = (isCurrent?'✓ ':'') + opt.l;
+    btn.onmouseenter = ()=>{ if(!isCurrent) btn.style.background='var(--bg)'; };
+    btn.onmouseleave = ()=>{ if(!isCurrent) btn.style.background='var(--surface)'; };
+    btn.onclick = (ev)=>{
+      ev.stopPropagation();
+      menu.remove();
+      if(type==='tranche') quickStatutTranche(id, opt.v, {stopPropagation:()=>{}});
+      else if(type==='phase') quickStatutPhase(id, opt.v, {stopPropagation:()=>{}});
+      else if(type==='article') quickStatutArticle(id, opt.v, {stopPropagation:()=>{}});
+      else if(type==='of') quickStatutOF(id, opt.v, {stopPropagation:()=>{}});
+    };
+    menu.appendChild(btn);
+  });
+
+  document.body.appendChild(menu);
+  // Fermer si clic ailleurs
+  setTimeout(()=>{
+    const close = (ev)=>{ if(!menu.contains(ev.target)){ menu.remove(); document.removeEventListener('click',close); } };
+    document.addEventListener('click', close);
+  }, 0);
 }
 function fmt(n){return Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0})+'€';}
 function empHtml(e){return e&&e!=='—'?`<span class="emp">${e}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>';}
@@ -1853,7 +1955,7 @@ function checkExistingSession(){
 
 async function init(){
 
-  // 1. Afficher immédiatement depuis le cache
+  // 1. Afficher immédiatement depuis le cache local
   const hasLocal = loadLS();
   if(!state.retours) state.retours=[];
   if(!hasLocal || !state.chantiers.length){
@@ -1863,17 +1965,48 @@ async function init(){
     });
   }
   // Afficher tout de suite avec les données en cache
-  renderAll();
-  setSyncPill('saving','Chargement...');
+  renderPlanning();
+  setSyncPill('saving','Chargement…');
 
-  // 2. Charger depuis Sheets en parallèle (non bloquant sur l'affichage)
-  const ok = await loadFromSheets();
-  if(ok) {
-    renderAll();
-    setSyncPill('ok','Synchronisé');
-    document.getElementById('rt-label').textContent='Connecté';
+  // 2. Charger uniquement chantiers/tranches/phases/articles en priorité (rapide)
+  const okFast = await loadFromSheetsfast();
+  if(okFast){
+    renderPlanning();
+    setSyncPill('ok','Tableau de pilotage ✓');
   }
-  startPolling();
+
+  // 3. Charger le reste en arrière-plan (heures, employes, cdes, stock…)
+  setTimeout(async ()=>{
+    const ok = await loadFromSheets();
+    if(ok){
+      renderAll();
+      setSyncPill('ok','Synchronisé');
+      document.getElementById('rt-label').textContent='Connecté';
+    }
+    startPolling();
+  }, 100);
+}
+
+// ── Chargement rapide : uniquement planning + suivi prod ──────────────────
+async function loadFromSheetsfast(){
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'getERPPlanning'})
+    });
+    const r = await res.json();
+    if(r.ok && r.data && r.data.chantiers?.length >= 5){
+      state.chantiers = (r.data.chantiers||[]).sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
+      state.tranches  = r.data.tranches||[];
+      state.phases    = r.data.phases||[];
+      state.articles  = r.data.articles||[];
+      if(r.data.suivi_prod) state.suivi_prod = r.data.suivi_prod;
+      setOnline();
+      saveLS();
+      return true;
+    }
+  } catch(e){ /* fallback silencieux vers loadFromSheets */ }
+  return false;
 }
 // ═══ RENDER ALL ═══════════════════════════════════════════════════════════
 function renderAll(){
@@ -2017,7 +2150,9 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
   if(o && ofs_prod.length) {
     ofsHtml = ofs_prod.map(of=>{
       const ofDate = of.date_fin_prod ? (String(of.date_fin_prod).length>10 ? String(of.date_fin_prod).slice(0,10) : String(of.date_fin_prod)) : '';
-      const ofSc = statutConfig[of.statut==='termine'?'termine':of.statut==='en_cours'?'en_cours':'planifie'];
+      const ofStatut = of.statut==='termine'?'termine':of.statut==='en_cours'?'en_cours':'planifie';
+      const ofSc = statutConfig[ofStatut];
+      const ofId = of.id||of.of_id||'';
       return `<tr class="row-article" style="background:#FAFAF8">
         <td></td>
         <td style="padding-left:2.5rem;font-size:12px;font-weight:500" colspan="2">
@@ -2035,12 +2170,30 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
           ${of.date_production ? `<span style="color:var(--green);font-size:10px">✓ ${fmtDate(of.date_production)}</span>` : ''}
         </td>
         <td style="font-size:11px">
-          <span style="background:${ofSc.bg};color:${ofSc.color};border:1px solid ${ofSc.border};border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">${ofSc.icon} ${ofSc.label}</span>
+          <button class="statut-btn" onclick="openStatutMenu('of','${ofId}','${ofStatut}',event)" title="Changer le statut de l'OF">
+            <span style="background:${ofSc.bg};color:${ofSc.color};border:1px solid ${ofSc.border};border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">${ofSc.icon} ${ofSc.label} ▾</span>
+          </button>
         </td>
         <td></td>
       </tr>`;
     }).join('');
   }
+
+  // Statut ERP (terminé/livré déclaré manuellement, indépendant du statut planning)
+  const statutERP = tr.statut_erp || '';
+  const statutERPConfig = {
+    '':       null,
+    termine:  {label:'✅ Terminé', bg:'var(--green-bg)',  color:'var(--green)',  border:'var(--green-border)'},
+    livre:    {label:'📦 Livré',   bg:'var(--purple-bg)', color:'var(--purple)', border:'var(--purple-border)'},
+  };
+  const scERP = statutERPConfig[statutERP];
+  const statutERPHtml = scERP
+    ? `<button class="statut-btn" onclick="openStatutMenu('tranche','${tr.id}','${statutERP}',event)" title="Changer le statut">
+        <span style="font-size:10px;background:${scERP.bg};color:${scERP.color};border:1px solid ${scERP.border};border-radius:5px;padding:2px 7px;font-weight:600;white-space:nowrap">${scERP.label} ▾</span>
+      </button>`
+    : `<button class="statut-btn" onclick="openStatutMenu('tranche','${tr.id}','',event)" title="Déclarer Terminé ou Livré" style="opacity:.5">
+        <span style="font-size:10px;background:var(--bg);color:var(--text3);border:1px dashed var(--border2);border-radius:5px;padding:2px 7px;white-space:nowrap">— ▾</span>
+      </button>`;
 
   return`<tr class="row-tranche" onclick="toggleNode('tr','${tr.id}')" style="border-left:3px solid ${sc.border}">
     <td><span class="chevron${o?' open':''}">▶</span></td>
@@ -2062,7 +2215,7 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
     <td></td>
     <td style="text-align:center">${finProdHtml}</td>
     <td></td>
-    <td></td>
+    <td>${statutERPHtml}</td>
     <td>${statutHtml}</td>
     <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="event.stopPropagation();openEditTranche('${tr.id}')">✎</button>
@@ -2077,10 +2230,12 @@ function renderPhRow(ph,nbArt,arts){
   const bh=arts.reduce((s,a)=>s+(+a.budget_heures||0),0);
   const statutLabels={planifie:['Planifié','var(--text3)','var(--bg)','var(--border)'],en_cours:['En cours','var(--blue)','var(--blue-bg)','var(--blue-border)'],termine:['Terminé','var(--green)','var(--green-bg)','var(--green-border)'],livre:['Livré','var(--purple)','var(--purple-bg)','var(--purple-border)'],en_attente:['En attente','var(--orange)','var(--orange-bg)','var(--orange-border)']};
   const sl=statutLabels[ph.statut||'planifie']||statutLabels['planifie'];
-  const statutBadge=`<span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;margin-left:8px">${sl[0]}</span>`;
+  const statutBadge=`<button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut">
+    <span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px">${sl[0]} ▾</span>
+  </button>`;
   return`<tr class="row-phase" onclick="toggleNode('ph','${ph.id}')">
     <td><span class="chevron${o?' open':''}">▶</span></td>
-    <td colspan="7">${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}<b>${esc(ph.nom)}</b>${statutBadge}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}${bh?` · ${bh}h`:''}</span></td>
+    <td colspan="7">${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}<b>${esc(ph.nom)}</b> ${statutBadge}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}${bh?` · ${bh}h`:''}</span></td>
     <td colspan="2"></td>
     <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="event.stopPropagation();openEditPhase('${ph.id}')">✎</button>
@@ -2091,6 +2246,7 @@ function renderPhRow(ph,nbArt,arts){
 function renderArtRow(a){
   const av=+a.avancement||0;
   const avCls=av>=100?'prog-green':av>0?'prog-blue':'prog-orange';
+  const s = a.statut||'planifie';
   return`<tr class="row-article">
     <td></td>
     <td style="font-weight:500;color:var(--text)">${esc(a.libelle||'—')}</td>
@@ -2102,7 +2258,11 @@ function renderArtRow(a){
     <td>${a.date_sortie_prod?`<span class="dp dp-purple">${fmtDate(a.date_sortie_prod)}</span>`:''}</td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${a.budget_heures||''}</td>
     <td>${progHtml(av,avCls)}</td>
-    <td>${statusBadge(a.statut||'planifie')}</td>
+    <td>
+      <button class="statut-btn" onclick="openStatutMenu('article','${a.id}','${s}',event)" title="Changer le statut">
+        ${statusBadge(s)}<span style="font-size:9px;color:var(--text3);margin-left:1px">▾</span>
+      </button>
+    </td>
     <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="openEditArticle('${a.id}')">✎</button>
       <button class="btn btn-sm btn-red" onclick="deleteArticle('${a.id}')">✕</button>
