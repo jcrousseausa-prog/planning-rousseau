@@ -188,6 +188,24 @@ input:focus { outline: none; border-color: var(--text); }
 .form-group label { display:block; font-size:11px; font-weight:600; color:var(--text2); margin-bottom:3px; text-transform:uppercase; letter-spacing:.05em; }
 .form-group input, .form-group select, .form-group textarea { width:100%; padding:5px 8px; border:1px solid var(--border); border-radius:7px; background:var(--surface); color:var(--text); font-family:inherit; font-size:12px; }
 .form-row { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+/* Sélecteur tranche ERP */
+.tranche-picker { border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+.tranche-picker-search { padding:7px 10px; border-bottom:1px solid var(--border); background:var(--surface2); display:flex; align-items:center; gap:6px; }
+.tranche-picker-search input { border:none; outline:none; font-family:inherit; font-size:13px; background:transparent; color:var(--text); flex:1; }
+.tranche-picker-chantier { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); padding:4px 10px 2px; background:var(--bg); border-bottom:1px solid var(--border); }
+.tranche-picker-item { padding:7px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid var(--border); transition:background .1s; display:flex; align-items:center; gap:8px; }
+.tranche-picker-item:last-child { border-bottom:none; }
+.tranche-picker-item:hover { background:var(--blue-bg); }
+.tranche-picker-item.selected { background:var(--blue-bg); color:var(--blue); font-weight:600; }
+.tranche-picker-item .ph-chips { margin-left:auto; display:flex; gap:3px; flex-shrink:0; }
+.tranche-picker-item .ph-chip { font-size:9px; padding:1px 5px; border-radius:3px; background:var(--blue-bg); color:var(--blue); border:1px solid var(--blue-border); }
+.tranche-picker-list { max-height:200px; overflow-y:auto; }
+.tranche-picker-empty { padding:12px; text-align:center; color:var(--text3); font-size:12px; }
+.tranche-selected-badge { display:flex; align-items:center; gap:8px; padding:7px 10px; background:var(--blue-bg); border:1px solid var(--blue-border); border-radius:8px; font-size:12px; }
+.tranche-selected-badge .name { font-weight:600; color:var(--blue); flex:1; }
+.tranche-selected-badge .chantier { font-size:11px; color:var(--text3); }
+.tranche-selected-badge button { border:none; background:none; cursor:pointer; color:var(--text3); font-size:14px; padding:0; line-height:1; }
+.tranche-manual-link { font-size:11px; color:var(--text3); cursor:pointer; text-decoration:underline; margin-top:4px; display:inline-block; }
 
 .ferm-chip { display:inline-flex; align-items:center; gap:4px; padding:3px 8px 3px 10px; border-radius:20px; font-size:11px; font-weight:500; font-family:'Courier New',monospace; }
 .ferm-chip-all    { background:var(--orange-bg); color:var(--orange); border:1px solid var(--orange-border); }
@@ -323,8 +341,37 @@ transition:all .3s;
 </div>
 <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
 <div class="form-group" style="flex:2;min-width:180px;margin-bottom:0">
-<label>Nom de l'OF</label>
-<input type="text" id="f-tranche" placeholder="Ex: MCA-B-CP+CT R+2"/>
+<label>Tranche ERP <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">— sélectionner depuis le tableau de pilotage</span></label>
+<!-- Sélecteur tranche ERP -->
+<div id="tranche-picker-wrap">
+  <!-- Badge tranche sélectionnée (visible si liée) -->
+  <div id="tranche-selected" style="display:none" class="tranche-selected-badge">
+    <div>
+      <div class="name" id="tranche-selected-nom"></div>
+      <div class="chantier" id="tranche-selected-chantier"></div>
+    </div>
+    <button onclick="clearTranchePicker()" title="Changer de tranche">✕</button>
+  </div>
+  <!-- Sélecteur (visible si pas encore lié) -->
+  <div id="tranche-picker" class="tranche-picker">
+    <div class="tranche-picker-search">
+      <span style="font-size:13px;color:var(--text3)">🔍</span>
+      <input type="text" id="tranche-search" placeholder="Rechercher chantier ou tranche…" oninput="filterTranchePicker(this.value)" autocomplete="off"/>
+      <button onclick="clearTrancheSearch()" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0" title="Effacer">✕</button>
+    </div>
+    <div class="tranche-picker-list" id="tranche-picker-list">
+      <div class="tranche-picker-empty">Chargement des tranches ERP…</div>
+    </div>
+  </div>
+  <span class="tranche-manual-link" onclick="toggleTrancheManual()" id="tranche-manual-toggle">Ou saisir manuellement (OF non lié à l'ERP)</span>
+</div>
+<!-- Champ texte manuel (masqué par défaut) -->
+<div id="tranche-manual-wrap" style="display:none;margin-top:6px">
+  <input type="text" id="f-tranche" placeholder="Ex: MCA-B-CP+CT R+2"/>
+  <span class="tranche-manual-link" onclick="toggleTrancheManual()" style="margin-top:3px">← Revenir au sélecteur ERP</span>
+</div>
+<!-- Champ caché pour l'ID ERP -->
+<input type="hidden" id="f-tranche-erp-id" value=""/>
 </div>
 </div>
 <div class="form-group">
@@ -486,7 +533,7 @@ joursOff:{b1:[5,6],b2:[5,6],b3:[5,6],men:[5,6]},
 fermetures:[], simMode:false, editId:null,
 nextId:{b1:20,b2:20,b3:1,men:20}, gsUrl:'',
 tranches:{b1:[],b2:[],b3:[],men:[]},
-phases_erp:[], phases_par_tranche:{}, tranches_erp:[],
+phases_erp:[], phases_par_tranche:{}, phases_par_tid:{}, tranches_erp:[], chantiers_erp:[],
 };
 let _editAtId = null;
 let _drag = null;
@@ -687,17 +734,20 @@ async function initApp() {
       });
       const ph = await rPh.json();
       if(ph.ok) {
-        // Indexer les phases par nom de tranche (normalisé)
-        state.phases_par_tranche = {};
-        state.tranches_erp = ph.tranches || [];
+        state.chantiers_erp  = ph.chantiers || [];
+        state.tranches_erp   = ph.tranches  || [];
         const phases = ph.phases || [];
-        // Construire index : nom_tranche_normalisé → [Ph01, Ph02, ...]
+        // Index phases par tid
+        state.phases_par_tid = {};
+        phases.forEach(p=>{ if(!state.phases_par_tid[p.tid]) state.phases_par_tid[p.tid]=[]; state.phases_par_tid[p.tid].push(p.num||p.nom||''); });
+        // Index phases par nom tranche normalisé (compatibilité)
+        state.phases_par_tranche = {};
         (ph.tranches||[]).forEach(tr => {
           const nomNorm = String(tr.nom||'').trim().toLowerCase();
-          const phsTr = phases.filter(p=>p.tid===tr.id).map(p=>p.num||p.nom||'').filter(Boolean).sort();
+          const phsTr = (state.phases_par_tid[tr.id]||[]).filter(Boolean).sort();
           if(phsTr.length) state.phases_par_tranche[nomNorm] = phsTr;
         });
-        // Datalist global pour suggestions
+        // Datalist global suggestions phases
         const allPhNums = [...new Set(phases.map(p=>p.num||'').filter(Boolean))].sort();
         const dl = document.getElementById('phases-suggestions');
         if(dl) dl.innerHTML = allPhNums.map(p=>`<option value="${esc(p)}">`).join('');
@@ -1476,7 +1526,7 @@ ${t.parallel?`<span class="flag-pill flag-parallel">⇉ parallèle</span>`:''}
 </div>`:'';
 return`<div class="gantt-row" style="${rowBg}">
 <div class="gantt-row-label">
-<div class="tranche-name">${esc(t.tranche)}</div>
+<div class="tranche-name">${esc(t.tranche)}${t.erp_tranche_id?'<span style="font-size:9px;margin-left:4px;color:var(--green);vertical-align:middle" title="Lié à l\'ERP">⬤</span>':'<span style="font-size:9px;margin-left:4px;color:var(--text3);vertical-align:middle" title="Non lié à l\'ERP">○</span>'}</div>
 ${t.comment?`<div class="tranche-comment">${esc(t.comment)}</div>`:''}
 ${flagsHtml}
 </div>
@@ -1838,7 +1888,7 @@ function buildAtelierOptions(selectedId){return ATELIERS.map(a=>`<option value="
 
 function openAddModal(){
 _editAtId=state.atelier;state.editId=null;
-document.getElementById('modal-title').textContent='Ajouter une tranche';initPhaseTags([]);
+document.getElementById('modal-title').textContent='Ajouter un OF';initPhaseTags([]);
 document.getElementById('f-atelier').innerHTML=buildAtelierOptions(_editAtId);
 const tr=state.tranches[_editAtId]||[];
 let lastFin = today();
@@ -1849,18 +1899,17 @@ try {
     if(fin) lastFin = addWorkDays(fin,1,_editAtId);
   }
 } catch(e){ console.warn('openAddModal dateFin:', e); }
-document.getElementById('f-tranche').value='';document.getElementById('f-comment').value='';
+document.getElementById('f-comment').value='';
 document.getElementById('f-debut').value=lastFin;document.getElementById('f-duree').value=5;
 document.getElementById('f-besoin').value='';
 document.getElementById('f-lockDebut').checked=false;document.getElementById('f-lockFin').checked=false;
 document.getElementById('f-lockFinDate').value='';document.getElementById('f-lockFinDate-group').style.display='none';
 document.getElementById('f-parallel').checked=false;
 document.getElementById('f-atelier').onchange=function(){};
-// Charger les phases depuis l'ERP selon la tranche sélectionnée (champ vide au départ)
-refreshPhasesERP('');
+// Initialiser le sélecteur tranche vide
+initTranchePicker(null, '', '');
+buildTranchePicker();
 document.getElementById('edit-modal').style.display='flex';
-// Mettre à jour les phases quand le nom de la tranche change
-document.getElementById('f-tranche').oninput = function(){ refreshPhasesERP(this.value); };
 }
 
 function openEditModal(atId,idx){
@@ -1869,21 +1918,227 @@ const t=state.tranches[atId][idx];
 document.getElementById('modal-title').textContent="Modifier l'OF";
 document.getElementById('f-atelier').innerHTML=buildAtelierOptions(atId);
 document.getElementById('f-atelier').onchange=null;
-document.getElementById('f-tranche').value=t.tranche;document.getElementById('f-comment').value=t.comment||'';initPhaseTags(t.phases||t.phase||[]);
+document.getElementById('f-comment').value=t.comment||'';
+initPhaseTags(t.phases||t.phase||[]);
 document.getElementById('f-debut').value=t.debut;document.getElementById('f-duree').value=t.duree;
 document.getElementById('f-besoin').value=t.besoin||'';
 document.getElementById('f-lockDebut').checked=!!t.lockDebut;document.getElementById('f-lockFin').checked=!!t.lockFin;
 document.getElementById('f-lockFinDate').value=t.lockFinDate||dateFin(t,atId);
 document.getElementById('f-lockFinDate-group').style.display=t.lockFin?'block':'none';
 document.getElementById('f-parallel').checked=!!t.parallel;
-// Charger les phases depuis l'ERP pour cette tranche
-refreshPhasesERP(t.tranche);
-document.getElementById('f-tranche').oninput = function(){ refreshPhasesERP(this.value); };
+// Initialiser le sélecteur : lié par ID ou par nom (OF existant)
+const erpId = t.erp_tranche_id||'';
+initTranchePicker(erpId, t.tranche||'', '');
+if(erpId) refreshPhasesERPById(erpId);
+else refreshPhasesERP(t.tranche||'');
 document.getElementById('edit-modal').style.display='flex';
 }
 
-// ── Phases ERP dynamiques dans la modale ──────────────────────────────────
+// ── SÉLECTEUR TRANCHE ERP ────────────────────────────────────────────────
+let _trancheErpId   = null;  // ID ERP de la tranche liée
+let _trancheErpNom  = null;  // Nom ERP affiché
+let _trancheManual  = false; // Mode saisie manuelle
+
+function buildTranchePicker(){
+  const list = document.getElementById('tranche-picker-list');
+  if(!list) return;
+  const chantiers = state.chantiers_erp || [];
+  const tranches  = state.tranches_erp  || [];
+  if(!chantiers.length && !tranches.length){
+    list.innerHTML = '<div class="tranche-picker-empty">Tranches ERP non chargées — rechargez la page</div>';
+    return;
+  }
+  renderTranchPickerList(list, '', tranches, chantiers);
+}
+
+function renderTranchPickerList(list, q, tranches, chantiers){
+  const qLow = q.trim().toLowerCase();
+  // Grouper par chantier
+  const parChantier = {};
+  tranches.forEach(tr=>{
+    const chNom = (chantiers.find(c=>c.id===tr.cid)||{}).nom || '(sans chantier)';
+    const chId  = tr.cid || '_';
+    if(!parChantier[chId]) parChantier[chId] = {nom:chNom, tranches:[]};
+    if(!qLow ||
+       tr.nom.toLowerCase().includes(qLow) ||
+       chNom.toLowerCase().includes(qLow)){
+      parChantier[chId].tranches.push(tr);
+    }
+  });
+  let html = '';
+  let total = 0;
+  Object.entries(parChantier).forEach(([chId, ch])=>{
+    if(!ch.tranches.length) return;
+    html += `<div class="tranche-picker-chantier">${esc(ch.nom)}</div>`;
+    ch.tranches.forEach(tr=>{
+      total++;
+      const isSel = tr.id === _trancheErpId;
+      const phases = state.phases_par_tid?.[tr.id] || [];
+      const phHtml = phases.length
+        ? `<div class="ph-chips">${phases.slice(0,3).map(p=>`<span class="ph-chip">${esc(p)}</span>`).join('')}</div>`
+        : '';
+      html += `<div class="tranche-picker-item${isSel?' selected':''}"
+        onclick="selectTranche('${tr.id}','${esc(tr.nom).replace(/'/g,"\\'")}','${esc(ch.nom).replace(/'/g,"\\'")}')">
+        <span style="flex:1;font-size:12px">${esc(tr.nom)}</span>${phHtml}
+      </div>`;
+    });
+  });
+  if(!total && qLow){
+    html = `<div class="tranche-picker-empty">Aucune tranche trouvée pour "<b>${esc(qLow)}</b>"<br><span style="font-size:11px">Vous pouvez saisir manuellement ci-dessous</span></div>`;
+  } else if(!total){
+    html = '<div class="tranche-picker-empty">Aucune tranche ERP chargée</div>';
+  }
+  list.innerHTML = html;
+}
+
+function filterTranchePicker(q){
+  const list = document.getElementById('tranche-picker-list');
+  if(!list) return;
+  renderTranchPickerList(list, q, state.tranches_erp||[], state.chantiers_erp||[]);
+}
+
+function clearTrancheSearch(){
+  const inp = document.getElementById('tranche-search');
+  if(inp){ inp.value=''; filterTranchePicker(''); inp.focus(); }
+}
+
+function selectTranche(id, nom, chantierNom){
+  _trancheErpId  = id;
+  _trancheErpNom = nom;
+  // Mettre à jour les champs cachés
+  document.getElementById('f-tranche-erp-id').value = id;
+  // Pour compatibilité : f-tranche garde le nom (peut être absent en mode picker)
+  let fTr = document.getElementById('f-tranche');
+  if(!fTr){
+    // Créer dynamiquement si absent
+    fTr = document.createElement('input');
+    fTr.type='hidden'; fTr.id='f-tranche';
+    document.body.appendChild(fTr);
+  }
+  fTr.value = nom;
+  // Afficher le badge
+  document.getElementById('tranche-selected-nom').textContent = nom;
+  document.getElementById('tranche-selected-chantier').textContent = chantierNom;
+  document.getElementById('tranche-selected').style.display = 'flex';
+  document.getElementById('tranche-picker').style.display   = 'none';
+  document.getElementById('tranche-manual-toggle').style.display = 'none';
+  // Charger les phases de cette tranche
+  const phases = state.phases_par_tid?.[id] || state.phases_par_tranche?.[nom.toLowerCase()] || [];
+  initPhaseTags([]);
+  if(phases.length) refreshPhasesERPById(id);
+  else refreshPhasesERP(nom);
+}
+
+function clearTranchePicker(){
+  _trancheErpId  = null;
+  _trancheErpNom = null;
+  document.getElementById('f-tranche-erp-id').value = '';
+  const fTr = document.getElementById('f-tranche');
+  if(fTr) fTr.value = '';
+  document.getElementById('tranche-selected').style.display = 'none';
+  document.getElementById('tranche-picker').style.display   = '';
+  document.getElementById('tranche-manual-toggle').style.display = '';
+  document.getElementById('tranche-search').value = '';
+  filterTranchePicker('');
+  initPhaseTags([]);
+  refreshPhasesERP('');
+}
+
+function toggleTrancheManual(){
+  _trancheManual = !_trancheManual;
+  const manualWrap  = document.getElementById('tranche-manual-wrap');
+  const pickerWrap  = document.getElementById('tranche-picker');
+  const manualToggle= document.getElementById('tranche-manual-toggle');
+  if(_trancheManual){
+    manualWrap.style.display  = '';
+    pickerWrap.style.display  = 'none';
+    manualToggle.textContent  = '← Revenir au sélecteur ERP';
+    document.getElementById('tranche-selected').style.display = 'none';
+    document.getElementById('f-tranche-erp-id').value = '';
+    _trancheErpId = null;
+    // S'assurer que f-tranche existe
+    if(!document.getElementById('f-tranche')){
+      const inp=document.createElement('input');inp.type='text';inp.id='f-tranche';inp.placeholder='Ex: MCA-B-CP+CT R+2';
+      manualWrap.insertBefore(inp, manualWrap.firstChild);
+    }
+    const fTr = document.getElementById('f-tranche');
+    if(fTr) { fTr.style.display=''; fTr.oninput=e=>refreshPhasesERP(e.target.value); }
+  } else {
+    manualWrap.style.display  = 'none';
+    pickerWrap.style.display  = '';
+    manualToggle.textContent  = 'Ou saisir manuellement (OF non lié à l\'ERP)';
+    buildTranchePicker();
+  }
+}
+
+function initTranchePicker(erpId, nom, chantierNom){
+  _trancheErpId  = erpId || null;
+  _trancheErpNom = nom   || null;
+  _trancheManual = false;
+  const manualWrap = document.getElementById('tranche-manual-wrap');
+  const picker     = document.getElementById('tranche-picker');
+  const selBadge   = document.getElementById('tranche-selected');
+  if(manualWrap) manualWrap.style.display = 'none';
+  if(picker)     picker.style.display     = '';
+  document.getElementById('tranche-manual-toggle').style.display = '';
+  document.getElementById('tranche-search').value = '';
+  document.getElementById('f-tranche-erp-id').value = erpId||'';
+  if(erpId && nom){
+    // Tranche déjà liée → afficher le badge
+    const ch = (state.chantiers_erp||[]).find(c=>c.id===(state.tranches_erp||[]).find(t=>t.id===erpId)?.cid);
+    selectTranche(erpId, nom, chantierNom || ch?.nom || '');
+  } else if(nom && !erpId){
+    // OF existant avec nom manuel → mode manuel automatiquement
+    _trancheManual = true;
+    if(manualWrap) manualWrap.style.display = '';
+    if(picker)     picker.style.display     = 'none';
+    document.getElementById('tranche-manual-toggle').textContent = '← Revenir au sélecteur ERP';
+    selBadge.style.display = 'none';
+    const fTr = document.getElementById('f-tranche');
+    if(fTr){ fTr.value=nom; fTr.style.display=''; }
+    // Tenter quand même de trouver la tranche ERP par nom
+    const matchERP = (state.tranches_erp||[]).find(t=>t.nom.trim().toLowerCase()===nom.trim().toLowerCase());
+    if(matchERP){
+      // Correspondance trouvée — proposer de lier
+      const ch = (state.chantiers_erp||[]).find(c=>c.id===matchERP.cid);
+      const matchBanner = document.createElement('div');
+      matchBanner.style.cssText='margin-top:5px;font-size:11px;padding:6px 10px;background:var(--green-bg);border:1px solid var(--green-border);border-radius:6px;color:var(--green);display:flex;align-items:center;gap:8px';
+      matchBanner.innerHTML=`✅ Correspondance ERP trouvée : <b>${esc(matchERP.nom)}</b> &nbsp;
+        <button onclick="selectTranche('${matchERP.id}','${esc(matchERP.nom).replace(/'/g,"\\'")}','${esc(ch?.nom||'').replace(/'/g,"\\'")}')"
+          style="font-size:11px;padding:2px 8px;border:1px solid var(--green-border);border-radius:5px;background:var(--green);color:#fff;cursor:pointer;font-family:inherit;font-weight:600">Lier</button>`;
+      manualWrap.appendChild(matchBanner);
+      setTimeout(()=>matchBanner.remove(), 8000);
+    }
+  } else {
+    selBadge.style.display = 'none';
+    buildTranchePicker();
+  }
+}
+
+// Rafraîchir phases par ID ERP (plus précis que par nom)
+function refreshPhasesERPById(tid){
+  const phases = state.phases_par_tid?.[tid] || [];
+  const btnsEl = document.getElementById('f-phases-erp-btns');
+  if(!btnsEl) return;
+  if(!phases.length){ btnsEl.innerHTML='<span style="font-size:11px;color:var(--text3)">Aucune phase définie pour cette tranche</span>'; return; }
+  btnsEl.innerHTML = phases.map(p=>_phaseBtn(p)).join('');
+  _updatePhaseWarn();
+}
+
 function refreshPhasesERP(trancheNom){
+  const btnsEl = document.getElementById('f-phases-erp-btns');
+  if(!btnsEl) return;
+  const nomNorm = String(trancheNom||'').trim().toLowerCase();
+  const phases = (state.phases_par_tranche||{})[nomNorm] || [];
+  if(!phases.length){
+    const global = (state.phases_erp||[]).slice(0,12);
+    if(!global.length){ btnsEl.innerHTML='<span style="font-size:11px;color:var(--text3)">Phases non chargées — saisissez manuellement</span>'; return; }
+    btnsEl.innerHTML = global.map(p=>_phaseBtn(p)).join('');
+  } else {
+    btnsEl.innerHTML = phases.map(p=>_phaseBtn(p)).join('');
+  }
+  _updatePhaseWarn();
+}
   const btnsEl = document.getElementById('f-phases-erp-btns');
   if(!btnsEl) return;
   const nomNorm = String(trancheNom||'').trim().toLowerCase();
@@ -1930,7 +2185,9 @@ function _updatePhaseWarn(){
 
 function closeModal(){
   document.getElementById('edit-modal').style.display='none';
-  // Nettoyer l'écouteur tranche
+  _trancheErpId  = null;
+  _trancheErpNom = null;
+  _trancheManual = false;
   const fTr = document.getElementById('f-tranche');
   if(fTr) fTr.oninput = null;
 }
@@ -1941,8 +2198,19 @@ const lockFin=document.getElementById('f-lockFin').checked;
 const debutVal=document.getElementById('f-debut').value;
 if(!debutVal){document.getElementById('f-debut').style.borderColor='var(--red)';return;}
 document.getElementById('f-debut').style.borderColor='';
+// Récupérer le nom de tranche : depuis le badge sélectionné ou le champ manuel
+const erpId = document.getElementById('f-tranche-erp-id')?.value||'';
+const trancheNom = _trancheErpNom || document.getElementById('f-tranche')?.value || '(sans nom)';
+if(!trancheNom||trancheNom==='(sans nom)'){
+  // Avertissement si aucune tranche
+  const pickerEl = document.getElementById('tranche-picker-wrap');
+  if(pickerEl){ pickerEl.style.outline='2px solid var(--red)'; setTimeout(()=>pickerEl.style.outline='',2000); }
+  return;
+}
 const data={
-tranche:document.getElementById('f-tranche').value||'(sans nom)',phases:getPhaseArray(),
+tranche:trancheNom,
+erp_tranche_id:erpId||null,
+phases:getPhaseArray(),
 comment:document.getElementById('f-comment').value,
 debut:debutVal,duree:Math.max(1,+document.getElementById('f-duree').value||1),
 besoin:document.getElementById('f-besoin').value||null,
