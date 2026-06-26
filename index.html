@@ -734,15 +734,16 @@ async function initApp() {
       });
       const ph = await rPh.json();
       if(ph.ok) {
-        state.chantiers_erp  = ph.chantiers || [];
-        state.tranches_erp   = ph.tranches  || [];
-        const phases = ph.phases || [];
+        const d = ph.data || ph; // compatibilité : data enveloppé ou direct
+        state.chantiers_erp  = d.chantiers || [];
+        state.tranches_erp   = d.tranches  || [];
+        const phases = d.phases || [];
         // Index phases par tid
         state.phases_par_tid = {};
         phases.forEach(p=>{ if(!state.phases_par_tid[p.tid]) state.phases_par_tid[p.tid]=[]; state.phases_par_tid[p.tid].push(p.num||p.nom||''); });
         // Index phases par nom tranche normalisé (compatibilité)
         state.phases_par_tranche = {};
-        (ph.tranches||[]).forEach(tr => {
+        (d.tranches||[]).forEach(tr => {
           const nomNorm = String(tr.nom||'').trim().toLowerCase();
           const phsTr = (state.phases_par_tid[tr.id]||[]).filter(Boolean).sort();
           if(phsTr.length) state.phases_par_tranche[nomNorm] = phsTr;
