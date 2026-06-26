@@ -329,10 +329,11 @@ transition:all .3s;
 </div>
 <div class="form-group">
 <label>Phase(s) <span style="font-size:11px;color:var(--text3);font-weight:400">(optionnel — plusieurs possibles)</span></label>
-<div style="border:1px solid var(--border);border-radius:8px;padding:6px 10px;background:var(--surface);min-height:40px;display:flex;flex-wrap:wrap;gap:4px;align-items:center" id="f-phases-wrap" onclick="document.getElementById('f-phase-input').focus()">
+<div id="f-phases-erp-btns" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div>
+<div style="border:1px solid var(--border);border-radius:8px;padding:6px 10px;background:var(--surface);min-height:36px;display:flex;flex-wrap:wrap;gap:4px;align-items:center" id="f-phases-wrap" onclick="document.getElementById('f-phase-input').focus()">
   <div id="f-phases-tags" style="display:flex;flex-wrap:wrap;gap:4px"></div>
-  <input type="text" id="f-phase-input" placeholder="Ajouter une phase… (Entrée pour valider)"
-    style="border:none;outline:none;font-family:inherit;font-size:13px;min-width:160px;flex:1;background:transparent"
+  <input type="text" id="f-phase-input" placeholder="Ou saisir manuellement (Entrée)"
+    style="border:none;outline:none;font-family:inherit;font-size:13px;min-width:120px;flex:1;background:transparent"
     onkeydown="addPhaseTag(event)"
     list="phases-suggestions"/>
   <datalist id="phases-suggestions">
@@ -340,6 +341,9 @@ transition:all .3s;
     <option value="Caissons"/><option value="Menuiserie"/><option value="Coursives"/>
     <option value="Balcons"/><option value="Terrasses"/><option value="Isolation"/>
   </datalist>
+</div>
+<div id="f-phases-warn" style="display:none;margin-top:5px;font-size:11px;color:var(--orange);background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:6px;padding:5px 10px">
+  ⚠ Aucune phase sélectionnée — l'OF ne sera pas rattaché à une phase dans le tableau de pilotage
 </div>
 <input type="hidden" id="f-phase" value=""/>
 </div>
@@ -482,6 +486,7 @@ joursOff:{b1:[5,6],b2:[5,6],b3:[5,6],men:[5,6]},
 fermetures:[], simMode:false, editId:null,
 nextId:{b1:20,b2:20,b3:1,men:20}, gsUrl:'',
 tranches:{b1:[],b2:[],b3:[],men:[]},
+phases_erp:[], phases_par_tranche:{}, tranches_erp:[],
 };
 let _editAtId = null;
 let _drag = null;
@@ -618,18 +623,13 @@ async function initApp() {
         // Normaliser phases (string JSON ou tableau)
         const normP = p => {
           if(!p) return [];
-          // Nettoyer tableau existant
-          if(Array.isArray(p)) return p.map(x=>String(x).replace(/^["\[\]\\]+|["\[\]\\]+$/g,'').trim()).filter(Boolean);
+          if(Array.isArray(p)) return p.map(x=>String(x).trim()).filter(Boolean);
           const s = String(p).trim();
-          if(!s || s==='[]' || s==='""' || s==='null' || s==='[\"\"]') return [];
-          // Supprimer guillemets et crochets résiduels
-          const clean = s.replace(/^\[|\]$/g,'').replace(/\\"/g,'"');
-          try {
-            const r = JSON.parse('['+clean+']');
-            return r.map(x=>String(x).replace(/^"|"$/g,'').trim()).filter(Boolean);
-          } catch(e) {
-            return clean.split(',').map(x=>x.trim().replace(/^"|"$/g,'').replace(/\\/g,'')).filter(Boolean);
+          if(!s || s==='[]' || s==='""' || s==='null') return [];
+          if(s.startsWith('[')) {
+            try { const r=JSON.parse(s); if(Array.isArray(r)) return r.map(x=>String(x).trim()).filter(Boolean); } catch(e) {}
           }
+          return s.split(',').map(x=>x.trim().replace(/^["'\[\]\\]+|["'\[\]\\]+$/g,'')).filter(Boolean);
         };
         tr[atId].push({
           _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
@@ -679,20 +679,42 @@ async function initApp() {
     setConnBar('connected', source + ' — ' + total + ' tranches');
 
 
-    // ── Chargement phases ERP ─────────────────────────────
+    // ── Chargement phases ERP (liées aux tranches) ────────
     try {
       const rPh = await fetch(APPS_SCRIPT_URL, {
         method:'POST', headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({action:'getPhases'})
+        body: JSON.stringify({action:'getERPPlanning'})
       });
       const ph = await rPh.json();
-      if(ph.ok && ph.phases?.length) {
-        state.phases_erp = ph.phases;
-        // Mettre à jour le datalist des suggestions
+      if(ph.ok) {
+        // Indexer les phases par nom de tranche (normalisé)
+        state.phases_par_tranche = {};
+        state.tranches_erp = ph.tranches || [];
+        const phases = ph.phases || [];
+        // Construire index : nom_tranche_normalisé → [Ph01, Ph02, ...]
+        (ph.tranches||[]).forEach(tr => {
+          const nomNorm = String(tr.nom||'').trim().toLowerCase();
+          const phsTr = phases.filter(p=>p.tid===tr.id).map(p=>p.num||p.nom||'').filter(Boolean).sort();
+          if(phsTr.length) state.phases_par_tranche[nomNorm] = phsTr;
+        });
+        // Datalist global pour suggestions
+        const allPhNums = [...new Set(phases.map(p=>p.num||'').filter(Boolean))].sort();
         const dl = document.getElementById('phases-suggestions');
-        if(dl) dl.innerHTML = ph.phases.map(p=>`<option value="${esc(p)}">`).join('');
+        if(dl) dl.innerHTML = allPhNums.map(p=>`<option value="${esc(p)}">`).join('');
+        state.phases_erp = allPhNums;
       }
-    } catch(e) { console.warn('getPhases:', e.message); }
+    } catch(e) {
+      // Fallback : getPhases classique
+      try {
+        const rPh2 = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getPhases'})});
+        const ph2 = await rPh2.json();
+        if(ph2.ok && ph2.phases?.length) {
+          state.phases_erp = ph2.phases;
+          const dl = document.getElementById('phases-suggestions');
+          if(dl) dl.innerHTML = ph2.phases.map(p=>`<option value="${esc(p)}">`).join('');
+        }
+      } catch(e2) { console.warn('getPhases fallback:', e2.message); }
+    }
 
     // ── Chargement calendrier ──────────────────────────────
     try {
@@ -1424,14 +1446,17 @@ const left=seg.from*COL;const width=(seg.to-seg.from+1)*COL;
 const isFirst=si===0;const isLast=si===segments.length-1;
 const radius=`border-radius:${isFirst?'6px':'2px'} ${isLast?'6px':'2px'} ${isLast?'6px':'2px'} ${isFirst?'6px':'2px'}`;
 const label=isFirst?esc(t.tranche):'';
+const phaseBadges = (isFirst && t.phases && t.phases.length)
+  ? `<span style="font-size:9px;opacity:.85;margin-left:5px;background:rgba(255,255,255,.25);border-radius:3px;padding:1px 4px;white-space:nowrap">${t.phases.slice(0,3).join(' · ')}</span>`
+  : '';
 const extraClass=t.parallel?' gantt-bar-parallel':'';
 const pinDebutHtml=(t.lockDebut&&isFirst)?`<div class="gantt-lock-pin pin-debut"></div>`:'';
 const pinFinHtml=(t.lockFin&&isLast)?`<div class="gantt-lock-pin pin-fin"></div>`:'';
 const dragAttr=isFirst&&!IS_READONLY?`id="gbar-${atId}-${t._dbId||t.id}" onmousedown="onBarDown(event,'${atId}','${t._dbId||t.id}')"`:isFirst?`id="gbar-${atId}-${t._dbId||t.id}"`:'' ;
 barsHtml+=`<div class="gantt-bar-wrap${extraClass}" ${dragAttr}
 style="left:${left}px;width:${width}px;top:${barTop}px;height:${barHeight}px;background:${color};${radius}"
-title="${esc(t.tranche)}">
-${pinDebutHtml}${label}${pinFinHtml}
+title="${esc(t.tranche)}${t.phases&&t.phases.length?' — '+t.phases.join(', '):''}">
+${pinDebutHtml}${label}${phaseBadges}${pinFinHtml}
 </div>`;
 });
 }
@@ -1831,7 +1856,11 @@ document.getElementById('f-lockDebut').checked=false;document.getElementById('f-
 document.getElementById('f-lockFinDate').value='';document.getElementById('f-lockFinDate-group').style.display='none';
 document.getElementById('f-parallel').checked=false;
 document.getElementById('f-atelier').onchange=function(){};
+// Charger les phases depuis l'ERP selon la tranche sélectionnée (champ vide au départ)
+refreshPhasesERP('');
 document.getElementById('edit-modal').style.display='flex';
+// Mettre à jour les phases quand le nom de la tranche change
+document.getElementById('f-tranche').oninput = function(){ refreshPhasesERP(this.value); };
 }
 
 function openEditModal(atId,idx){
@@ -1847,10 +1876,64 @@ document.getElementById('f-lockDebut').checked=!!t.lockDebut;document.getElement
 document.getElementById('f-lockFinDate').value=t.lockFinDate||dateFin(t,atId);
 document.getElementById('f-lockFinDate-group').style.display=t.lockFin?'block':'none';
 document.getElementById('f-parallel').checked=!!t.parallel;
+// Charger les phases depuis l'ERP pour cette tranche
+refreshPhasesERP(t.tranche);
+document.getElementById('f-tranche').oninput = function(){ refreshPhasesERP(this.value); };
 document.getElementById('edit-modal').style.display='flex';
 }
 
-function closeModal(){document.getElementById('edit-modal').style.display='none';}
+// ── Phases ERP dynamiques dans la modale ──────────────────────────────────
+function refreshPhasesERP(trancheNom){
+  const btnsEl = document.getElementById('f-phases-erp-btns');
+  if(!btnsEl) return;
+  const nomNorm = String(trancheNom||'').trim().toLowerCase();
+  // Chercher les phases de cette tranche dans l'index ERP
+  const phases = (state.phases_par_tranche||{})[nomNorm] || [];
+  if(!phases.length){
+    // Aucune phase connue — boutons génériques depuis phases_erp global
+    const global = (state.phases_erp||[]).slice(0,12);
+    if(!global.length){ btnsEl.innerHTML='<span style="font-size:11px;color:var(--text3)">Phases non chargées — saisissez manuellement</span>'; return; }
+    btnsEl.innerHTML = global.map(p=>_phaseBtn(p)).join('');
+  } else {
+    btnsEl.innerHTML = phases.map(p=>_phaseBtn(p)).join('');
+  }
+  _updatePhaseWarn();
+}
+
+function _phaseBtn(p){
+  const sel = _currentPhaseTags.includes(p);
+  return `<button type="button" onclick="togglePhaseERP('${esc(p)}')"
+    style="font-size:11px;padding:3px 10px;border-radius:20px;cursor:pointer;font-family:inherit;font-weight:600;transition:all .15s;
+      background:${sel?'var(--blue)':'var(--blue-bg)'};
+      color:${sel?'#fff':'var(--blue)'};
+      border:1px solid var(--blue-border)">
+    ${sel?'✓ ':''} ${esc(p)}
+  </button>`;
+}
+
+function togglePhaseERP(p){
+  const idx = _currentPhaseTags.indexOf(p);
+  if(idx>=0) _currentPhaseTags.splice(idx,1);
+  else _currentPhaseTags.push(p);
+  renderPhaseTags();
+  // Rafraîchir les boutons
+  const trancheNom = document.getElementById('f-tranche')?.value||'';
+  refreshPhasesERP(trancheNom);
+  _updatePhaseWarn();
+}
+
+function _updatePhaseWarn(){
+  const warn = document.getElementById('f-phases-warn');
+  if(!warn) return;
+  warn.style.display = _currentPhaseTags.length===0 ? 'block' : 'none';
+}
+
+function closeModal(){
+  document.getElementById('edit-modal').style.display='none';
+  // Nettoyer l'écouteur tranche
+  const fTr = document.getElementById('f-tranche');
+  if(fTr) fTr.oninput = null;
+}
 
 function saveModal(){
 const newAtId=document.getElementById('f-atelier').value;
