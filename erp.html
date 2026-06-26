@@ -4448,10 +4448,11 @@ function renderRecapHeures(){
   const semDeb = state._recapSemDeb || '';
   const semFin = state._recapSemFin || '';
 
-  // Filtrer par période
+  // Filtrer par période — inclure affectation_log (heures Log/Transport réparties)
   const heuresFil = heures.filter(h=>{
-    if(!h.chantier1) return false; // uniquement lignes chantier pour le récap
-    if(h.type_saisie==='presence'||h.type_saisie==='affectation_log') return false;
+    if(!h.chantier1) return false;
+    if(h.type_saisie==='presence') return false;
+    // affectation_log inclus : ce sont les heures Log affectées proportionnellement
     if(semDeb && h.semaine < semDeb) return false;
     if(semFin && h.semaine > semFin) return false;
     return true;
@@ -5737,8 +5738,8 @@ async function renderDashboard(){
   const totalCDI = empsActifs.filter(e=>e.statut==='CDI').length;
   const totalInterim = empsActifs.filter(e=>e.statut==='interim').length;
 
-  // Heures par semaine (saisies chantier uniquement)
-  const hLignes = heures.filter(h=>h.chantier1 && h.type_saisie!=='presence' && h.type_saisie!=='affectation_log');
+  // Heures par semaine (chantier + affectation log)
+  const hLignes = heures.filter(h=>h.chantier1 && h.type_saisie!=='presence');
 
   // M² prod — atelier B2 uniquement (source Production_B2)
   const m2Total = prodData.reduce((s,r)=>s+r.m2_total,0);
