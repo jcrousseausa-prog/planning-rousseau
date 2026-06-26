@@ -2139,21 +2139,6 @@ function refreshPhasesERP(trancheNom){
   }
   _updatePhaseWarn();
 }
-  const btnsEl = document.getElementById('f-phases-erp-btns');
-  if(!btnsEl) return;
-  const nomNorm = String(trancheNom||'').trim().toLowerCase();
-  // Chercher les phases de cette tranche dans l'index ERP
-  const phases = (state.phases_par_tranche||{})[nomNorm] || [];
-  if(!phases.length){
-    // Aucune phase connue — boutons génériques depuis phases_erp global
-    const global = (state.phases_erp||[]).slice(0,12);
-    if(!global.length){ btnsEl.innerHTML='<span style="font-size:11px;color:var(--text3)">Phases non chargées — saisissez manuellement</span>'; return; }
-    btnsEl.innerHTML = global.map(p=>_phaseBtn(p)).join('');
-  } else {
-    btnsEl.innerHTML = phases.map(p=>_phaseBtn(p)).join('');
-  }
-  _updatePhaseWarn();
-}
 
 function _phaseBtn(p){
   const sel = _currentPhaseTags.includes(p);
