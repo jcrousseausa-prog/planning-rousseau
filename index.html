@@ -694,20 +694,6 @@ async function initApp() {
       }
     } catch(e) { console.warn('getPhases:', e.message); }
 
-    // ── Chargement phases ERP ────────────────────────────────
-    try {
-      const rPh = await fetch(APPS_SCRIPT_URL, {
-        method:'POST', headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({action:'getPhases'})
-      });
-      const ph = await rPh.json();
-      if(ph.ok && ph.phases?.length) {
-        state.phases_erp = ph.phases;
-        const dl = document.getElementById('phases-suggestions');
-        if(dl) dl.innerHTML = ph.phases.map(p=>`<option value="${esc(p)}">`).join('');
-      }
-    } catch(e) { console.warn('getPhases:', e.message); }
-
     // ── Chargement calendrier ──────────────────────────────
     try {
       const rc = await fetch(APPS_SCRIPT_URL, {
@@ -1829,8 +1815,15 @@ function openAddModal(){
 _editAtId=state.atelier;state.editId=null;
 document.getElementById('modal-title').textContent='Ajouter une tranche';initPhaseTags([]);
 document.getElementById('f-atelier').innerHTML=buildAtelierOptions(_editAtId);
-const tr=state.tranches[_editAtId];
-const lastFin=tr.length?addWorkDays(dateFin(tr[tr.length-1],_editAtId),1,_editAtId):today();
+const tr=state.tranches[_editAtId]||[];
+let lastFin = today();
+try {
+  if(tr.length) {
+    const lastTr = tr[tr.length-1];
+    const fin = dateFin(lastTr,_editAtId);
+    if(fin) lastFin = addWorkDays(fin,1,_editAtId);
+  }
+} catch(e){ console.warn('openAddModal dateFin:', e); }
 document.getElementById('f-tranche').value='';document.getElementById('f-comment').value='';
 document.getElementById('f-debut').value=lastFin;document.getElementById('f-duree').value=5;
 document.getElementById('f-besoin').value='';
