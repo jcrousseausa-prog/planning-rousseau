@@ -1601,7 +1601,15 @@ async function syncCTVX(){
     const manquesERP = [];   // dans DATES mais absent de state.tranches
     const manquesProd = [];  // dans DATES mais absent du planning prod (state.tranches sans planning_id)
 
+    // Regrouper par tranche : garder la date la plus tôt
+    const ctvxParTranche = {}; // trancheNom_lower → date_ctvx minimale
     datesSrc.forEach(src=>{
+      const k = src.trancheNom;
+      if(!ctvxParTranche[k] || src.date_ctvx < ctvxParTranche[k])
+        ctvxParTranche[k] = src.date_ctvx;
+    });
+
+    datesSrc.forEach(src=>{\
       // Chercher dans les tranches ERP
       const tranche = state.tranches.find(t=>
         t.nom.toLowerCase().trim() === src.trancheNom
@@ -1609,16 +1617,17 @@ async function syncCTVX(){
       if(!tranche){
         manquesERP.push(src.trancheNom);
       } else {
-        // Mettre à jour date_ctvx sur la tranche
-        if(tranche.ctvx !== src.date_ctvx){
-          tranche.ctvx = src.date_ctvx;
+        // Appliquer la date la plus tôt pour cette tranche
+        const dateCtvxMin = ctvxParTranche[src.trancheNom] || src.date_ctvx;
+        if(tranche.ctvx !== dateCtvxMin){
+          tranche.ctvx = dateCtvxMin;
           updatedERP++;
         }
         // Mettre à jour aussi sur les articles de cette tranche
         const phs = state.phases.filter(p=>p.tid===tranche.id);
         phs.forEach(ph=>{
           state.articles.filter(a=>a.pid===ph.id).forEach(a=>{
-            a.date_ctvx = src.date_ctvx;
+            a.date_ctvx = dateCtvxMin;
           });
         });
       }
@@ -3274,7 +3283,7 @@ function renderSaisieHebdo(){
       if(total>0 && isTransport && totalTours>0) {
         parJour[j] = total.toFixed(1)+'h\n'+totalTours+' trajet'+(totalTours>1?'s':'');
       } else {
-        parJour[j] = total>0 ? fmtH(total) : (lignesAbs[0]?.absent||'—');
+        parJour[j] = total>0 ? total.toFixed(1)+'h' : (lignesAbs[0]?.absent||'—');
       }
     });
     // Ventilation heures par atelier pour Log
@@ -3305,7 +3314,7 @@ function renderSaisieHebdo(){
         </td>`;
       }).join('')}
       <td style="text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'}">
-        ${totalH>0?fmtH(totalH):'—'}
+        ${totalH>0?totalH+'h':'—'}
         ${Object.keys(parAtelier).length>0?`<div style="font-size:9px;font-weight:400;color:var(--text2);margin-top:2px">${Object.entries(parAtelier).map(([at,h])=>`${at}:${h}h`).join(' | ')}</div>`:''}
       </td>
       <td style="display:flex;gap:4px;padding:4px">
@@ -3599,15 +3608,6 @@ function removeSaisieRow(i){
   updateTotalSemaine();
 }
 
-// Formatage heures uniforme : quart d'heure → ex: 38.25h, 8h, 3.5h
-function fmtH(v){
-  const n = Math.round(v*4)/4; // arrondi au quart d'heure
-  if(n===0) return '0h';
-  // Afficher sans zéro inutile : 8.00→8h, 3.50→3.5h, 38.25→38.25h
-  const s = n%1===0 ? n.toFixed(0) : (n*100%25===0 ? n.toFixed(2).replace(/0$/,'') : n.toFixed(2));
-  return s+'h';
-}
-
 function updateTotalRow(i){
   let total = 0;
   JOURS_SEMAINE.forEach(j=>{
@@ -3615,9 +3615,10 @@ function updateTotalRow(i){
     if(el) total += parseFloat(el.value)||0;
   });
   const valEl = document.getElementById('sj-tot-val-'+i);
-  if(valEl) valEl.textContent = fmtH(total);
+  if(valEl) valEl.textContent = total>0?total+'h':'0h';
+  // Fallback si pas de sj-tot-val
   const totEl = document.getElementById('sj-tot-'+i);
-  if(totEl && !valEl) totEl.textContent = fmtH(total);
+  if(totEl && !valEl) totEl.textContent = total>0?total+'h':'0h';
 }
 
 function updateTotalSemaine(){
@@ -3629,11 +3630,11 @@ function updateTotalSemaine(){
       if(el) totalJour += parseFloat(el.value)||0;
     }
     const totJourEl = document.getElementById('sj-totjour-'+j);
-    if(totJourEl) totJourEl.textContent = totalJour>0?fmtH(totalJour):'—';
+    if(totJourEl) totJourEl.textContent = totalJour>0?totalJour+'h':'—';
     totalSem += totalJour;
   });
   const totSemEl = document.getElementById('sj-totsem');
-  if(totSemEl) totSemEl.textContent = fmtH(totalSem);
+  if(totSemEl) totSemEl.textContent = totalSem>0?totalSem+'h':'0h';
 }
 
 
@@ -3840,7 +3841,7 @@ function renderPlanningRessources(){
             ${cellContent}
           </td>`;
         }).join('')}
-        <td style="padding:6px 8px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'};border:1px solid var(--border)">${totalH>0?fmtH(totalH):'—'}</td>
+        <td style="padding:6px 8px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'};border:1px solid var(--border)">${totalH>0?totalH+'h':'—'}</td>
         ${emp.statut==='interim'?`<td style="padding:4px 6px;border:1px solid var(--border)">
           <button onclick="toggleActifEmploye('${emp.id}');renderPlanningRessources()" 
             class="btn btn-sm btn-orange" style="font-size:10px;white-space:nowrap">
@@ -4680,7 +4681,7 @@ function exportPDFInterim(empId, semaine){
       : (parJour[j].chantiers.length ? parJour[j].chantiers.join(', ') : '');
     const hAff = abs
       ? '<span style="color:#c0392b">—</span>'
-      : (hJ>0 ? fmtH(hJ) : '—');
+      : (hJ>0 ? hJ.toFixed(1)+'h' : '—');
     return '<tr><td>'+j+'</td><td>'+dateStr+'</td><td>'+hAff+'</td><td style="font-size:10px;color:#555">'+obs+'</td></tr>';
   }).join('');
 
@@ -4736,7 +4737,7 @@ function exportPDFInterim(empId, semaine){
         ${lignesHTML}
         <tr class="total-row">
           <td colspan="2">TOTAL SEMAINE</td>
-          <td>${fmtH(totalH)}</td>
+          <td>${totalH.toFixed(1)} h</td>
           <td></td>
         </tr>
       </tbody>
@@ -4823,7 +4824,7 @@ function exportPDFCDI(empId, semaine){
     const horaire = parJour[j].horaire;
     const hAff = abs
       ? '<span style="color:#c0392b">—</span>'
-      : (hJ>0 ? fmtH(hJ) : '—');
+      : (hJ>0 ? hJ.toFixed(1)+'h' : '—');
     let obs = '';
     if(abs){
       obs = '<em style="color:#c0392b">'+abs+'</em>';
@@ -4891,7 +4892,7 @@ function exportPDFCDI(empId, semaine){
         ${lignesHTML}
         <tr class="total-row">
           <td colspan="2">TOTAL SEMAINE</td>
-          <td>${fmtH(totalH)}</td>
+          <td>${totalH.toFixed(1)} h</td>
           <td></td>
         </tr>
       </tbody>
@@ -6722,4 +6723,3 @@ function lancerImpressionAteliers(){
 </script>
 </body>
 </html>
-  
