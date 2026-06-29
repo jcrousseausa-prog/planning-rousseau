@@ -3274,7 +3274,7 @@ function renderSaisieHebdo(){
       if(total>0 && isTransport && totalTours>0) {
         parJour[j] = total.toFixed(1)+'h\n'+totalTours+' trajet'+(totalTours>1?'s':'');
       } else {
-        parJour[j] = total>0 ? total.toFixed(1)+'h' : (lignesAbs[0]?.absent||'—');
+        parJour[j] = total>0 ? fmtH(total) : (lignesAbs[0]?.absent||'—');
       }
     });
     // Ventilation heures par atelier pour Log
@@ -3305,7 +3305,7 @@ function renderSaisieHebdo(){
         </td>`;
       }).join('')}
       <td style="text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'}">
-        ${totalH>0?totalH+'h':'—'}
+        ${totalH>0?fmtH(totalH):'—'}
         ${Object.keys(parAtelier).length>0?`<div style="font-size:9px;font-weight:400;color:var(--text2);margin-top:2px">${Object.entries(parAtelier).map(([at,h])=>`${at}:${h}h`).join(' | ')}</div>`:''}
       </td>
       <td style="display:flex;gap:4px;padding:4px">
@@ -3479,7 +3479,7 @@ function openSaisieJours(empId, semaine){
         <th style="padding:7px 10px;text-align:left;border:1px solid var(--border);min-width:180px">Chantier</th>
         <th style="padding:7px 8px;text-align:center;border:1px solid var(--border);min-width:70px;font-size:11px;color:var(--blue)">Atelier</th>
         ${JOURS_SEMAINE.map(j=>`<th style="padding:7px 8px;text-align:center;border:1px solid var(--border);min-width:60px">${j.slice(0,3)}<br><span style="font-size:9px;font-weight:400;color:var(--text3)">heures</span></th>`).join('')}
-        <th class="sj-tours-cell" style="display:none;padding:7px 8px;text-align:center;border:1px solid var(--orange-border);background:var(--orange-bg);color:var(--orange);font-weight:700;font-size:11px">Trajets</th>
+
         <th style="padding:7px 8px;text-align:center;border:1px solid var(--border);background:#EAF2FB;color:var(--blue);font-weight:700">Total</th>
         <th style="padding:7px 8px;border:1px solid var(--border);width:30px"></th>
       </tr>
@@ -3503,12 +3503,12 @@ function openSaisieJours(empId, semaine){
             style="width:52px;padding:4px;border:1px solid var(--border);border-radius:5px;text-align:center;font-family:inherit;font-size:12px"
             oninput="updateTotalRow(${i});updateTotalSemaine()"/>
         </td>`).join('')}
-        <td class="sj-tours-cell" style="display:none;padding:4px;border:1px solid var(--border)">
-          <input type="number" id="sj-tours-${i}" min="0" max="99" step="1" placeholder="0 trajet"
-            style="width:60px;padding:4px;border:1px solid var(--orange-border);border-radius:4px;text-align:center;font-family:inherit;font-size:11px;color:var(--orange);background:var(--orange-bg)"/>
-        </td>
         <td style="padding:4px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:12px;color:var(--blue);background:#EAF2FB;border:1px solid var(--border)" id="sj-tot-${i}">
           <span id="sj-tot-val-${i}">0h</span>
+          <div class="sj-tours-cell" style="display:none;margin-top:3px">
+            <input type="number" id="sj-tours-${i}" min="0" max="99" step="1" placeholder="0 trajet"
+              style="width:60px;padding:2px 4px;border:1px solid var(--orange-border);border-radius:4px;text-align:center;font-family:inherit;font-size:11px;color:var(--orange);background:var(--orange-bg)"/>
+          </div>
         </td>
         <td style="padding:4px;text-align:center;border:1px solid var(--border)">
           <button onclick="removeSaisieRow(${i})" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:14px">✕</button>
@@ -3520,7 +3520,7 @@ function openSaisieJours(empId, semaine){
         <td style="padding:7px 10px;border:1px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase">TOTAL JOUR</td>
         <td style="border:1px solid var(--border);background:var(--bg)"></td>
         ${JOURS_SEMAINE.map(j=>`<td style="padding:7px 8px;text-align:center;font-family:'DM Mono',monospace;font-size:13px;border:1px solid var(--border)" id="sj-totjour-${j}">—</td>`).join('')}
-        <td class="sj-tours-cell" style="display:none;border:1px solid var(--orange-border);background:var(--orange-bg)"></td>
+
         <td style="padding:7px 8px;text-align:center;font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--green);border:1px solid var(--border);background:#EAFAF1" id="sj-totsem">0h</td>
         <td style="border:1px solid var(--border)"></td>
       </tr>
@@ -3577,24 +3577,35 @@ function addSaisieRow(){
     </td>`).join('')}
 
     <td style="padding:4px;border:1px solid var(--border);display:none" class="sj-tours-cell">
-      <input type="number" id="sj-tours-${i}" min="0" max="99" step="1" placeholder="0 trajet"
-        style="width:60px;padding:4px;border:1px solid var(--orange-border);border-radius:4px;text-align:center;font-family:inherit;font-size:11px;color:var(--orange);background:var(--orange-bg)"/>
+      <input type="number" id="sj-tours-${i}" min="0" max="99" step="1" placeholder="0"
+        style="width:44px;padding:4px;border:1px solid var(--border);border-radius:5px;text-align:center;font-family:inherit;font-size:12px"/>
     </td>
     <td style="padding:4px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:12px;color:var(--blue);background:#EAF2FB;border:1px solid var(--border)" id="sj-tot-${i}">
       <span id="sj-tot-val-${i}">0h</span>
+      <div class="sj-tours-cell" style="display:none;margin-top:3px">
+        <input type="number" id="sj-tours-${i}" min="0" max="99" step="1" placeholder="0 trajet"
+          style="width:60px;padding:2px 4px;border:1px solid var(--orange-border);border-radius:4px;text-align:center;font-family:inherit;font-size:11px;color:var(--orange);background:var(--orange-bg)"/>
+      </div>
     </td>
     <td style="padding:4px;text-align:center;border:1px solid var(--border)">
       <button onclick="removeSaisieRow(${i})" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:14px">✕</button>
     </td>`;
   document.getElementById('sj-tbody').appendChild(tr);
-  // Appliquer immédiatement l'état Transport si actif
-  toggleToursColumn();
 }
 
 function removeSaisieRow(i){
   const row = document.getElementById('sj-row-'+i);
   if(row) row.remove();
   updateTotalSemaine();
+}
+
+// Formatage heures uniforme : quart d'heure → ex: 38.25h, 8h, 3.5h
+function fmtH(v){
+  const n = Math.round(v*4)/4; // arrondi au quart d'heure
+  if(n===0) return '0h';
+  // Afficher sans zéro inutile : 8.00→8h, 3.50→3.5h, 38.25→38.25h
+  const s = n%1===0 ? n.toFixed(0) : (n*100%25===0 ? n.toFixed(2).replace(/0$/,'') : n.toFixed(2));
+  return s+'h';
 }
 
 function updateTotalRow(i){
@@ -3604,10 +3615,9 @@ function updateTotalRow(i){
     if(el) total += parseFloat(el.value)||0;
   });
   const valEl = document.getElementById('sj-tot-val-'+i);
-  if(valEl) valEl.textContent = total>0?total+'h':'0h';
-  // Fallback si pas de sj-tot-val
+  if(valEl) valEl.textContent = fmtH(total);
   const totEl = document.getElementById('sj-tot-'+i);
-  if(totEl && !valEl) totEl.textContent = total>0?total+'h':'0h';
+  if(totEl && !valEl) totEl.textContent = fmtH(total);
 }
 
 function updateTotalSemaine(){
@@ -3619,22 +3629,18 @@ function updateTotalSemaine(){
       if(el) totalJour += parseFloat(el.value)||0;
     }
     const totJourEl = document.getElementById('sj-totjour-'+j);
-    if(totJourEl) totJourEl.textContent = totalJour>0?totalJour+'h':'—';
+    if(totJourEl) totJourEl.textContent = totalJour>0?fmtH(totalJour):'—';
     totalSem += totalJour;
   });
   const totSemEl = document.getElementById('sj-totsem');
-  if(totSemEl) totSemEl.textContent = totalSem>0?totalSem+'h':'0h';
+  if(totSemEl) totSemEl.textContent = fmtH(totalSem);
 }
 
 
 function toggleToursColumn() {
   const atelier = document.getElementById('sj-atelier')?.value || '';
   const showTours = atelier === 'Transport';
-  document.querySelectorAll('.sj-tours-cell').forEach(el => {
-    // th → table-cell, td → table-cell, div → block
-    const tag = el.tagName.toLowerCase();
-    el.style.display = showTours ? (tag==='div' ? 'block' : 'table-cell') : 'none';
-  });
+  document.querySelectorAll('.sj-tours-cell').forEach(el => el.style.display = showTours ? 'block' : 'none');
 }
 
 function saveHeuresSemaine(){
@@ -3834,7 +3840,7 @@ function renderPlanningRessources(){
             ${cellContent}
           </td>`;
         }).join('')}
-        <td style="padding:6px 8px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'};border:1px solid var(--border)">${totalH>0?totalH+'h':'—'}</td>
+        <td style="padding:6px 8px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'};border:1px solid var(--border)">${totalH>0?fmtH(totalH):'—'}</td>
         ${emp.statut==='interim'?`<td style="padding:4px 6px;border:1px solid var(--border)">
           <button onclick="toggleActifEmploye('${emp.id}');renderPlanningRessources()" 
             class="btn btn-sm btn-orange" style="font-size:10px;white-space:nowrap">
@@ -4674,7 +4680,7 @@ function exportPDFInterim(empId, semaine){
       : (parJour[j].chantiers.length ? parJour[j].chantiers.join(', ') : '');
     const hAff = abs
       ? '<span style="color:#c0392b">—</span>'
-      : (hJ>0 ? hJ.toFixed(1)+'h' : '—');
+      : (hJ>0 ? fmtH(hJ) : '—');
     return '<tr><td>'+j+'</td><td>'+dateStr+'</td><td>'+hAff+'</td><td style="font-size:10px;color:#555">'+obs+'</td></tr>';
   }).join('');
 
@@ -4730,7 +4736,7 @@ function exportPDFInterim(empId, semaine){
         ${lignesHTML}
         <tr class="total-row">
           <td colspan="2">TOTAL SEMAINE</td>
-          <td>${totalH.toFixed(1)} h</td>
+          <td>${fmtH(totalH)}</td>
           <td></td>
         </tr>
       </tbody>
@@ -4817,7 +4823,7 @@ function exportPDFCDI(empId, semaine){
     const horaire = parJour[j].horaire;
     const hAff = abs
       ? '<span style="color:#c0392b">—</span>'
-      : (hJ>0 ? hJ.toFixed(1)+'h' : '—');
+      : (hJ>0 ? fmtH(hJ) : '—');
     let obs = '';
     if(abs){
       obs = '<em style="color:#c0392b">'+abs+'</em>';
@@ -4885,7 +4891,7 @@ function exportPDFCDI(empId, semaine){
         ${lignesHTML}
         <tr class="total-row">
           <td colspan="2">TOTAL SEMAINE</td>
-          <td>${totalH.toFixed(1)} h</td>
+          <td>${fmtH(totalH)}</td>
           <td></td>
         </tr>
       </tbody>
@@ -6716,3 +6722,4 @@ function lancerImpressionAteliers(){
 </script>
 </body>
 </html>
+  
