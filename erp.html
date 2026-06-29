@@ -328,6 +328,7 @@ table.bl-lignes td.r{text-align:right}
   <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global production</button>
   <button class="app-tab" id="tab-retours" onclick="showScreen('retours')">Retours équipes</button>
   <button class="app-tab" id="tab-suivi-prod" onclick="showScreen('suivi-prod')">📦 Suivi production</button>
+  <button class="app-tab" id="tab-renseignement" onclick="showScreen('renseignement')">📋 Renseignement</button>
 </div>
 
 <main>
@@ -599,6 +600,82 @@ table.bl-lignes td.r{text-align:right}
     <button class="btn btn-primary" style="margin-left:auto" onclick="openAddRetour()">+ Nouveau retour</button>
   </div>
   <div id="retours-list"></div>
+</div>
+
+<!-- ═══ RENSEIGNEMENT PROJET ═══ -->
+<div class="screen" id="screen-renseignement">
+<div style="padding:1.5rem;max-width:1100px;margin:0 auto">
+
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:1.5rem;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Chantier</span>
+      <select id="rens-chantier" onchange="rensOnChantierChange()"
+        style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);min-width:200px">
+        <option value="">— Sélectionner —</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Tranche</span>
+      <select id="rens-tranche" onchange="rensOnTrancheChange()"
+        style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);min-width:260px">
+        <option value="">— Chantier d'abord —</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Dessinateur</span>
+      <select id="rens-dessinateur"
+        style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);min-width:120px">
+        <option value="">— Init. —</option>
+      </select>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <button onclick="rensAddRow()" class="btn btn-primary" style="font-size:12px;padding:6px 14px">+ Ligne</button>
+      <button onclick="rensSave()" style="font-size:12px;padding:6px 16px;border:none;border-radius:8px;background:var(--green);color:#fff;cursor:pointer;font-family:inherit;font-weight:600">💾 Enregistrer</button>
+    </div>
+  </div>
+
+  <div id="rens-tranche-info" style="display:none;margin-bottom:1rem;padding:8px 14px;background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:8px;font-size:12px;color:var(--blue)">
+    🔗 <span id="rens-tranche-info-text"></span>
+    <span style="margin-left:8px;opacity:.7;font-size:11px">— Les phases seront rattachées à cette tranche dans le tableau de pilotage</span>
+  </div>
+
+  <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.06)">
+    <div style="display:grid;grid-template-columns:32px 1fr 100px 80px 80px 1fr 36px;background:var(--blue);color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em">
+      <div style="padding:10px 6px;text-align:center">#</div>
+      <div style="padding:10px 14px">Tranche</div>
+      <div style="padding:10px 8px;text-align:center">Phase</div>
+      <div style="padding:10px 8px;text-align:center">M²</div>
+      <div style="padding:10px 8px;text-align:center">M³</div>
+      <div style="padding:10px 14px">Commentaire</div>
+      <div style="padding:10px 8px"></div>
+    </div>
+    <div id="rens-tbody">
+      <div style="padding:2.5rem;text-align:center;color:var(--text3);font-size:13px">
+        Sélectionnez un chantier puis une tranche, puis <strong>+ Ligne</strong>
+      </div>
+    </div>
+    <div id="rens-tfoot" style="display:none;grid-template-columns:32px 1fr 100px 80px 80px 1fr 36px;background:var(--bg);border-top:2px solid var(--border);font-weight:700;font-size:12px">
+      <div></div>
+      <div style="padding:9px 14px;color:var(--text3);font-size:11px;text-transform:uppercase">Total</div>
+      <div></div>
+      <div style="padding:9px 8px;text-align:center;color:var(--blue)" id="rens-tot-m2">—</div>
+      <div style="padding:9px 8px;text-align:center;color:var(--blue)" id="rens-tot-m3">—</div>
+      <div></div><div></div>
+    </div>
+  </div>
+
+  <div style="margin-top:2rem">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:.75rem">
+      <span style="font-size:13px;font-weight:600;color:var(--text2)">Saisies enregistrées</span>
+      <button onclick="rensLoadHistorique()" style="font-size:11px;padding:3px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-family:inherit">↻ Actualiser</button>
+      <span id="rens-hist-count" style="font-size:11px;color:var(--text3)"></span>
+    </div>
+    <div id="rens-historique" style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="padding:1rem;text-align:center;color:var(--text3);font-size:12px">Cliquez sur Actualiser</div>
+    </div>
+  </div>
+
+</div>
 </div>
 
 </main>
@@ -1609,7 +1686,7 @@ async function syncCTVX(){
         ctvxParTranche[k] = src.date_ctvx;
     });
 
-    datesSrc.forEach(src=>{\
+    datesSrc.forEach(src=>{
       // Chercher dans les tranches ERP
       const tranche = state.tranches.find(t=>
         t.nom.toLowerCase().trim() === src.trancheNom
@@ -2667,6 +2744,321 @@ function showScreen(id){
   if(id==='dashboard')renderDashboard();
   if(id==='suivi-prod')renderSuiviProd();
   if(id==='retours')renderRetours();
+  if(id==='renseignement')initRenseignement();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  MODULE RENSEIGNEMENT PROJET
+// ══════════════════════════════════════════════════════════════════════════
+let _rensRows = [];       // lignes en cours de saisie
+let _rensTrancheId = '';  // ID ERP de la tranche sélectionnée
+let _rensTrancheNom = ''; // Nom de la tranche
+let _rensDessinateurs = []; // [{initiales, nom}]
+
+async function initRenseignement(){
+  // Charger les dessinateurs si pas encore fait
+  if(!_rensDessinateurs.length) await rensLoadDessinateurs();
+  // Remplir le select chantiers
+  const selCh = document.getElementById('rens-chantier');
+  selCh.innerHTML = '<option value="">— Sélectionner —</option>' +
+    [...state.chantiers].sort((a,b)=>a.nom.localeCompare(b.nom,'fr')).map(c=>
+      `<option value="${c.id}">${esc(c.nom)}</option>`
+    ).join('');
+  // Reset
+  document.getElementById('rens-tranche').innerHTML = '<option value="">— Chantier d\'abord —</option>';
+  _rensRows = [];
+  _rensTrancheId = '';
+  renderRensRows();
+}
+
+async function rensLoadDessinateurs(){
+  try{
+    const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({action:'getDessinateurs'})});
+    const r = await res.json();
+    if(r.ok && r.dessinateurs?.length){
+      _rensDessinateurs = r.dessinateurs;
+    }
+  } catch(e){ console.warn('getDessinateurs:', e.message); }
+  // Remplir le select dessinateurs
+  const sel = document.getElementById('rens-dessinateur');
+  if(sel){
+    sel.innerHTML = '<option value="">— Init. —</option>' +
+      _rensDessinateurs.map(d=>`<option value="${esc(d.initiales)}">${esc(d.initiales)}${d.nom?' — '+esc(d.nom):''}</option>`).join('');
+  }
+}
+
+function rensOnChantierChange(){
+  const chId = document.getElementById('rens-chantier').value;
+  const selTr = document.getElementById('rens-tranche');
+  if(!chId){
+    selTr.innerHTML = '<option value="">— Chantier d\'abord —</option>';
+    return;
+  }
+  const tranches = state.tranches.filter(t=>t.cid===chId)
+    .sort((a,b)=>a.nom.localeCompare(b.nom,'fr'));
+  selTr.innerHTML = '<option value="">— Sélectionner —</option>' +
+    tranches.map(t=>`<option value="${t.id}">${esc(t.nom)}</option>`).join('');
+  _rensTrancheId = '';
+  _rensTrancheNom = '';
+  document.getElementById('rens-tranche-info').style.display='none';
+}
+
+function rensOnTrancheChange(){
+  const trId = document.getElementById('rens-tranche').value;
+  if(!trId){ _rensTrancheId=''; _rensTrancheNom=''; document.getElementById('rens-tranche-info').style.display='none'; return; }
+  const tr = state.tranches.find(t=>t.id===trId);
+  if(!tr) return;
+  _rensTrancheId = tr.id;
+  _rensTrancheNom = tr.nom;
+  // Afficher info tranche liée
+  const info = document.getElementById('rens-tranche-info');
+  document.getElementById('rens-tranche-info-text').textContent = tr.nom;
+  info.style.display = 'block';
+  // Charger les phases existantes de cette tranche comme suggestions
+  const phasesExistantes = state.phases.filter(p=>p.tid===tr.id).map(p=>p.num||p.nom).filter(Boolean);
+  // Vider et recharger les lignes existantes depuis l'historique
+  _rensRows = [];
+  renderRensRows();
+}
+
+function rensAddRow(){
+  if(!_rensTrancheId){ toast('⚠ Sélectionnez une tranche d\'abord'); return; }
+  const phasesExistantes = state.phases.filter(p=>p.tid===_rensTrancheId).map(p=>p.num||p.nom).filter(Boolean);
+  _rensRows.push({
+    id: Date.now()+'_'+Math.random().toString(36).slice(2,6),
+    tranche_nom: _rensTrancheNom,
+    tranche_id: _rensTrancheId,
+    phase: '',
+    m2: '',
+    m3: '',
+    commentaire: '',
+    dessinateur: document.getElementById('rens-dessinateur').value||'',
+    phases_dispo: phasesExistantes
+  });
+  renderRensRows();
+  // Focus sur la dernière ligne
+  setTimeout(()=>{
+    const rows = document.querySelectorAll('.rens-row-phase');
+    if(rows.length) rows[rows.length-1].focus();
+  },50);
+}
+
+function rensRemoveRow(id){
+  _rensRows = _rensRows.filter(r=>r.id!==id);
+  renderRensRows();
+}
+
+function rensUpdateRow(id, field, value){
+  const row = _rensRows.find(r=>r.id===id);
+  if(row){ row[field]=value; rensMaj(); }
+}
+
+function rensMaj(){
+  // Recalculer totaux
+  const totM2 = _rensRows.reduce((s,r)=>s+(parseFloat(r.m2)||0),0);
+  const totM3 = _rensRows.reduce((s,r)=>s+(parseFloat(r.m3)||0),0);
+  const tfoot = document.getElementById('rens-tfoot');
+  if(_rensRows.length){
+    tfoot.style.display='grid';
+    document.getElementById('rens-tot-m2').textContent = totM2>0?totM2.toFixed(2):'—';
+    document.getElementById('rens-tot-m3').textContent = totM3>0?totM3.toFixed(2):'—';
+  } else {
+    tfoot.style.display='none';
+  }
+}
+
+function renderRensRows(){
+  const tbody = document.getElementById('rens-tbody');
+  if(!_rensRows.length){
+    tbody.innerHTML = `<div style="padding:2.5rem;text-align:center;color:var(--text3);font-size:13px">
+      ${_rensTrancheId?'Cliquez sur <strong>+ Ligne</strong> pour ajouter une ligne':'Sélectionnez un chantier puis une tranche, puis <strong>+ Ligne</strong>'}
+    </div>`;
+    document.getElementById('rens-tfoot').style.display='none';
+    return;
+  }
+  tbody.innerHTML = _rensRows.map((r,i)=>{
+    const phaseOptions = r.phases_dispo?.length
+      ? r.phases_dispo.map(p=>`<option value="${esc(p)}"${r.phase===p?' selected':''}>${esc(p)}</option>`).join('')
+      : '';
+    return `<div class="rens-row" style="display:grid;grid-template-columns:32px 1fr 100px 80px 80px 1fr 36px;border-bottom:1px solid var(--border);align-items:center;background:${i%2===0?'var(--surface)':'var(--bg)'}">
+      <div style="padding:8px 6px;text-align:center;font-size:11px;color:var(--text3);font-weight:600">${i+1}</div>
+      <div style="padding:6px 8px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);padding:4px 0">${esc(r.tranche_nom)}</div>
+      </div>
+      <div style="padding:6px 6px">
+        ${phaseOptions
+          ? `<select onchange="rensUpdateRow('${r.id}','phase',this.value)"
+              style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;background:var(--surface)">
+              <option value="">—</option>${phaseOptions}
+            </select>`
+          : `<input type="text" value="${esc(r.phase)}" placeholder="Ph01"
+              class="rens-row-phase"
+              oninput="rensUpdateRow('${r.id}','phase',this.value)"
+              style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;text-align:center"/>`
+        }
+      </div>
+      <div style="padding:6px 6px">
+        <input type="number" value="${esc(r.m2)}" placeholder="0" min="0" step="0.01"
+          oninput="rensUpdateRow('${r.id}','m2',this.value);rensMaj()"
+          style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;text-align:right"/>
+      </div>
+      <div style="padding:6px 6px">
+        <input type="number" value="${esc(r.m3)}" placeholder="0" min="0" step="0.01"
+          oninput="rensUpdateRow('${r.id}','m3',this.value);rensMaj()"
+          style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;text-align:right"/>
+      </div>
+      <div style="padding:6px 8px">
+        <input type="text" value="${esc(r.commentaire)}" placeholder="Commentaire…"
+          oninput="rensUpdateRow('${r.id}','commentaire',this.value)"
+          style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"/>
+      </div>
+      <div style="padding:6px 4px;text-align:center">
+        <button onclick="rensRemoveRow('${r.id}')" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:15px;line-height:1">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+  rensMaj();
+}
+
+async function rensSave(){
+  if(!_rensRows.length){ toast('⚠ Aucune ligne à enregistrer'); return; }
+  const dessinateur = document.getElementById('rens-dessinateur').value;
+  if(!dessinateur){ toast('⚠ Sélectionnez un dessinateur'); return; }
+  const lignes = _rensRows.map(r=>({
+    tranche_id: r.tranche_id,
+    tranche_nom: r.tranche_nom,
+    phase: r.phase,
+    m2: parseFloat(r.m2)||0,
+    m3: parseFloat(r.m3)||0,
+    commentaire: r.commentaire,
+    dessinateur,
+    date: new Date().toISOString().slice(0,10)
+  }));
+
+  // 1. Sauvegarder dans Sheets
+  setSyncPill('saving','Enregistrement...');
+  try{
+    const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({action:'saveRenseignement', lignes})});
+    const r = await res.json();
+    if(!r.ok) throw new Error(r.error||'Erreur Apps Script');
+  } catch(e){
+    toast('❌ Erreur sauvegarde : '+e.message);
+    setSyncPill('error','Erreur');
+    return;
+  }
+
+  // 2. Mettre à jour les phases ERP de la tranche
+  let phasesMaj = 0;
+  const tranche = state.tranches.find(t=>t.id===_rensTrancheId);
+  if(tranche){
+    const phasesExistantes = state.phases.filter(p=>p.tid===tranche.id);
+    lignes.forEach(l=>{
+      if(!l.phase) return;
+      const existe = phasesExistantes.find(p=>(p.num||p.nom||'').trim()===l.phase.trim());
+      if(!existe){
+        // Créer la phase dans l'ERP
+        const newPh = {
+          id: uid(),
+          tid: tranche.id,
+          num: l.phase,
+          nom: l.commentaire || l.phase,
+          open: false,
+          statut: 'planifie',
+          date_termine: '',
+          date_livre: ''
+        };
+        state.phases.push(newPh);
+        phasesMaj++;
+        // Créer un article pour cette phase
+        if(l.commentaire || l.m2 || l.m3){
+          state.articles.push({
+            id: uid(),
+            pid: newPh.id,
+            libelle: l.commentaire || l.phase,
+            operation: '',
+            qte_m2: l.m2||'',
+            qte_m3: l.m3||'',
+            date_ctvx: tranche.ctvx||'',
+            date_sortie_be:'',
+            date_sortie_prod:'',
+            budget_heures:'',
+            avancement: 0,
+            statut: 'planifie',
+            type_source: 'renseignement'
+          });
+        }
+      } else if(l.commentaire || l.m2 || l.m3){
+        // Phase existe — créer un article si pas déjà présent
+        const artExiste = state.articles.find(a=>a.pid===existe.id&&a.libelle===l.commentaire);
+        if(!artExiste){
+          state.articles.push({
+            id: uid(),
+            pid: existe.id,
+            libelle: l.commentaire || l.phase,
+            operation: '',
+            qte_m2: l.m2||'',
+            qte_m3: l.m3||'',
+            date_ctvx: tranche.ctvx||'',
+            date_sortie_be:'', date_sortie_prod:'',
+            budget_heures:'', avancement:0,
+            statut:'planifie', type_source:'renseignement'
+          });
+          phasesMaj++;
+        }
+      }
+    });
+    if(phasesMaj > 0) scheduleSave();
+  }
+
+  setSyncPill('ok','Enregistré');
+  toast(`✅ ${lignes.length} ligne${lignes.length>1?'s':''} enregistrée${lignes.length>1?'s':''}${phasesMaj>0?' · '+phasesMaj+' phase(s) ajoutée(s) dans l\'ERP':''}`);
+  _rensRows = [];
+  renderRensRows();
+  rensLoadHistorique();
+}
+
+async function rensLoadHistorique(){
+  const hist = document.getElementById('rens-historique');
+  hist.innerHTML = '<div style="padding:1rem;text-align:center;color:var(--text3);font-size:12px">Chargement…</div>';
+  try{
+    const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({action:'getRenseignement'})});
+    const r = await res.json();
+    if(!r.ok) throw new Error(r.error);
+    const lignes = r.lignes||[];
+    document.getElementById('rens-hist-count').textContent = lignes.length+' ligne'+(lignes.length>1?'s':'');
+    if(!lignes.length){
+      hist.innerHTML='<div style="padding:1rem;text-align:center;color:var(--text3);font-size:12px">Aucune saisie enregistrée</div>';
+      return;
+    }
+    // Regrouper par date+dessinateur
+    const grouped = {};
+    lignes.forEach(l=>{
+      const k = (l.date||'')+'__'+(l.dessinateur||'');
+      if(!grouped[k]) grouped[k]={date:l.date,dessinateur:l.dessinateur,lignes:[]};
+      grouped[k].lignes.push(l);
+    });
+    hist.innerHTML = Object.values(grouped).sort((a,b)=>b.date.localeCompare(a.date)).map(g=>`
+      <div style="border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--bg);font-size:12px">
+          <span style="font-weight:700;color:var(--text)">${g.date}</span>
+          <span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:5px;padding:1px 8px;font-weight:600;font-size:11px">${esc(g.dessinateur)}</span>
+          <span style="color:var(--text3)">${g.lignes.length} ligne${g.lignes.length>1?'s':''}</span>
+        </div>
+        ${g.lignes.map(l=>`
+        <div style="display:grid;grid-template-columns:1fr 80px 70px 70px 1fr;padding:6px 14px;font-size:12px;border-bottom:1px solid var(--border);align-items:center">
+          <div style="color:var(--text2);font-size:11px">${esc(l.tranche_nom||'')}</div>
+          <div style="text-align:center"><span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">${esc(l.phase||'—')}</span></div>
+          <div style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${l.m2||'—'}</div>
+          <div style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${l.m3||'—'}</div>
+          <div style="color:var(--text3);font-size:11px">${esc(l.commentaire||'')}</div>
+        </div>`).join('')}
+      </div>`).join('');
+  } catch(e){
+    hist.innerHTML=`<div style="padding:1rem;color:var(--red);font-size:12px">Erreur : ${esc(e.message)}</div>`;
+  }
 }
 
 function toast(msg){
