@@ -839,8 +839,11 @@ if (configs && configs.length) {
 configs.forEach(c => { state.joursOff[c.atelier_id] = c.jours_off; });
 }
 const ferms = await sbSelect('fermetures');
-if (ferms && ferms.length) {
-state.fermetures = ferms.map(f => ({date: f.date_ferm, atelier: f.atelier_id}));
+// NE PAS écraser state.fermetures — source unique = Google Sheets (getCalendrier)
+// Les fermetures Supabase sont ignorées
+if (ferms && ferms.length && !state.fermetures.length) {
+  // Fallback uniquement si Google Sheets n'a rien chargé
+  state.fermetures = ferms.map(f => ({date: f.date_ferm, atelier: f.atelier_id}));
 }
 const tranches = await sbFetch('tranches?select=*');
 console.log('Tranches chargées depuis Supabase:', tranches ? tranches.length : 0);
