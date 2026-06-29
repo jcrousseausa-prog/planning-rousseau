@@ -2042,20 +2042,24 @@ function renderPlanning(){
 
  for(const ch of chantiersTries){
   const trs=state.tranches.filter(t=>t.cid===ch.id);
-  if(q&&!ch.nom.toLowerCase().includes(q)) continue;
+  if(q&&!ch.nom.toLowerCase().includes(q)&&!trs.some(t=>t.nom.toLowerCase().includes(q))) continue;
   html+=renderChRow(ch,trs.length);
   if(!ch.open&&!q)continue;
-    
-    html+=renderChRow(ch,trs.length);
-    if(!ch.open&&!q)continue;
     for(const tr of trs){
       if(q&&!ch.nom.toLowerCase().includes(q)&&!tr.nom.toLowerCase().includes(q))continue;
       const phs=state.phases.filter(p=>p.tid===tr.id);
       const arts=state.articles.filter(a=>phs.some(p=>p.id===a.pid));
       // Récupérer les OF du planning prod pour cette tranche
-      const ofs_prod = (state.suivi_prod||[]).filter(o=>
-        (o.tranche||'').trim().toLowerCase() === (tr.nom||'').trim().toLowerCase()
-      );
+      // Dédoublonner par of_id pour éviter les doublons de ERP_Suivi_Production
+      const ofsSeen = new Set();
+      const ofs_prod = (state.suivi_prod||[]).filter(o=>{
+        const match = (o.tranche||'').trim().toLowerCase() === (tr.nom||'').trim().toLowerCase();
+        if(!match) return false;
+        const key = o.of_id || o.id || (o.tranche+o.date_fin_prod);
+        if(ofsSeen.has(key)) return false;
+        ofsSeen.add(key);
+        return true;
+      });
       html+=renderTrRow(tr,phs.length,arts,ofs_prod);
       if(!tr.open&&!q)continue;
       for(const ph of phs){
@@ -2094,8 +2098,10 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
   const ctvxSrc = datesSrc.length ? datesSrc.reduce((min,d)=>(!min||d.date_ctvx<min)?d.date_ctvx:min, '') : '';
   const ctvx = ctvxSrc || tr.ctvx || '';
 
-  // Date fin prod — la plus tardive parmi les OF
-  const datesSortie = ofs_prod.map(o=>o.date_fin_prod||'').filter(Boolean).sort();
+  // Date fin prod — la plus tardive parmi les OF actifs (non expirés)
+  const datesSortie = ofs_prod
+    .filter(o => !o.expire_le || o.expire_le >= today)
+    .map(o=>o.date_fin_prod||'').filter(d=>d&&/^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
   const dateSortie = datesSortie.length ? datesSortie[datesSortie.length-1] : '';
 
   // Statut production
