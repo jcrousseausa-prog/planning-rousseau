@@ -328,7 +328,7 @@ table.bl-lignes td.r{text-align:right}
   <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global production</button>
   <button class="app-tab" id="tab-retours" onclick="showScreen('retours')">Retours équipes</button>
   <button class="app-tab" id="tab-suivi-prod" onclick="showScreen('suivi-prod')">📦 Suivi production</button>
-  <button class="app-tab" id="tab-renseignement" onclick="showScreen('renseignement')">📋 Renseignement</button>
+  <button class="app-tab" id="tab-renseignement" onclick="showScreen('renseignement')" style="display:none">📋 Renseignement</button>
 </div>
 
 <main>
@@ -348,6 +348,7 @@ table.bl-lignes td.r{text-align:right}
     <button class="btn btn-primary" onclick="openAddChantier()">+ Chantier</button>
     <div style="width:1px;height:24px;background:var(--border);margin:0 2px"></div>
     <button class="btn" onclick="reloadSuiviProd()" title="Recharger le suivi production depuis le planning" style="background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)">🔄 Sync</button>
+    <button class="btn" onclick="showScreen('renseignement')" title="Accéder au tableau de renseignement projet" style="background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)">📋 Renseignement</button>
   </div>
   <div class="table-wrap" style="max-height:calc(100vh - 160px);overflow-y:auto">
     <table>
@@ -605,6 +606,12 @@ table.bl-lignes td.r{text-align:right}
 <!-- ═══ RENSEIGNEMENT PROJET ═══ -->
 <div class="screen" id="screen-renseignement">
 <div style="padding:1.5rem;max-width:1100px;margin:0 auto">
+
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.25rem">
+    <button onclick="showScreen('planning')" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0;display:flex;align-items:center;gap:4px">← Tableau de pilotage</button>
+    <span style="color:var(--border)">|</span>
+    <span style="font-size:14px;font-weight:600;color:var(--text)">📋 Renseignement projet</span>
+  </div>
 
   <div style="display:flex;align-items:center;gap:16px;margin-bottom:1.5rem;flex-wrap:wrap">
     <div style="display:flex;align-items:center;gap:8px">
@@ -2881,22 +2888,23 @@ function renderRensRows(){
     const phaseOptions = r.phases_dispo?.length
       ? r.phases_dispo.map(p=>`<option value="${esc(p)}"${r.phase===p?' selected':''}>${esc(p)}</option>`).join('')
       : '';
+    const phaseSelectHtml = `<select onchange="rensPhaseSelect('${r.id}',this)"
+        style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;background:var(--surface)">
+        <option value="">—</option>
+        ${phaseOptions}
+        <option value="__NEW__">✏ Saisir manuellement…</option>
+      </select>
+      <input type="text" id="rens-phase-input-${r.id}" value="${r.phase&&!phaseOptions.includes('value="'+r.phase+'"')?esc(r.phase):''}"
+        placeholder="Ph01" class="rens-row-phase"
+        oninput="rensUpdateRow('${r.id}','phase',this.value)"
+        style="width:100%;padding:4px 6px;border:1px solid var(--orange-border);border-radius:6px;font-family:inherit;font-size:12px;text-align:center;margin-top:3px;display:${r.phase&&!phaseOptions.includes('value="'+r.phase+'"')&&r.phases_dispo?.length?'block':'none'}"/>`;
     return `<div class="rens-row" style="display:grid;grid-template-columns:32px 1fr 100px 80px 80px 1fr 36px;border-bottom:1px solid var(--border);align-items:center;background:${i%2===0?'var(--surface)':'var(--bg)'}">
       <div style="padding:8px 6px;text-align:center;font-size:11px;color:var(--text3);font-weight:600">${i+1}</div>
       <div style="padding:6px 8px">
         <div style="font-size:12px;font-weight:500;color:var(--text2);padding:4px 0">${esc(r.tranche_nom)}</div>
       </div>
       <div style="padding:6px 6px">
-        ${phaseOptions
-          ? `<select onchange="rensUpdateRow('${r.id}','phase',this.value)"
-              style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;background:var(--surface)">
-              <option value="">—</option>${phaseOptions}
-            </select>`
-          : `<input type="text" value="${esc(r.phase)}" placeholder="Ph01"
-              class="rens-row-phase"
-              oninput="rensUpdateRow('${r.id}','phase',this.value)"
-              style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;text-align:center"/>`
-        }
+        ${phaseSelectHtml}
       </div>
       <div style="padding:6px 6px">
         <input type="number" value="${esc(r.m2)}" placeholder="0" min="0" step="0.01"
@@ -2921,10 +2929,32 @@ function renderRensRows(){
   rensMaj();
 }
 
+function rensPhaseSelect(id, sel){
+  const val = sel.value;
+  const inp = document.getElementById('rens-phase-input-'+id);
+  if(val==='__NEW__'){
+    // Afficher le champ de saisie libre
+    if(inp){ inp.style.display='block'; inp.focus(); inp.value=''; }
+    rensUpdateRow(id,'phase','');
+    sel.value=''; // remettre le select à —
+  } else {
+    if(inp) inp.style.display='none';
+    rensUpdateRow(id,'phase',val);
+  }
+}
+
 async function rensSave(){
   if(!_rensRows.length){ toast('⚠ Aucune ligne à enregistrer'); return; }
   const dessinateur = document.getElementById('rens-dessinateur').value;
-  if(!dessinateur){ toast('⚠ Sélectionnez un dessinateur'); return; }
+  if(!dessinateur){
+    // Mettre en évidence le select dessinateur
+    const sel = document.getElementById('rens-dessinateur');
+    sel.style.border='2px solid var(--red)';
+    sel.style.background='var(--red-bg)';
+    setTimeout(()=>{ sel.style.border=''; sel.style.background=''; },2000);
+    toast('⚠ Dessinateur obligatoire — sélectionnez vos initiales');
+    return;
+  }
   const lignes = _rensRows.map(r=>({
     tranche_id: r.tranche_id,
     tranche_nom: r.tranche_nom,
