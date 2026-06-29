@@ -1854,12 +1854,12 @@ async function toggleTermine(atId, idx){
     });
   } catch(e) { console.warn('syncAllOF:', e.message); }
 
-  // Supprimer du state et sauvegarder
-  state.tranches[atId].splice(idx, 1);
-  state.tranches[atId].forEach((x,i)=>x.ordre=i+1);
-  renderTable();
+  // NE PAS supprimer du state — marquer termine:true et sauvegarder
+  // Le filtre !t.termine dans renderTable() le masque automatiquement
+  rechainAtelier(atId);
+  render();
   checkTranchesTerminees(atId, t.tranche);
-  toast('✅ OF terminé');
+  toast('✅ OF terminé — sauvegarde en cours…');
   scheduleSave(atId);
 }
 }
