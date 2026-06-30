@@ -2408,13 +2408,12 @@ document.getElementById('charge-content').innerHTML=html;
 }
 
 setTimeout(initApp, 100);
-// Recharger les CTVX depuis fichier DATES toutes les 10 minutes
-setInterval(() => {
-  // Recharger depuis le fichier DATES source et mettre à jour les besoin dates
-  fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'loadDATES'})})
+
+// Fonction de mise à jour CTVX depuis le fichier DATES source — réutilisable
+function refreshCtvxDepuisDATES(){
+  return fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'loadDATES'})})
     .then(r=>r.json()).then(r=>{
-      if(!r.ok) return;
-      // Mettre à jour les dates CTVX dans state
+      if(!r.ok) return 0;
       let updated=0;
       (r.tranches_erp||[]).forEach(d=>{
         const nom=d.tranche.trim().toLowerCase();
@@ -2427,8 +2426,15 @@ setInterval(() => {
         }
       });
       if(updated>0) render();
-    }).catch(()=>{});
-}, 10 * 60 * 1000);
+      return updated;
+    }).catch(()=>0);
+}
+
+// Appel immédiat au chargement (pas seulement toutes les 10 min)
+setTimeout(refreshCtvxDepuisDATES, 1500);
+
+// Recharger les CTVX depuis fichier DATES toutes les 10 minutes
+setInterval(refreshCtvxDepuisDATES, 10*60*1000);
 
 </script>
 </body>
