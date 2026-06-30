@@ -2275,6 +2275,7 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
           ${ofDate ? `<span style="color:var(--blue)">${fmtDate(ofDate)}</span>` : '—'}
         </td>
         <td></td>
+        <td></td>
         <td style="font-size:11px">
           ${of.date_production ? `<span style="color:var(--green);font-size:10px">✓ ${fmtDate(of.date_production)}</span>` : ''}
         </td>
@@ -2348,6 +2349,8 @@ function renderPhRow(ph,nbArt,arts){
     <td><span class="chevron${o?' open':''}">▶</span></td>
     <td colspan="7">${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}<b>${esc(ph.nom)}</b> ${statutBadge}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}${bh?` · ${bh}h`:''}</span></td>
     <td colspan="5"></td>
+    <td style="text-align:right;white-space:nowrap">
+      <button class="btn btn-sm" onclick="event.stopPropagation();openEditPhase('${ph.id}')">✎</button>
       <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deletePhase('${ph.id}')">✕</button>
     </td></tr>`;
 }
@@ -2368,6 +2371,7 @@ function renderArtRow(a){
     <td>${a.date_sortie_prod?`<span class="dp dp-purple">${fmtDate(a.date_sortie_prod)}</span>`:''}</td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${a.budget_heures||''}</td>
     <td>${progHtml(av,avCls)}</td>
+    <td></td>
     <td>
       <button class="statut-btn" onclick="openStatutMenu('article','${a.id}','${s}',event)" title="Changer le statut">
         ${statusBadge(s)}<span style="font-size:9px;color:var(--text3);margin-left:1px">▾</span>
@@ -2376,8 +2380,7 @@ function renderArtRow(a){
     <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="openEditArticle('${a.id}')">✎</button>
       <button class="btn btn-sm btn-red" onclick="deleteArticle('${a.id}')">✕</button>
-    </td>
-    <td></td></tr>`;
+    </td></tr>`;
 }
 
 function toggleNode(type,id){
