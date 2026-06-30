@@ -1379,31 +1379,6 @@ function quickStatutOF(ofId, newStatut, e){
   if(!of) return;
   of.statut = newStatut;
   if(newStatut==='termine') of.date_production = new Date().toISOString().slice(0,10);
-  if(newStatut==='livre')   of.date_production = of.date_production || new Date().toISOString().slice(0,10);
-
-  // Propagation vers la tranche parente : si TOUS les OF de cette tranche sont livrés → tranche livrée
-  const trancheNom = (of.tranche||'').trim().toLowerCase();
-  if(trancheNom){
-    const tranche = state.tranches.find(t=>(t.nom||'').trim().toLowerCase()===trancheNom);
-    if(tranche){
-      const ofsTranche = (state.suivi_prod||[]).filter(o=>(o.tranche||'').trim().toLowerCase()===trancheNom);
-      const tousLivres = ofsTranche.length>0 && ofsTranche.every(o=>o.statut==='livre');
-      const today = new Date().toISOString().slice(0,10);
-      if(tousLivres){
-        if(tranche.statut_erp!=='livre'){
-          tranche.statut_erp = 'livre';
-          tranche.date_livre = today;
-          if(!tranche.date_termine) tranche.date_termine = today;
-          toast('📦 Tranche "'+tranche.nom+'" marquée Livrée (tous les OF livrés)');
-        }
-      } else if(tranche.statut_erp==='livre'){
-        // Un OF n'est plus livré (ex: annulation) → la tranche redescend en "Terminé" si applicable, sinon vide
-        const tousTermines = ofsTranche.length>0 && ofsTranche.every(o=>o.statut==='termine'||o.statut==='livre');
-        tranche.statut_erp = tousTermines ? 'termine' : '';
-      }
-    }
-  }
-
   scheduleSave(); renderPlanning();
   toast('✅ OF mis à jour');
 }
@@ -5129,13 +5104,11 @@ function exportPDFInterim(empId, semaine){
     const dateStr = String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+yr;
     const abs = absences[j]||'';
     const hJ = parJour[j].heures;
-    const obs = abs
-      ? '<em style="color:#c0392b">'+abs+'</em>'
-      : (parJour[j].chantiers.length ? parJour[j].chantiers.join(', ') : '');
     const hAff = abs
       ? '<span style="color:#c0392b">—</span>'
       : (hJ>0 ? hJ.toFixed(1)+'h' : '—');
-    return '<tr><td>'+j+'</td><td>'+dateStr+'</td><td>'+hAff+'</td><td style="font-size:10px;color:#555">'+obs+'</td></tr>';
+    const obsAbs = abs ? '<em style="color:#c0392b">'+abs+'</em>' : '';
+    return '<tr><td>'+j+'</td><td>'+dateStr+'</td><td>'+hAff+'</td><td style="font-size:10px;color:#555">'+obsAbs+'</td></tr>';
   }).join('');
 
   const htmlContent = `<!DOCTYPE html><html><head>
@@ -5184,7 +5157,7 @@ function exportPDFInterim(empId, semaine){
     </div>
     <table>
       <thead><tr>
-        <th>Jour</th><th>Date</th><th>Heures travaillées</th><th>Chantiers</th>
+        <th>Jour</th><th>Date</th><th>Heures travaillées</th><th>Observations</th>
       </tr></thead>
       <tbody>
         ${lignesHTML}
