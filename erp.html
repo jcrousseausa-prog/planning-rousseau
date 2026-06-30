@@ -6347,7 +6347,7 @@ function buildProdChart(prodData){
   if(!prodData.length) return '<div style="text-align:center;color:var(--text3);padding:2rem">Aucune donnée de production</div>';
   const recent = prodData.slice(-12);
   const maxM2 = Math.max(...recent.map(r=>r.m2_total), 1);
-  const W=600, H=200, padL=40, padB=30, padT=20, padR=10;
+  const W=600, H=210, padL=40, padB=40, padT=20, padR=10;
   const bw = Math.floor((W-padL-padR)/recent.length)-4;
   const scale = (H-padB-padT)/maxM2;
 
@@ -6358,11 +6358,13 @@ function buildProdChart(prodData){
     const y1 = H-padB-hBarde-hStd;
     const y2 = H-padB-hStd;
     const total = r.m2_total.toFixed(0);
+    const ratioLabel = (r.ratio_h_m2!=null) ? `${r.ratio_h_m2}h/m²` : '';
     return `
       <rect x="${x.toFixed(0)}" y="${y1.toFixed(0)}" width="${bw}" height="${hBarde.toFixed(0)}" fill="var(--blue)" rx="2" opacity=".85"/>
       <rect x="${x.toFixed(0)}" y="${y2.toFixed(0)}" width="${bw}" height="${hStd.toFixed(0)}" fill="var(--teal)" rx="2" opacity=".85"/>
       <text x="${(x+bw/2).toFixed(0)}" y="${H-padB+12}" text-anchor="middle" font-size="9" fill="var(--text3)">S${String(r.semaine).padStart(2,'0')}</text>
-      ${r.m2_total>0?`<text x="${(x+bw/2).toFixed(0)}" y="${(y1-3).toFixed(0)}" text-anchor="middle" font-size="9" fill="var(--text2)">${total}</text>`:''}`;
+      ${r.m2_total>0?`<text x="${(x+bw/2).toFixed(0)}" y="${(y1-3).toFixed(0)}" text-anchor="middle" font-size="9" fill="var(--text2)">${total}</text>`:''}
+      ${ratioLabel?`<text x="${(x+bw/2).toFixed(0)}" y="${H-padB+23}" text-anchor="middle" font-size="8" fill="var(--purple)" font-weight="600">${ratioLabel}</text>`:''}`;
   }).join('');
 
   // Lignes de grille
@@ -6389,6 +6391,7 @@ function buildProdChart(prodData){
     <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;background:var(--blue);border-radius:2px;display:inline-block;opacity:.85"></span>Bardé</span>
     <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;background:var(--teal);border-radius:2px;display:inline-block;opacity:.85"></span>Standard</span>
     <span style="display:flex;align-items:center;gap:5px"><span style="width:24px;height:2px;background:var(--orange);display:inline-block;opacity:.85"></span>Moyenne</span>
+    <span style="display:flex;align-items:center;gap:5px;color:var(--purple);font-weight:600">h/m² = heures B2 saisies / m² produits</span>
     <span style="margin-left:auto;font-weight:600">Total : ${Math.round(recent.reduce((s,r)=>s+r.m2_total,0))} m²</span>
   </div>`;
 }
