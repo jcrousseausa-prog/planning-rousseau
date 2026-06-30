@@ -348,6 +348,7 @@ table.bl-lignes td.r{text-align:right}
     <button class="btn btn-primary" onclick="openAddChantier()">+ Chantier</button>
     <div style="width:1px;height:24px;background:var(--border);margin:0 2px"></div>
     <button class="btn" onclick="showScreen('renseignement')" title="Accéder au tableau de renseignement projet" style="background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)">📋 Renseignement</button>
+    <button class="btn" onclick="syncFinUsinageManuel()" title="Synchroniser la fin d'usinage depuis le fichier externe" style="background:var(--teal-bg);color:var(--teal);border-color:var(--teal-border)">🏭 Sync usinage</button>
   </div>
   <div class="table-wrap" style="max-height:calc(100vh - 160px);overflow-y:auto">
     <table>
@@ -359,6 +360,7 @@ table.bl-lignes td.r{text-align:right}
         <th style="width:72px">m³</th>
         <th style="width:110px">CTVX</th>
         <th style="width:98px">Sortie BE</th>
+        <th style="width:110px">Fin Usinage</th>
         <th style="width:110px">Fin Prod</th>
         <th style="width:72px">Budget h</th>
         <th style="width:100px">Avancement</th>
@@ -1558,6 +1560,7 @@ async function loadFromSheets() {
       // DATES et fermetures en arrière-plan (non bloquants)
       loadDATESSource();
       loadFermetures();
+      syncFinUsinageAuto();
       saveLS();
       _sheetsLoaded = true;
       setOnline(); // ← connexion confirmée
@@ -1590,6 +1593,8 @@ function startPolling() {
   if (_pollInterval) clearInterval(_pollInterval);
   // Recharger les CTVX depuis fichier DATES toutes les 10 minutes
   setInterval(() => { loadDATESSource(); }, 10 * 60 * 1000);
+  // Recharger la fin d'usinage toutes les 15 minutes
+  setInterval(() => { syncFinUsinageAuto(); }, 15 * 60 * 1000);
   _pollInterval = setInterval(async () => {
     if (document.getElementById('sync-text').textContent === 'Enregistrement...') return;
     try {
@@ -2151,11 +2156,11 @@ function renderPlanning(){
         html+=renderPhRow(ph,phArts.length,phArts);
         if(!ph.open)continue;
         for(const art of phArts) html+=renderArtRow(art);
-        html+=`<tr class="row-add"><td colspan="12"><button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddArticle('${ph.id}')">+ Article</button></td></tr>`;
+        html+=`<tr class="row-add"><td colspan="13"><button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddArticle('${ph.id}')">+ Article</button></td></tr>`;
       }
-      html+=`<tr class="row-add-ph"><td colspan="12"><button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddPhase('${tr.id}')">+ Phase</button></td></tr>`;
+      html+=`<tr class="row-add-ph"><td colspan="13"><button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddPhase('${tr.id}')">+ Phase</button></td></tr>`;
     }
-    html+=`<tr class="row-add-tr"><td colspan="12"><button style="font-size:11px;color:var(--text2);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddTranche('${ch.id}')">+ Tranche</button></td></tr>`;
+    html+=`<tr class="row-add-tr"><td colspan="13"><button style="font-size:11px;color:var(--text2);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddTranche('${ch.id}')">+ Tranche</button></td></tr>`;
   }
   tbody.innerHTML=html;
 }
@@ -2164,7 +2169,7 @@ function renderChRow(ch,nbTr){
   const o=ch.open;
   return`<tr class="row-chantier" onclick="toggleNode('ch','${ch.id}')">
     <td><span class="chevron${o?' open':''}">▶</span></td>
-    <td colspan="9">${ch.conduc?`<span style="background:#E8E5FF;color:#534AB7;font-size:10px;padding:2px 7px;border-radius:5px;font-weight:700;margin-right:6px">${esc(ch.conduc)}</span>`:''}${esc(ch.nom)}<span style="font-size:11px;color:var(--text2);font-weight:400;margin-left:8px">${nbTr} tranche${nbTr!==1?'s':''}</span></td>
+    <td colspan="11">${ch.conduc?`<span style="background:#E8E5FF;color:#534AB7;font-size:10px;padding:2px 7px;border-radius:5px;font-weight:700;margin-right:6px">${esc(ch.conduc)}</span>`:''}${esc(ch.nom)}<span style="font-size:11px;color:var(--text2);font-weight:400;margin-left:8px">${nbTr} tranche${nbTr!==1?'s':''}</span></td>
     <td></td>
     <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="event.stopPropagation();openEditChantier('${ch.id}')">✎</button>
@@ -2244,6 +2249,10 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
     ? `<span style="font-size:11px;background:${dateBg};color:${dateColor};border:1px solid ${dateBorder};border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(dateSortie)}${dateIcon}</span>`
     : '<span style="color:var(--text3);font-size:11px">—</span>';
 
+  const finUsinageHtml = tr.date_fin_usinage
+    ? `<span style="font-size:11px;background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-border);border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace">${fmtDate(tr.date_fin_usinage)}</span>`
+    : '<span style="color:var(--text3);font-size:11px">—</span>';
+
   // Lignes OF sous la tranche (quand déplié)
   let ofsHtml = '';
   if(o && ofs_prod.length) {
@@ -2259,6 +2268,7 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
           ${esc(of.commentaire||of.tranche||'')}
         </td>
         <td colspan="2" style="font-size:11px;color:var(--text3)">${esc(of.tranche||'')}</td>
+        <td></td>
         <td></td>
         <td></td>
         <td style="font-size:11px;font-family:'DM Mono',monospace">
@@ -2311,8 +2321,10 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
       })()}
     </td>
     <td style="text-align:center">${ctvxHtml}</td>
-    <td></td>
+    <td style="text-align:center">${finUsinageHtml}</td>
     <td style="text-align:center">${finProdHtml}</td>
+    <td></td>
+    <td></td>
     <td></td>
     <td>${statutERPHtml}</td>
     <td>${statutHtml}</td>
@@ -2335,9 +2347,7 @@ function renderPhRow(ph,nbArt,arts){
   return`<tr class="row-phase" onclick="toggleNode('ph','${ph.id}')">
     <td><span class="chevron${o?' open':''}">▶</span></td>
     <td colspan="7">${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}<b>${esc(ph.nom)}</b> ${statutBadge}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}${bh?` · ${bh}h`:''}</span></td>
-    <td colspan="2"></td>
-    <td style="text-align:right;white-space:nowrap">
-      <button class="btn btn-sm" onclick="event.stopPropagation();openEditPhase('${ph.id}')">✎</button>
+    <td colspan="5"></td>
       <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deletePhase('${ph.id}')">✕</button>
     </td></tr>`;
 }
@@ -2354,6 +2364,7 @@ function renderArtRow(a){
     <td style="font-family:'DM Mono',monospace;font-size:11px">${a.qte_m3||''}</td>
     <td>${a.date_ctvx?`<span class="dp dp-orange">${fmtDate(a.date_ctvx)}</span>`:''}</td>
     <td>${a.date_sortie_be?`<span class="dp dp-blue">${fmtDate(a.date_sortie_be)}</span>`:''}</td>
+    <td></td>
     <td>${a.date_sortie_prod?`<span class="dp dp-purple">${fmtDate(a.date_sortie_prod)}</span>`:''}</td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${a.budget_heures||''}</td>
     <td>${progHtml(av,avCls)}</td>
@@ -2365,7 +2376,8 @@ function renderArtRow(a){
     <td style="text-align:right;white-space:nowrap">
       <button class="btn btn-sm" onclick="openEditArticle('${a.id}')">✎</button>
       <button class="btn btn-sm btn-red" onclick="deleteArticle('${a.id}')">✕</button>
-    </td></tr>`;
+    </td>
+    <td></td></tr>`;
 }
 
 function toggleNode(type,id){
@@ -5932,6 +5944,44 @@ async function loadSuiviProd() {
       state.suivi_prod = r.articles||[];
     }
   } catch(e) { console.warn('loadSuiviProd:', e.message); }
+}
+
+// ═══ SYNC FIN USINAGE (fichier externe Source/Sauvegarde) ════════════════
+async function syncFinUsinageAuto() {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'syncFinUsinage'})
+    });
+    const r = await res.json();
+    if (r.ok) {
+      if ((r.maj_fin_usinage||0) > 0 || (r.maj_termine||0) > 0) {
+        await loadFromSheetsfast();
+        renderPlanning();
+      }
+    } else {
+      console.warn('syncFinUsinage:', r.error);
+    }
+  } catch(e) { console.warn('syncFinUsinage:', e.message); }
+}
+
+async function syncFinUsinageManuel() {
+  setSyncPill('saving','Sync fin usinage...');
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'syncFinUsinage'})
+    });
+    const r = await res.json();
+    if (!r.ok) throw new Error(r.error||'Erreur');
+    await loadFromSheetsfast();
+    renderPlanning();
+    setSyncPill('ok','Synchronisé');
+    toast(`✅ Fin usinage : ${r.maj_fin_usinage} date(s) maj · ${r.maj_termine} tranche(s) terminée(s)`);
+  } catch(e) {
+    setSyncPill('error','Erreur');
+    toast('Erreur sync fin usinage : '+e.message);
+  }
 }
 
 async function loadDATESSource() {
