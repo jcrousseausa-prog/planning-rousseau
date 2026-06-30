@@ -3711,7 +3711,7 @@ function renderSaisieHebdo(){
       if(total>0 && isTransport && totalTours>0) {
         parJour[j] = total.toFixed(1)+'h\n'+totalTours+' trajet'+(totalTours>1?'s':'');
       } else {
-        parJour[j] = total>0 ? total.toFixed(1)+'h' : (lignesAbs[0]?.absent||'—');
+        parJour[j] = total>0 ? fmtH(total) : (lignesAbs[0]?.absent||'—');
       }
     });
     // Ventilation heures par atelier pour Log
@@ -3742,7 +3742,7 @@ function renderSaisieHebdo(){
         </td>`;
       }).join('')}
       <td style="text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'}">
-        ${totalH>0?totalH+'h':'—'}
+        ${totalH>0?fmtH(totalH):'—'}
         ${Object.keys(parAtelier).length>0?`<div style="font-size:9px;font-weight:400;color:var(--text2);margin-top:2px">${Object.entries(parAtelier).map(([at,h])=>`${at}:${h}h`).join(' | ')}</div>`:''}
       </td>
       <td style="display:flex;gap:4px;padding:4px">
@@ -4034,6 +4034,14 @@ function removeSaisieRow(i){
   updateTotalSemaine();
 }
 
+// Formatage heures uniforme : quart d'heure → ex: 38.25h, 8h, 3.5h
+function fmtH(v){
+  const n = Math.round(v*4)/4;
+  if(n===0) return '0h';
+  const s = n%1===0 ? n.toFixed(0) : (n*100%25===0 ? n.toFixed(2).replace(/0$/,'') : n.toFixed(2));
+  return s+'h';
+}
+
 function updateTotalRow(i){
   let total = 0;
   JOURS_SEMAINE.forEach(j=>{
@@ -4041,10 +4049,9 @@ function updateTotalRow(i){
     if(el) total += parseFloat(el.value)||0;
   });
   const valEl = document.getElementById('sj-tot-val-'+i);
-  if(valEl) valEl.textContent = total>0?total+'h':'0h';
-  // Fallback si pas de sj-tot-val
+  if(valEl) valEl.textContent = fmtH(total);
   const totEl = document.getElementById('sj-tot-'+i);
-  if(totEl && !valEl) totEl.textContent = total>0?total+'h':'0h';
+  if(totEl && !valEl) totEl.textContent = fmtH(total);
 }
 
 function updateTotalSemaine(){
@@ -4056,11 +4063,11 @@ function updateTotalSemaine(){
       if(el) totalJour += parseFloat(el.value)||0;
     }
     const totJourEl = document.getElementById('sj-totjour-'+j);
-    if(totJourEl) totJourEl.textContent = totalJour>0?totalJour+'h':'—';
+    if(totJourEl) totJourEl.textContent = totalJour>0?fmtH(totalJour):'—';
     totalSem += totalJour;
   });
   const totSemEl = document.getElementById('sj-totsem');
-  if(totSemEl) totSemEl.textContent = totalSem>0?totalSem+'h':'0h';
+  if(totSemEl) totSemEl.textContent = fmtH(totalSem);
 }
 
 
@@ -4270,7 +4277,7 @@ function renderPlanningRessources(){
             ${cellContent}
           </td>`;
         }).join('')}
-        <td style="padding:6px 8px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'};border:1px solid var(--border)">${totalH>0?totalH+'h':'—'}</td>
+        <td style="padding:6px 8px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'};border:1px solid var(--border)">${totalH>0?fmtH(totalH):'—'}</td>
         ${emp.statut==='interim'?`<td style="padding:4px 6px;border:1px solid var(--border)">
           <button onclick="toggleActifEmploye('${emp.id}');renderPlanningRessources()" 
             class="btn btn-sm btn-orange" style="font-size:10px;white-space:nowrap">
@@ -5107,7 +5114,7 @@ function exportPDFInterim(empId, semaine){
     const hJ = parJour[j].heures;
     const hAff = abs
       ? '<span style="color:#c0392b">—</span>'
-      : (hJ>0 ? hJ.toFixed(1)+'h' : '—');
+      : (hJ>0 ? fmtH(hJ) : '—');
     const obsAbs = abs ? '<em style="color:#c0392b">'+abs+'</em>' : '';
     return '<tr><td>'+j+'</td><td>'+dateStr+'</td><td>'+hAff+'</td><td style="font-size:10px;color:#555">'+obsAbs+'</td></tr>';
   }).join('');
@@ -5251,7 +5258,7 @@ function exportPDFCDI(empId, semaine){
     const horaire = parJour[j].horaire;
     const hAff = abs
       ? '<span style="color:#c0392b">—</span>'
-      : (hJ>0 ? hJ.toFixed(1)+'h' : '—');
+      : (hJ>0 ? fmtH(hJ) : '—');
     let obs = '';
     if(abs){
       obs = '<em style="color:#c0392b">'+abs+'</em>';
