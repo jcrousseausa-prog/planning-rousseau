@@ -1957,9 +1957,11 @@ function buildTranchePicker(){
 
 function renderTranchPickerList(list, q, tranches, chantiers){
   const qLow = q.trim().toLowerCase();
+  // Exclure les tranches déjà livrées (statut_erp='livre') du sélecteur de création d'OF
+  const tranchesDispo = tranches.filter(tr=>tr.statut_erp!=='livre');
   // Grouper par chantier
   const parChantier = {};
-  tranches.forEach(tr=>{
+  tranchesDispo.forEach(tr=>{
     const chNom = (chantiers.find(c=>c.id===tr.cid)||{}).nom || '(sans chantier)';
     const chId  = tr.cid || '_';
     if(!parChantier[chId]) parChantier[chId] = {nom:chNom, tranches:[]};
