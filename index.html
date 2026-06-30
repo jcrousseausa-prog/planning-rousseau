@@ -44,7 +44,6 @@ transition: background .3s;
 @keyframes offpulse { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)} }
 .conn-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 .conn-users { font-size: 11px; }
-/* Bandeau complémentaire blocage sauvegarde */
 #offline-savewarn {
   display:none; background:#5A0000; color:#fff;
   padding:5px 1.5rem; font-size:11px; font-weight:600;
@@ -188,7 +187,6 @@ input:focus { outline: none; border-color: var(--text); }
 .form-group label { display:block; font-size:11px; font-weight:600; color:var(--text2); margin-bottom:3px; text-transform:uppercase; letter-spacing:.05em; }
 .form-group input, .form-group select, .form-group textarea { width:100%; padding:5px 8px; border:1px solid var(--border); border-radius:7px; background:var(--surface); color:var(--text); font-family:inherit; font-size:12px; }
 .form-row { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
-/* Sélecteur tranche ERP */
 .tranche-picker { border:1px solid var(--border); border-radius:9px; overflow:hidden; }
 .tranche-picker-search { padding:7px 10px; border-bottom:1px solid var(--border); background:var(--surface2); display:flex; align-items:center; gap:6px; }
 .tranche-picker-search input { border:none; outline:none; font-family:inherit; font-size:13px; background:transparent; color:var(--text); flex:1; }
@@ -280,7 +278,6 @@ transition:all .3s;
 <button id="conn-retry-btn" onclick="retryConnectionIndex()" style="display:none" class="offline-retry-btn">↻ Réessayer</button>
 </div>
 </div>
-<!-- Bandeau blocage sauvegarde -->
 <div id="offline-savewarn">
   🔒 <strong>Sauvegardes bloquées</strong> — connexion perdue, aucune écriture envoyée. Vos modifications sont sauvegardées localement.
   <button class="offline-retry-btn" onclick="retryConnectionIndex()">↻ Réessayer maintenant</button>
@@ -342,9 +339,7 @@ transition:all .3s;
 <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
 <div class="form-group" style="flex:2;min-width:180px;margin-bottom:0">
 <label>Tranche ERP <span style="font-size:10px;color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">— sélectionner depuis le tableau de pilotage</span></label>
-<!-- Sélecteur tranche ERP -->
 <div id="tranche-picker-wrap">
-  <!-- Badge tranche sélectionnée (visible si liée) -->
   <div id="tranche-selected" style="display:none" class="tranche-selected-badge">
     <div>
       <div class="name" id="tranche-selected-nom"></div>
@@ -352,7 +347,6 @@ transition:all .3s;
     </div>
     <button onclick="clearTranchePicker()" title="Changer de tranche">✕</button>
   </div>
-  <!-- Sélecteur (visible si pas encore lié) -->
   <div id="tranche-picker" class="tranche-picker">
     <div class="tranche-picker-search">
       <span style="font-size:13px;color:var(--text3)">🔍</span>
@@ -365,12 +359,10 @@ transition:all .3s;
   </div>
   <span class="tranche-manual-link" onclick="toggleTrancheManual()" id="tranche-manual-toggle">Ou saisir manuellement (OF non lié à l'ERP)</span>
 </div>
-<!-- Champ texte manuel (masqué par défaut) -->
 <div id="tranche-manual-wrap" style="display:none;margin-top:6px">
   <input type="text" id="f-tranche" placeholder="Ex: MCA-B-CP+CT R+2"/>
   <span class="tranche-manual-link" onclick="toggleTrancheManual()" style="margin-top:3px">← Revenir au sélecteur ERP</span>
 </div>
-<!-- Champ caché pour l'ID ERP -->
 <input type="hidden" id="f-tranche-erp-id" value=""/>
 </div>
 </div>
@@ -593,7 +585,6 @@ pill.className = 'sync-pill ' + (mode==='ok'?'':mode);
 document.getElementById('sync-text').textContent = text;
 }
 
-// Chargement CSV direct — méthode principale fiable
 async function loadFromCSV() {
 try {
   const res = await fetch(SHEETS_CSV_URL);
@@ -620,7 +611,7 @@ try {
       besoin: get(cols,'date_besoin')||null, ordre: parseInt(get(cols,'ordre'))||i,
       lockDebut: get(cols,'lock_debut')==='TRUE', lockFin: get(cols,'lock_fin')==='TRUE',
       lockFinDate: get(cols,'lock_fin_date')||null, parallel: get(cols,'parallel')==='TRUE',
-      termine: false, _termineLe: '',
+      termine: get(cols,'termine')==='TRUE', _termineLe: get(cols,'_termineLe')||'',
       phases: (()=>{const p=get(cols,'phases');if(!p)return[];try{return JSON.parse(p);}catch(e){return p.split(',').map(x=>x.trim()).filter(Boolean);}})()
     };
     if (t.tranche) tranches[atId].push(t);
@@ -637,7 +628,6 @@ try {
 }
 }
 
-// Chargement via Apps Script — utilisé pour l'indicateur de cohérence uniquement
 async function loadFromSheets() {
   return loadFromCSV();
 }
@@ -646,12 +636,8 @@ async function initApp() {
   setConnBar('connecting', 'Chargement...');
   loadLS();
   try {
-    // ── Chargement tranches ──────────────────────────────────
-    // Essai 1 : CSV publié
-    // Essai 2 : Apps Script getTranches (fallback)
     let total = 0;
     let source = '';
-    // Apps Script en priorité (données fraîches), CSV en fallback
     try {
       const resAS = await fetch(APPS_SCRIPT_URL, {
         method:'POST', headers:{'Content-Type':'text/plain'},
@@ -665,9 +651,7 @@ async function initApp() {
         const atId = String(t.atelier_id||'').toLowerCase().trim();
         if (!atId) return;
         if (!tr[atId]) tr[atId] = [];
-        // Normaliser les dates (tronquer ISO → yyyy-MM-dd)
         const normD = s => { if(!s) return ''; const d=String(s).trim(); return d.length>10?d.slice(0,10):d; };
-        // Normaliser phases (string JSON ou tableau)
         const normP = p => {
           if(!p) return [];
           if(Array.isArray(p)) return p.map(x=>String(x).trim()).filter(Boolean);
@@ -678,15 +662,16 @@ async function initApp() {
           }
           return s.split(',').map(x=>x.trim().replace(/^["'\[\]\\]+|["'\[\]\\]+$/g,'')).filter(Boolean);
         };
+        const normBool = v => { const s = String(v||'').toUpperCase().trim(); return s==='TRUE'||s==='OUI'||s==='1'; };
         tr[atId].push({
           _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
           debut:normD(t.date_debut), duree:parseInt(t.duree_jours)||1,
           besoin:normD(t.date_besoin)||null, ordre:parseInt(t.ordre)||i,
-          lockDebut:(()=>{const v=String(t.lock_debut||'').toUpperCase().trim();return v==='TRUE'||v==='OUI';})(),
-          lockFin:(()=>{const v=String(t.lock_fin||'').toUpperCase().trim();return v==='TRUE'||v==='OUI';})(),
+          lockDebut:normBool(t.lock_debut),
+          lockFin:normBool(t.lock_fin),
           lockFinDate:normD(t.lock_fin_date)||null,
-          parallel:(()=>{const v=String(t.parallel||'').toUpperCase().trim();return v==='TRUE'||v==='OUI';})(),
-          termine: false, // Statut géré localement
+          parallel:normBool(t.parallel),
+          termine: normBool(t.termine),
           _termineLe:normD(t._terminele||t._termineLe||''),
           phases:normP(t.phases)
         });
@@ -716,6 +701,7 @@ async function initApp() {
           besoin:get(cols,'date_besoin')||null, ordre:parseInt(get(cols,'ordre'))||i,
           lockDebut:get(cols,'lock_debut')==='TRUE', lockFin:get(cols,'lock_fin')==='TRUE',
           lockFinDate:get(cols,'lock_fin_date')||null, parallel:get(cols,'parallel')==='TRUE',
+          termine:get(cols,'termine')==='TRUE', _termineLe:get(cols,'_termineLe')||'',
         });
       }
       for (const a in tr) tr[a].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
@@ -725,8 +711,6 @@ async function initApp() {
     }
     setConnBar('connected', source + ' — ' + total + ' tranches');
 
-
-    // ── Chargement phases ERP (liées aux tranches) ────────
     try {
       const rPh = await fetch(APPS_SCRIPT_URL, {
         method:'POST', headers:{'Content-Type':'text/plain'},
@@ -734,28 +718,24 @@ async function initApp() {
       });
       const ph = await rPh.json();
       if(ph.ok) {
-        const d = ph.data || ph; // compatibilité : data enveloppé ou direct
+        const d = ph.data || ph;
         state.chantiers_erp  = d.chantiers || [];
         state.tranches_erp   = d.tranches  || [];
         const phases = d.phases || [];
-        // Index phases par tid
         state.phases_par_tid = {};
         phases.forEach(p=>{ if(!state.phases_par_tid[p.tid]) state.phases_par_tid[p.tid]=[]; state.phases_par_tid[p.tid].push(p.num||p.nom||''); });
-        // Index phases par nom tranche normalisé (compatibilité)
         state.phases_par_tranche = {};
         (d.tranches||[]).forEach(tr => {
           const nomNorm = String(tr.nom||'').trim().toLowerCase();
           const phsTr = (state.phases_par_tid[tr.id]||[]).filter(Boolean).sort();
           if(phsTr.length) state.phases_par_tranche[nomNorm] = phsTr;
         });
-        // Datalist global suggestions phases
         const allPhNums = [...new Set(phases.map(p=>p.num||'').filter(Boolean))].sort();
         const dl = document.getElementById('phases-suggestions');
         if(dl) dl.innerHTML = allPhNums.map(p=>`<option value="${esc(p)}">`).join('');
         state.phases_erp = allPhNums;
       }
     } catch(e) {
-      // Fallback : getPhases classique
       try {
         const rPh2 = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getPhases'})});
         const ph2 = await rPh2.json();
@@ -767,7 +747,6 @@ async function initApp() {
       } catch(e2) { console.warn('getPhases fallback:', e2.message); }
     }
 
-    // ── Chargement calendrier ──────────────────────────────
     try {
       const rc = await fetch(APPS_SCRIPT_URL, {
         method: 'POST', headers: {'Content-Type': 'text/plain'},
@@ -794,7 +773,6 @@ async function initApp() {
       } catch(e) {}
     }
 
-
     setSyncPill('ok', 'Synchronisé');
     setOnlineIndex();
     render();
@@ -809,7 +787,6 @@ async function initSupabase() { initApp(); }
 
 async function loadFromSupabase() {
 try {
-  // Fermetures : Google Sheets prioritaire, fallback cache
   try {
     const rc = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
@@ -839,10 +816,7 @@ if (configs && configs.length) {
 configs.forEach(c => { state.joursOff[c.atelier_id] = c.jours_off; });
 }
 const ferms = await sbSelect('fermetures');
-// NE PAS écraser state.fermetures — source unique = Google Sheets (getCalendrier)
-// Les fermetures Supabase sont ignorées
 if (ferms && ferms.length && !state.fermetures.length) {
-  // Fallback uniquement si Google Sheets n'a rien chargé
   state.fermetures = ferms.map(f => ({date: f.date_ferm, atelier: f.atelier_id}));
 }
 const tranches = await sbFetch('tranches?select=*');
@@ -928,7 +902,6 @@ async function saveToSupabase(atId) {
     }));
   }
 
-  // Bloquer si hors ligne
   if (_isOfflineIndex) {
     setSyncPill('error', 'Hors ligne — sauvegarde bloquée');
     return;
@@ -944,7 +917,6 @@ async function saveToSupabase(atId) {
     if (r.ok) {
       setOnlineIndex();
       setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-      // syncAllOFToERP(); // Désactivé temporairement
     } else throw new Error(r.error);
   } catch(e) {
     setOfflineIndex('Erreur sauvegarde : ' + e.message);
@@ -953,7 +925,6 @@ async function saveToSupabase(atId) {
 }
 function saveToSheets(atId) { return saveToSupabase(atId); }
 
-// ── GESTION OFFLINE — Planning Production ────────────────────────────────
 let _isOfflineIndex = false;
 let _offlineErrorsIndex = 0;
 let _tabBlinkIndex = null;
@@ -999,10 +970,9 @@ async function retryConnectionIndex() {
     if (r.ok) {
       setOnlineIndex();
       setSyncPill('saving', 'Reconnexion...');
-      // Rejouer la sauvegarde en attente
       for (const atId of Object.keys(state.tranches)) {
         await saveToSupabase(atId);
-        break; // une seule suffit pour confirmer
+        break;
       }
     } else throw new Error(r.error || 'Réponse invalide');
   } catch(e) {
@@ -1012,15 +982,12 @@ async function retryConnectionIndex() {
   }
 }
 
-
-
 async function deleteFromSupabase(dbId) {
 if (!_sbConnected || IS_READONLY || !dbId) return;
 try { await sbDelete('tranches', dbId); } catch(e) { console.warn('Delete error:', e); }
 }
 
 function scheduleSave(atId) {
-  // Protection anti-écrasement accidentel
   const total = Object.values(state.tranches||{}).reduce((s,a)=>s+(Array.isArray(a)?a.length:0),0);
   if(total === 0) { console.warn('scheduleSave bloqué — tranches vides, sauvegarde annulée'); return; }
   if (_saveTimeout) clearTimeout(_saveTimeout);
@@ -1068,18 +1035,12 @@ el.style.color = 'var(--red)';
 }
 }
 
-// ══════════════════════════════════════════════════════════════
-// CORRECTION 2 : saveLS() — NE PAS sauvegarder les fermetures
-// Les fermetures viennent uniquement de Google Sheets
-// ══════════════════════════════════════════════════════════════
 function saveLS() {
 try {
-// Ne pas sauvegarder les tranches dans localStorage — source unique = Google Sheets
 localStorage.setItem('planning_state', JSON.stringify({
 joursOff:state.joursOff,
 nextId:state.nextId, gsUrl:state.gsUrl,
 }));
-// Mettre à jour le cache fermetures séparément
 if (state.fermetures && state.fermetures.length) {
   localStorage.setItem('fermetures_cache', JSON.stringify(state.fermetures));
 }
@@ -1111,18 +1072,12 @@ if (!t.tranche)                 t.tranche    = '(sans nom)';
 if (t.ordre === undefined)      t.ordre      = 0;
 }
 
-// ══════════════════════════════════════════════════════════════
-// CORRECTION 3 : loadLS() — NE PAS charger les fermetures
-// Les fermetures viennent uniquement de Google Sheets
-// ══════════════════════════════════════════════════════════════
 function loadLS() {
 try {
 const s = localStorage.getItem('planning_state');
 if (!s) return;
 const saved = JSON.parse(s);
-// Tranches gérées par Google Sheets uniquement
 if (saved.joursOff)   state.joursOff   = saved.joursOff;
-// fermetures: volontairement absent - source unique = Google Sheets feuille Fermetures
 if (saved.nextId)     state.nextId     = saved.nextId;
 if (saved.gsUrl)      state.gsUrl      = saved.gsUrl;
 } catch(e) {}
@@ -1278,14 +1233,12 @@ let _dragRow = null;
 function renderTable() {
 const atId=state.atelier;
 const tr=state.tranches[atId]||[];
-// Trier par indices pour garder la référence vers state.tranches[atId]
 const sortedIdx = tr.map((_,i)=>i).sort((a,b)=>(tr[a].ordre||0)-(tr[b].ordre||0));
 const q=_tableSearch.trim().toLowerCase();
 const rows=q
  ? sortedIdx.filter(i=>!tr[i].termine && (tr[i].tranche.toLowerCase().includes(q)||String(tr[i].comment||'').toLowerCase().includes(q)))
   : sortedIdx.filter(i=>!tr[i].termine);
 const inSearch = !!q;
-// Afficher le champ de recherche permanent
 const searchArea = document.getElementById('search-area');
 if(searchArea) searchArea.style.display = 'block';
 let html=`
@@ -1414,7 +1367,6 @@ if(t.besoin&&/^\d{4}-\d{2}-\d{2}$/.test(t.besoin))allDates.push(t.besoin);
 if(!allDates.length)return{days:[]};
 const timestamps=allDates.map(d=>new Date(d).getTime()).filter(n=>!isNaN(n));
 if(!timestamps.length)return{days:[]};
-// Construire en local pour éviter décalage UTC→FR
 const toLD = s => { const p=s.split('-'); return new Date(+p[0],+p[1]-1,+p[2]); };
 const allLocal = allDates.map(toLD).filter(d=>!isNaN(d.getTime()));
 if(!allLocal.length) return {days:[]};
@@ -1720,7 +1672,6 @@ async function removeTranche(atId,idOrIdx){
   keepGanttPos();scheduleSave(atId);render();
 }
 
-// ── Gestion tags phases ──
 let _currentPhaseTags = [];
 
 function initPhaseTags(phases){
@@ -1757,7 +1708,6 @@ function removePhaseTag(idx){
 }
 
 function getPhaseArray(){
-  // Ajouter la valeur en cours si non validée
   const input = document.getElementById('f-phase-input');
   if(input?.value?.trim() && !_currentPhaseTags.includes(input.value.trim())){
     _currentPhaseTags.push(input.value.trim());
@@ -1766,7 +1716,6 @@ function getPhaseArray(){
   return [..._currentPhaseTags];
 }
 
-// Calculer date de fin d'un OF
 function calcDateFin(debut, duree, atId) {
   if(!debut) return '';
   try {
@@ -1781,11 +1730,6 @@ function calcDateFin(debut, duree, atId) {
   } catch(e) { return ''; }
 }
 
-
-
-
-
-// Synchroniser tous les OF du planning prod vers ERP_Suivi_Production
 async function syncAllOFToERP() {
   try {
     const allOF = [];
@@ -1809,7 +1753,6 @@ async function syncAllOFToERP() {
   } catch(e) { console.warn('syncAllOFToERP:', e.message); }
 }
 
-// Créer article dans ERP_Suivi_Production à la création d'un OF
 async function creerArticleProdAsync(payload) {
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
@@ -1819,7 +1762,6 @@ async function creerArticleProdAsync(payload) {
     const r = await res.json();
     if(r.ok) {
       console.log('Article ERP créé:', r.id);
-      // Stocker l'ID ERP sur l'OF
       for(const atId in state.tranches) {
         const t = state.tranches[atId].find(x=>String(x.id)===String(payload.of_id));
         if(t) { t._erpProdId = r.id; break; }
@@ -1837,7 +1779,6 @@ async function toggleTermine(atId, idx){
   t.termine = true;
   t._termineLe = new Date().toISOString().slice(0,10);
 
-  // Mettre à jour ERP_Suivi_Production directement
   try {
     fetch(APPS_SCRIPT_URL, {
       method:'POST', headers:{'Content-Type':'text/plain'},
@@ -1857,18 +1798,41 @@ async function toggleTermine(atId, idx){
     });
   } catch(e) { console.warn('syncAllOF:', e.message); }
 
-  // NE PAS supprimer du state — marquer termine:true et sauvegarder
-  // Le filtre !t.termine dans renderTable() le masque automatiquement
   rechainAtelier(atId);
   render();
   checkTranchesTerminees(atId, t.tranche);
   toast('✅ OF terminé — sauvegarde en cours…');
   scheduleSave(atId);
+} else {
+  if(!confirm('Réactiver "' + t.tranche + '" dans le planning ?')) return;
+  t.termine = false;
+  t._termineLe = '';
+  try {
+    fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({
+        action: 'syncAllOF',
+        ofs: [{
+          of_id: String(t._dbId||t.id||''),
+          tranche: t.tranche||'',
+          atelier: atId.toUpperCase(),
+          commentaire: t.comment||'',
+          date_debut: t.debut||'',
+          date_fin_prod: dateFin(t, atId),
+          termine: 'FALSE',
+          _termineLe: ''
+        }]
+      })
+    });
+  } catch(e) { console.warn('syncAllOF:', e.message); }
+  rechainAtelier(atId);
+  render();
+  toast('↩ OF réactivé');
+  scheduleSave(atId);
 }
 }
 
 function checkTranchesTerminees(atId, trancheNom){
-  // Compter les OF avec ce nom de tranche
   const ofs = (state.tranches[atId]||[]).filter(t=>t.tranche===trancheNom);
   const tousTermines = ofs.length > 0 && ofs.every(t=>t.termine);
   if(tousTermines){
@@ -1910,7 +1874,6 @@ document.getElementById('f-lockDebut').checked=false;document.getElementById('f-
 document.getElementById('f-lockFinDate').value='';document.getElementById('f-lockFinDate-group').style.display='none';
 document.getElementById('f-parallel').checked=false;
 document.getElementById('f-atelier').onchange=function(){};
-// Initialiser le sélecteur tranche vide
 initTranchePicker(null, '', '');
 buildTranchePicker();
 document.getElementById('edit-modal').style.display='flex';
@@ -1930,7 +1893,6 @@ document.getElementById('f-lockDebut').checked=!!t.lockDebut;document.getElement
 document.getElementById('f-lockFinDate').value=t.lockFinDate||dateFin(t,atId);
 document.getElementById('f-lockFinDate-group').style.display=t.lockFin?'block':'none';
 document.getElementById('f-parallel').checked=!!t.parallel;
-// Initialiser le sélecteur : lié par ID ou par nom (OF existant)
 const erpId = t.erp_tranche_id||'';
 initTranchePicker(erpId, t.tranche||'', '');
 if(erpId) refreshPhasesERPById(erpId);
@@ -1938,10 +1900,9 @@ else refreshPhasesERP(t.tranche||'');
 document.getElementById('edit-modal').style.display='flex';
 }
 
-// ── SÉLECTEUR TRANCHE ERP ────────────────────────────────────────────────
-let _trancheErpId   = null;  // ID ERP de la tranche liée
-let _trancheErpNom  = null;  // Nom ERP affiché
-let _trancheManual  = false; // Mode saisie manuelle
+let _trancheErpId   = null;
+let _trancheErpNom  = null;
+let _trancheManual  = false;
 
 function buildTranchePicker(){
   const list = document.getElementById('tranche-picker-list');
@@ -1957,9 +1918,7 @@ function buildTranchePicker(){
 
 function renderTranchPickerList(list, q, tranches, chantiers){
   const qLow = q.trim().toLowerCase();
-  // Exclure les tranches déjà livrées (statut_erp='livre') du sélecteur de création d'OF
   const tranchesDispo = tranches.filter(tr=>tr.statut_erp!=='livre');
-  // Grouper par chantier
   const parChantier = {};
   tranchesDispo.forEach(tr=>{
     const chNom = (chantiers.find(c=>c.id===tr.cid)||{}).nom || '(sans chantier)';
@@ -2011,24 +1970,19 @@ function clearTrancheSearch(){
 function selectTranche(id, nom, chantierNom){
   _trancheErpId  = id;
   _trancheErpNom = nom;
-  // Mettre à jour les champs cachés
   document.getElementById('f-tranche-erp-id').value = id;
-  // Pour compatibilité : f-tranche garde le nom (peut être absent en mode picker)
   let fTr = document.getElementById('f-tranche');
   if(!fTr){
-    // Créer dynamiquement si absent
     fTr = document.createElement('input');
     fTr.type='hidden'; fTr.id='f-tranche';
     document.body.appendChild(fTr);
   }
   fTr.value = nom;
-  // Afficher le badge
   document.getElementById('tranche-selected-nom').textContent = nom;
   document.getElementById('tranche-selected-chantier').textContent = chantierNom;
   document.getElementById('tranche-selected').style.display = 'flex';
   document.getElementById('tranche-picker').style.display   = 'none';
   document.getElementById('tranche-manual-toggle').style.display = 'none';
-  // Charger les phases de cette tranche
   const phases = state.phases_par_tid?.[id] || state.phases_par_tranche?.[nom.toLowerCase()] || [];
   initPhaseTags([]);
   if(phases.length) refreshPhasesERPById(id);
@@ -2062,7 +2016,6 @@ function toggleTrancheManual(){
     document.getElementById('tranche-selected').style.display = 'none';
     document.getElementById('f-tranche-erp-id').value = '';
     _trancheErpId = null;
-    // S'assurer que f-tranche existe
     if(!document.getElementById('f-tranche')){
       const inp=document.createElement('input');inp.type='text';inp.id='f-tranche';inp.placeholder='Ex: MCA-B-CP+CT R+2';
       manualWrap.insertBefore(inp, manualWrap.firstChild);
@@ -2090,11 +2043,9 @@ function initTranchePicker(erpId, nom, chantierNom){
   document.getElementById('tranche-search').value = '';
   document.getElementById('f-tranche-erp-id').value = erpId||'';
   if(erpId && nom){
-    // Tranche déjà liée → afficher le badge
     const ch = (state.chantiers_erp||[]).find(c=>c.id===(state.tranches_erp||[]).find(t=>t.id===erpId)?.cid);
     selectTranche(erpId, nom, chantierNom || ch?.nom || '');
   } else if(nom && !erpId){
-    // OF existant avec nom manuel → mode manuel automatiquement
     _trancheManual = true;
     if(manualWrap) manualWrap.style.display = '';
     if(picker)     picker.style.display     = 'none';
@@ -2102,10 +2053,8 @@ function initTranchePicker(erpId, nom, chantierNom){
     selBadge.style.display = 'none';
     const fTr = document.getElementById('f-tranche');
     if(fTr){ fTr.value=nom; fTr.style.display=''; }
-    // Tenter quand même de trouver la tranche ERP par nom
     const matchERP = (state.tranches_erp||[]).find(t=>t.nom.trim().toLowerCase()===nom.trim().toLowerCase());
     if(matchERP){
-      // Correspondance trouvée — proposer de lier
       const ch = (state.chantiers_erp||[]).find(c=>c.id===matchERP.cid);
       const matchBanner = document.createElement('div');
       matchBanner.style.cssText='margin-top:5px;font-size:11px;padding:6px 10px;background:var(--green-bg);border:1px solid var(--green-border);border-radius:6px;color:var(--green);display:flex;align-items:center;gap:8px';
@@ -2121,7 +2070,6 @@ function initTranchePicker(erpId, nom, chantierNom){
   }
 }
 
-// Rafraîchir phases par ID ERP (plus précis que par nom)
 function refreshPhasesERPById(tid){
   const phases = state.phases_par_tid?.[tid] || [];
   const btnsEl = document.getElementById('f-phases-erp-btns');
@@ -2162,7 +2110,6 @@ function togglePhaseERP(p){
   if(idx>=0) _currentPhaseTags.splice(idx,1);
   else _currentPhaseTags.push(p);
   renderPhaseTags();
-  // Rafraîchir les boutons
   const trancheNom = document.getElementById('f-tranche')?.value||'';
   refreshPhasesERP(trancheNom);
   _updatePhaseWarn();
@@ -2189,11 +2136,9 @@ const lockFin=document.getElementById('f-lockFin').checked;
 const debutVal=document.getElementById('f-debut').value;
 if(!debutVal){document.getElementById('f-debut').style.borderColor='var(--red)';return;}
 document.getElementById('f-debut').style.borderColor='';
-// Récupérer le nom de tranche : depuis le badge sélectionné ou le champ manuel
 const erpId = document.getElementById('f-tranche-erp-id')?.value||'';
 const trancheNom = _trancheErpNom || document.getElementById('f-tranche')?.value || '(sans nom)';
 if(!trancheNom||trancheNom==='(sans nom)'){
-  // Avertissement si aucune tranche
   const pickerEl = document.getElementById('tranche-picker-wrap');
   if(pickerEl){ pickerEl.style.outline='2px solid var(--red)'; setTimeout(()=>pickerEl.style.outline='',2000); }
   return;
@@ -2225,7 +2170,6 @@ const maxOrdre=state.tranches[newAtId].length?Math.max(...state.tranches[newAtId
 const newId = Date.now();
 state.tranches[newAtId].push({id:newId,ordre:maxOrdre,...data});
 rechainAtelier(newAtId);state.atelier=newAtId;
-// Créer l'article dans ERP_Suivi_Production
 creerArticleProdAsync({
   of_id: String(newId),
   tranche: data.tranche,
