@@ -5186,7 +5186,7 @@ function exportPDFInterim(empId, semaine){
         ${lignesHTML}
         <tr class="total-row">
           <td colspan="2">TOTAL SEMAINE</td>
-          <td>${totalH.toFixed(1)} h</td>
+          <td>${fmtH(totalH)}</td>
           <td></td>
         </tr>
       </tbody>
@@ -5341,7 +5341,7 @@ function exportPDFCDI(empId, semaine){
         ${lignesHTML}
         <tr class="total-row">
           <td colspan="2">TOTAL SEMAINE</td>
-          <td>${totalH.toFixed(1)} h</td>
+          <td>${fmtH(totalH)}</td>
           <td></td>
         </tr>
       </tbody>
