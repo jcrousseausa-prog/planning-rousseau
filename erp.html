@@ -327,6 +327,7 @@ table.bl-lignes td.r{text-align:right}
   <button class="app-tab" id="tab-heures" onclick="showScreen('heures')">Heures</button>
   <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global production</button>
   <button class="app-tab" id="tab-retours" onclick="showScreen('retours')">Retours équipes</button>
+  <button class="app-tab" id="tab-aleas" onclick="showScreen('aleas')">⚠ Aléas</button>
   <button class="app-tab" id="tab-suivi-prod" onclick="showScreen('suivi-prod')">📦 Suivi production</button>
   <button class="app-tab" id="tab-renseignement" onclick="showScreen('renseignement')" style="display:none">📋 Renseignement</button>
 </div>
@@ -684,6 +685,97 @@ table.bl-lignes td.r{text-align:right}
     </div>
   </div>
 
+</div>
+</div>
+
+<!-- ══════════ SCREEN ALÉAS ══════════ -->
+<div class="screen" id="screen-aleas">
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem">
+  <h2 style="font-size:16px;font-weight:600">⚠ Suivi des aléas production</h2>
+  <button class="btn btn-primary" onclick="openAleaModal()">+ Nouvel aléa</button>
+</div>
+
+<!-- KPIs -->
+<div id="aleas-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1.25rem"></div>
+
+<!-- Filtres -->
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+  <input type="text" id="al-search" placeholder="Rechercher…" oninput="renderAleas()" style="width:200px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"/>
+  <select id="al-fil-chantier" class="btn" onchange="renderAleas()"><option value="">Tous chantiers</option></select>
+  <select id="al-fil-famille" class="btn" onchange="renderAleas()">
+    <option value="">Toutes familles</option>
+    <option>Qualité</option><option>Approvisionnement</option><option>Machine / Outil</option>
+    <option>Organisation</option><option>Main d'œuvre</option><option>Autre</option>
+  </select>
+  <select id="al-fil-lieu" class="btn" onchange="renderAleas()">
+    <option value="">Tous lieux</option>
+    <option>Usinage</option><option>Fabrication</option><option>Logistique</option>
+  </select>
+  <select id="al-fil-periode" class="btn" onchange="renderAleas()">
+    <option value="30">30 derniers jours</option>
+    <option value="90">3 mois</option>
+    <option value="365">12 mois</option>
+    <option value="">Tout</option>
+  </select>
+  <button class="btn" onclick="exportAleasCSV()" title="Exporter CSV">↓ CSV</button>
+</div>
+
+<div id="aleas-content"></div>
+</div>
+
+<!-- Modal Aléa -->
+<div class="modal-bg" id="alea-modal" style="display:none">
+<div class="modal" style="width:560px">
+  <h2 id="alea-modal-title">Nouvel aléa</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Chantier</label>
+      <select id="al-chantier" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px">
+        <option value="">(Sans chantier)</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Ligne / Poste <span style="font-weight:400;color:var(--text3);font-size:11px">(libre)</span></label>
+      <input type="text" id="al-poste" placeholder="ex: Ligne B2 · Scie formatage" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"/>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:10px">
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Famille</label>
+      <select id="al-famille" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px" onchange="updateAleaSousTypes()">
+        <option>Qualité</option><option>Approvisionnement</option><option>Machine / Outil</option>
+        <option>Organisation</option><option>Main d'œuvre</option><option>Autre</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Sous-type</label>
+      <select id="al-sous-type" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"></select>
+    </div>
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Lieu</label>
+      <select id="al-lieu" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px">
+        <option>Usinage</option><option>Fabrication</option><option>Logistique</option>
+      </select>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Temps perdu <span style="font-weight:400;color:var(--text3)">(ex: 1h30 · 0.5 · 2)</span></label>
+      <input type="text" id="al-tps" placeholder="ex: 2h30" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"/>
+    </div>
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Date</label>
+      <input type="date" id="al-date" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"/>
+    </div>
+  </div>
+  <div class="form-group" style="margin-bottom:10px">
+    <label class="form-label">Description</label>
+    <textarea id="al-desc" rows="2" placeholder="Ce qui s'est passé, impact constaté…" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;resize:vertical"></textarea>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeAleaModal()">Annuler</button>
+    <button class="btn btn-primary" onclick="saveAleaForm()">Enregistrer</button>
+  </div>
 </div>
 </div>
 
@@ -1558,6 +1650,7 @@ async function loadFromSheets() {
       state.interim   = r.data.interim||[];
       state.heures    = r.data.heures||[];
       state.employes  = r.data.employes||[];
+      state.aleas     = r.data.aleas||[];
       if(rSuivi.ok) state.suivi_prod = rSuivi.articles||[];
       // DATES et fermetures en arrière-plan (non bloquants)
       loadDATESSource();
@@ -2768,6 +2861,7 @@ function showScreen(id){
   if(id==='dashboard')renderDashboard();
   if(id==='suivi-prod')renderSuiviProd();
   if(id==='retours')renderRetours();
+  if(id==='aleas'){initAleas().then(()=>renderAleas());}
   if(id==='renseignement')initRenseignement();
 }
 
@@ -5674,7 +5768,16 @@ function renderPlanningGlobal(){
       const datesDebut = ofsProd.map(o=>o.date_debut).filter(d=>d&&/^\d{4}-\d{2}-\d{2}$/.test(d));
       const dateDebut = datesDebut.length ? datesDebut.sort()[0] : null;
 
-      rows.push({ch, tr, dateDebutBE, dateDebutProd, dateCTVX, statutCTVX, joursRestants, av, nbArts:arts.length, dateDebut});
+      // Atelier(s) planifié(s) depuis suivi_prod
+      const ateliersPlanifies = [...new Set(ofsProd.map(o=>o.atelier).filter(Boolean))];
+
+      // Exclure les tranches entièrement produites :
+      // - statut ERP 'livre' ou 'termine', OU avancement 100% sur tous les articles
+      const toutesTerminees = arts.length > 0 && arts.every(a => a.avancement >= 100);
+      const statutTermine = tr.statut_erp === 'livre' || tr.statut_erp === 'termine';
+      if(toutesTerminees || statutTermine) return;
+
+      rows.push({ch, tr, dateDebutBE, dateDebutProd, dateCTVX, statutCTVX, joursRestants, av, nbArts:arts.length, dateDebut, ateliersPlanifies});
     });
   });
 
@@ -5701,6 +5804,7 @@ function renderPlanningGlobal(){
         <thead><tr>
           <th>Chantier</th>
           <th>Tranche</th>
+          <th style="width:110px">Atelier</th>
           <th style="width:110px">Début atelier</th>
           <th style="width:110px">Début BE</th>
           <th style="width:110px">Début Prod</th>
@@ -5723,6 +5827,10 @@ function renderPlanningGlobal(){
             return `<tr style="${bg}border-bottom:1px solid var(--border)">
               <td style="font-weight:600;font-size:12px">${esc(r.ch.nom)}</td>
               <td style="font-size:12px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.tr.nom)}">${esc(r.tr.nom)}</td>
+              <td>${r.ateliersPlanifies.length
+                ? r.ateliersPlanifies.map(a=>`<span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;background:${a==='B2'?'#EAFAF1':a==='B1'?'#EAF2FB':a==='B3'?'#F4ECF7':'#FEF9E7'};color:${a==='B2'?'#1E8449':a==='B1'?'#1A5276':a==='B3'?'#6C3483':'#D68910'};border:1px solid ${a==='B2'?'#A9DFBF':a==='B1'?'#AED6F1':a==='B3'?'#D2B4DE':'#FAD7A0'}">${esc(a)}</span>`).join(' ')
+                : '<span style="color:var(--text3);font-size:11px">—</span>'
+              }</td>
               <td>${r.dateDebut?`<span class="dp dp-green">${fmtDate(r.dateDebut)}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
               <td>${r.dateDebutBE?`<span class="dp dp-blue">${fmtDate(r.dateDebutBE)}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
               <td>${r.dateDebutProd?`<span class="dp dp-purple">${fmtDate(r.dateDebutProd)}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
@@ -5747,6 +5855,290 @@ function renderPlanningGlobal(){
 }
 
 function exportPlanningGlobalCSV(){
+// ══════════════════════════════════════════════════════════════
+// MODULE ALÉAS
+// ══════════════════════════════════════════════════════════════
+
+const ALEAS_FAMILLES = {
+  'Qualité':         ['Non-conformité pièce','Erreur de plan','Casse / chute','Reprise / retouche','Mauvaise côte'],
+  'Approvisionnement':['Pièce manquante','Mauvaise référence','Délai fournisseur','Rupture stock','Erreur commande'],
+  'Machine / Outil': ['Panne machine','Réglage / mise au point','Outillage cassé','Manque outillage','Maintenance curative'],
+  'Organisation':    ['Manque d\'info / plan','Attente décision','Changement de priorité','Problème communication','Méthode non définie'],
+  'Main d\'œuvre':   ['Formation / intégration','Effectif insuffisant','Accident / incident','Absentéisme','Opérateur non formé'],
+  'Autre':           ['Divers','Conditions météo','Problème externe']
+};
+
+const ALEAS_FAMILLE_COLORS = {
+  'Qualité':          {bg:'#FCEBEB',color:'#A32D2D',border:'#F09595'},
+  'Approvisionnement':{bg:'#FAEEDA',color:'#854F0B',border:'#EF9F27'},
+  'Machine / Outil':  {bg:'#E6F1FB',color:'#185FA5',border:'#85B7EB'},
+  'Organisation':     {bg:'#E1F5EE',color:'#0F6E56',border:'#5DCAA5'},
+  'Main d\'œuvre':    {bg:'#EEEDFE',color:'#534AB7',border:'#AFA9EC'},
+  'Autre':            {bg:'#F1EFE8',color:'#5F5E5A',border:'#B4B2A9'}
+};
+
+let _aleaEditId = null;
+
+function parseTempsPerdu(s){
+  if(!s) return 0;
+  s = String(s).trim().toLowerCase();
+  // format Xh ou XhYY ou X.Y
+  const mHM = s.match(/^(\d+)h(\d+)?$/);
+  if(mHM) return parseInt(mHM[1]) + (mHM[2] ? parseInt(mHM[2])/60 : 0);
+  const mDec = s.match(/^(\d+[.,]\d+)$/);
+  if(mDec) return parseFloat(s.replace(',','.'));
+  const mH = s.match(/^(\d+)$/);
+  if(mH) return parseInt(mH[1]);
+  return 0;
+}
+
+function fmtTemps(h){
+  if(!h) return '—';
+  const hh = Math.floor(h), mm = Math.round((h - hh)*60);
+  return mm > 0 ? `${hh}h${String(mm).padStart(2,'0')}` : `${hh}h`;
+}
+
+function fmtDateShort(s){
+  if(!s) return '—';
+  const p = s.split('-');
+  return p.length===3 ? `${p[2]}/${p[1]}` : s;
+}
+
+function aleasPeriodFilter(aleas, periodeJours){
+  if(!periodeJours) return aleas;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - periodeJours);
+  const cutoffStr = cutoff.toISOString().slice(0,10);
+  return aleas.filter(a => (a.date||'') >= cutoffStr);
+}
+
+async function initAleas(){
+  if(!(state.aleas)) {
+    try {
+      const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getAleas'})});
+      const r = await res.json();
+      state.aleas = r.ok ? (r.aleas||[]) : [];
+    } catch(e){ state.aleas = []; }
+  }
+  // Peupler le filtre chantiers
+  const sel = document.getElementById('al-fil-chantier');
+  if(sel){
+    sel.innerHTML = '<option value="">Tous chantiers</option>' +
+      (state.chantiers||[]).map(c=>`<option value="${esc(c.nom)}">${esc(c.nom)}</option>`).join('');
+  }
+}
+
+function renderAleas(){
+  const aleas = state.aleas || [];
+  const q = (document.getElementById('al-search')?.value||'').toLowerCase();
+  const filCh = document.getElementById('al-fil-chantier')?.value||'';
+  const filFam = document.getElementById('al-fil-famille')?.value||'';
+  const filLieu = document.getElementById('al-fil-lieu')?.value||'';
+  const filPer = parseInt(document.getElementById('al-fil-periode')?.value||'30')||0;
+
+  let filtered = aleasPeriodFilter(aleas, filPer);
+  if(filCh)   filtered = filtered.filter(a=>a.chantier===filCh);
+  if(filFam)  filtered = filtered.filter(a=>a.famille===filFam);
+  if(filLieu) filtered = filtered.filter(a=>a.lieu===filLieu);
+  if(q) filtered = filtered.filter(a=>
+    (a.chantier||'').toLowerCase().includes(q)||
+    (a.poste||'').toLowerCase().includes(q)||
+    (a.description||'').toLowerCase().includes(q)||
+    (a.famille||'').toLowerCase().includes(q)
+  );
+
+  // Tri : plus récent en premier
+  filtered = [...filtered].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  // KPIs
+  const totalTps = aleas.reduce((s,a)=>s+parseTempsPerdu(a.tps_perdu),0);
+  const filtTps  = aleasPeriodFilter(aleas,filPer||30).reduce((s,a)=>s+parseTempsPerdu(a.tps_perdu),0);
+  const famCount = {};
+  aleasPeriodFilter(aleas,filPer||30).forEach(a=>{ famCount[a.famille]=(famCount[a.famille]||0)+1; });
+  const topFam = Object.entries(famCount).sort((a,b)=>b[1]-a[1])[0];
+  const periodeLabel = filPer===30?'30 j':filPer===90?'3 mois':filPer===365?'12 mois':'Total';
+
+  document.getElementById('aleas-kpis').innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.8rem 1rem">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Aléas (${periodeLabel})</div>
+      <div style="font-size:22px;font-weight:600;font-family:'DM Mono',monospace">${aleasPeriodFilter(aleas,filPer||30).length}</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.8rem 1rem">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Temps perdu (${periodeLabel})</div>
+      <div style="font-size:22px;font-weight:600;font-family:'DM Mono',monospace;color:var(--red)">${fmtTemps(filtTps)}</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.8rem 1rem">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Famille principale</div>
+      <div style="font-size:15px;font-weight:600;margin-top:4px">${topFam?topFam[0]:'—'}</div>
+      <div style="font-size:11px;color:var(--text3)">${topFam?topFam[1]+' occurrence'+(topFam[1]>1?'s':''):''}</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.8rem 1rem">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Durée moy. / aléa</div>
+      <div style="font-size:22px;font-weight:600;font-family:'DM Mono',monospace">${aleasPeriodFilter(aleas,filPer||30).length?fmtTemps(filtTps/aleasPeriodFilter(aleas,filPer||30).length):'—'}</div>
+    </div>`;
+
+  if(!filtered.length){
+    document.getElementById('aleas-content').innerHTML=`<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun aléa enregistré${q?' pour "'+esc(q)+'"':''}.</div>`;
+    return;
+  }
+
+  const rows = filtered.map(a=>{
+    const fc = ALEAS_FAMILLE_COLORS[a.famille]||ALEAS_FAMILLE_COLORS['Autre'];
+    const tps = parseTempsPerdu(a.tps_perdu);
+    return `<tr>
+      <td style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace">${fmtDateShort(a.date)}</td>
+      <td style="font-size:12px;font-weight:600">${esc(a.chantier||'—')}</td>
+      <td style="font-size:11px;color:var(--text2)">${esc(a.poste||'—')}</td>
+      <td><span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:${fc.bg};color:${fc.color};border:1px solid ${fc.border}">${esc(a.famille||'')}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${esc(a.sous_type||'—')}</td>
+      <td><span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border)">${esc(a.lieu||'—')}</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:${tps>=4?'var(--red)':tps>=2?'var(--orange)':'var(--text2)'}">${fmtTemps(tps)}</td>
+      <td style="font-size:11px;color:var(--text2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.description)}">${esc(a.description||'')}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-xs" onclick="openAleaModal('${a.id}')" title="Modifier">✎</button>
+        <button class="btn btn-xs btn-danger" onclick="deleteAleaById('${a.id}')" title="Supprimer">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('aleas-content').innerHTML = `
+    <div style="font-size:11px;color:var(--text3);margin-bottom:6px">${filtered.length} aléa${filtered.length>1?'s':''} affiché${filtered.length>1?'s':''}</div>
+    <div class="table-wrap" style="overflow-x:auto">
+      <table><thead><tr>
+        <th style="width:60px">Date</th>
+        <th>Chantier</th>
+        <th>Ligne / Poste</th>
+        <th style="width:130px">Famille</th>
+        <th>Sous-type</th>
+        <th style="width:100px">Lieu</th>
+        <th style="width:75px">Tps perdu</th>
+        <th>Description</th>
+        <th style="width:64px"></th>
+      </tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+}
+
+function updateAleaSousTypes(){
+  const fam = document.getElementById('al-famille')?.value||'Qualité';
+  const sel = document.getElementById('al-sous-type');
+  if(!sel) return;
+  const types = ALEAS_FAMILLES[fam]||['Divers'];
+  sel.innerHTML = types.map(t=>`<option>${esc(t)}</option>`).join('');
+}
+
+function openAleaModal(id){
+  _aleaEditId = id||null;
+  document.getElementById('alea-modal-title').textContent = id ? 'Modifier l\'aléa' : 'Nouvel aléa';
+  // Peupler chantiers
+  const selCh = document.getElementById('al-chantier');
+  selCh.innerHTML = '<option value="">(Sans chantier)</option>' +
+    (state.chantiers||[]).map(c=>`<option value="${esc(c.nom)}">${esc(c.nom)}</option>`).join('');
+  // Date par défaut = aujourd'hui
+  document.getElementById('al-date').value = new Date().toISOString().slice(0,10);
+  updateAleaSousTypes();
+  if(id){
+    const a = (state.aleas||[]).find(x=>x.id===id);
+    if(a){
+      selCh.value = a.chantier||'';
+      document.getElementById('al-poste').value = a.poste||'';
+      document.getElementById('al-famille').value = a.famille||'Qualité';
+      updateAleaSousTypes();
+      document.getElementById('al-sous-type').value = a.sous_type||'';
+      document.getElementById('al-lieu').value = a.lieu||'Fabrication';
+      document.getElementById('al-tps').value = a.tps_perdu||'';
+      document.getElementById('al-date').value = a.date||'';
+      document.getElementById('al-desc').value = a.description||'';
+    }
+  } else {
+    selCh.value='';
+    document.getElementById('al-poste').value='';
+    document.getElementById('al-famille').value='Qualité';
+    document.getElementById('al-sous-type').value='';
+    document.getElementById('al-lieu').value='Fabrication';
+    document.getElementById('al-tps').value='';
+    document.getElementById('al-desc').value='';
+  }
+  document.getElementById('alea-modal').style.display='flex';
+}
+
+function closeAleaModal(){
+  document.getElementById('alea-modal').style.display='none';
+  _aleaEditId = null;
+}
+
+async function saveAleaForm(){
+  const tpsRaw = document.getElementById('al-tps').value.trim();
+  if(!tpsRaw){ document.getElementById('al-tps').style.borderColor='var(--red)'; return; }
+  document.getElementById('al-tps').style.borderColor='';
+  const alea = {
+    id:          _aleaEditId||'',
+    date:        document.getElementById('al-date').value,
+    chantier:    document.getElementById('al-chantier').value,
+    poste:       document.getElementById('al-poste').value,
+    famille:     document.getElementById('al-famille').value,
+    sous_type:   document.getElementById('al-sous-type').value,
+    lieu:        document.getElementById('al-lieu').value,
+    tps_perdu:   tpsRaw,
+    description: document.getElementById('al-desc').value,
+    saisie_par:  state.user?.nom||'',
+    photo_url:   ''
+  };
+  closeAleaModal();
+  toast('💾 Enregistrement…');
+  try {
+    const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'saveAlea',alea})});
+    const r = await res.json();
+    if(r.ok){
+      alea.id = r.id||alea.id;
+      if(_aleaEditId) {
+        const idx = (state.aleas||[]).findIndex(x=>x.id===_aleaEditId);
+        if(idx>=0) state.aleas[idx]=alea; else (state.aleas=state.aleas||[]).push(alea);
+      } else {
+        (state.aleas=state.aleas||[]).push(alea);
+      }
+      toast('✅ Aléa enregistré');
+      renderAleas();
+    } else { toast('⚠ Erreur : '+(r.error||'?')); }
+  } catch(e){ toast('⚠ Erreur réseau'); }
+}
+
+async function deleteAleaById(id){
+  if(!confirm('Supprimer cet aléa ?')) return;
+  try {
+    const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'deleteAlea',id})});
+    const r = await res.json();
+    if(r.ok){
+      state.aleas = (state.aleas||[]).filter(a=>a.id!==id);
+      toast('✅ Aléa supprimé');
+      renderAleas();
+    } else toast('⚠ '+r.error);
+  } catch(e){ toast('⚠ Erreur réseau'); }
+}
+
+function exportAleasCSV(){
+  const aleas = state.aleas||[];
+  let csv = 'Date;Chantier;Poste;Famille;Sous-type;Lieu;Temps perdu;Description\n';
+  aleas.forEach(a=>{
+    csv+=`"${a.date||''}","${a.chantier||''}","${a.poste||''}","${a.famille||''}","${a.sous_type||''}","${a.lieu||''}","${a.tps_perdu||''}","${(a.description||'').replace(/"/g,'""')}"\n`;
+  });
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='aleas_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+  toast('Export CSV téléchargé');
+}
+
+function getAleasKpisForDashboard(){
+  const aleas = state.aleas||[];
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-30);
+  const cutoffStr = cutoff.toISOString().slice(0,10);
+  const recent = aleas.filter(a=>(a.date||'')>=cutoffStr);
+  const tps = recent.reduce((s,a)=>s+parseTempsPerdu(a.tps_perdu),0);
+  const famCount = {};
+  recent.forEach(a=>{ famCount[a.famille]=(famCount[a.famille]||0)+1; });
+  const topFam = Object.entries(famCount).sort((a,b)=>b[1]-a[1])[0];
+  return {nb:recent.length, tps, topFam:topFam?topFam[0]:'—', topFamNb:topFam?topFam[1]:0};
+}
+
   let csv = 'Chantier;Tranche;Debut BE;Debut Prod;Date CTVX;Avancement%;Articles\n';
   state.chantiers.forEach(ch=>{
     state.tranches.filter(t=>t.cid===ch.id).forEach(tr=>{
@@ -6257,6 +6649,7 @@ async function renderDashboard(){
     ${m2DernSem?kpiCard('📅','Dernière semaine','S'+String(m2DernSem.semaine).padStart(2,'0')+' — '+m2DernSem.m2_total.toFixed(0)+' m²','Bardé: '+m2DernSem.m2_barde.toFixed(0)+' · Std: '+m2DernSem.m2_std.toFixed(0),'var(--orange)'):''}
     ${kpiCard('🏗️','Chantiers',state.chantiers.length+' actifs',state.tranches.length+' tranches','var(--purple)')}
     ${alertesNb>0 ? kpiCard('⚠️','Saisies manquantes',alertesNb+' pers.','sur 12 semaines','var(--red)') : kpiCard('✅','Pointage','À jour','12 dernières semaines','var(--green)')}
+    ${(()=>{ const al=getAleasKpisForDashboard(); return al.nb>0 ? kpiCard('🔴','Aléas (30j)',al.nb+' — '+fmtTemps(al.tps)+' perdus',al.topFam+' ('+al.topFamNb+')','var(--red)') : kpiCard('🟢','Aléas (30j)','Aucun aléa','30 derniers jours','var(--green)'); })()}
   </div>`;
 
   // ══ ALERTE CHANTIERS MANQUANTS ══
