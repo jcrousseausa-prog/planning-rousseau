@@ -1116,13 +1116,15 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 function rechainAtelier(atId) {
 const all = state.tranches[atId];
 if (!all || !all.length) return;
-all.forEach(normalizeTranche);
 
 // Les tranches terminées ne participent PAS au recalcul de chaîne :
 // elles conservent leur ordre et leur date de début tels quels.
 // Sinon rechainAtelier() les réordonne et perturbe la sauvegarde/rechargement.
 const actives   = all.filter(t=>!t.termine);
 const terminees = all.filter(t=>t.termine);
+
+// normalizeTranche uniquement sur les actives pour ne pas modifier les terminées
+actives.forEach(normalizeTranche);
 
 const normals   = [...actives.filter(t=>!t.parallel)].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
 const parallels = actives.filter(t=>t.parallel);
@@ -1818,7 +1820,9 @@ async function toggleTermine(atId, idx){
   render();
   checkTranchesTerminees(atId, t.tranche);
   toast('✅ OF terminé — sauvegarde en cours…');
-  scheduleSave(atId);
+  // Sauvegarde immédiate (pas de délai) pour éviter que le statut termine soit perdu
+  if (_saveTimeout) clearTimeout(_saveTimeout);
+  saveToSheets(atId);
 } else {
   if(!confirm('Réactiver "' + t.tranche + '" dans le planning ?')) return;
   t.termine = false;
@@ -1844,7 +1848,9 @@ async function toggleTermine(atId, idx){
   rechainAtelier(atId);
   render();
   toast('↩ OF réactivé');
-  scheduleSave(atId);
+  // Sauvegarde immédiate pour la réactivation aussi
+  if (_saveTimeout) clearTimeout(_saveTimeout);
+  saveToSheets(atId);
 }
 }
 
