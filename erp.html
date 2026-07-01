@@ -1556,6 +1556,8 @@ async function loadFromSheets() {
       state.bls       = r.data.bls||[];
       state.retours   = r.data.retours||[];
       state.interim   = r.data.interim||[];
+      state.heures    = r.data.heures||[];
+      state.employes  = r.data.employes||[];
       if(rSuivi.ok) state.suivi_prod = rSuivi.articles||[];
       // DATES et fermetures en arrière-plan (non bloquants)
       loadDATESSource();
