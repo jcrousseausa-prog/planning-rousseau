@@ -1117,8 +1117,15 @@ function rechainAtelier(atId) {
 const all = state.tranches[atId];
 if (!all || !all.length) return;
 all.forEach(normalizeTranche);
-const normals   = [...all.filter(t=>!t.parallel)].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
-const parallels = all.filter(t=>t.parallel);
+
+// Les tranches terminées ne participent PAS au recalcul de chaîne :
+// elles conservent leur ordre et leur date de début tels quels.
+// Sinon rechainAtelier() les réordonne et perturbe la sauvegarde/rechargement.
+const actives   = all.filter(t=>!t.termine);
+const terminees = all.filter(t=>t.termine);
+
+const normals   = [...actives.filter(t=>!t.parallel)].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
+const parallels = actives.filter(t=>t.parallel);
 if (normals.length >= 2) {
 for (let i=1;i<normals.length;i++) {
 const prev=normals[i-1], cur=normals[i];
@@ -1134,9 +1141,13 @@ cur.debut = required;
 }
 }
 }
-const allSorted = [...normals,...parallels].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
-allSorted.forEach((t,i)=>{t.ordre=i+1;});
-state.tranches[atId] = allSorted;
+// Réassigner les ordres uniquement sur les actives (1, 2, 3...)
+const activesSorted = [...normals,...parallels].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
+activesSorted.forEach((t,i)=>{t.ordre=i+1;});
+
+// Les terminées gardent leurs ordres existants (négatifs pour les placer avant ou après, peu importe)
+// On les remet dans le state — elles seront filtrées à l'affichage par renderTable()
+state.tranches[atId] = [...activesSorted, ...terminees];
 }
 function computeDebutForFin(targetFin, duree, atId) {
 let dt=new Date(targetFin); let c=1;
@@ -1317,20 +1328,25 @@ function dropRow(e,atId,targetIdx){
 if(IS_READONLY||!_dragRow)return;
 e.preventDefault();
 const srcId=_dragRow.getAttribute('data-id');
-const tranches=[...state.tranches[atId]].sort((a,b)=>a.ordre-b.ordre);
-const si=tranches.findIndex(t=>(t._dbId||t.id||'')==srcId);
+// Travailler uniquement sur les tranches actives (non terminées)
+// Les terminées restent intactes avec leurs ordres existants
+const terminees = state.tranches[atId].filter(t=>t.termine);
+const actives = [...state.tranches[atId].filter(t=>!t.termine)].sort((a,b)=>a.ordre-b.ordre);
+const si=actives.findIndex(t=>(t._dbId||t.id||'')==srcId);
 const ti=targetIdx;
-if(si===ti){_dragRow=null;return;}
-const[moved]=tranches.splice(si,1);
-tranches.splice(ti,0,moved);
-const firstDebut=tranches[0].debut;
-tranches[0].debut=firstDebut;
-for(let i=1;i<tranches.length;i++){
-const prevFin=dateFin(tranches[i-1],atId);
-tranches[i].debut=addWorkDays(prevFin,1,atId);
+if(si<0||si===ti){_dragRow=null;return;}
+const[moved]=actives.splice(si,1);
+actives.splice(ti,0,moved);
+const firstDebut=actives[0].debut;
+actives[0].debut=firstDebut;
+for(let i=1;i<actives.length;i++){
+if(!actives[i].lockDebut){
+const prevFin=dateFin(actives[i-1],atId);
+actives[i].debut=addWorkDays(prevFin,1,atId);
 }
-tranches.forEach((t,i)=>{t.ordre=i+1;});
-state.tranches[atId]=tranches;
+}
+actives.forEach((t,i)=>{t.ordre=i+1;});
+state.tranches[atId]=[...actives, ...terminees];
 _dragRow=null;
 keepGanttPos();
 scheduleSave(atId);
