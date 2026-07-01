@@ -856,7 +856,7 @@ table.bl-lignes td.r{text-align:right}
       <div class="field"><label>Sortie BE</label><input type="date" id="mart-sbe"/></div>
     </div>
     <div class="field-2">
-      <div class="field"><label>Sortie Prod</label><input type="date" id="mart-sprod"/></div>
+      <div class="field"><label>Fin usinage</label><input type="date" id="mart-sprod"/></div>
       <div class="field"><label>Budget heures</label><input type="number" id="mart-bh" step="0.5" min="0"/></div>
     </div>
     <div class="field-2">
@@ -2417,6 +2417,7 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
       })()}
     </td>
     <td style="text-align:center">${ctvxHtml}</td>
+    <td style="text-align:center"><!-- Sortie BE : vide sur la tranche, portée par les articles --></td>
     <td style="text-align:center">${finUsinageHtml}</td>
     <td style="text-align:center">${finProdHtml}</td>
     <td></td>
@@ -2462,8 +2463,8 @@ function renderArtRow(a){
     <td style="font-family:'DM Mono',monospace;font-size:11px">${a.qte_m3||''}</td>
     <td>${a.date_ctvx?`<span class="dp dp-orange">${fmtDate(a.date_ctvx)}</span>`:''}</td>
     <td>${a.date_sortie_be?`<span class="dp dp-blue">${fmtDate(a.date_sortie_be)}</span>`:''}</td>
-    <td></td>
-    <td>${a.date_sortie_prod?`<span class="dp dp-purple">${fmtDate(a.date_sortie_prod)}</span>`:''}</td>
+    <td>${a.date_sortie_prod?`<span class="dp dp-teal">${fmtDate(a.date_sortie_prod)}</span>`:''}</td>
+    <td><!-- Fin Prod sur la tranche, pas l'article --></td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${a.budget_heures||''}</td>
     <td>${progHtml(av,avCls)}</td>
     <td></td>
