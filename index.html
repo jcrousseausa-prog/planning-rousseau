@@ -2377,6 +2377,70 @@ document.getElementById('charge-content').innerHTML=html;
 
 setTimeout(initApp, 100);
 
+// ── SYNC MULTI-UTILISATEUR ────────────────────────────────────────────────
+// Relit getTranches toutes les 30s et merge silencieusement les changements
+// distants dans le state local, sans écraser les modifications en cours.
+// Préserve : termine, lockDebut, lockFin, ordre local non encore sauvegardé.
+async function syncDistant() {
+  if (_isOfflineIndex) return;
+  // Ne pas syncer si une sauvegarde est en attente (éviter les conflits)
+  if (_saveTimeout) return;
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'getTranches'})
+    });
+    const r = await res.json();
+    if (!r.ok || !r.tranches?.length) return;
+    const normD = s => { if(!s) return ''; const d=String(s).trim(); return d.length>10?d.slice(0,10):d; };
+    const normBool = v => { const s=String(v||'').toUpperCase().trim(); return s==='TRUE'||s==='OUI'||s==='1'; };
+    let changed = false;
+    r.tranches.forEach(t => {
+      const atId = String(t.atelier_id||'').toLowerCase().trim();
+      if (!atId || !state.tranches[atId]) return;
+      const local = state.tranches[atId].find(x => String(x.id) === String(t.id) || String(x._dbId) === String(t.id));
+      if (!local) {
+        // Nouvelle tranche ajoutée par quelqu'un d'autre → l'ajouter localement
+        const normP = p => {
+          if(!p) return []; if(Array.isArray(p)) return p;
+          const s=String(p).trim(); if(!s||s==='[]') return [];
+          if(s.startsWith('[')){ try{return JSON.parse(s);}catch(e){} }
+          return s.split(',').map(x=>x.trim()).filter(Boolean);
+        };
+        state.tranches[atId].push({
+          _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
+          debut:normD(t.date_debut), duree:parseInt(t.duree_jours)||1,
+          besoin:normD(t.date_besoin)||null, ordre:parseInt(t.ordre)||0,
+          lockDebut:normBool(t.lock_debut), lockFin:normBool(t.lock_fin),
+          lockFinDate:normD(t.lock_fin_date)||null, parallel:normBool(t.parallel),
+          termine:normBool(t.termine), _termineLe:normD(t._terminele||t._termineLe||''),
+          phases:normP(t.phases)
+        });
+        changed = true;
+      } else {
+        // Tranche existante : merger les champs qui peuvent avoir changé à distance
+        // On ne touche PAS à : ordre (géré localement), debut (peut être en cours d'édition)
+        const distTermine = normBool(t.termine);
+        const distBesoin = normD(t.date_besoin)||null;
+        if (local.termine !== distTermine) { local.termine = distTermine; local._termineLe = normD(t._terminele||t._termineLe||''); changed = true; }
+        if (local.besoin !== distBesoin && !_saveTimeout) { local.besoin = distBesoin; changed = true; }
+      }
+    });
+    // Supprimer les tranches supprimées à distance
+    const distIds = new Set(r.tranches.map(t=>String(t.id)));
+    for (const atId in state.tranches) {
+      const before = state.tranches[atId].length;
+      state.tranches[atId] = state.tranches[atId].filter(t => {
+        const id = String(t._dbId||t.id||'');
+        return !id || distIds.has(id);
+      });
+      if (state.tranches[atId].length !== before) changed = true;
+    }
+    if (changed) { rechainAll(); render(); setSyncPill('ok', '↻ Synchronisé ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})); }
+  } catch(e) { /* silencieux — ne pas alerter l'utilisateur si le poll échoue */ }
+}
+setInterval(syncDistant, 30000);
+
 // Fonction de mise à jour CTVX depuis le fichier DATES source — réutilisable
 function refreshCtvxDepuisDATES(){
   return fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'loadDATES'})})
