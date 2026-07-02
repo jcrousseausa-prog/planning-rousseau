@@ -318,16 +318,16 @@ table.bl-lignes td.r{text-align:right}
 </div>
 
 <div class="app-tabs" style="position:sticky;top:49px;z-index:40">
-  <button class="app-tab active" id="tab-planning" onclick="showScreen('planning')">Tableau de pilotage</button>
-  <button class="app-tab" id="tab-dashboard" onclick="showScreen('dashboard')">Tableau de bord</button>
-  <button class="app-tab" id="tab-achats" onclick="showScreen('achats')">Commandes fournisseurs<span class="notif-dot"></span></button>
+  <button class="app-tab active" id="tab-dashboard" onclick="showScreen('dashboard')">Tableau de bord</button>
+  <button class="app-tab" id="tab-planning" onclick="showScreen('planning')">Tableau de pilotage</button>
+  <button class="app-tab" id="tab-achats" onclick="showScreen('achats')">Achats<span class="notif-dot"></span></button>
   <button class="app-tab" id="tab-stock" onclick="showScreen('stock')">Stock<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-bl" onclick="showScreen('bl')">Bons de livraison<span class="new-badge">NEW</span></button>
+  <button class="app-tab" id="tab-qualite" onclick="showScreen('qualite')">🔴 Qualité</button>
   <button class="app-tab" id="tab-charge" onclick="showScreen('charge')">Charge équipes</button>
   <button class="app-tab" id="tab-heures" onclick="showScreen('heures')">Heures</button>
   <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global production</button>
   <button class="app-tab" id="tab-retours" onclick="showScreen('retours')">Retours équipes</button>
-  <button class="app-tab" id="tab-aleas" onclick="showScreen('aleas')">⚠ Aléas</button>
   <button class="app-tab" id="tab-suivi-prod" onclick="showScreen('suivi-prod')">📦 Suivi production</button>
   <button class="app-tab" id="tab-renseignement" onclick="showScreen('renseignement')" style="display:none">📋 Renseignement</button>
 </div>
@@ -335,7 +335,7 @@ table.bl-lignes td.r{text-align:right}
 <main>
 
 <!-- ══ PLANNING ══ -->
-<div class="screen active" id="screen-planning">
+<div class="screen" id="screen-planning">
   <div class="toolbar">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
@@ -375,7 +375,7 @@ table.bl-lignes td.r{text-align:right}
 </div>
 
 <!-- ══ TABLEAU DE BORD ══ -->
-<div class="screen" id="screen-dashboard">
+<div class="screen active" id="screen-dashboard">
   <div class="toolbar" style="margin-bottom:16px">
     <label style="font-size:12px;font-weight:600;color:var(--text2)">Période intérim</label>
     <select id="db-annee" style="padding:6px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px" onchange="renderDashboard()">
@@ -689,7 +689,16 @@ table.bl-lignes td.r{text-align:right}
 </div>
 
 <!-- ══════════ SCREEN ALÉAS ══════════ -->
-<div class="screen" id="screen-aleas">
+<div class="screen" id="screen-qualite">
+
+<!-- Sous-onglets Qualité -->
+<div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:1.25rem;background:var(--surface);margin:-1.25rem -1.5rem 1.25rem;padding:0 1.5rem">
+  <button class="htab active" id="qtab-aleas" onclick="showQTab('aleas')" style="padding:9px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:var(--blue);border-bottom:2px solid var(--blue);margin-bottom:-1px;white-space:nowrap">⚠ Aléas production</button>
+  <!-- Autres sous-onglets qualité à venir -->
+</div>
+
+<!-- Sous-écran Aléas -->
+<div id="screen-qualite-aleas">
 <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1rem">
   <h2 style="font-size:16px;font-weight:600">⚠ Suivi des aléas production</h2>
   <button class="btn btn-primary" onclick="openAleaModal()">+ Nouvel aléa</button>
@@ -721,6 +730,8 @@ table.bl-lignes td.r{text-align:right}
 </div>
 
 <div id="aleas-content"></div>
+</div>
+
 </div>
 
 
@@ -2809,14 +2820,17 @@ function closeModal(id){document.getElementById(id).classList.remove('show');}
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.app-tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('screen-'+id).classList.add('active');
-  const tab=document.getElementById('tab-'+id);if(tab)tab.classList.add('active');
+  // 'aleas' est maintenant un alias vers 'qualite' pour compatibilité
+  const screenId = id==='aleas' ? 'qualite' : id;
+  const tabId    = id==='aleas' ? 'qualite' : id;
+  document.getElementById('screen-'+screenId)?.classList.add('active');
+  const tab=document.getElementById('tab-'+tabId);if(tab)tab.classList.add('active');
   if(id==='heures'){showHTab('employes');}
   if(id==='planning-global'){initPlanningGlobal();renderPlanningGlobal();}
   if(id==='dashboard')renderDashboard();
   if(id==='suivi-prod')renderSuiviProd();
   if(id==='retours')renderRetours();
-  if(id==='aleas'){initAleas().then(()=>renderAleas());}
+  if(id==='qualite'||id==='aleas'){showQTab('aleas');}
   if(id==='renseignement')initRenseignement();
 }
 
@@ -3169,6 +3183,21 @@ const ATELIERS_H = ['B1','B2','B3','Men','Log','Us','Transport'];
 const JOURS_SEMAINE = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
 
 // ── SOUS-ONGLETS ──
+function showQTab(tab){
+  const tabs = ['aleas']; // extensible : ajouter 'non-conformites', 'audits', etc.
+  tabs.forEach(t=>{
+    const el = document.getElementById('screen-qualite-'+t);
+    if(el) el.style.display = t===tab?'':'none';
+    const btn = document.getElementById('qtab-'+t);
+    if(btn){
+      btn.style.color = t===tab?'var(--blue)':'var(--text2)';
+      btn.style.borderBottomColor = t===tab?'var(--blue)':'transparent';
+      btn.style.fontWeight = t===tab?'600':'500';
+    }
+  });
+  if(tab==='aleas') initAleas().then(()=>renderAleas());
+}
+
 function showHTab(tab){
   ['employes','saisie','planning','recap','macro','affectation'].forEach(t=>{
     document.getElementById('hscreen-'+t).style.display = t===tab?'':'none';
