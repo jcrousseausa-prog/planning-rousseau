@@ -1621,6 +1621,9 @@ async function saveToSheets() {
     const r = await res.json();
     if (r.ok) {
       setOnline();
+      // Mettre à jour le hash local pour éviter que le polling ne recharge
+      // nos propres données juste après notre sauvegarde
+      if (r.hash) _lastSaveHash = r.hash;
       setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
     } else throw new Error(r.error);
   } catch(e) {
@@ -1658,7 +1661,14 @@ async function loadFromSheets() {
       syncFinUsinageAuto();
       saveLS();
       _sheetsLoaded = true;
-      setOnline(); // ← connexion confirmée
+      setOnline();
+      // Initialiser le hash de référence pour ne pas déclencher un rechargement
+      // inutile au premier poll (évite de recharger ses propres données juste sauvegardées)
+      try {
+        const rh = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERPHash'})});
+        const rHash = await rh.json();
+        if (rHash.ok && rHash.hash) _lastSaveHash = rHash.hash;
+      } catch(e) { /* non bloquant */ }
       return true;
     }
   } catch(e) {
@@ -1714,7 +1724,7 @@ function startPolling() {
     } catch(e) {
       setOffline('Polling : ' + (e.message || 'erreur réseau'));
     }
-  }, 45000);
+  }, 20000);
 
   // Sync OF automatique toutes les 5 minutes (silencieuse)
   if (_ofSyncInterval) clearInterval(_ofSyncInterval);
