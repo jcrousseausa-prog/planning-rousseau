@@ -723,63 +723,7 @@ table.bl-lignes td.r{text-align:right}
 <div id="aleas-content"></div>
 </div>
 
-<!-- Modal Aléa -->
-<div class="modal-bg" id="alea-modal" style="display:none">
-<div class="modal" style="width:560px">
-  <h2 id="alea-modal-title">Nouvel aléa</h2>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
-    <div class="form-group" style="margin:0">
-      <label class="form-label">Chantier</label>
-      <select id="al-chantier" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px">
-        <option value="">(Sans chantier)</option>
-      </select>
-    </div>
-    <div class="form-group" style="margin:0">
-      <label class="form-label">Ligne / Poste <span style="font-weight:400;color:var(--text3);font-size:11px">(libre)</span></label>
-      <input type="text" id="al-poste" placeholder="ex: Ligne B2 · Scie formatage" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"/>
-    </div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:10px">
-    <div class="form-group" style="margin:0">
-      <label class="form-label">Famille</label>
-      <select id="al-famille" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px" onchange="updateAleaSousTypes()">
-        <option>Qualité</option><option>Approvisionnement</option><option>Machine / Outil</option>
-        <option>Organisation</option><option>Main d'œuvre</option><option>Autre</option>
-      </select>
-    </div>
-    <div class="form-group" style="margin:0">
-      <label class="form-label">Sous-type</label>
-      <select id="al-sous-type" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"></select>
-    </div>
-    <div class="form-group" style="margin:0">
-      <label class="form-label">Lieu</label>
-      <select id="al-lieu" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px">
-        <option>Usinage</option><option>Fabrication</option><option>Logistique</option>
-      </select>
-    </div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
-    <div class="form-group" style="margin:0">
-      <label class="form-label">Temps perdu <span style="font-weight:400;color:var(--text3)">(ex: 1h30 · 0.5 · 2)</span></label>
-      <input type="text" id="al-tps" placeholder="ex: 2h30" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"/>
-    </div>
-    <div class="form-group" style="margin:0">
-      <label class="form-label">Date</label>
-      <input type="date" id="al-date" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"/>
-    </div>
-  </div>
-  <div class="form-group" style="margin-bottom:10px">
-    <label class="form-label">Description</label>
-    <textarea id="al-desc" rows="2" placeholder="Ce qui s'est passé, impact constaté…" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;resize:vertical"></textarea>
-  </div>
-  <div class="modal-footer">
-    <button class="btn" onclick="closeAleaModal()">Annuler</button>
-    <button class="btn btn-primary" onclick="saveAleaForm()">Enregistrer</button>
-  </div>
-</div>
-</div>
 
-</main>
 
 <div id="toast"></div>
 
@@ -7617,5 +7561,62 @@ function lancerImpressionAteliers(){
   }, 150);
 }
 </script>
+
+<!-- Modal Aléa — au niveau body pour éviter tout problème de z-index/display avec les screens -->
+<div class="modal-bg" id="alea-modal" style="display:none">
+<div class="modal" style="width:560px">
+  <h2 id="alea-modal-title">Nouvel aléa</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Chantier</label>
+      <select id="al-chantier" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px">
+        <option value="">(Sans chantier)</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Ligne / Poste <span style="font-weight:400;color:var(--text3);font-size:11px">(libre)</span></label>
+      <input type="text" id="al-poste" placeholder="ex: Ligne B2 · Scie formatage" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"/>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:10px">
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Famille</label>
+      <select id="al-famille" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px" onchange="updateAleaSousTypes()">
+        <option>Qualité</option><option>Approvisionnement</option><option>Machine / Outil</option>
+        <option>Organisation</option><option>Main d'œuvre</option><option>Autre</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Sous-type</label>
+      <select id="al-sous-type" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"></select>
+    </div>
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Lieu</label>
+      <select id="al-lieu" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px">
+        <option>Usinage</option><option>Fabrication</option><option>Logistique</option>
+      </select>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Temps perdu <span style="font-weight:400;color:var(--text3)">(ex: 1h30 · 0.5 · 2)</span></label>
+      <input type="text" id="al-tps" placeholder="ex: 2h30" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"/>
+    </div>
+    <div class="form-group" style="margin:0">
+      <label class="form-label">Date</label>
+      <input type="date" id="al-date" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px"/>
+    </div>
+  </div>
+  <div class="form-group" style="margin-bottom:10px">
+    <label class="form-label">Description</label>
+    <textarea id="al-desc" rows="2" placeholder="Ce qui s'est passé, impact constaté…" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;resize:vertical"></textarea>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeAleaModal()">Annuler</button>
+    <button class="btn btn-primary" onclick="saveAleaForm()">Enregistrer</button>
+  </div>
+</div>
+</div>
+
 </body>
 </html>
