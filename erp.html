@@ -2167,6 +2167,9 @@ async function init(){
     const ok = await loadFromSheets();
     if(ok){
       renderAll();
+      // Forcer le tableau de bord même si _prodB2Data était déjà chargé vide
+      _prodB2Data = null;
+      if(_currentScreen === 'dashboard') renderDashboard();
       setSyncPill('ok','Synchronisé');
       document.getElementById('rt-label').textContent='Connecté';
     }
@@ -2205,7 +2208,7 @@ function renderAll(){
   renderBLMetrics();
   renderBLs();
   if(_currentScreen==='retours') renderRetours();
-  if(_currentScreen==='dashboard') renderDashboard();
+  if(_currentScreen==='dashboard' && _sheetsLoaded) renderDashboard();
 }
 
 
@@ -2913,7 +2916,7 @@ function showScreen(id){
   const tab=document.getElementById('tab-'+tabId);if(tab)tab.classList.add('active');
   if(id==='heures'){showHTab('employes');}
   if(id==='planning-global'){initPlanningGlobal();renderPlanningGlobal();}
-  if(id==='dashboard')renderDashboard();
+  if(id==='dashboard'){ _prodB2Data = null; renderDashboard(); }
   if(id==='suivi-prod')renderSuiviProd();
   if(id==='retours')renderRetours();
   if(id==='qualite'||id==='aleas'){showQTab('aleas');}
@@ -5925,6 +5928,25 @@ function renderPlanningGlobal(){
 }
 
 function exportPlanningGlobalCSV(){
+  let csv = 'Chantier;Tranche;Debut BE;Debut Prod;Date CTVX;Avancement%;Articles\n';
+  state.chantiers.forEach(ch=>{
+    state.tranches.filter(t=>t.cid===ch.id).forEach(tr=>{
+      const phs=state.phases.filter(p=>p.tid===tr.id);
+      const arts=state.articles.filter(a=>phs.some(p=>p.id===a.pid));
+      const datesBE=arts.map(a=>a.date_sortie_be).filter(d=>d).sort();
+      const datesProd=arts.map(a=>a.date_sortie_prod).filter(d=>d).sort();
+      const datesCTVX=arts.map(a=>a.date_ctvx).filter(d=>d).sort();
+      const av=arts.length?Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length):0;
+      const dateCTVX=tr.ctvx||(datesCTVX[0]||'');
+      csv+=`"${ch.nom}";"${tr.nom}";"${datesBE[0]||''}";"${datesProd[0]||''}";"${dateCTVX}";"${av}";"${arts.length}"\n`;
+    });
+  });
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='planning_global_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+  toast('Export CSV téléchargé');
+}
+
 // ══════════════════════════════════════════════════════════════
 // MODULE ALÉAS
 // ══════════════════════════════════════════════════════════════
@@ -6209,25 +6231,6 @@ function getAleasKpisForDashboard(){
   return {nb:recent.length, tps, topFam:topFam?topFam[0]:'—', topFamNb:topFam?topFam[1]:0};
 }
 
-  let csv = 'Chantier;Tranche;Debut BE;Debut Prod;Date CTVX;Avancement%;Articles\n';
-  state.chantiers.forEach(ch=>{
-    state.tranches.filter(t=>t.cid===ch.id).forEach(tr=>{
-      const phs=state.phases.filter(p=>p.tid===tr.id);
-      const arts=state.articles.filter(a=>phs.some(p=>p.id===a.pid));
-      const datesBE=arts.map(a=>a.date_sortie_be).filter(d=>d).sort();
-      const datesProd=arts.map(a=>a.date_sortie_prod).filter(d=>d).sort();
-      const datesCTVX=arts.map(a=>a.date_ctvx).filter(d=>d).sort();
-      const av=arts.length?Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length):0;
-      const dateCTVX=tr.ctvx||(datesCTVX[0]||'');
-      csv+=`"${ch.nom}";"${tr.nom}";"${datesBE[0]||''}";"${datesProd[0]||''}";"${dateCTVX}";"${av}";"${arts.length}"\n`;
-    });
-  });
-  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='planning_global_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
-  toast('Export CSV téléchargé');
-}
-
 // ═══ TABLEAU DE BORD ══════════════════════════════════════════════════════
 
 function openSaisieInterim(){
@@ -6488,8 +6491,9 @@ async function loadDATESSource() {
               c.nom.trim().toLowerCase() === d.dossier.trim().toLowerCase()
             );
             if(!ch) {
-              if(!state.dates_chantiers_manquants) state.dates_chantiers_manquants = new Set();
-              state.dates_chantiers_manquants.add(d.dossier + ' → ' + d.tranche);
+              if(!state.dates_chantiers_manquants) state.dates_chantiers_manquants = [];
+              const _entry = d.dossier + ' → ' + d.tranche;
+              if(!state.dates_chantiers_manquants.includes(_entry)) state.dates_chantiers_manquants.push(_entry);
             }
           }
         }
@@ -6723,11 +6727,11 @@ async function renderDashboard(){
   </div>`;
 
   // ══ ALERTE CHANTIERS MANQUANTS ══
-  if(state.dates_chantiers_manquants?.size) {
+  if(state.dates_chantiers_manquants?.length) {
     html += `<div style="background:#fdecea;border:1px solid #f5b7b1;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#922b21">
-      ⚠ <strong>${state.dates_chantiers_manquants.size} tranche(s) du fichier DATES rattachées à des chantiers introuvables dans l'ERP :</strong>
+      ⚠ <strong>${state.dates_chantiers_manquants.length} tranche(s) du fichier DATES rattachées à des chantiers introuvables dans l'ERP :</strong>
       <div style="margin-top:6px;max-height:100px;overflow-y:auto">
-        ${[...state.dates_chantiers_manquants].map(s=>`<div style="padding:2px 0;border-bottom:1px solid #f5b7b1">${esc(s)}</div>`).join('')}
+        ${state.dates_chantiers_manquants.map(s=>`<div style="padding:2px 0;border-bottom:1px solid #f5b7b1">${esc(s)}</div>`).join('')}
       </div>
     </div>`;
   }
