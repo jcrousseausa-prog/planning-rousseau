@@ -3125,7 +3125,7 @@ function showScreen(id){
   const tab=document.getElementById('tab-'+tabId);if(tab)tab.classList.add('active');
   if(id==='heures'){showHTab('employes');}
   if(id==='planning-global'){initPlanningGlobal();renderPlanningGlobal();}
-  if(id==='dashboard'){ _prodB2Data = null; renderDashboard(); }
+  if(id==='dashboard'){ _prodB2Data = null; _usinageData = null; renderDashboard(); }
   if(id==='suivi-prod')renderSuiviProd();
   if(id==='retours')renderRetours();
   if(id==='qualite'||id==='aleas'){showQTab('aleas');}
@@ -6465,11 +6465,11 @@ function saveInterim(){
 }
 
 // PROD_B2_CSV supprimé — lecture via Apps Script (getProdB2)
-let _prodB2Data = null; // cache des données production
+let _prodB2Data = null; // cache des données production MOB B2
+let _usinageData = null; // cache des données usinage
 
 async function loadProdB2() {
   try {
-    // Lecture via Apps Script pour éviter les erreurs CORS
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain'},
@@ -6481,6 +6481,23 @@ async function loadProdB2() {
     return [];
   } catch(e) {
     console.warn('Erreur lecture Production_B2:', e.message);
+    return [];
+  }
+}
+
+async function loadUsinage() {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'getUsinage'})
+    });
+    const r = await res.json();
+    if(r.ok && r.data) return r.data;
+    console.warn('getUsinage:', r.error||'Erreur inconnue');
+    return [];
+  } catch(e) {
+    console.warn('Erreur lecture Usinage:', e.message);
     return [];
   }
 }
@@ -6894,7 +6911,7 @@ function renderAlertesSaisie(){
 async function renderDashboard(){
   if(!_prodB2Data) {
     document.getElementById('dashboard-content').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">⟳ Chargement…</div>';
-    _prodB2Data = await loadProdB2();
+    [_prodB2Data, _usinageData] = await Promise.all([loadProdB2(), loadUsinage()]);
   }
   const prodData = _prodB2Data||[];
   const employes = state.employes||[];
@@ -6980,8 +6997,8 @@ async function renderDashboard(){
   // ══ 2. TABLEAU RÉCAP MOB B2 ══
   html += accordion('🏭 Récap production MOB B2 — M² · Heures · Ratios', buildRecapB2(prodData, heures, employes), true);
 
-  // ══ 3. SECTION USINAGE (prête — données à venir) ══
-  html += accordion('⚙️ Récap Usinage — M³ · Heures · Ratios', buildRecapUsinage(heures, employes), false);
+  // ══ 3. SECTION USINAGE ══
+  html += accordion('⚙️ Récap Usinage — M³ · Heures · Ratios', buildRecapUsinage(_usinageData||[], heures, employes), false);
 
   // ══ 4. ALERTES SAISIES ══
   const alertesHtml = renderAlertesSaisie();
@@ -7342,96 +7359,199 @@ function openObjB2(){
 }
 
 // ═══ RÉCAP USINAGE ════════════════════════════════════════════════════════
-function buildRecapUsinage(heures, employes){
-  // Section préparée — données M³ à venir depuis fichier Google Sheets externe
-  // Structure identique à buildRecapB2 mais avec m³ et atelier Us/Usinage
+function buildRecapUsinage(usinageData, heures, employes){
 
+  // Heures atelier Usinage depuis ERP_Heures
   const hUsLignes = heures.filter(h=>
     h.chantier1 && h.type_saisie!=='presence' && h.type_saisie!=='affectation_log' &&
     ['US','USINAGE'].includes((h.atelier||'').toUpperCase().trim())
   );
 
-  if(!hUsLignes.length) return `
+  // Semaines connues = union usinage + heures Us
+  const semsUsinage = usinageData.map(r=>r.semaine_key).filter(Boolean);
+  const semsHeures  = hUsLignes.map(h=>h.semaine);
+  const toutesLeSems = [...new Set([...semsUsinage, ...semsHeures])].sort();
+
+  if(!toutesLeSems.length) return `
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:24px;text-align:center;color:var(--text3)">
       <div style="font-size:32px;margin-bottom:10px">⚙️</div>
-      <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:6px">Section Usinage — en préparation</div>
-      <div style="font-size:12px">Les données M³ seront alimentées depuis un fichier Google Sheets dédié.<br>
-      En attendant, les heures atelier Usinage seront affichées ici dès qu'elles seront saisies dans le module Heures.</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:6px">Aucune donnée usinage disponible</div>
+      <div style="font-size:12px">Vérifiez que le fichier source est accessible et que l'Apps Script est déployé.</div>
     </div>`;
 
-  // Semaines avec heures usinage
-  const semsUs = [...new Set(hUsLignes.map(h=>h.semaine))].sort();
-  if(!state._recapUsDeb) state._recapUsDeb = semsUs[Math.max(0,semsUs.length-12)];
-  if(!state._recapUsFin) state._recapUsFin = semsUs[semsUs.length-1];
+  if(!state._recapUsDeb) state._recapUsDeb = toutesLeSems[Math.max(0,toutesLeSems.length-12)];
+  if(!state._recapUsFin) state._recapUsFin = toutesLeSems[toutesLeSems.length-1];
+  if(!state._recapUsObj) state._recapUsObj = {ratioOk:5, ratioWarn:8, pctIntMax:40};
 
-  const semsFiltrees = semsUs.filter(s=>s>=state._recapUsDeb && s<=state._recapUsFin);
+  const semsFiltrees = toutesLeSems.filter(s=>s>=state._recapUsDeb && s<=state._recapUsFin);
+  const obj = state._recapUsObj;
 
   const rows = semsFiltrees.map(sem=>{
     const [,sw] = sem.split('-S');
-    const hUs = hUsLignes.filter(h=>h.semaine===sem).reduce((s,h)=>s+(+h.h_mat||0)+(+h.h_am||0),0);
-    const hUsInt = hUsLignes.filter(h=>h.semaine===sem).reduce((s,h)=>{
-      const emp = employes.find(e=>e.id===h.emp_id);
-      return s+(emp?.statut==='interim'?(+h.h_mat||0)+(+h.h_am||0):0);
-    },0);
+    const prod = usinageData.find(r=>r.semaine_key===sem);
+
+    const m3Total    = prod ? prod.m3_total    : 0;
+    const tempsMach  = prod ? prod.temps_total : 0; // temps machine (fichier)
+    const machines   = prod ? prod.machines    : {};
+    const chantiers  = prod ? prod.chantiers   : {};
+
+    // Heures humaines atelier Us (ERP_Heures)
+    const hUs = hUsLignes.filter(h=>h.semaine===sem)
+      .reduce((s,h)=>s+(+h.h_mat||0)+(+h.h_am||0), 0);
+    const hUsInt = hUsLignes.filter(h=>h.semaine===sem)
+      .reduce((s,h)=>{
+        const emp = employes.find(e=>e.id===h.emp_id);
+        return s+(emp?.statut==='interim'?(+h.h_mat||0)+(+h.h_am||0):0);
+      }, 0);
     const pctInt = hUs>0 ? Math.round(hUsInt/hUs*100) : null;
-    return {sem, sw, hUs, hUsInt, pctInt, m3Total: null, ratio: null};
+    const ratioMach = (tempsMach>0 && m3Total>0) ? +(tempsMach/m3Total).toFixed(2) : null;
+    const ratioHum  = (hUs>0     && m3Total>0) ? +(hUs/m3Total).toFixed(2)       : null;
+
+    return {sem, sw, m3Total, tempsMach, machines, chantiers, hUs, hUsInt, pctInt, ratioMach, ratioHum};
   });
 
-  const totH = rows.reduce((s,r)=>s+r.hUs,0);
-  const totInt = rows.reduce((s,r)=>s+r.hUsInt,0);
-  const totPct = totH>0 ? Math.round(totInt/totH*100) : null;
+  const tot = rows.reduce((acc,r)=>({
+    m3Total:   acc.m3Total+r.m3Total,
+    tempsMach: acc.tempsMach+r.tempsMach,
+    hUs:       acc.hUs+r.hUs,
+    hUsInt:    acc.hUsInt+r.hUsInt,
+  }),{m3Total:0,tempsMach:0,hUs:0,hUsInt:0});
+  const totPctInt   = tot.hUs>0 ? Math.round(tot.hUsInt/tot.hUs*100) : null;
+  const totRatioMach = (tot.tempsMach>0 && tot.m3Total>0) ? +(tot.tempsMach/tot.m3Total).toFixed(2) : null;
+  const totRatioHum  = (tot.hUs>0      && tot.m3Total>0) ? +(tot.hUs/tot.m3Total).toFixed(2)       : null;
+
+  const ratioColor = r => {
+    if(r===null) return 'var(--text3)';
+    if(r<=obj.ratioOk)   return 'var(--green)';
+    if(r<=obj.ratioWarn) return 'var(--orange)';
+    return 'var(--red)';
+  };
+  const pctColor = p => {
+    if(p===null) return 'var(--text3)';
+    if(p<=obj.pctIntMax*0.7) return 'var(--green)';
+    if(p<=obj.pctIntMax)     return 'var(--orange)';
+    return 'var(--red)';
+  };
+  const fmtN = (v,d=2) => v>0 ? v.toFixed(d) : '—';
+
+  // Mini graphique M³
+  const maxM3 = Math.max(...rows.map(r=>r.m3Total), 1);
+  const bw = Math.max(6, Math.floor(540/Math.max(rows.length,1))-3);
+  const bars = rows.map((r,i)=>{
+    const x = i*(bw+3);
+    const h = r.m3Total/maxM3*60;
+    return `<rect x="${x}" y="${60-h}" width="${bw}" height="${h}" fill="var(--orange)" rx="1" opacity=".8"/>`;
+  }).join('');
 
   return `
-  <div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:9px 14px;margin-bottom:14px;font-size:12px;color:var(--orange)">
-    📌 Les données M³ (source externe) ne sont pas encore connectées — seules les heures sont affichées. Le ratio h/m³ sera calculé automatiquement dès la connexion du fichier.
-  </div>
-  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
     <span style="font-size:12px;font-weight:600;color:var(--text2)">Plage :</span>
     <select style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
-      onchange="state._recapUsDeb=this.value;renderDashboard()">
-      ${semsUs.map(s=>`<option value="${s}"${s===state._recapUsDeb?' selected':''}>${s}</option>`).join('')}
+      onchange="state._recapUsDeb=this.value;_usinageData=null;renderDashboard()">
+      ${toutesLeSems.map(s=>`<option value="${s}"${s===state._recapUsDeb?' selected':''}>${s}</option>`).join('')}
     </select>
     <span style="font-size:11px;color:var(--text3)">→</span>
     <select style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
-      onchange="state._recapUsFin=this.value;renderDashboard()">
-      ${semsUs.map(s=>`<option value="${s}"${s===state._recapUsFin?' selected':''}>${s}</option>`).join('')}
+      onchange="state._recapUsFin=this.value;_usinageData=null;renderDashboard()">
+      ${toutesLeSems.map(s=>`<option value="${s}"${s===state._recapUsFin?' selected':''}>${s}</option>`).join('')}
     </select>
+    <span style="font-size:11px;color:var(--text3);margin-left:4px">${semsFiltrees.length} sem.</span>
+    <button class="btn btn-sm" onclick="_usinageData=null;renderDashboard()" title="Rafraîchir">↻</button>
+    <button class="btn btn-sm" style="margin-left:auto" onclick="openObjUsinage()" title="Objectifs">⚙ Objectifs</button>
   </div>
+
+  <!-- Mini graphique M³ -->
+  <div style="margin-bottom:14px;background:var(--bg);border-radius:8px;padding:10px;overflow-x:auto">
+    <svg viewBox="0 0 ${Math.max(rows.length*(bw+3),200)} 70" style="width:100%;height:70px;display:block">
+      ${bars}
+    </svg>
+    <div style="font-size:10px;color:var(--text2);margin-top:4px">
+      <span style="display:inline-block;width:10px;height:10px;background:var(--orange);border-radius:2px;margin-right:3px"></span>M³ usinés
+    </div>
+  </div>
+
   <div style="overflow-x:auto">
-  <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:500px">
+  <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:680px">
     <thead>
       <tr style="background:var(--orange);color:#fff">
-        <th style="padding:8px 10px;text-align:left">Semaine</th>
-        <th style="padding:8px 10px;text-align:right">M³ (à venir)</th>
-        <th style="padding:8px 10px;text-align:right">H Usinage</th>
-        <th style="padding:8px 10px;text-align:right">H Intérim</th>
-        <th style="padding:8px 10px;text-align:right">% Int.</th>
-        <th style="padding:8px 10px;text-align:right">h/m³ (à venir)</th>
+        <th style="padding:8px 10px;text-align:left;font-size:11px">Semaine</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;background:#A0490A">M³ Total</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">H Machine</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">h/m³ (mach.)</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">H Humaines</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">H Intérim</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">% Int.</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">h/m³ (hum.)</th>
       </tr>
     </thead>
     <tbody>
     ${rows.map((r,i)=>`
       <tr style="${i%2?'background:#FAFAF8;':''}border-bottom:1px solid var(--border)">
         <td style="padding:7px 10px;font-weight:600;font-family:'DM Mono',monospace">S${r.sw}</td>
-        <td style="padding:7px 10px;text-align:right;font-size:11px;color:var(--text3)">—</td>
-        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:600">${r.hUs>0?r.hUs.toFixed(1):'—'}</td>
-        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--orange)">${r.hUsInt>0?r.hUsInt.toFixed(1):'—'}</td>
-        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:${r.pctInt!==null?(r.pctInt>40?'var(--red)':'var(--green)'):'var(--text3)'}">${r.pctInt!==null?r.pctInt+'%':'—'}</td>
-        <td style="padding:7px 10px;text-align:right;font-size:11px;color:var(--text3)">—</td>
-      </tr>`).join('')}
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;background:#FEF3E8">${fmtN(r.m3Total,3)}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:${r.tempsMach>0?'var(--text)':'var(--text3)'}">${r.tempsMach>0?r.tempsMach.toFixed(1):'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:${ratioColor(r.ratioMach)}">${r.ratioMach!==null?r.ratioMach:'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:${r.hUs>0?'var(--text)':'var(--text3)'}">${r.hUs>0?r.hUs.toFixed(1):'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:${r.hUsInt>0?'var(--purple)':'var(--text3)'}">${r.hUsInt>0?r.hUsInt.toFixed(1):'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:600;color:${pctColor(r.pctInt)}">${r.pctInt!==null?r.pctInt+'%':'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:${ratioColor(r.ratioHum)}">${r.ratioHum!==null?r.ratioHum:'—'}</td>
+      </tr>
+      ${Object.keys(r.machines).length>0 && r.m3Total>0 ? `
+      <tr style="background:#FFF8F2;border-bottom:1px solid var(--border)">
+        <td colspan="8" style="padding:4px 10px 4px 20px;font-size:10px;color:var(--text3)">
+          Machines : ${Object.entries(r.machines).sort((a,b)=>b[1]-a[1]).map(([m,h])=>`<span style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:4px;padding:1px 6px;margin-right:4px;color:var(--orange)">${esc(m)} — ${h.toFixed(1)}h</span>`).join('')}
+        </td>
+      </tr>` : ''}
+    `).join('')}
     </tbody>
     <tfoot>
       <tr style="background:var(--orange);color:#fff;font-weight:700">
         <td style="padding:8px 10px">TOTAL</td>
-        <td style="padding:8px 10px;text-align:right">—</td>
-        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${totH>0?totH.toFixed(1):'—'}</td>
-        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${totInt>0?totInt.toFixed(1):'—'}</td>
-        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${totPct!==null?totPct+'%':'—'}</td>
-        <td style="padding:8px 10px;text-align:right">—</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:14px">${fmtN(tot.m3Total,3)}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${tot.tempsMach>0?tot.tempsMach.toFixed(1):'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${totRatioMach!==null?totRatioMach:'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${tot.hUs>0?tot.hUs.toFixed(1):'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${tot.hUsInt>0?tot.hUsInt.toFixed(1):'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${totPctInt!==null?totPctInt+'%':'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${totRatioHum!==null?totRatioHum:'—'}</td>
       </tr>
     </tfoot>
-  </table></div>`;
+  </table></div>
+  <div style="margin-top:8px;font-size:10px;color:var(--text3);display:flex;gap:16px;flex-wrap:wrap">
+    <span>H Machine = temps machine du fichier Sauvegarde · H Humaines = heures atelier Usinage saisies dans l'ERP</span>
+    <span style="color:var(--green)">■ h/m³ ≤ ${obj.ratioOk} bon</span>
+    <span style="color:var(--orange)">■ ≤ ${obj.ratioWarn} moyen</span>
+    <span style="color:var(--red)">■ > ${obj.ratioWarn} alerte</span>
+  </div>`;
 }
+
+function openObjUsinage(){
+  const obj = state._recapUsObj || {ratioOk:5, ratioWarn:8, pctIntMax:40};
+  document.getElementById('modal-title').textContent = '⚙ Objectifs Usinage';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label>h/m³ — Seuil bon (vert)</label>
+        <input type="number" id="obj-us-ok" value="${obj.ratioOk}" step="0.5" min="0"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit"/></div>
+      <div class="field"><label>h/m³ — Seuil alerte (rouge)</label>
+        <input type="number" id="obj-us-warn" value="${obj.ratioWarn}" step="0.5" min="0"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit"/></div>
+      <div class="field"><label>% intérim max acceptable</label>
+        <input type="number" id="obj-us-pct" value="${obj.pctIntMax}" step="5" min="0" max="100"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit"/></div>
+    </div>`;
+  document.querySelector('#modal .btn-primary').onclick = ()=>{
+    state._recapUsObj = {
+      ratioOk:  parseFloat(document.getElementById('obj-us-ok').value)||5,
+      ratioWarn:parseFloat(document.getElementById('obj-us-warn').value)||8,
+      pctIntMax:parseFloat(document.getElementById('obj-us-pct').value)||40,
+    };
+    closeModal('modal');
+    _usinageData = null;
+    renderDashboard();
+    toast('Objectifs enregistrés');
+  };
+  document.getElementById('modal').classList.add('show');
 
 function buildAvancementTable(){
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px">';
