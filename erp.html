@@ -6977,11 +6977,11 @@ async function renderDashboard(){
   // ══ 1. AVANCEMENT PAR CHANTIER ══
   html += accordion('📊 Avancement par chantier', buildAvancementTable(), true);
 
-  // ══ 2. PRODUCTION M² PAR SEMAINE (B2) ══
-  html += accordion('🏭 Production MOB B2 — M² par semaine (Atelier B2)', buildProdChart(prodData), true);
+  // ══ 2. TABLEAU RÉCAP MOB B2 ══
+  html += accordion('🏭 Récap production MOB B2 — M² · Heures · Ratios', buildRecapB2(prodData, heures, employes), true);
 
-  // ══ 3. HEURES PAR SEMAINE — compact ══
-  html += accordion('⏱️ Heures CDI vs Intérim par semaine', buildHeuresChart(hLignes, employes, semaines12), false);
+  // ══ 3. SECTION USINAGE (prête — données à venir) ══
+  html += accordion('⚙️ Récap Usinage — M³ · Heures · Ratios', buildRecapUsinage(heures, employes), false);
 
   // ══ 4. ALERTES SAISIES ══
   const alertesHtml = renderAlertesSaisie();
@@ -7130,6 +7130,308 @@ function buildHeuresChart(hLignes, employes, semaines12){
   </div>`;
 }
 
+
+// ═══ RÉCAP PRODUCTION B2 ═════════════════════════════════════════════════
+function buildRecapB2(prodData, heures, employes){
+  // Toutes les semaines disponibles dans prodData
+  const semsDispos = prodData.map(r=>{
+    const sw = String(r.semaine).padStart(2,'0');
+    return (r.annee||new Date().getFullYear())+'-S'+sw;
+  }).filter(Boolean).sort();
+
+  // Semaines chargées depuis ERP_Heures (B2 réel)
+  const semsHeures = [...new Set(
+    heures.filter(h=>h.chantier1&&h.type_saisie!=='presence'&&h.type_saisie!=='affectation_log'&&(h.atelier||'').toUpperCase()==='B2')
+    .map(h=>h.semaine)
+  )].sort();
+
+  // Union des semaines connues
+  const toutesLeSems = [...new Set([...semsDispos, ...semsHeures])].sort();
+  if(!toutesLeSems.length) return '<div style="padding:1rem;text-align:center;color:var(--text3)">Aucune donnée disponible</div>';
+
+  // Sélecteur de plage stocké dans state
+  if(!state._recapB2Deb) state._recapB2Deb = toutesLeSems[Math.max(0,toutesLeSems.length-12)];
+  if(!state._recapB2Fin) state._recapB2Fin = toutesLeSems[toutesLeSems.length-1];
+  // Objectifs (paramétrables plus tard)
+  if(!state._recapB2Obj) state._recapB2Obj = {ratioOk:1.5, ratioWarn:2.0, pctIntMax:40};
+
+  const semsFiltrees = toutesLeSems.filter(s=>s>=state._recapB2Deb && s<=state._recapB2Fin);
+
+  // Calculer les données par semaine
+  const rows = semsFiltrees.map(sem=>{
+    const [yr,sw] = sem.split('-S');
+    const prod = prodData.find(r=>String(r.semaine).padStart(2,'0')===sw && String(r.annee||'')=== yr);
+    const m2Barde = prod ? prod.m2_barde : 0;
+    const m2Std   = prod ? prod.m2_std   : 0;
+    const m2Total = prod ? prod.m2_total : 0;
+
+    // Heures B2 réelles (chantier uniquement)
+    const hB2 = heures.filter(h=>h.semaine===sem && h.chantier1 && h.type_saisie!=='presence' && h.type_saisie!=='affectation_log' && (h.atelier||'').toUpperCase()==='B2')
+      .reduce((s,h)=>s+(+h.h_mat||0)+(+h.h_am||0),0);
+
+    // Heures Log réelles (chantier uniquement)
+    const hLog = heures.filter(h=>h.semaine===sem && h.chantier1 && h.type_saisie!=='presence' && h.type_saisie!=='affectation_log' && (h.atelier||'').toUpperCase()==='LOG')
+      .reduce((s,h)=>s+(+h.h_mat||0)+(+h.h_am||0),0);
+
+    // Heures intérim B2
+    const hB2Int = heures.filter(h=>h.semaine===sem && h.chantier1 && h.type_saisie!=='presence' && h.type_saisie!=='affectation_log' && (h.atelier||'').toUpperCase()==='B2')
+      .reduce((s,h)=>{
+        const emp = employes.find(e=>e.id===h.emp_id);
+        return s + (emp?.statut==='interim' ? (+h.h_mat||0)+(+h.h_am||0) : 0);
+      },0);
+
+    const hTotal = hB2 + hLog;
+    const pctInt = hTotal>0 ? Math.round(hB2Int/hTotal*100) : null;
+    const ratio  = (hB2>0 && m2Total>0) ? +(hB2/m2Total).toFixed(2) : null;
+
+    return {sem, sw, yr, m2Barde, m2Std, m2Total, hB2, hLog, hTotal, hB2Int, pctInt, ratio};
+  });
+
+  // Totaux
+  const tot = rows.reduce((acc,r)=>({
+    m2Barde: acc.m2Barde+r.m2Barde,
+    m2Std:   acc.m2Std+r.m2Std,
+    m2Total: acc.m2Total+r.m2Total,
+    hB2:     acc.hB2+r.hB2,
+    hLog:    acc.hLog+r.hLog,
+    hTotal:  acc.hTotal+r.hTotal,
+    hB2Int:  acc.hB2Int+r.hB2Int,
+  }), {m2Barde:0,m2Std:0,m2Total:0,hB2:0,hLog:0,hTotal:0,hB2Int:0});
+  const totPctInt  = tot.hTotal>0 ? Math.round(tot.hB2Int/tot.hTotal*100) : null;
+  const totRatio   = (tot.hB2>0 && tot.m2Total>0) ? +(tot.hB2/tot.m2Total).toFixed(2) : null;
+
+  const obj = state._recapB2Obj;
+
+  const ratioColor = r => {
+    if(r===null) return 'var(--text3)';
+    if(r <= obj.ratioOk)   return 'var(--green)';
+    if(r <= obj.ratioWarn) return 'var(--orange)';
+    return 'var(--red)';
+  };
+  const pctColor = p => {
+    if(p===null) return 'var(--text3)';
+    if(p <= obj.pctIntMax*0.7) return 'var(--green)';
+    if(p <= obj.pctIntMax)     return 'var(--orange)';
+    return 'var(--red)';
+  };
+  const fmtN = (v,d=0) => v>0 ? v.toFixed(d) : '—';
+
+  // Graphique mini barres M² en SVG inline
+  const maxM2 = Math.max(...rows.map(r=>r.m2Total),1);
+  const bw = Math.max(6, Math.floor(540/Math.max(rows.length,1))-3);
+  const bars = rows.map((r,i)=>{
+    const x = i*(bw+3);
+    const hB = r.m2Barde/maxM2*60;
+    const hS = r.m2Std/maxM2*60;
+    return `<rect x="${x}" y="${60-hB-hS}" width="${bw}" height="${hS}" fill="var(--teal)" rx="1" opacity=".8"/>
+            <rect x="${x}" y="${60-hB}" width="${bw}" height="${hB}" fill="var(--blue)" rx="1" opacity=".8"/>`;
+  }).join('');
+
+  let html = `
+  <!-- Sélecteur de plage + objectifs -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <span style="font-size:12px;font-weight:600;color:var(--text2)">Plage :</span>
+    <select style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+      onchange="state._recapB2Deb=this.value;document.getElementById('recap-b2-body').innerHTML=buildRecapB2(_prodB2Data||[],state.heures||[],state.employes||[])">
+      ${toutesLeSems.map(s=>`<option value="${s}"${s===state._recapB2Deb?' selected':''}>${s}</option>`).join('')}
+    </select>
+    <span style="font-size:11px;color:var(--text3)">→</span>
+    <select style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+      onchange="state._recapB2Fin=this.value;document.getElementById('recap-b2-body').innerHTML=buildRecapB2(_prodB2Data||[],state.heures||[],state.employes||[])">
+      ${toutesLeSems.map(s=>`<option value="${s}"${s===state._recapB2Fin?' selected':''}>${s}</option>`).join('')}
+    </select>
+    <span style="font-size:11px;color:var(--text3);margin-left:8px">${semsFiltrees.length} semaine${semsFiltrees.length>1?'s':''}</span>
+    <button class="btn btn-sm" style="margin-left:auto" onclick="openObjB2()" title="Paramétrer les objectifs">⚙ Objectifs</button>
+  </div>
+
+  <!-- Mini graphique -->
+  <div style="margin-bottom:14px;background:var(--bg);border-radius:8px;padding:10px;overflow-x:auto">
+    <svg viewBox="0 0 ${Math.max(rows.length*(bw+3),200)} 70" style="width:100%;height:70px;display:block">
+      ${bars}
+    </svg>
+    <div style="display:flex;gap:12px;font-size:10px;color:var(--text2);margin-top:4px">
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--blue);border-radius:2px;margin-right:3px"></span>Bardé</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--teal);border-radius:2px;margin-right:3px"></span>Standard</span>
+    </div>
+  </div>
+
+  <!-- Tableau -->
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:700px">
+    <thead>
+      <tr style="background:var(--blue);color:#fff">
+        <th style="padding:8px 10px;text-align:left;font-size:11px">Semaine</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">M² Bardé</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">M² Std</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;background:#1A5F8A">M² Total</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">H B2</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">H Log</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;background:#1A5F8A">H Total</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">H Intérim</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">% Int.</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px">h/m²</th>
+      </tr>
+    </thead>
+    <tbody>
+    ${rows.map((r,i)=>`
+      <tr style="${i%2?'background:#FAFAF8;':''}border-bottom:1px solid var(--border)">
+        <td style="padding:7px 10px;font-weight:600;font-family:'DM Mono',monospace">S${r.sw}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace">${fmtN(r.m2Barde)}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace">${fmtN(r.m2Std)}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;background:#EAF2F8">${fmtN(r.m2Total)}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:${r.hB2>0?'var(--text)':'var(--text3)'}">${r.hB2>0?r.hB2.toFixed(1):'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:${r.hLog>0?'var(--teal)':'var(--text3)'}">${r.hLog>0?r.hLog.toFixed(1):'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;background:#EAF2F8">${r.hTotal>0?r.hTotal.toFixed(1):'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:${r.hB2Int>0?'var(--orange)':'var(--text3)'}">${r.hB2Int>0?r.hB2Int.toFixed(1):'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:600;color:${pctColor(r.pctInt)}">${r.pctInt!==null?r.pctInt+'%':'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:${ratioColor(r.ratio)}">${r.ratio!==null?r.ratio:'—'}</td>
+      </tr>`).join('')}
+    </tbody>
+    <tfoot>
+      <tr style="background:var(--blue);color:#fff;font-weight:700">
+        <td style="padding:8px 10px">TOTAL</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${fmtN(tot.m2Barde)}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${fmtN(tot.m2Std)}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:14px">${fmtN(tot.m2Total)}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${tot.hB2>0?tot.hB2.toFixed(1):'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${tot.hLog>0?tot.hLog.toFixed(1):'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:14px">${tot.hTotal>0?tot.hTotal.toFixed(1):'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${tot.hB2Int>0?tot.hB2Int.toFixed(1):'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:13px;color:${pctColor(totPctInt)}">${totPctInt!==null?totPctInt+'%':'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:13px;color:${ratioColor(totRatio)}">${totRatio!==null?totRatio:'—'}</td>
+      </tr>
+    </tfoot>
+  </table>
+  </div>
+  <div style="margin-top:8px;font-size:10px;color:var(--text3);display:flex;gap:16px;flex-wrap:wrap">
+    <span>h/m² = Heures B2 réelles ÷ M² produits</span>
+    <span style="color:var(--green)">■ ≤ ${obj.ratioOk} bon</span>
+    <span style="color:var(--orange)">■ ≤ ${obj.ratioWarn} moyen</span>
+    <span style="color:var(--red)">■ > ${obj.ratioWarn} alerte</span>
+    <span style="color:var(--orange)">% Int. cible ≤ ${obj.pctIntMax}%</span>
+  </div>`;
+
+  return `<div id="recap-b2-body">${html}</div>`;
+}
+
+function openObjB2(){
+  const obj = state._recapB2Obj || {ratioOk:1.5, ratioWarn:2.0, pctIntMax:40};
+  document.getElementById('modal-title').textContent = '⚙ Objectifs production B2';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label>Ratio h/m² — Seuil bon (vert)</label>
+        <input type="number" id="obj-ratio-ok" value="${obj.ratioOk}" step="0.05" min="0" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit"/></div>
+      <div class="field"><label>Ratio h/m² — Seuil alerte (rouge)</label>
+        <input type="number" id="obj-ratio-warn" value="${obj.ratioWarn}" step="0.05" min="0" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit"/></div>
+      <div class="field"><label>% intérim max acceptable</label>
+        <input type="number" id="obj-pct-int" value="${obj.pctIntMax}" step="5" min="0" max="100" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit"/></div>
+    </div>`;
+  // Override saveGenericModal
+  document.querySelector('#modal .btn-primary').onclick = ()=>{
+    state._recapB2Obj = {
+      ratioOk:  parseFloat(document.getElementById('obj-ratio-ok').value)||1.5,
+      ratioWarn:parseFloat(document.getElementById('obj-ratio-warn').value)||2.0,
+      pctIntMax:parseFloat(document.getElementById('obj-pct-int').value)||40,
+    };
+    closeModal('modal');
+    _prodB2Data = null;
+    renderDashboard();
+    toast('Objectifs enregistrés');
+  };
+  document.getElementById('modal').classList.add('show');
+}
+
+// ═══ RÉCAP USINAGE ════════════════════════════════════════════════════════
+function buildRecapUsinage(heures, employes){
+  // Section préparée — données M³ à venir depuis fichier Google Sheets externe
+  // Structure identique à buildRecapB2 mais avec m³ et atelier Us/Usinage
+
+  const hUsLignes = heures.filter(h=>
+    h.chantier1 && h.type_saisie!=='presence' && h.type_saisie!=='affectation_log' &&
+    ['US','USINAGE'].includes((h.atelier||'').toUpperCase().trim())
+  );
+
+  if(!hUsLignes.length) return `
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:24px;text-align:center;color:var(--text3)">
+      <div style="font-size:32px;margin-bottom:10px">⚙️</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:6px">Section Usinage — en préparation</div>
+      <div style="font-size:12px">Les données M³ seront alimentées depuis un fichier Google Sheets dédié.<br>
+      En attendant, les heures atelier Usinage seront affichées ici dès qu'elles seront saisies dans le module Heures.</div>
+    </div>`;
+
+  // Semaines avec heures usinage
+  const semsUs = [...new Set(hUsLignes.map(h=>h.semaine))].sort();
+  if(!state._recapUsDeb) state._recapUsDeb = semsUs[Math.max(0,semsUs.length-12)];
+  if(!state._recapUsFin) state._recapUsFin = semsUs[semsUs.length-1];
+
+  const semsFiltrees = semsUs.filter(s=>s>=state._recapUsDeb && s<=state._recapUsFin);
+
+  const rows = semsFiltrees.map(sem=>{
+    const [,sw] = sem.split('-S');
+    const hUs = hUsLignes.filter(h=>h.semaine===sem).reduce((s,h)=>s+(+h.h_mat||0)+(+h.h_am||0),0);
+    const hUsInt = hUsLignes.filter(h=>h.semaine===sem).reduce((s,h)=>{
+      const emp = employes.find(e=>e.id===h.emp_id);
+      return s+(emp?.statut==='interim'?(+h.h_mat||0)+(+h.h_am||0):0);
+    },0);
+    const pctInt = hUs>0 ? Math.round(hUsInt/hUs*100) : null;
+    return {sem, sw, hUs, hUsInt, pctInt, m3Total: null, ratio: null};
+  });
+
+  const totH = rows.reduce((s,r)=>s+r.hUs,0);
+  const totInt = rows.reduce((s,r)=>s+r.hUsInt,0);
+  const totPct = totH>0 ? Math.round(totInt/totH*100) : null;
+
+  return `
+  <div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:9px 14px;margin-bottom:14px;font-size:12px;color:var(--orange)">
+    📌 Les données M³ (source externe) ne sont pas encore connectées — seules les heures sont affichées. Le ratio h/m³ sera calculé automatiquement dès la connexion du fichier.
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+    <span style="font-size:12px;font-weight:600;color:var(--text2)">Plage :</span>
+    <select style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+      onchange="state._recapUsDeb=this.value;renderDashboard()">
+      ${semsUs.map(s=>`<option value="${s}"${s===state._recapUsDeb?' selected':''}>${s}</option>`).join('')}
+    </select>
+    <span style="font-size:11px;color:var(--text3)">→</span>
+    <select style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
+      onchange="state._recapUsFin=this.value;renderDashboard()">
+      ${semsUs.map(s=>`<option value="${s}"${s===state._recapUsFin?' selected':''}>${s}</option>`).join('')}
+    </select>
+  </div>
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:500px">
+    <thead>
+      <tr style="background:var(--orange);color:#fff">
+        <th style="padding:8px 10px;text-align:left">Semaine</th>
+        <th style="padding:8px 10px;text-align:right">M³ (à venir)</th>
+        <th style="padding:8px 10px;text-align:right">H Usinage</th>
+        <th style="padding:8px 10px;text-align:right">H Intérim</th>
+        <th style="padding:8px 10px;text-align:right">% Int.</th>
+        <th style="padding:8px 10px;text-align:right">h/m³ (à venir)</th>
+      </tr>
+    </thead>
+    <tbody>
+    ${rows.map((r,i)=>`
+      <tr style="${i%2?'background:#FAFAF8;':''}border-bottom:1px solid var(--border)">
+        <td style="padding:7px 10px;font-weight:600;font-family:'DM Mono',monospace">S${r.sw}</td>
+        <td style="padding:7px 10px;text-align:right;font-size:11px;color:var(--text3)">—</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:600">${r.hUs>0?r.hUs.toFixed(1):'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--orange)">${r.hUsInt>0?r.hUsInt.toFixed(1):'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:${r.pctInt!==null?(r.pctInt>40?'var(--red)':'var(--green)'):'var(--text3)'}">${r.pctInt!==null?r.pctInt+'%':'—'}</td>
+        <td style="padding:7px 10px;text-align:right;font-size:11px;color:var(--text3)">—</td>
+      </tr>`).join('')}
+    </tbody>
+    <tfoot>
+      <tr style="background:var(--orange);color:#fff;font-weight:700">
+        <td style="padding:8px 10px">TOTAL</td>
+        <td style="padding:8px 10px;text-align:right">—</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${totH>0?totH.toFixed(1):'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${totInt>0?totInt.toFixed(1):'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace">${totPct!==null?totPct+'%':'—'}</td>
+        <td style="padding:8px 10px;text-align:right">—</td>
+      </tr>
+    </tfoot>
+  </table></div>`;
+}
 
 function buildAvancementTable(){
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px">';
