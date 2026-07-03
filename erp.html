@@ -760,8 +760,22 @@ table.bl-lignes td.r{text-align:right}
 
 <!-- MODAL TRANCHE -->
 <div class="modal-bg" id="modal-tr" onclick="if(event.target===this)closeModal('modal-tr')">
-  <div class="modal">
+  <div class="modal" style="width:560px">
     <h2 id="mt-title">Nouvelle tranche</h2>
+
+    <!-- Sélecteur depuis DATES (uniquement en mode ajout) -->
+    <div id="mt-dates-wrap" style="display:none;margin-bottom:14px;background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:9px;padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">
+        📋 Importer depuis le fichier DATES
+      </div>
+      <div style="font-size:11px;color:var(--blue);margin-bottom:8px" id="mt-dates-count"></div>
+      <select id="mt-dates-select" onchange="mtSelectDates(this.value)"
+        style="width:100%;padding:8px 10px;border:1px solid var(--blue-border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)">
+        <option value="">— Choisir une tranche DATES —</option>
+      </select>
+      <div style="font-size:10px;color:var(--blue);margin-top:6px;opacity:.8">Sélectionner pré-remplit le nom ci-dessous pour garantir la correspondance exacte.</div>
+    </div>
+
     <div class="field"><label>Nom de la tranche</label><input type="text" id="mt-nom" placeholder="Ex: ORIG FOB EXT R+4"/></div>
     <div class="field"><label>Conducteur / BE</label><input type="text" id="mt-conduc" placeholder="Ex: CG"/></div>
     <div class="modal-footer">
@@ -2486,8 +2500,46 @@ function deleteChantier(id){
 }
 
 // ═══ TRANCHE CRUD ═════════════════════════════════════════════════════════
-function openAddTranche(cid){_ctx={type:'add',cid};document.getElementById('mt-title').textContent='Nouvelle tranche';document.getElementById('mt-nom').value='';document.getElementById('mt-conduc').value='';document.getElementById('modal-tr').classList.add('show');}
-function openEditTranche(id){const t=state.tranches.find(x=>x.id===id);if(!t)return;_ctx={type:'edit',id};document.getElementById('mt-title').textContent='Modifier la tranche';document.getElementById('mt-nom').value=t.nom;document.getElementById('mt-conduc').value=t.conduc||'';document.getElementById('modal-tr').classList.add('show');}
+function openAddTranche(cid){
+  _ctx={type:'add',cid};
+  document.getElementById('mt-title').textContent='Nouvelle tranche';
+  document.getElementById('mt-nom').value='';
+  document.getElementById('mt-conduc').value='';
+
+  // Peupler le menu déroulant DATES
+  const wrap = document.getElementById('mt-dates-wrap');
+  const sel = document.getElementById('mt-dates-select');
+  const cnt = document.getElementById('mt-dates-count');
+  const datesErp = state.dates_erp || [];
+
+  if(datesErp.length) {
+    // Noms de tranches déjà dans l'ERP (normalisés)
+    const norm = s => (s||'').trim().toLowerCase();
+    const existantes = new Set(state.tranches.map(t => norm(t.nom)));
+
+    // Tranches DATES manquantes (pas encore dans l'ERP)
+    const manquantes = datesErp
+      .filter(d => d.tranche && !existantes.has(norm(d.tranche)))
+      .map(d => d.tranche)
+      // Dédoublonner (un nom peut apparaître plusieurs fois dans DATES)
+      .filter((v, i, arr) => arr.indexOf(v) === i)
+      .sort();
+
+    sel.innerHTML = '<option value="">— Choisir une tranche DATES —</option>' +
+      manquantes.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    cnt.textContent = manquantes.length + ' tranche' + (manquantes.length > 1 ? 's' : '') + ' disponible' + (manquantes.length > 1 ? 's' : '') + ' (non encore créée' + (manquantes.length > 1 ? 's' : '') + ' dans l\'ERP)';
+    wrap.style.display = 'block';
+  } else {
+    wrap.style.display = 'none';
+  }
+
+  document.getElementById('modal-tr').classList.add('show');
+}
+
+function mtSelectDates(val){
+  if(val) document.getElementById('mt-nom').value = val;
+}
+function openEditTranche(id){const t=state.tranches.find(x=>x.id===id);if(!t)return;_ctx={type:'edit',id};document.getElementById('mt-title').textContent='Modifier la tranche';document.getElementById('mt-nom').value=t.nom;document.getElementById('mt-conduc').value=t.conduc||'';document.getElementById('mt-dates-wrap').style.display='none';document.getElementById('modal-tr').classList.add('show');}
 function saveTranche(){
   const nom=document.getElementById('mt-nom').value.trim();if(!nom)return;
   const conduc=document.getElementById('mt-conduc').value.trim();
@@ -2496,9 +2548,14 @@ function saveTranche(){
   closeModal('modal-tr');scheduleSave();renderAll();toast('Tranche enregistrée');
 }
 function deleteTranche(id){
-  if(!confirm('Supprimer cette tranche et toutes ses phases/articles ?'))return;
-  state.phases.filter(p=>p.tid===id).forEach(p=>{state.articles=state.articles.filter(a=>a.pid!==p.id);});
-  state.phases=state.phases.filter(p=>p.tid!==id);
+  const phasesLiees = state.phases.filter(p=>p.tid===id);
+  const articlesLies = state.articles.filter(a=>phasesLiees.some(p=>p.id===a.pid));
+  if(phasesLiees.length > 0 || articlesLies.length > 0){
+    const msg = `Cette tranche contient ${phasesLiees.length} phase${phasesLiees.length>1?'s':''} et ${articlesLies.length} article${articlesLies.length>1?'s':''}.\nSupprimez d'abord les phases et articles avant de supprimer la tranche.`;
+    alert(msg);
+    return;
+  }
+  if(!confirm('Supprimer cette tranche ?'))return;
   state.tranches=state.tranches.filter(t=>t.id!==id);
   scheduleSave();renderAll();toast('Tranche supprimée');
 }
