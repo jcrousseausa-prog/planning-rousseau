@@ -323,7 +323,7 @@ table.bl-lignes td.r{text-align:right}
   <button class="app-tab" id="tab-achats" onclick="showScreen('achats')">Achats<span class="notif-dot"></span></button>
   <button class="app-tab" id="tab-stock" onclick="showScreen('stock')">Stock<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-bl" onclick="showScreen('bl')">Bons de livraison<span class="new-badge">NEW</span></button>
-  <button class="app-tab" id="tab-qualite" onclick="showScreen('qualite')">🔴 Qualité</button>
+  <button class="app-tab" id="tab-qualite" onclick="showScreen('qualite')">Qualité</button>
   <button class="app-tab" id="tab-charge" onclick="showScreen('charge')">Charge équipes</button>
   <button class="app-tab" id="tab-heures" onclick="showScreen('heures')">Heures</button>
   <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global production</button>
@@ -2176,7 +2176,8 @@ function renderAll(){
   renderBLMetrics();
   renderBLs();
   if(document.getElementById('screen-retours').classList.contains('active'))renderRetours();
-  if(document.getElementById('screen-dashboard').classList.contains('active'))renderDashboard();
+  // Dashboard : toujours rendre car c'est l'onglet par défaut
+  renderDashboard();
 }
 
 
