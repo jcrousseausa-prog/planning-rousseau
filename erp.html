@@ -6717,7 +6717,7 @@ async function renderDashboard(){
     ${kpiCard('👥','Équipe active',totalCDI+totalInterim+' pers.',totalCDI+' CDI · '+totalInterim+' Int.','var(--blue)')}
     ${kpiCard('📐','M² prod. MOB B2',Math.round(m2Total)+' m²','Atelier B2 — depuis début','var(--teal)')}
     ${m2DernSem?kpiCard('📅','Dernière semaine','S'+String(m2DernSem.semaine).padStart(2,'0')+' — '+m2DernSem.m2_total.toFixed(0)+' m²','Bardé: '+m2DernSem.m2_barde.toFixed(0)+' · Std: '+m2DernSem.m2_std.toFixed(0),'var(--orange)'):''}
-    ${kpiCard('🏗️','Chantiers',state.chantiers.length+' actifs',Object.values(state.tranches).reduce((s,a)=>s+a.length,0)+' tranches','var(--purple)')}
+    ${kpiCard('🏗️','Chantiers',state.chantiers.length+' actifs',state.tranches.length+' tranches','var(--purple)')}
     ${alertesNb>0 ? kpiCard('⚠️','Saisies manquantes',alertesNb+' pers.','sur 12 semaines','var(--red)') : kpiCard('✅','Pointage','À jour','12 dernières semaines','var(--green)')}
     ${(()=>{ const al=getAleasKpisForDashboard(); return al.nb>0 ? kpiCard('🔴','Aléas (30j)',al.nb+' — '+fmtTemps(al.tps)+' perdus',al.topFam+' ('+al.topFamNb+')','var(--red)') : kpiCard('🟢','Aléas (30j)','Aucun aléa','30 derniers jours','var(--green)'); })()}
   </div>`;
