@@ -1355,6 +1355,7 @@ let _pollInterval = null;
 let _sheetsLoaded = false;
 let _lastSaveHash = '';
 let _currentBLId = null;
+let _currentScreen = 'dashboard'; // onglet actif courant
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -1669,9 +1670,13 @@ function startPolling() {
   // Ne recharger que si aucune modal ouverte et pas d'édition en cours
   const modalOuverte = document.querySelector('.modal-bg.show');
   if (!modalOuverte) {
+    const screenAvant = _currentScreen; // sauvegarder l'onglet courant
     const ok = await loadFromSheets();
-    if (ok) renderAll();
-    // Pas de popup intempestif — juste mettre à jour silencieusement
+    if (ok) {
+      renderAll();
+      // Restaurer l'onglet sur lequel l'utilisateur travaillait
+      if(screenAvant && screenAvant !== _currentScreen) showScreen(screenAvant);
+    }
   }
 } else if (r.ok) {
   setOnline(); // hash inchangé mais serveur répond → online
@@ -2090,7 +2095,9 @@ function applyDroits(){
 
   // Si aucun onglet visible n'est actif, activer le premier visible
   const firstVisible = onglets.find(id=>{ const t=document.getElementById('tab-'+id); return t && t.style.display!=='none'; });
-  if(firstVisible) showScreen(firstVisible);
+  // N'activer le premier onglet qu'au premier chargement (pas lors d'un re-render)
+  const alreadyActive = onglets.some(id=>document.getElementById('tab-'+id)?.classList.contains('active'));
+  if(firstVisible && !alreadyActive) showScreen(firstVisible);
 }
 
 function canEdit(screenId){
@@ -2175,9 +2182,8 @@ function renderAll(){
   renderStock();
   renderBLMetrics();
   renderBLs();
-  if(document.getElementById('screen-retours').classList.contains('active'))renderRetours();
-  // Dashboard : toujours rendre car c'est l'onglet par défaut
-  renderDashboard();
+  if(_currentScreen==='retours') renderRetours();
+  if(_currentScreen==='dashboard') renderDashboard();
 }
 
 
@@ -2819,6 +2825,7 @@ function saveGenericModal(){
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 
 function showScreen(id){
+  _currentScreen = id;
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.app-tab').forEach(t=>t.classList.remove('active'));
   // 'aleas' est maintenant un alias vers 'qualite' pour compatibilité
