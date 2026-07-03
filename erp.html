@@ -343,6 +343,14 @@ table.bl-lignes td.r{text-align:right}
     </div>
     <button class="btn" onclick="toggleAll(true)">Tout déplier</button>
     <button class="btn" onclick="toggleAll(false)">Tout replier</button>
+    <select id="tri-tranches" onchange="renderPlanning()" style="padding:6px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px;color:var(--text2)" title="Tri des tranches">
+      <option value="ordre">Tranches : ordre naturel</option>
+      <option value="nom_asc">Tranches : A → Z</option>
+      <option value="nom_desc">Tranches : Z → A</option>
+      <option value="ctvx_asc">Tranches : CTVX ↑ (plus tôt d'abord)</option>
+      <option value="ctvx_desc">Tranches : CTVX ↓ (plus tard d'abord)</option>
+      <option value="ctvx_vide">Tranches : sans CTVX d'abord</option>
+    </select>
     
     
     
@@ -2211,7 +2219,20 @@ function renderPlanning(){
   const chantiersTries = [...state.chantiers].sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
 
  for(const ch of chantiersTries){
-  const trs=state.tranches.filter(t=>t.cid===ch.id);
+  let trs=state.tranches.filter(t=>t.cid===ch.id);
+
+  // Tri des tranches selon le sélecteur
+  const triMode = document.getElementById('tri-tranches')?.value || 'ordre';
+  const getCtvx = tr => {
+    const src = (state.dates_erp||[]).filter(d=>(d.tranche||'').trim().toLowerCase()===(tr.nom||'').trim().toLowerCase());
+    return src.length ? src.reduce((min,d)=>(!min||d.date_ctvx<min)?d.date_ctvx:min,'') : (tr.ctvx||'');
+  };
+  if(triMode==='nom_asc')   trs = [...trs].sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}));
+  else if(triMode==='nom_desc')  trs = [...trs].sort((a,b)=>b.nom.localeCompare(a.nom,'fr',{sensitivity:'base'}));
+  else if(triMode==='ctvx_asc')  trs = [...trs].sort((a,b)=>{ const ca=getCtvx(a),cb=getCtvx(b); if(!ca&&!cb)return 0; if(!ca)return 1; if(!cb)return -1; return ca.localeCompare(cb); });
+  else if(triMode==='ctvx_desc') trs = [...trs].sort((a,b)=>{ const ca=getCtvx(a),cb=getCtvx(b); if(!ca&&!cb)return 0; if(!ca)return 1; if(!cb)return -1; return cb.localeCompare(ca); });
+  else if(triMode==='ctvx_vide') trs = [...trs].sort((a,b)=>{ const ca=getCtvx(a),cb=getCtvx(b); if(!ca&&!cb)return 0; if(!ca)return -1; if(!cb)return 1; return ca.localeCompare(cb); });
+  // 'ordre' = ordre naturel, pas de tri supplémentaire
   if(q&&!ch.nom.toLowerCase().includes(q)&&!trs.some(t=>t.nom.toLowerCase().includes(q))) continue;
   html+=renderChRow(ch,trs.length);
   if(!ch.open&&!q)continue;
