@@ -2501,17 +2501,19 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
   return`<tr class="row-tranche" onclick="toggleNode('tr','${tr.id}')" style="border-left:3px solid ${sc.border}">
     <td><span class="chevron${o?' open':''}">▶</span></td>
     <td colspan="2" style="font-weight:600">
-      ${tr.conduc?`<span style="font-size:10px;color:var(--text3);margin-right:4px">${esc(tr.conduc)}</span>`:''}
-      ${esc(tr.nom)}
-      <span style="font-size:10px;color:var(--text3);margin-left:6px">${nbPh} phase${nbPh!==1?'s':''}</span>
+      <div style="display:flex;align-items:baseline;flex-wrap:nowrap;gap:4px">
+        ${tr.conduc?`<span style="font-size:10px;color:var(--text3);flex-shrink:0">${esc(tr.conduc)}</span>`:''}
+        <span style="font-weight:600">${esc(tr.nom)}</span>
+        <span style="font-size:10px;color:var(--text3);white-space:nowrap">${nbPh} phase${nbPh!==1?'s':''}</span>
+      </div>
       ${(()=>{
         const d = datesSrc[0]||{};
         const coches = [];
-        if(d.besoin_atelier) coches.push('<span style="font-size:10px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 6px;margin-left:4px">✓ Atelier</span>');
-        if(d.assemblage)     coches.push('<span style="font-size:10px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 6px;margin-left:4px">✓ Assemblage</span>');
-        if(d.equipement)     coches.push('<span style="font-size:10px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 6px;margin-left:4px">✓ Équipement</span>');
-        if(d.taillage)       coches.push('<span style="font-size:10px;background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple-border);border-radius:4px;padding:1px 6px;margin-left:4px">✓ Taillage</span>');
-        return coches.join('');
+        if(d.besoin_atelier) coches.push('<span style="font-size:10px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 6px">✓ Atelier</span>');
+        if(d.assemblage)     coches.push('<span style="font-size:10px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 6px">✓ Assemblage</span>');
+        if(d.equipement)     coches.push('<span style="font-size:10px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 6px">✓ Équipement</span>');
+        if(d.taillage)       coches.push('<span style="font-size:10px;background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple-border);border-radius:4px;padding:1px 6px">✓ Taillage</span>');
+        return coches.length ? `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px">${coches.join('')}</div>` : '';
       })()}
     </td>
     <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${(()=>{const v=arts.reduce((s,a)=>s+(parseFloat(a.qte_m2)||0),0);return v>0?v.toFixed(2):'';})()}</td>
