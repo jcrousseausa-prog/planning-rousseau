@@ -6556,9 +6556,11 @@ async function renderCoherenceTranches(){
     const total     = datesNoms.size;
     const dansERP   = [...datesNoms].filter(n=>erpNoms.has(n));
     const dansProd  = prodNoms.size ? [...datesNoms].filter(n=>prodNoms.has(n)) : null;
-    const absERP    = [...datesNoms].filter(n=>!erpNoms.has(n));
-    const absProd   = prodNoms.size ? [...datesNoms].filter(n=>!prodNoms.has(n)) : null;
-    const erpPasProd= prodNoms.size ? dansERP.filter(n=>!prodNoms.has(n)) : [];
+    // Ces listes contiennent des CLÉS normalisées — on les reconvertit
+    // en noms bruts via datesMap avant de les afficher
+    const absERP    = [...datesNoms].filter(n=>!erpNoms.has(n)).map(k=>datesMap.get(k));
+    const absProd   = prodNoms.size ? [...datesNoms].filter(n=>!prodNoms.has(n)).map(k=>datesMap.get(k)) : null;
+    const erpPasProd= prodNoms.size ? dansERP.filter(n=>!prodNoms.has(n)).map(k=>datesMap.get(k)) : [];
 
     const pctERP  = total ? Math.round(dansERP.length/total*100) : 0;
     const pctProd = dansProd ? Math.round(dansProd.length/total*100) : null;
