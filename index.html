@@ -293,16 +293,12 @@ transition:all .3s;
 <header>
 <div class="logo">Planning Production <span>/ Ateliers</span></div>
 <div class="header-actions">
+<a href="erp.html" style="font-size:12px;color:var(--text2);text-decoration:none;border:1px solid var(--border2);padding:7px 13px;border-radius:8px;background:var(--surface)">📊 ERP</a>
 <div class="view-toggle">
 <button class="vbtn active" id="vbtn-table" onclick="setView('table')">Tableau</button>
 <button class="vbtn" id="vbtn-gantt"  onclick="setView('gantt')">Gantt</button>
 </div>
-<button class="btn btn-purple" onclick="openSyncModal()">⇅ Tableau pilotage</button>
-<button class="btn" data-edit-only onclick="exportJSON()">💾 Sauvegarder</button>
-<button class="btn" onclick="exportCSV()">Exporter CSV</button>
-<button class="btn" onclick="openChargeModal()" style="background:#EAFAF1;color:#1E8449;border-color:#A9DFBF;font-weight:600">📋 Charge équipes</button>
-<button class="btn btn-primary" data-edit-only onclick="openAddModal()">+ OF</button>
-</div>
+...
 </header>
 
 <div class="tabs" id="tabs"></div>
