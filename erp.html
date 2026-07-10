@@ -499,7 +499,7 @@ table.bl-lignes td.r{text-align:right}
         <select id="me-atelier">
           <option value="B1">Charpente B1</option>
           <option value="B2">MOB B2</option>
-          <option value="B3">Atelier B3</option>
+          <option value="B3">Sous-traitance B3</option>
           <option value="Men">Atelier Men</option>
           <option value="Log">Logistique</option>
           <option value="Us">Usinage</option>
@@ -519,7 +519,7 @@ table.bl-lignes td.r{text-align:right}
         <select id="me-cariste-atelier" style="padding:5px 9px;border:1px solid var(--orange-border);border-radius:6px;font-family:inherit;font-size:13px;background:var(--surface)">
           <option value="B1">Charpente B1</option>
           <option value="B2">MOB B2</option>
-          <option value="B3">Atelier B3</option>
+          <option value="B3">Sous-traitance B3</option>
           <option value="Men">Menuiserie</option>
           <option value="all">Tous les ateliers</option>
         </select>
@@ -4643,7 +4643,7 @@ function renderPlanningRessources(){
     });
     if(!emps.length) return;
 
-    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Atelier Men':at==='Log'?'Logistique':at==='Transport'?'Transport':'Usinage';
+    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Sous-traitance B3':at==='Men'?'Atelier Men':at==='Log'?'Logistique':at==='Transport'?'Transport':'Usinage';
     html += `<tr><td colspan="8" style="background:#2C5F8A;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:5px 12px;border:1px solid rgba(255,255,255,.2)">${atLabel}</td></tr>`;
 
     emps.forEach((emp,idx)=>{
@@ -5033,7 +5033,7 @@ function appliquerFermetures(){
 function openPauseConfig(){
   if(!state.pauseConfig) state.pauseConfig = {B1:0.75,B2:0.75,B3:0.75,Men:0.75,Log:0,Us:0};
   const cfg = state.pauseConfig;
-  const atelierLabels = {B1:'Charpente B1',B2:'MOB B2',B3:'Atelier B3',Men:'Menuiserie',Log:'Logistique',Us:'Usinage'};
+  const atelierLabels = {B1:'Charpente B1',B2:'MOB B2',B3:'Sous-traitance B3',Men:'Menuiserie',Log:'Logistique',Us:'Usinage'};
   document.getElementById('modal-pause-body').innerHTML = `
     <div class="info-box" style="margin-bottom:12px">La pause est déduite automatiquement du calcul des heures nettes lors de la saisie des horaires (ex: 7h00-16h15 - 0h45 = 8h30).</div>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -5866,7 +5866,7 @@ function renderVueMacro(){
       return true; // CDI toujours affiché
     });
     if(!empsAt.length) return;
-    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Atelier B3':at==='Men'?'Menuiserie':at==='Log'?'Logistique':at==='Transport'?'Transport':'Usinage';
+    const atLabel = at==='B1'?'Charpente B1':at==='B2'?'MOB B2':at==='B3'?'Sous-traitance B3':at==='Men'?'Menuiserie':at==='Log'?'Logistique':at==='Transport'?'Transport':'Usinage';
     const totalCols = 1 + semaines.length * 5;
 
     html += `<tr>
