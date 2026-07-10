@@ -2528,9 +2528,19 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
         return coches.length ? `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px">${coches.join('')}</div>` : '';
       })()}
     </td>
-    <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${(()=>{const v=arts.reduce((s,a)=>s+(parseFloat(a.qte_m2)||0),0);return v>0?v.toFixed(2):'';})()}</td>
-    <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${(()=>{const v=arts.reduce((s,a)=>s+(parseFloat(a.qte_m3)||0),0);return v>0?v.toFixed(3):'';})()}</td>
-    <td style="text-align:center">${ctvxHtml}</td>
+   <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${(()=>{
+  const vArt=arts.reduce((s,a)=>s+(parseFloat(a.qte_m2)||0),0);
+  if(vArt>0) return vArt.toFixed(2);
+  const vDates=parseFloat(datesSrc[0]?.m2)||0;
+  return vDates>0?vDates.toFixed(2):'';
+})()}</td>
+<td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${(()=>{
+  const vArt=arts.reduce((s,a)=>s+(parseFloat(a.qte_m3)||0),0);
+  if(vArt>0) return vArt.toFixed(3);
+  const vDates=parseFloat(datesSrc[0]?.m3)||0;
+  return vDates>0?vDates.toFixed(3):'';
+})()}</td>
+<td style="text-align:center">${ctvxHtml}</td>
     <td style="text-align:center"><!-- Sortie BE : vide sur la tranche, portée par les articles --></td>
     <td style="text-align:center">${finUsinageHtml}</td>
     <td style="text-align:center">${finProdHtml}</td>
