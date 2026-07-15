@@ -8,6 +8,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
+  #toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--text);color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:500;z-index:999;opacity:0;transform:translateY(10px);transition:all .25s;pointer-events:none}
+#toast.show{opacity:1;transform:translateY(0)}
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
 :root {}
@@ -329,6 +331,7 @@ transition:all .3s;
 <div id="view-area"></div>
 </main>
 
+<div id="toast"></div>
 <div id="drag-tooltip"></div>
 
 <div class="modal-bg" id="edit-modal" style="display:none">
@@ -1790,7 +1793,14 @@ async function creerArticleProdAsync(payload) {
   } catch(e) { console.warn('creerArticleProd:', e.message); }
 }
 
-async function toggleTermine(atId, idx){
+function toast(msg){
+  const el=document.getElementById('toast');
+  if(!el){ console.log(msg); return; }
+  el.textContent=msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2500);
+}
+  async function toggleTermine(atId, idx){
   const t = state.tranches[atId]?.[idx];
   if(!t) return;
 
