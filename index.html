@@ -894,17 +894,18 @@ async function saveToSupabase(atId) {
   setSyncPill('saving', 'Enregistrement...');
   const allTranches = [];
   for (const aid of ['b1','b2','b3','men']) {
-    (state.tranches[aid]||[]).forEach(t => allTranches.push({
-      id: t._dbId||t.id||'', atelier_id: aid,
-      nom: t.tranche||'', commentaire: t.comment||'',
-      date_debut: t.debut||'', duree_jours: t.duree||1,
-      date_besoin: t.besoin||'', ordre: t.ordre||0,
-      lock_debut: t.lockDebut?'TRUE':'FALSE', lock_fin: t.lockFin?'TRUE':'FALSE',
-      lock_fin_date: t.lockFinDate||'', parallel: t.parallel?'TRUE':'FALSE',
-      termine: t.termine?'TRUE':'FALSE',
-      _termineLe: t._termineLe||'',
-      phases: Array.isArray(t.phases) ? t.phases.join(',') : (t.phases||''),
-    }));
+   (state.tranches[aid]||[]).forEach(t => allTranches.push({
+  id: t._dbId||t.id||'', atelier_id: aid,
+  nom: t.tranche||'', commentaire: t.comment||'',
+  date_debut: t.debut||'', duree_jours: t.duree||1,
+  date_besoin: t.besoin||'', ordre: t.ordre||0,
+  lock_debut: t.lockDebut?'TRUE':'FALSE', lock_fin: t.lockFin?'TRUE':'FALSE',
+  lock_fin_date: t.lockFinDate||'', parallel: t.parallel?'TRUE':'FALSE',
+  termine: t.termine?'TRUE':'FALSE',
+  _termineLe: t._termineLe||'',
+  phases: Array.isArray(t.phases) ? t.phases.join(',') : (t.phases||''),
+  erp_tranche_id: t.erp_tranche_id||'',
+}));
   }
 
   if (_isOfflineIndex) {
