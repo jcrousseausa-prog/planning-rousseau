@@ -668,18 +668,19 @@ async function initApp() {
           return s.split(',').map(x=>x.trim().replace(/^["'\[\]\\]+|["'\[\]\\]+$/g,'')).filter(Boolean);
         };
         const normBool = v => { const s = String(v||'').toUpperCase().trim(); return s==='TRUE'||s==='OUI'||s==='1'; };
-        tr[atId].push({
-          _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
-          debut:normD(t.date_debut), duree:parseInt(t.duree_jours)||1,
-          besoin:normD(t.date_besoin)||null, ordre:parseInt(t.ordre)||i,
-          lockDebut:normBool(t.lock_debut),
-          lockFin:normBool(t.lock_fin),
-          lockFinDate:normD(t.lock_fin_date)||null,
-          parallel:normBool(t.parallel),
-          termine: normBool(t.termine),
-          _termineLe:normD(t._terminele||t._termineLe||''),
-          phases:normP(t.phases)
-        });
+      tr[atId].push({
+  _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
+  debut:normD(t.date_debut), duree:parseInt(t.duree_jours)||1,
+  besoin:normD(t.date_besoin)||null, ordre:parseInt(t.ordre)||i,
+  lockDebut:normBool(t.lock_debut),
+  lockFin:normBool(t.lock_fin),
+  lockFinDate:normD(t.lock_fin_date)||null,
+  parallel:normBool(t.parallel),
+  termine: normBool(t.termine),
+  _termineLe:normD(t._terminele||t._termineLe||''),
+  phases:normP(t.phases),
+  erp_tranche_id: t.erp_tranche_id||'',
+});
       });
       for (const a in tr) tr[a].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
       state.tranches = tr;
@@ -2425,14 +2426,15 @@ async function syncDistant() {
           return s.split(',').map(x=>x.trim()).filter(Boolean);
         };
         state.tranches[atId].push({
-          _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
-          debut:normD(t.date_debut), duree:parseInt(t.duree_jours)||1,
-          besoin:normD(t.date_besoin)||null, ordre:parseInt(t.ordre)||0,
-          lockDebut:normBool(t.lock_debut), lockFin:normBool(t.lock_fin),
-          lockFinDate:normD(t.lock_fin_date)||null, parallel:normBool(t.parallel),
-          termine:normBool(t.termine), _termineLe:normD(t._terminele||t._termineLe||''),
-          phases:normP(t.phases)
-        });
+  _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
+  debut:normD(t.date_debut), duree:parseInt(t.duree_jours)||1,
+  besoin:normD(t.date_besoin)||null, ordre:parseInt(t.ordre)||0,
+  lockDebut:normBool(t.lock_debut), lockFin:normBool(t.lock_fin),
+  lockFinDate:normD(t.lock_fin_date)||null, parallel:normBool(t.parallel),
+  termine:normBool(t.termine), _termineLe:normD(t._terminele||t._termineLe||''),
+  phases:normP(t.phases),
+  erp_tranche_id: t.erp_tranche_id||'',
+});
         changed = true;
       } else {
         // Tranche existante : merger les champs qui peuvent avoir changé à distance
