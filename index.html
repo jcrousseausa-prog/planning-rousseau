@@ -1278,8 +1278,11 @@ ondragleave="this.classList.remove('drag-over')"
 ondrop="dropRow(event,'${atId}',${realIdx});this.classList.remove('drag-over')">
 <td><span class="drag-handle">${q||IS_READONLY?realIdx+1:'⠿'}</span></td>
 <td>
-  <div style="font-size:11px;word-break:break-word;white-space:normal;line-height:1.3;padding:2px 0;user-select:text;cursor:text" ondragstart="event.stopPropagation()" onmousedown="event.stopPropagation()">${esc(t.tranche)}</div></td>
-<td>
+  <div style="font-size:11px;word-break:break-word;white-space:normal;line-height:1.3;padding:2px 0;user-select:text;cursor:text;display:flex;align-items:flex-start;gap:5px" ondragstart="event.stopPropagation()" onmousedown="event.stopPropagation()">
+    <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;background:${t.erp_tranche_id?'#1E8449':'#D68910'}" title="${t.erp_tranche_id?'Rattachée à l\'ERP — CTVX à jour':'Non rattachée à l\'ERP — CTVX potentiellement obsolète'}"></span>
+    <span>${esc(t.tranche)}</span>
+  </div>
+</td>
   ${(t.phases&&t.phases.length&&t.phases.some(p=>p.trim()))?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:2px">${t.phases.filter(p=>p.trim()).map(p=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600">${esc(p.trim())}</span>`).join('')}</div>`:''}
   <input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${realIdx},'comment',this.value)" ${IS_READONLY?'readonly style="background:transparent;border-color:transparent"':''}/>
 </td>
