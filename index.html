@@ -1283,6 +1283,7 @@ ondrop="dropRow(event,'${atId}',${realIdx});this.classList.remove('drag-over')">
     <span>${esc(t.tranche)}</span>
   </div>
 </td>
+<td>
   ${(t.phases&&t.phases.length&&t.phases.some(p=>p.trim()))?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:2px">${t.phases.filter(p=>p.trim()).map(p=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600">${esc(p.trim())}</span>`).join('')}</div>`:''}
   <input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${realIdx},'comment',this.value)" ${IS_READONLY?'readonly style="background:transparent;border-color:transparent"':''}/>
 </td>
