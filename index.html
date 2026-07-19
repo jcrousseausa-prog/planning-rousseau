@@ -2024,7 +2024,7 @@ function selectTranche(id, nom, chantierNom){
   document.getElementById('tranche-picker').style.display   = 'none';
   document.getElementById('tranche-manual-toggle').style.display = 'none';
   const phases = state.phases_par_tid?.[id] || state.phases_par_tranche?.[nom.toLowerCase()] || [];
-  initPhaseTags([]);
+  renderPhaseTags();
   if(phases.length) refreshPhasesERPById(id);
   else refreshPhasesERP(nom);
 }
