@@ -7612,7 +7612,18 @@ function renderRetoursMetrics(){
 }
 
 // ══ SUIVI PRODUCTION ════════════════════════════════════════════════════
-async function renderSuiviProd(){
+function phasesHtml(a){
+  let liste = String(a.phases||'').split(',').map(s=>s.trim()).filter(Boolean);
+  if(!liste.length && a._isUsinage){
+    const tr = state.tranches.find(t=>String(t.nom||'').trim().toLowerCase()===String(a.tranche||'').trim().toLowerCase());
+    if(tr){
+      liste = state.phases.filter(p=>p.tid===tr.id).map(p=>p.num||p.nom).filter(Boolean);
+    }
+  }
+  if(!liste.length) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  return liste.map(p=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;margin-right:3px;display:inline-block;margin-bottom:2px">${esc(p)}</span>`).join('');
+}
+  async function renderSuiviProd(){
   const el = document.getElementById('suivi-prod-content') || document.getElementById('screen-suivi_prod');
   if(!el) return;
   el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">⟳ Chargement…</div>';
@@ -7730,6 +7741,7 @@ async function renderSuiviProd(){
           <th style="padding:8px 10px;text-align:left">Tranche</th>
           <th style="padding:8px 10px;text-align:left">Atelier</th>
           <th style="padding:8px 10px;text-align:left">Commentaire</th>
+<th style="padding:8px 10px;text-align:left">Phases</th>
           <th style="padding:8px 10px;text-align:center">CTVX</th>
           <th style="padding:8px 10px;text-align:center">Début Prod</th>
           <th style="padding:8px 10px;text-align:center">Créé le</th>
@@ -7748,6 +7760,7 @@ async function renderSuiviProd(){
             '<td style="padding:7px 10px;font-weight:500">'+esc(a.tranche||'')+'</td>' +
             '<td style="padding:7px 10px;color:var(--text2)">'+esc(a.atelier||'')+'</td>' +
             '<td style="padding:7px 10px;color:var(--text2)">'+esc(a.commentaire||'')+'</td>' +
+'<td style="padding:7px 10px">'+phasesHtml(a)+'</td>' +
             '<td style="padding:7px 10px;text-align:center">'+(esc(a._ctvx||'')||'—')+'</td>' +
             '<td style="padding:7px 10px;text-align:center">'+(esc(a.date_debut||'')||'—')+'</td>' +
             '<td style="padding:7px 10px;text-align:center;color:var(--text3)">'+esc(a.date_creation||'')+'</td>' +
