@@ -7635,22 +7635,57 @@ async function renderSuiviProd(){
     articles = articles.filter(a=>!a.expire_le || a.expire_le > today);
   }
 
-  // Grouper par tranche
+  const norm = s => String(s||'').trim().toLowerCase();
+  const estProduit = a => a.statut==='produit' || a.statut==='termine';
+
+  const totalOF = articles.length;
+  const produitsOF = articles.filter(estProduit).length;
+
+  // Lignes affichées : uniquement celles non produites
+  const articlesAffiches = articles.filter(a=>!estProduit(a));
+
+  // Cross-référence CTVX pour chaque ligne existante
+  const dateCtvxParTranche = {};
+  (state.dates_erp||[]).forEach(d=>{
+    const k = norm(d.tranche);
+    if(k && (!dateCtvxParTranche[k] || d.date_ctvx < dateCtvxParTranche[k])) dateCtvxParTranche[k] = d.date_ctvx || '';
+  });
+
+  const tranchesAvecOF = new Set(articles.map(a=>norm(a.tranche)));
+
+  // Tranches "usinage seul" : taillage=true, pas besoin d'atelier, aucun OF existant (produit ou non)
+  const lignesUsinage = (state.dates_erp||[]).filter(d=>{
+    if(!d.taillage) return false;
+    if(d.besoin_atelier) return false;
+    const key = norm(d.tranche);
+    return key && !tranchesAvecOF.has(key);
+  }).map(d=>({
+    id:'—', tranche:d.tranche, atelier:'Usinage', commentaire:'',
+    date_debut:'', date_creation:'', date_production:'',
+    statut:'usinage_seul', _isUsinage:true, _ctvx:d.date_ctvx||''
+  }));
+
+  const toutesLignes = [
+    ...articlesAffiches.map(a=>({...a, _ctvx: dateCtvxParTranche[norm(a.tranche)]||''})),
+    ...lignesUsinage
+  ];
+
+  // Tri par date au plus tôt : date de début prod si dispo, sinon CTVX
+  const sortKey = a => a.date_debut || a._ctvx || '9999-12-31';
+  toutesLignes.sort((a,b)=> sortKey(a).localeCompare(sortKey(b)));
+
   const parTranche = {};
-  articles.forEach(a=>{
+  toutesLignes.forEach(a=>{
     const k = a.tranche||'(sans tranche)';
-    if(!parTranche[k]) parTranche[k]={articles:[],atelier:a.atelier||''};
+    if(!parTranche[k]) parTranche[k]={articles:[]};
     parTranche[k].articles.push(a);
   });
 
-  // Stats
-  const total = articles.length;
-  const produits = articles.filter(a=>a.statut==='produit').length;
-  const enCours = total - produits;
+  const enCours = articlesAffiches.length;
+  const usinageSeulCount = lignesUsinage.length;
 
   let html = `<div style="padding:16px 20px">`;
 
-  // Bandeau avertissement effacement
   if(prochainEffacement) {
     const dateAff = prochainEffacement.split('-').reverse().join('/');
     html += `<div style="background:#fef3cd;border:1px solid #f0c040;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#7d5a00">
@@ -7659,34 +7694,35 @@ async function renderSuiviProd(){
     </div>`;
   }
 
-  // KPI rapides
-  html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+  html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--blue)">${total}</div>
-      <div style="font-size:11px;color:var(--text3)">OF créés</div>
+      <div style="font-size:22px;font-weight:700;color:var(--blue)">${totalOF}</div>
+      <div style="font-size:11px;color:var(--text3)">OF créés (total)</div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--green)">${produits}</div>
-      <div style="font-size:11px;color:var(--text3)">Produits</div>
+      <div style="font-size:22px;font-weight:700;color:var(--green)">${produitsOF}</div>
+      <div style="font-size:11px;color:var(--text3)">Produits (masqués ci-dessous)</div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
       <div style="font-size:22px;font-weight:700;color:var(--orange)">${enCours}</div>
       <div style="font-size:11px;color:var(--text3)">En cours</div>
     </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:var(--purple)">${usinageSeulCount}</div>
+      <div style="font-size:11px;color:var(--text3)">Usinage seul</div>
+    </div>
   </div>`;
 
-  // Bouton sync initiale — visible seulement si aucun article
-  if(!total) html += `<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+  if(!totalOF) html += `<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
     <button class="btn btn-sm btn-sim" onclick="syncInitialeOF()" style="font-size:12px">
       🔄 Importer les OF depuis le planning prod
     </button>
     <span style="font-size:11px;color:var(--text3)">Synchronise tous les OF actuels du planning prod vers ce suivi</span>
   </div>`;
 
-  if(!total){
-    html += '<div style="text-align:center;padding:2rem;color:var(--text3)">Aucun OF enregistré — créez des OF dans le planning prod ou cliquez "Importer"</div>';
+  if(!toutesLignes.length){
+    html += '<div style="text-align:center;padding:2rem;color:var(--text3)">Aucun OF en cours ni tranche usinage seul à afficher.</div>';
   } else {
-    // Tableau par tranche
     html += `<table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead>
         <tr style="background:var(--blue);color:#fff">
@@ -7694,47 +7730,42 @@ async function renderSuiviProd(){
           <th style="padding:8px 10px;text-align:left">Tranche</th>
           <th style="padding:8px 10px;text-align:left">Atelier</th>
           <th style="padding:8px 10px;text-align:left">Commentaire</th>
-          <th style="padding:8px 10px;text-align:center">Fin prod</th>
+          <th style="padding:8px 10px;text-align:center">CTVX</th>
+          <th style="padding:8px 10px;text-align:center">Début Prod</th>
           <th style="padding:8px 10px;text-align:center">Créé le</th>
           <th style="padding:8px 10px;text-align:center">Produit le</th>
           <th style="padding:8px 10px;text-align:center">Statut</th>
         </tr>
       </thead>
       <tbody>
-        ${articles.map((a,i)=>{
-          const statColor = a.statut==='produit'?'var(--green)':'var(--orange)';
-          const statLabel = a.statut==='produit'?'✅ Produit':'🔧 En cours';
+        ${toutesLignes.map((a,i)=>{
           const rowBg = i%2===0?'':'background:var(--bg)';
-          return '<tr style="'+rowBg+'">' +
+          const isUs = a._isUsinage;
+          const statLabel = isUs ? '⚙️ Usinage seul' : '🔧 En cours';
+          const statColor = isUs ? 'var(--purple)' : 'var(--orange)';
+          return '<tr style="'+rowBg+(isUs?';font-style:italic':'')+'">' +
             '<td style="padding:7px 10px;font-family:monospace;font-weight:600;color:var(--blue)">'+esc(a.id||'')+'</td>' +
             '<td style="padding:7px 10px;font-weight:500">'+esc(a.tranche||'')+'</td>' +
             '<td style="padding:7px 10px;color:var(--text2)">'+esc(a.atelier||'')+'</td>' +
             '<td style="padding:7px 10px;color:var(--text2)">'+esc(a.commentaire||'')+'</td>' +
-            '<td style="padding:7px 10px;text-align:center">'+esc(a.date_fin_prod||'—')+'</td>' +
+            '<td style="padding:7px 10px;text-align:center">'+(esc(a._ctvx||'')||'—')+'</td>' +
+            '<td style="padding:7px 10px;text-align:center">'+(esc(a.date_debut||'')||'—')+'</td>' +
             '<td style="padding:7px 10px;text-align:center;color:var(--text3)">'+esc(a.date_creation||'')+'</td>' +
-            '<td style="padding:7px 10px;text-align:center;color:var(--text3)">'+esc(a.date_production||'—')+'</td>' +
+            '<td style="padding:7px 10px;text-align:center;color:var(--text3)">'+(esc(a.date_production||'')||'—')+'</td>' +
             '<td style="padding:7px 10px;text-align:center;font-weight:600;color:'+statColor+'">'+statLabel+'</td>' +
             '</tr>';
         }).join('')}
       </tbody>
     </table>
 
-    <!-- Résumé par tranche -->
     <div style="margin-top:20px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)">Avancement par tranche</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)">Avancement par tranche (lignes affichées)</div>
       ${Object.entries(parTranche).map(([tranche, data])=>{
         const tot = data.articles.length;
-        const prod = data.articles.filter(a=>a.statut==='produit').length;
-        const pct = Math.round(prod/tot*100);
-        const color = pct===100?'var(--green)':pct>50?'var(--blue)':'var(--orange)';
         return '<div style="margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:8px 12px">' +
-          '<div style="display:flex;justify-content:space-between;margin-bottom:5px">' +
           '<span style="font-size:12px;font-weight:600">'+esc(tranche)+'</span>' +
-          '<span style="font-size:12px;font-weight:700;color:'+color+'">'+prod+'/'+tot+'</span>' +
-          '</div>' +
-          '<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">' +
-          '<div style="width:'+pct+'%;height:100%;background:'+color+';border-radius:3px"></div>' +
-          '</div></div>';
+          '<span style="font-size:11px;color:var(--text3);margin-left:8px">'+tot+' ligne'+(tot>1?'s':'')+'</span>' +
+          '</div>';
       }).join('')}
     </div>
   `}
