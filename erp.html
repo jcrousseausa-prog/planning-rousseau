@@ -3133,24 +3133,19 @@ function showScreen(id){
 // ══════════════════════════════════════════════════════════════════════════
 //  MODULE RENSEIGNEMENT PROJET
 // ══════════════════════════════════════════════════════════════════════════
-let _rensRows = [];       // lignes en cours de saisie
-let _rensTrancheId = '';  // ID ERP de la tranche sélectionnée
-let _rensTrancheNom = ''; // Nom de la tranche
-let _rensDessinateurs = []; // [{initiales, nom}]
+let _rensRows = [];
+let _rensTranchesChantier = []; // tranches du chantier sélectionné
+let _rensDessinateurs = [];
 
 async function initRenseignement(){
-  // Charger les dessinateurs si pas encore fait
   if(!_rensDessinateurs.length) await rensLoadDessinateurs();
-  // Remplir le select chantiers
   const selCh = document.getElementById('rens-chantier');
   selCh.innerHTML = '<option value="">— Sélectionner —</option>' +
     [...state.chantiers].sort((a,b)=>a.nom.localeCompare(b.nom,'fr')).map(c=>
       `<option value="${c.id}">${esc(c.nom)}</option>`
     ).join('');
-  // Reset
-  document.getElementById('rens-tranche').innerHTML = '<option value="">— Chantier d\'abord —</option>';
+  _rensTranchesChantier = [];
   _rensRows = [];
-  _rensTrancheId = '';
   renderRensRows();
 }
 
@@ -3163,7 +3158,6 @@ async function rensLoadDessinateurs(){
       _rensDessinateurs = r.dessinateurs;
     }
   } catch(e){ console.warn('getDessinateurs:', e.message); }
-  // Remplir le select dessinateurs
   const sel = document.getElementById('rens-dessinateur');
   if(sel){
     sel.innerHTML = '<option value="">— Init. —</option>' +
@@ -3173,58 +3167,52 @@ async function rensLoadDessinateurs(){
 
 function rensOnChantierChange(){
   const chId = document.getElementById('rens-chantier').value;
-  const selTr = document.getElementById('rens-tranche');
   if(!chId){
-    selTr.innerHTML = '<option value="">— Chantier d\'abord —</option>';
+    _rensTranchesChantier = [];
+    _rensRows = [];
+    renderRensRows();
     return;
   }
-  const tranches = state.tranches.filter(t=>t.cid===chId)
+  _rensTranchesChantier = state.tranches.filter(t=>t.cid===chId)
     .sort((a,b)=>a.nom.localeCompare(b.nom,'fr'));
-  selTr.innerHTML = '<option value="">— Sélectionner —</option>' +
-    tranches.map(t=>`<option value="${t.id}">${esc(t.nom)}</option>`).join('');
-  _rensTrancheId = '';
-  _rensTrancheNom = '';
-  document.getElementById('rens-tranche-info').style.display='none';
-}
-
-function rensOnTrancheChange(){
-  const trId = document.getElementById('rens-tranche').value;
-  if(!trId){ _rensTrancheId=''; _rensTrancheNom=''; document.getElementById('rens-tranche-info').style.display='none'; return; }
-  const tr = state.tranches.find(t=>t.id===trId);
-  if(!tr) return;
-  _rensTrancheId = tr.id;
-  _rensTrancheNom = tr.nom;
-  // Afficher info tranche liée
-  const info = document.getElementById('rens-tranche-info');
-  document.getElementById('rens-tranche-info-text').textContent = tr.nom;
-  info.style.display = 'block';
-  // Charger les phases existantes de cette tranche comme suggestions
-  const phasesExistantes = state.phases.filter(p=>p.tid===tr.id).map(p=>p.num||p.nom).filter(Boolean);
-  // Vider et recharger les lignes existantes depuis l'historique
   _rensRows = [];
   renderRensRows();
 }
 
 function rensAddRow(){
-  if(!_rensTrancheId){ toast('⚠ Sélectionnez une tranche d\'abord'); return; }
-  const phasesExistantes = state.phases.filter(p=>p.tid===_rensTrancheId).map(p=>p.num||p.nom).filter(Boolean);
+  const chId = document.getElementById('rens-chantier').value;
+  if(!chId){ toast('⚠ Sélectionnez un chantier d\'abord'); return; }
   _rensRows.push({
     id: Date.now()+'_'+Math.random().toString(36).slice(2,6),
-    tranche_nom: _rensTrancheNom,
-    tranche_id: _rensTrancheId,
+    tranche_nom: '',
+    tranche_id: '',
     phase: '',
     m2: '',
     m3: '',
     commentaire: '',
     dessinateur: document.getElementById('rens-dessinateur').value||'',
-    phases_dispo: phasesExistantes
+    phases_dispo: []
   });
   renderRensRows();
-  // Focus sur la dernière ligne
   setTimeout(()=>{
-    const rows = document.querySelectorAll('.rens-row-phase');
-    if(rows.length) rows[rows.length-1].focus();
+    const sels = document.querySelectorAll('.rens-row-tranche-select');
+    if(sels.length) sels[sels.length-1].focus();
   },50);
+}
+
+function rensRowTrancheChange(rowId, newTrancheId){
+  const row = _rensRows.find(r=>r.id===rowId);
+  if(!row) return;
+  const tr = _rensTranchesChantier.find(t=>t.id===newTrancheId);
+  if(!tr){
+    row.tranche_id=''; row.tranche_nom=''; row.phases_dispo=[]; row.phase='';
+  } else {
+    row.tranche_id = tr.id;
+    row.tranche_nom = tr.nom;
+    row.phases_dispo = state.phases.filter(p=>p.tid===tr.id).map(p=>p.num||p.nom).filter(Boolean);
+    row.phase = '';
+  }
+  renderRensRows();
 }
 
 function rensRemoveRow(id){
@@ -3238,7 +3226,6 @@ function rensUpdateRow(id, field, value){
 }
 
 function rensMaj(){
-  // Recalculer totaux
   const totM2 = _rensRows.reduce((s,r)=>s+(parseFloat(r.m2)||0),0);
   const totM3 = _rensRows.reduce((s,r)=>s+(parseFloat(r.m3)||0),0);
   const tfoot = document.getElementById('rens-tfoot');
@@ -3254,13 +3241,23 @@ function rensMaj(){
 function renderRensRows(){
   const tbody = document.getElementById('rens-tbody');
   if(!_rensRows.length){
+    const chId = document.getElementById('rens-chantier')?.value;
     tbody.innerHTML = `<div style="padding:2.5rem;text-align:center;color:var(--text3);font-size:13px">
-      ${_rensTrancheId?'Cliquez sur <strong>+ Ligne</strong> pour ajouter une ligne':'Sélectionnez un chantier puis une tranche, puis <strong>+ Ligne</strong>'}
+      ${chId?'Cliquez sur <strong>+ Ligne</strong> pour ajouter une ligne, puis choisissez la tranche sur chaque ligne':'Sélectionnez un chantier, puis <strong>+ Ligne</strong>'}
     </div>`;
     document.getElementById('rens-tfoot').style.display='none';
     return;
   }
   tbody.innerHTML = _rensRows.map((r,i)=>{
+    const trancheOptions = _rensTranchesChantier.map(t=>
+      `<option value="${t.id}"${r.tranche_id===t.id?' selected':''}>${esc(t.nom)}</option>`
+    ).join('');
+    const trancheSelectHtml = `<select class="rens-row-tranche-select" onchange="rensRowTrancheChange('${r.id}',this.value)"
+        style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;background:var(--surface)">
+        <option value="">— Sélectionner —</option>
+        ${trancheOptions}
+      </select>`;
+
     const phaseOptions = r.phases_dispo?.length
       ? r.phases_dispo.map(p=>`<option value="${esc(p)}"${r.phase===p?' selected':''}>${esc(p)}</option>`).join('')
       : '';
@@ -3274,10 +3271,11 @@ function renderRensRows(){
         placeholder="Ph01" class="rens-row-phase"
         oninput="rensUpdateRow('${r.id}','phase',this.value)"
         style="width:100%;padding:4px 6px;border:1px solid var(--orange-border);border-radius:6px;font-family:inherit;font-size:12px;text-align:center;margin-top:3px;display:${r.phase&&!phaseOptions.includes('value="'+r.phase+'"')&&r.phases_dispo?.length?'block':'none'}"/>`;
+
     return `<div class="rens-row" style="display:grid;grid-template-columns:32px 1fr 100px 80px 80px 1fr 36px;border-bottom:1px solid var(--border);align-items:center;background:${i%2===0?'var(--surface)':'var(--bg)'}">
       <div style="padding:8px 6px;text-align:center;font-size:11px;color:var(--text3);font-weight:600">${i+1}</div>
       <div style="padding:6px 8px">
-        <div style="font-size:12px;font-weight:500;color:var(--text2);padding:4px 0">${esc(r.tranche_nom)}</div>
+        ${trancheSelectHtml}
       </div>
       <div style="padding:6px 6px">
         ${phaseSelectHtml}
@@ -3309,10 +3307,9 @@ function rensPhaseSelect(id, sel){
   const val = sel.value;
   const inp = document.getElementById('rens-phase-input-'+id);
   if(val==='__NEW__'){
-    // Afficher le champ de saisie libre
     if(inp){ inp.style.display='block'; inp.focus(); inp.value=''; }
     rensUpdateRow(id,'phase','');
-    sel.value=''; // remettre le select à —
+    sel.value='';
   } else {
     if(inp) inp.style.display='none';
     rensUpdateRow(id,'phase',val);
@@ -3321,9 +3318,9 @@ function rensPhaseSelect(id, sel){
 
 async function rensSave(){
   if(!_rensRows.length){ toast('⚠ Aucune ligne à enregistrer'); return; }
+
   const dessinateur = document.getElementById('rens-dessinateur').value;
   if(!dessinateur){
-    // Mettre en évidence le select dessinateur
     const sel = document.getElementById('rens-dessinateur');
     sel.style.border='2px solid var(--red)';
     sel.style.background='var(--red-bg)';
@@ -3331,6 +3328,13 @@ async function rensSave(){
     toast('⚠ Dessinateur obligatoire — sélectionnez vos initiales');
     return;
   }
+
+  const lignesIncompletes = _rensRows.filter(r=>!r.tranche_id);
+  if(lignesIncompletes.length){
+    toast('⚠ Sélectionnez une tranche pour chaque ligne avant d\'enregistrer');
+    return;
+  }
+
   const lignes = _rensRows.map(r=>({
     tranche_id: r.tranche_id,
     tranche_nom: r.tranche_nom,
@@ -3342,7 +3346,6 @@ async function rensSave(){
     date: new Date().toISOString().slice(0,10)
   }));
 
-  // 1. Sauvegarder dans Sheets
   setSyncPill('saving','Enregistrement...');
   try{
     const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
@@ -3355,16 +3358,17 @@ async function rensSave(){
     return;
   }
 
-  // 2. Mettre à jour les phases ERP de la tranche
   let phasesMaj = 0;
-  const tranche = state.tranches.find(t=>t.id===_rensTrancheId);
-  if(tranche){
+  const trancheIdsUniques = [...new Set(lignes.map(l=>l.tranche_id).filter(Boolean))];
+  trancheIdsUniques.forEach(trId=>{
+    const tranche = state.tranches.find(t=>t.id===trId);
+    if(!tranche) return;
     const phasesExistantes = state.phases.filter(p=>p.tid===tranche.id);
-    lignes.forEach(l=>{
+    const lignesTranche = lignes.filter(l=>l.tranche_id===trId);
+    lignesTranche.forEach(l=>{
       if(!l.phase) return;
       const existe = phasesExistantes.find(p=>(p.num||p.nom||'').trim()===l.phase.trim());
       if(!existe){
-        // Créer la phase dans l'ERP
         const newPh = {
           id: uid(),
           tid: tranche.id,
@@ -3376,8 +3380,8 @@ async function rensSave(){
           date_livre: ''
         };
         state.phases.push(newPh);
+        phasesExistantes.push(newPh);
         phasesMaj++;
-        // Créer un article pour cette phase
         if(l.commentaire || l.m2 || l.m3){
           state.articles.push({
             id: uid(),
@@ -3396,7 +3400,6 @@ async function rensSave(){
           });
         }
       } else if(l.commentaire || l.m2 || l.m3){
-        // Phase existe — créer un article si pas déjà présent
         const artExiste = state.articles.find(a=>a.pid===existe.id&&a.libelle===l.commentaire);
         if(!artExiste){
           state.articles.push({
@@ -3415,11 +3418,11 @@ async function rensSave(){
         }
       }
     });
-    if(phasesMaj > 0) scheduleSave();
-  }
+  });
+  if(phasesMaj > 0) scheduleSave();
 
   setSyncPill('ok','Enregistré');
-  toast(`✅ ${lignes.length} ligne${lignes.length>1?'s':''} enregistrée${lignes.length>1?'s':''}${phasesMaj>0?' · '+phasesMaj+' phase(s) ajoutée(s) dans l\'ERP':''}`);
+  toast(`✅ ${lignes.length} ligne${lignes.length>1?'s':''} sur ${trancheIdsUniques.length} tranche${trancheIdsUniques.length>1?'s':''} enregistrée${lignes.length>1?'s':''}${phasesMaj>0?' · '+phasesMaj+' phase(s) ajoutée(s) dans l\'ERP':''}`);
   _rensRows = [];
   renderRensRows();
   rensLoadHistorique();
@@ -3439,7 +3442,6 @@ async function rensLoadHistorique(){
       hist.innerHTML='<div style="padding:1rem;text-align:center;color:var(--text3);font-size:12px">Aucune saisie enregistrée</div>';
       return;
     }
-    // Regrouper par date+dessinateur
     const grouped = {};
     lignes.forEach(l=>{
       const k = (l.date||'')+'__'+(l.dessinateur||'');
