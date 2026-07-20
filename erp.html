@@ -624,19 +624,12 @@ table.bl-lignes td.r{text-align:right}
     <span style="font-size:14px;font-weight:600;color:var(--text)">📋 Renseignement projet</span>
   </div>
 
-  <div style="display:flex;align-items:center;gap:16px;margin-bottom:1.5rem;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:1.5rem;flex-wrap:wrap">
     <div style="display:flex;align-items:center;gap:8px">
       <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Chantier</span>
       <select id="rens-chantier" onchange="rensOnChantierChange()"
         style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);min-width:200px">
         <option value="">— Sélectionner —</option>
-      </select>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Tranche</span>
-      <select id="rens-tranche" onchange="rensOnTrancheChange()"
-        style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text);min-width:260px">
-        <option value="">— Chantier d'abord —</option>
       </select>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
@@ -650,11 +643,6 @@ table.bl-lignes td.r{text-align:right}
       <button onclick="rensAddRow()" class="btn btn-primary" style="font-size:12px;padding:6px 14px">+ Ligne</button>
       <button onclick="rensSave()" style="font-size:12px;padding:6px 16px;border:none;border-radius:8px;background:var(--green);color:#fff;cursor:pointer;font-family:inherit;font-weight:600">💾 Enregistrer</button>
     </div>
-  </div>
-
-  <div id="rens-tranche-info" style="display:none;margin-bottom:1rem;padding:8px 14px;background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:8px;font-size:12px;color:var(--blue)">
-    🔗 <span id="rens-tranche-info-text"></span>
-    <span style="margin-left:8px;opacity:.7;font-size:11px">— Les phases seront rattachées à cette tranche dans le tableau de pilotage</span>
   </div>
 
   <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.06)">
