@@ -2334,8 +2334,9 @@ function renderPlanning(){
       // Dédoublonner par of_id pour éviter les doublons de ERP_Suivi_Production
       const ofsSeen = new Set();
       const ofs_prod = (state.suivi_prod||[]).filter(o=>{
-        const match = (o.tranche||'').trim().toLowerCase() === (tr.nom||'').trim().toLowerCase();
-        if(!match) return false;
+        const matchById = o.erp_tranche_id && o.erp_tranche_id === tr.id;
+        const matchByName = !o.erp_tranche_id && (o.tranche||'').trim().toLowerCase() === (tr.nom||'').trim().toLowerCase();
+        if(!matchById && !matchByName) return false;
         const key = o.of_id || o.id || (o.tranche+o.date_fin_prod);
         if(ofsSeen.has(key)) return false;
         ofsSeen.add(key);
