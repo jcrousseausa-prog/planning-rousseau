@@ -7660,7 +7660,10 @@ const lignesUsinage = (state.dates_erp||[]).filter(d=>{
     if(!d.taillage) return false;
     if(d.assemblage || d.equipement) return false;
     const key = norm(d.tranche);
-    return key && !tranchesAvecOF.has(key);
+    if(!key || tranchesAvecOF.has(key)) return false;
+    const trErp = state.tranches.find(t=>String(t.nom||'').trim().toLowerCase()===key);
+    if(trErp && (trErp.statut_erp==='termine' || trErp.statut_erp==='livre')) return false;
+    return true;
   }).map(d=>({
     id:'—', tranche:d.tranche, atelier:'Usinage', commentaire:'',
     date_debut:'', date_creation:'', date_production:'',
