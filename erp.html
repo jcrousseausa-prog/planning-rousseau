@@ -7656,9 +7656,9 @@ function phasesHtml(a){
   const tranchesAvecOF = new Set(articles.map(a=>norm(a.tranche)));
 
   // Tranches "usinage seul" : taillage=true, pas besoin d'atelier, aucun OF existant (produit ou non)
-  const lignesUsinage = (state.dates_erp||[]).filter(d=>{
+const lignesUsinage = (state.dates_erp||[]).filter(d=>{
     if(!d.taillage) return false;
-    if(d.besoin_atelier) return false;
+    if(d.assemblage || d.equipement) return false;
     const key = norm(d.tranche);
     return key && !tranchesAvecOF.has(key);
   }).map(d=>({
