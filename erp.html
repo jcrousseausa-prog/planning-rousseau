@@ -7643,8 +7643,13 @@ function phasesHtml(a){
   const totalOF = articles.length;
   const produitsOF = articles.filter(estProduit).length;
 
-  // Lignes affichées : uniquement celles non produites
-  const articlesAffiches = articles.filter(a=>!estProduit(a));
+  // Lignes affichées : uniquement celles non produites ET dont la tranche n'est pas Terminé/Livré côté pilotage
+  const estTrancheCloturee = nomTranche => {
+    const key = norm(nomTranche);
+    const trErp = state.tranches.find(t=>String(t.nom||'').trim().toLowerCase()===key);
+    return trErp && (trErp.statut_erp==='termine' || trErp.statut_erp==='livre');
+  };
+  const articlesAffiches = articles.filter(a=>!estProduit(a) && !estTrancheCloturee(a.tranche));
 
   // Cross-référence CTVX pour chaque ligne existante
   const dateCtvxParTranche = {};
