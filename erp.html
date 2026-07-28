@@ -7617,12 +7617,11 @@ function phasesHtml(a){
   if(!liste.length) return '<span style="color:var(--text3);font-size:11px">—</span>';
   return liste.map(p=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;margin-right:3px;display:inline-block;margin-bottom:2px">${esc(p)}</span>`).join('');
 }
-  async function renderSuiviProd(){
+ async function renderSuiviProd(){
   const el = document.getElementById('suivi-prod-content') || document.getElementById('screen-suivi_prod');
   if(!el) return;
 
   if(!state._suiviProdFiltres) state._suiviProdFiltres = {search:'', atelier:'', taille:''};
-
   const norm = s => String(s||'').trim().toLowerCase();
 
   function phaseAteliers(trNom, phaseKey){
@@ -7636,51 +7635,66 @@ function phasesHtml(a){
     return [...set].filter(Boolean);
   }
 
-  // Construction de l'arborescence complète
-  const tree = [];
-  state.chantiers.forEach(ch=>{
-    const trs = state.tranches.filter(t=>t.cid===ch.id);
-    const trsData = [];
-    trs.forEach(tr=>{
-      if(tr.statut_erp==='termine' || tr.statut_erp==='livre') return;
-      const phs = state.phases.filter(p=>p.tid===tr.id);
-      if(!phs.length) return;
-      const dSrc = (state.dates_erp||[]).find(d=>norm(d.tranche)===norm(tr.nom));
-      const phsData = phs.map(ph=>{
-        const phKey = ph.num||ph.nom||'';
-        let ateliers = phaseAteliers(tr.nom, phKey);
-        if(!ateliers.length && dSrc?.taillage && !dSrc.assemblage && !dSrc.equipement) ateliers = ['Usinage'];
-        return {ph, ateliers, fichier_taille: !!ph.fichier_taille};
-      });
-      trsData.push({tr, phases: phsData});
-    });
-    if(trsData.length) tree.push({ch, tranches: trsData});
-  });
+  // Date de tri : date_debut la plus tôt (planning prod) sinon date CTVX
+  function trancheSortDate(trNom){
+    const key = norm(trNom);
+    const debuts = (state.suivi_prod||[]).filter(o=>norm(o.tranche)===key && o.date_debut).map(o=>o.date_debut);
+    if(debuts.length) return debuts.reduce((min,d)=>(!min||d<min)?d:min, null);
+    const dSrc = (state.dates_erp||[]).find(d=>norm(d.tranche)===key);
+    return dSrc?.date_ctvx || '9999-12-31';
+  }
 
-  // Liste des ateliers connus pour le filtre
-  const ateliersConnus = new Set();
-  tree.forEach(({tranches})=>tranches.forEach(({phases})=>phases.forEach(({ateliers})=>ateliers.forEach(a=>ateliersConnus.add(a)))));
+  // Construction : Atelier -> Tranche -> Phases
+  const atelierGroups = {}; // atelier -> { [trancheId]: {tr, sortDate, phases:[]} }
+
+  state.tranches.forEach(tr=>{
+    if(tr.statut_erp==='termine' || tr.statut_erp==='livre') return;
+    const phs = state.phases.filter(p=>p.tid===tr.id);
+    if(!phs.length) return;
+    const dSrc = (state.dates_erp||[]).find(d=>norm(d.tranche)===norm(tr.nom));
+    const sortDate = trancheSortDate(tr.nom);
+
+    phs.forEach(ph=>{
+      const phKey = ph.num||ph.nom||'';
+      let ateliers = phaseAteliers(tr.nom, phKey);
+      if(!ateliers.length && dSrc?.taillage && !dSrc.assemblage && !dSrc.equipement) ateliers = ['Usinage'];
+      if(!ateliers.length) ateliers = ['Sans atelier'];
+
+      ateliers.forEach(atelier=>{
+        if(!atelierGroups[atelier]) atelierGroups[atelier]={};
+        if(!atelierGroups[atelier][tr.id]) atelierGroups[atelier][tr.id]={tr, sortDate, phases:[]};
+        atelierGroups[atelier][tr.id].phases.push({ph, fichier_taille: !!ph.fichier_taille});
+      });
+    });
+  });
 
   const f = state._suiviProdFiltres;
   const q = norm(f.search);
+  const ateliersConnus = Object.keys(atelierGroups).sort((a,b)=>{
+    if(a==='Usinage'||a==='Sans atelier') return 1;
+    if(b==='Usinage'||b==='Sans atelier') return -1;
+    return a.localeCompare(b);
+  });
 
-  // Application des filtres au niveau des phases, en remontant chantier/tranche si au moins une phase matche
-  const treeFiltre = tree.map(({ch, tranches})=>{
-    const trsF = tranches.map(({tr, phases})=>{
-      const phsF = phases.filter(({ph, ateliers, fichier_taille})=>{
-        if(f.atelier && !ateliers.includes(f.atelier)) return false;
-        if(f.taille==='dispo' && !fichier_taille) return false;
-        if(f.taille==='non_dispo' && fichier_taille) return false;
-        if(q && !(norm(ch.nom).includes(q)||norm(tr.nom).includes(q)||norm(ph.nom).includes(q)||norm(ph.num).includes(q))) return false;
-        return true;
-      });
-      return {tr, phases: phsF};
-    }).filter(t=>t.phases.length);
-    return {ch, tranches: trsF};
-  }).filter(c=>c.tranches.length);
+  // Application des filtres
+  const groupesFiltres = ateliersConnus
+    .filter(at=>!f.atelier || f.atelier===at)
+    .map(at=>{
+      const tranchesArr = Object.values(atelierGroups[at]).map(({tr,sortDate,phases})=>{
+        const phsF = phases.filter(({ph,fichier_taille})=>{
+          if(f.taille==='dispo' && !fichier_taille) return false;
+          if(f.taille==='non_dispo' && fichier_taille) return false;
+          if(q && !(norm(tr.nom).includes(q)||norm(ph.nom).includes(q)||norm(ph.num).includes(q))) return false;
+          return true;
+        });
+        return {tr, sortDate, phases: phsF};
+      }).filter(t=>t.phases.length)
+        .sort((a,b)=>a.sortDate.localeCompare(b.sortDate));
+      return {atelier: at, tranches: tranchesArr};
+    }).filter(g=>g.tranches.length);
 
-  const totalPhases = tree.reduce((s,c)=>s+c.tranches.reduce((s2,t)=>s2+t.phases.length,0),0);
-  const dispoCount = tree.reduce((s,c)=>s+c.tranches.reduce((s2,t)=>s2+t.phases.filter(p=>p.fichier_taille).length,0),0);
+  const totalPhases = ateliersConnus.reduce((s,at)=>s+Object.values(atelierGroups[at]).reduce((s2,t)=>s2+t.phases.length,0),0);
+  const dispoCount = ateliersConnus.reduce((s,at)=>s+Object.values(atelierGroups[at]).reduce((s2,t)=>s2+t.phases.filter(p=>p.fichier_taille).length,0),0);
 
   let html = `<div style="padding:16px 20px">`;
 
@@ -7700,13 +7714,13 @@ function phasesHtml(a){
   </div>`;
 
   html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
-    <input type="text" value="${esc(f.search)}" placeholder="Rechercher chantier, tranche, phase…"
+    <input type="text" value="${esc(f.search)}" placeholder="Rechercher tranche, phase…"
       oninput="state._suiviProdFiltres.search=this.value;renderSuiviProd()"
       style="flex:1;max-width:280px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"/>
     <select onchange="state._suiviProdFiltres.atelier=this.value;renderSuiviProd()"
       style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
       <option value="">Tous ateliers</option>
-      ${[...ateliersConnus].sort().map(a=>`<option value="${esc(a)}"${f.atelier===a?' selected':''}>${esc(a)}</option>`).join('')}
+      ${ateliersConnus.map(a=>`<option value="${esc(a)}"${f.atelier===a?' selected':''}>${esc(a)}</option>`).join('')}
     </select>
     <select onchange="state._suiviProdFiltres.taille=this.value;renderSuiviProd()"
       style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
@@ -7714,44 +7728,39 @@ function phasesHtml(a){
       <option value="dispo"${f.taille==='dispo'?' selected':''}>✅ Disponible</option>
       <option value="non_dispo"${f.taille==='non_dispo'?' selected':''}>⚠ Non disponible</option>
     </select>
-    <button class="btn btn-sm" onclick="toggleAllSuiviProd(true)">Tout déplier</button>
-    <button class="btn btn-sm" onclick="toggleAllSuiviProd(false)">Tout replier</button>
   </div>`;
 
-  if(!treeFiltre.length){
+  if(!groupesFiltres.length){
     html += `<div style="text-align:center;padding:2rem;color:var(--text3)">Aucune phase à afficher pour ces critères.</div>`;
   } else {
-    treeFiltre.forEach(({ch, tranches})=>{
-      html += `<div style="margin-bottom:6px">
-        <div onclick="toggleNode('ch','${ch.id}');renderSuiviProd()" style="cursor:pointer;background:#EAF1FB;font-weight:600;padding:8px 12px;border-radius:8px 8px 0 0;font-size:13px;display:flex;align-items:center;gap:6px">
-          <span class="chevron${ch.open?' open':''}">▶</span> ${esc(ch.nom)}
-          <span style="font-weight:400;color:var(--text2);font-size:11px;margin-left:6px">${tranches.length} tranche${tranches.length>1?'s':''}</span>
+    groupesFiltres.forEach(({atelier, tranches})=>{
+      const nbPh = tranches.reduce((s,t)=>s+t.phases.length,0);
+      html += `<div style="margin-bottom:18px">
+        <div style="background:#2C3E50;color:#fff;font-weight:700;padding:9px 14px;border-radius:8px 8px 0 0;font-size:13px;display:flex;align-items:center;gap:8px">
+          <span>🏭 ${esc(atelier)}</span>
+          <span style="font-weight:400;opacity:.75;font-size:11px">${tranches.length} tranche${tranches.length>1?'s':''} · ${nbPh} phase${nbPh>1?'s':''}</span>
         </div>`;
-      if(ch.open || q){
-        tranches.forEach(({tr, phases})=>{
-          html += `<div onclick="toggleNode('tr','${tr.id}');renderSuiviProd()" style="cursor:pointer;background:var(--surface2);padding:7px 12px 7px 28px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px">
-            <span class="chevron${tr.open?' open':''}">▶</span> ${esc(tr.nom)}
-            <span style="font-weight:400;color:var(--text3);font-size:10px;margin-left:6px">${phases.length} phase${phases.length>1?'s':''}</span>
-          </div>`;
-          if(tr.open || q){
-            phases.forEach(({ph, ateliers, fichier_taille})=>{
-              const badgeAteliers = ateliers.length
-                ? ateliers.map(a=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;margin-right:3px">${esc(a)}</span>`).join('')
-                : '<span style="color:var(--text3);font-size:10px">—</span>';
-              html += `<div style="padding:7px 12px 7px 48px;border-bottom:1px solid var(--border);font-size:12px;display:flex;align-items:center;gap:10px;background:var(--surface)">
-                <span style="min-width:60px;font-weight:600;color:var(--blue);font-family:'DM Mono',monospace;font-size:11px">${esc(ph.num||'')}</span>
-                <span style="flex:1">${esc(ph.nom||'')}</span>
-                <span>${badgeAteliers}</span>
-                <button onclick="event.stopPropagation();toggleFichierTaille('${ph.id}')"
-                  style="border:none;background:none;cursor:pointer;display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;
-                  background:${fichier_taille?'var(--green-bg)':'var(--orange-bg)'};color:${fichier_taille?'var(--green)':'var(--orange)'};border:1px solid ${fichier_taille?'var(--green-border)':'var(--orange-border)'}">
-                  ${fichier_taille?'✅ Fichier dispo':'⚠ Fichier manquant'}
-                </button>
-              </div>`;
-            });
-          }
-        });
-      }
+      tranches.forEach(({tr, sortDate, phases})=>{
+        const dateAff = sortDate && sortDate!=='9999-12-31' ? sortDate.split('-').reverse().join('/') : '—';
+        html += `<div onclick="toggleNode('tr','${tr.id}');renderSuiviProd()" style="cursor:pointer;background:var(--surface2);padding:7px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px">
+          <span class="chevron${tr.open?' open':''}">▶</span> ${esc(tr.nom)}
+          <span style="margin-left:auto;font-weight:400;color:var(--text2);font-size:11px;font-family:'DM Mono',monospace">📅 ${dateAff}</span>
+          <span style="font-weight:400;color:var(--text3);font-size:10px">${phases.length} phase${phases.length>1?'s':''}</span>
+        </div>`;
+        if(tr.open || q){
+          phases.forEach(({ph, fichier_taille})=>{
+            html += `<div style="padding:7px 12px 7px 32px;border-bottom:1px solid var(--border);font-size:12px;display:flex;align-items:center;gap:10px;background:var(--surface)">
+              <span style="min-width:60px;font-weight:600;color:var(--blue);font-family:'DM Mono',monospace;font-size:11px">${esc(ph.num||'')}</span>
+              <span style="flex:1">${esc(ph.nom||'')}</span>
+              <button onclick="event.stopPropagation();toggleFichierTaille('${ph.id}')"
+                style="border:none;background:none;cursor:pointer;display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;
+                background:${fichier_taille?'var(--green-bg)':'var(--orange-bg)'};color:${fichier_taille?'var(--green)':'var(--orange)'};border:1px solid ${fichier_taille?'var(--green-border)':'var(--orange-border)'}">
+                ${fichier_taille?'✅ Fichier dispo':'⚠ Fichier manquant'}
+              </button>
+            </div>`;
+          });
+        }
+      });
       html += `</div>`;
     });
   }
@@ -7760,6 +7769,14 @@ function phasesHtml(a){
   el.innerHTML = html;
 }
 
+function toggleFichierTaille(phaseId){
+  const ph = state.phases.find(p=>p.id===phaseId);
+  if(!ph) return;
+  ph.fichier_taille = !ph.fichier_taille;
+  scheduleSave();
+  renderSuiviProd();
+  toast(ph.fichier_taille ? '✅ Fichier de taille marqué disponible' : '⚠ Fichier de taille marqué non disponible');
+}
 function toggleFichierTaille(phaseId){
   const ph = state.phases.find(p=>p.id===phaseId);
   if(!ph) return;
