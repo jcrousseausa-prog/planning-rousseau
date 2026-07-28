@@ -7617,25 +7617,20 @@ function phasesHtml(a){
   if(!liste.length) return '<span style="color:var(--text3);font-size:11px">—</span>';
   return liste.map(p=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;margin-right:3px;display:inline-block;margin-bottom:2px">${esc(p)}</span>`).join('');
 }
- async function renderSuiviProd(){
+async function renderSuiviProd(){
   const el = document.getElementById('suivi-prod-content') || document.getElementById('screen-suivi_prod');
   if(!el) return;
 
   if(!state._suiviProdFiltres) state._suiviProdFiltres = {search:'', atelier:'', taille:''};
   const norm = s => String(s||'').trim().toLowerCase();
 
-  function phaseAteliers(trNom, phaseKey){
+  function trancheAteliers(trNom){
     const key = norm(trNom);
     const set = new Set();
-    (state.suivi_prod||[]).forEach(o=>{
-      if(norm(o.tranche)!==key) return;
-      const phs = String(o.phases||'').split(',').map(s=>s.trim()).filter(Boolean);
-      if(phs.includes(phaseKey)) set.add(o.atelier||'');
-    });
-    return [...set].filter(Boolean);
+    (state.suivi_prod||[]).forEach(o=>{ if(norm(o.tranche)===key && o.atelier) set.add(o.atelier); });
+    return [...set];
   }
 
-  // Date de tri : date_debut la plus tôt (planning prod) sinon date CTVX
   function trancheSortDate(trNom){
     const key = norm(trNom);
     const debuts = (state.suivi_prod||[]).filter(o=>norm(o.tranche)===key && o.date_debut).map(o=>o.date_debut);
@@ -7644,72 +7639,62 @@ function phasesHtml(a){
     return dSrc?.date_ctvx || '9999-12-31';
   }
 
-  // Construction : Atelier -> Tranche -> Phases
-  const atelierGroups = {}; // atelier -> { [trancheId]: {tr, sortDate, phases:[]} }
-
-  state.tranches.forEach(tr=>{
-    if(tr.statut_erp==='termine' || tr.statut_erp==='livre') return;
-    const phs = state.phases.filter(p=>p.tid===tr.id);
-    if(!phs.length) return;
-    const dSrc = (state.dates_erp||[]).find(d=>norm(d.tranche)===norm(tr.nom));
-    const sortDate = trancheSortDate(tr.nom);
-
-    phs.forEach(ph=>{
-      const phKey = ph.num||ph.nom||'';
-      let ateliers = phaseAteliers(tr.nom, phKey);
+  // Construction : une entrée par tranche non produite, avec ses phases
+  let lignes = state.tranches
+    .filter(tr => tr.statut_erp!=='termine' && tr.statut_erp!=='livre')
+    .map(tr=>{
+      const phs = state.phases.filter(p=>p.tid===tr.id);
+      if(!phs.length) return null;
+      const dSrc = (state.dates_erp||[]).find(d=>norm(d.tranche)===norm(tr.nom));
+      let ateliers = trancheAteliers(tr.nom);
       if(!ateliers.length && dSrc?.taillage && !dSrc.assemblage && !dSrc.equipement) ateliers = ['Usinage'];
-      if(!ateliers.length) ateliers = ['Sans atelier'];
-
-      ateliers.forEach(atelier=>{
-        if(!atelierGroups[atelier]) atelierGroups[atelier]={};
-        if(!atelierGroups[atelier][tr.id]) atelierGroups[atelier][tr.id]={tr, sortDate, phases:[]};
-        atelierGroups[atelier][tr.id].phases.push({ph, fichier_taille: !!ph.fichier_taille});
-      });
-    });
-  });
+      return {
+        tr,
+        ateliers,
+        sortDate: trancheSortDate(tr.nom),
+        phases: phs.map(ph=>({ph, fichier_taille: !!ph.fichier_taille}))
+      };
+    })
+    .filter(Boolean);
 
   const f = state._suiviProdFiltres;
   const q = norm(f.search);
-  const ateliersConnus = Object.keys(atelierGroups).sort((a,b)=>{
-    if(a==='Usinage'||a==='Sans atelier') return 1;
-    if(b==='Usinage'||b==='Sans atelier') return -1;
+  const ateliersConnus = [...new Set(lignes.flatMap(l=>l.ateliers))].sort((a,b)=>{
+    if(a==='Usinage') return 1; if(b==='Usinage') return -1;
     return a.localeCompare(b);
   });
 
-  // Application des filtres
-  const groupesFiltres = ateliersConnus
-    .filter(at=>!f.atelier || f.atelier===at)
-    .map(at=>{
-      const tranchesArr = Object.values(atelierGroups[at]).map(({tr,sortDate,phases})=>{
-        const phsF = phases.filter(({ph,fichier_taille})=>{
-          if(f.taille==='dispo' && !fichier_taille) return false;
-          if(f.taille==='non_dispo' && fichier_taille) return false;
-          if(q && !(norm(tr.nom).includes(q)||norm(ph.nom).includes(q)||norm(ph.num).includes(q))) return false;
-          return true;
-        });
-        return {tr, sortDate, phases: phsF};
-      }).filter(t=>t.phases.length)
-        .sort((a,b)=>a.sortDate.localeCompare(b.sortDate));
-      return {atelier: at, tranches: tranchesArr};
-    }).filter(g=>g.tranches.length);
+  lignes = lignes.map(l=>({
+    ...l,
+    phases: l.phases.filter(({ph,fichier_taille})=>{
+      if(f.taille==='dispo' && !fichier_taille) return false;
+      if(f.taille==='non_dispo' && fichier_taille) return false;
+      return true;
+    })
+  })).filter(l=>{
+    if(!l.phases.length) return false;
+    if(f.atelier && !l.ateliers.includes(f.atelier)) return false;
+    if(q && !(norm(l.tr.nom).includes(q) || l.phases.some(({ph})=>norm(ph.nom).includes(q)||norm(ph.num).includes(q)))) return false;
+    return true;
+  }).sort((a,b)=>a.sortDate.localeCompare(b.sortDate));
 
-  const totalPhases = ateliersConnus.reduce((s,at)=>s+Object.values(atelierGroups[at]).reduce((s2,t)=>s2+t.phases.length,0),0);
-  const dispoCount = ateliersConnus.reduce((s,at)=>s+Object.values(atelierGroups[at]).reduce((s2,t)=>s2+t.phases.filter(p=>p.fichier_taille).length,0),0);
+  const totalPhases = lignes.reduce((s,l)=>s+l.phases.length,0);
+  const dispoCount = lignes.reduce((s,l)=>s+l.phases.filter(p=>p.fichier_taille).length,0);
 
   let html = `<div style="padding:16px 20px">`;
 
   html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--blue)">${totalPhases}</div>
-      <div style="font-size:11px;color:var(--text3)">Phases à produire</div>
+      <div style="font-size:22px;font-weight:700;color:var(--blue)">${lignes.length}</div>
+      <div style="font-size:11px;color:var(--text3)">Tranches à produire</div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
       <div style="font-size:22px;font-weight:700;color:var(--green)">${dispoCount}</div>
-      <div style="font-size:11px;color:var(--text3)">Fichier de taille dispo</div>
+      <div style="font-size:11px;color:var(--text3)">Phases fichier taille dispo</div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
       <div style="font-size:22px;font-weight:700;color:var(--orange)">${totalPhases-dispoCount}</div>
-      <div style="font-size:11px;color:var(--text3)">Fichier manquant</div>
+      <div style="font-size:11px;color:var(--text3)">Phases fichier manquant</div>
     </div>
   </div>`;
 
@@ -7730,38 +7715,43 @@ function phasesHtml(a){
     </select>
   </div>`;
 
-  if(!groupesFiltres.length){
-    html += `<div style="text-align:center;padding:2rem;color:var(--text3)">Aucune phase à afficher pour ces critères.</div>`;
+  if(!lignes.length){
+    html += `<div style="text-align:center;padding:2rem;color:var(--text3)">Aucune tranche à afficher pour ces critères.</div>`;
   } else {
-    groupesFiltres.forEach(({atelier, tranches})=>{
-      const nbPh = tranches.reduce((s,t)=>s+t.phases.length,0);
-      html += `<div style="margin-bottom:18px">
-        <div style="background:#2C3E50;color:#fff;font-weight:700;padding:9px 14px;border-radius:8px 8px 0 0;font-size:13px;display:flex;align-items:center;gap:8px">
-          <span>🏭 ${esc(atelier)}</span>
-          <span style="font-weight:400;opacity:.75;font-size:11px">${tranches.length} tranche${tranches.length>1?'s':''} · ${nbPh} phase${nbPh>1?'s':''}</span>
-        </div>`;
-      tranches.forEach(({tr, sortDate, phases})=>{
-        const dateAff = sortDate && sortDate!=='9999-12-31' ? sortDate.split('-').reverse().join('/') : '—';
-        html += `<div onclick="toggleNode('tr','${tr.id}');renderSuiviProd()" style="cursor:pointer;background:var(--surface2);padding:7px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px">
-          <span class="chevron${tr.open?' open':''}">▶</span> ${esc(tr.nom)}
-          <span style="margin-left:auto;font-weight:400;color:var(--text2);font-size:11px;font-family:'DM Mono',monospace">📅 ${dateAff}</span>
-          <span style="font-weight:400;color:var(--text3);font-size:10px">${phases.length} phase${phases.length>1?'s':''}</span>
-        </div>`;
-        if(tr.open || q){
-         phases.forEach(({ph, fichier_taille})=>{
-            html += `<div style="padding:7px 12px 7px 32px;border-bottom:1px solid var(--border);font-size:12px;display:flex;align-items:center;gap:10px;background:var(--surface)">
-              <span style="min-width:60px;font-weight:600;color:var(--blue);font-family:'DM Mono',monospace;font-size:11px">${esc(ph.num||'')}</span>
-              <span style="flex:1">${esc(ph.nom||'')}</span>
-              <label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:${fichier_taille?'var(--green)':'var(--text3)'};font-weight:600;white-space:nowrap">
-                <input type="checkbox" ${fichier_taille?'checked':''} onchange="toggleFichierTaille('${ph.id}')" style="width:15px;height:15px;cursor:pointer;accent-color:var(--green)"/>
-                Fichier de taille disponible
+    html += `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:var(--blue);color:#fff">
+          <th style="padding:8px 10px;text-align:left">Date</th>
+          <th style="padding:8px 10px;text-align:left">Tranche</th>
+          <th style="padding:8px 10px;text-align:left">Atelier</th>
+          <th style="padding:8px 10px;text-align:left">Phases / Fichier de taille</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lignes.map((l,i)=>{
+          const dateAff = l.sortDate && l.sortDate!=='9999-12-31' ? l.sortDate.split('-').reverse().join('/') : '—';
+          const isCtvx = l.ateliers.length===0 || (!(state.suivi_prod||[]).some(o=>norm(o.tranche)===norm(l.tr.nom)&&o.date_debut));
+          const atelierAff = l.ateliers.length ? l.ateliers.join(', ') : '—';
+          const phasesHtml = l.phases.map(({ph,fichier_taille})=>`
+            <div style="display:flex;align-items:center;gap:8px;padding:3px 0">
+              <span style="min-width:50px;font-weight:600;color:var(--blue);font-family:'DM Mono',monospace;font-size:11px">${esc(ph.num||'')}</span>
+              <span style="flex:1;font-size:11px">${esc(ph.nom||'')}</span>
+              <label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:${fichier_taille?'var(--green)':'var(--text3)'};font-weight:600;white-space:nowrap">
+                <input type="checkbox" ${fichier_taille?'checked':''} onchange="toggleFichierTaille('${ph.id}')" style="width:14px;height:14px;cursor:pointer;accent-color:var(--green)"/>
+                Fichier de taille dispo
               </label>
-            </div>`;
-          });
-        }
-      });
-      html += `</div>`;
-    });
+            </div>`).join('');
+          return `<tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
+            <td style="padding:7px 10px;font-family:'DM Mono',monospace;white-space:nowrap;vertical-align:top">
+              ${dateAff}${isCtvx?'<span style="font-size:9px;color:var(--text3);display:block">CTVX</span>':'<span style="font-size:9px;color:var(--blue);display:block">Début prod</span>'}
+            </td>
+            <td style="padding:7px 10px;font-weight:500;vertical-align:top">${esc(l.tr.nom)}</td>
+            <td style="padding:7px 10px;color:var(--text2);vertical-align:top;white-space:nowrap">${esc(atelierAff)}</td>
+            <td style="padding:7px 10px">${phasesHtml}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
   }
 
   html += '</div>';
@@ -7775,20 +7765,6 @@ function toggleFichierTaille(phaseId){
   scheduleSave();
   renderSuiviProd();
   toast(ph.fichier_taille ? '✅ Fichier de taille marqué disponible' : '⚠ Fichier de taille marqué non disponible');
-}
-function toggleFichierTaille(phaseId){
-  const ph = state.phases.find(p=>p.id===phaseId);
-  if(!ph) return;
-  ph.fichier_taille = !ph.fichier_taille;
-  scheduleSave();
-  renderSuiviProd();
-  toast(ph.fichier_taille ? '✅ Fichier de taille marqué disponible' : '⚠ Fichier de taille marqué non disponible');
-}
-
-function toggleAllSuiviProd(v){
-  state.chantiers.forEach(c=>c.open=v);
-  state.tranches.forEach(t=>t.open=v);
-  renderSuiviProd();
 }
 async function syncInitialeOF() {
   if(!confirm('Importer tous les OF du planning prod vers le suivi production ?\nCela créera les articles manquants.')) return;
