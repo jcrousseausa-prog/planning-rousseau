@@ -2554,15 +2554,13 @@ function renderPhRow(ph,nbArt,arts){
   const statutBadge=`<button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut">
     <span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px">${sl[0]} ▾</span>
   </button>`;
-  return`<tr class="row-phase" onclick="toggleNode('ph','${ph.id}')">
-    <td><span class="chevron${o?' open':''}">▶</span></td>
-    <td colspan="7">${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}<b>${esc(ph.nom)}</b> ${statutBadge}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}${bh?` · ${bh}h`:''}</span></td>
-    <td colspan="5"></td>
-    <td style="text-align:right;white-space:nowrap">
-      <button class="btn btn-sm" onclick="event.stopPropagation();openEditPhase('${ph.id}')">✎</button>
-      <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deletePhase('${ph.id}')">✕</button>
-    </td></tr>`;
-}
+  const tailleBadge = ph.fichier_taille
+  ? `<span style="font-size:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 5px;margin-left:5px">✅ Taille</span>`
+  : `<span style="font-size:9px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;margin-left:5px">⚠ Taille</span>`;
+return`<tr class="row-phase" onclick="toggleNode('ph','${ph.id}')">
+  <td><span class="chevron${o?' open':''}">▶</span></td>
+  <td colspan="7">${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}<b>${esc(ph.nom)}</b> ${statutBadge}${tailleBadge}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}${bh?` · ${bh}h`:''}</span></td>
+  
 
 function renderArtRow(a){
   const av=+a.avancement||0;
@@ -7617,175 +7615,160 @@ function phasesHtml(a){
   async function renderSuiviProd(){
   const el = document.getElementById('suivi-prod-content') || document.getElementById('screen-suivi_prod');
   if(!el) return;
-  el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">⟳ Chargement…</div>';
 
-  let articles = [], prochainEffacement = null;
-  try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST', headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify({action:'getSuiviProd'})
-    });
-    const r = await res.json();
-    if(r.ok){ articles = r.articles||[]; prochainEffacement = r.prochain_effacement; }
-  } catch(e){ console.warn('getSuiviProd:', e.message); }
-
-  // Purge automatique si des articles sont expirés
-  const today = new Date().toISOString().slice(0,10);
-  const aExpirer = articles.filter(a=>a.expire_le && a.expire_le <= today);
-  if(aExpirer.length) {
-    fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'purgerAnciens'})});
-    articles = articles.filter(a=>!a.expire_le || a.expire_le > today);
-  }
+  if(!state._suiviProdFiltres) state._suiviProdFiltres = {search:'', atelier:'', taille:''};
 
   const norm = s => String(s||'').trim().toLowerCase();
-  const estProduit = a => a.statut==='produit' || a.statut==='termine';
 
-  const totalOF = articles.length;
-  const produitsOF = articles.filter(estProduit).length;
+  function phaseAteliers(trNom, phaseKey){
+    const key = norm(trNom);
+    const set = new Set();
+    (state.suivi_prod||[]).forEach(o=>{
+      if(norm(o.tranche)!==key) return;
+      const phs = String(o.phases||'').split(',').map(s=>s.trim()).filter(Boolean);
+      if(phs.includes(phaseKey)) set.add(o.atelier||'');
+    });
+    return [...set].filter(Boolean);
+  }
 
-  // Lignes affichées : uniquement celles non produites ET dont la tranche n'est pas Terminé/Livré côté pilotage
-  const estTrancheCloturee = nomTranche => {
-    const key = norm(nomTranche);
-    const trErp = state.tranches.find(t=>String(t.nom||'').trim().toLowerCase()===key);
-    return trErp && (trErp.statut_erp==='termine' || trErp.statut_erp==='livre');
-  };
-  const articlesAffiches = articles.filter(a=>!estProduit(a) && !estTrancheCloturee(a.tranche));
-
-  // Cross-référence CTVX pour chaque ligne existante
-  const dateCtvxParTranche = {};
-  (state.dates_erp||[]).forEach(d=>{
-    const k = norm(d.tranche);
-    if(k && (!dateCtvxParTranche[k] || d.date_ctvx < dateCtvxParTranche[k])) dateCtvxParTranche[k] = d.date_ctvx || '';
+  // Construction de l'arborescence complète
+  const tree = [];
+  state.chantiers.forEach(ch=>{
+    const trs = state.tranches.filter(t=>t.cid===ch.id);
+    const trsData = [];
+    trs.forEach(tr=>{
+      if(tr.statut_erp==='termine' || tr.statut_erp==='livre') return;
+      const phs = state.phases.filter(p=>p.tid===tr.id);
+      if(!phs.length) return;
+      const dSrc = (state.dates_erp||[]).find(d=>norm(d.tranche)===norm(tr.nom));
+      const phsData = phs.map(ph=>{
+        const phKey = ph.num||ph.nom||'';
+        let ateliers = phaseAteliers(tr.nom, phKey);
+        if(!ateliers.length && dSrc?.taillage && !dSrc.assemblage && !dSrc.equipement) ateliers = ['Usinage'];
+        return {ph, ateliers, fichier_taille: !!ph.fichier_taille};
+      });
+      trsData.push({tr, phases: phsData});
+    });
+    if(trsData.length) tree.push({ch, tranches: trsData});
   });
 
-  const tranchesAvecOF = new Set(articles.map(a=>norm(a.tranche)));
+  // Liste des ateliers connus pour le filtre
+  const ateliersConnus = new Set();
+  tree.forEach(({tranches})=>tranches.forEach(({phases})=>phases.forEach(({ateliers})=>ateliers.forEach(a=>ateliersConnus.add(a)))));
 
-  // Tranches "usinage seul" : taillage=true, pas besoin d'atelier, aucun OF existant (produit ou non)
-const lignesUsinage = (state.dates_erp||[]).filter(d=>{
-    if(!d.taillage) return false;
-    if(d.assemblage || d.equipement) return false;
-    const key = norm(d.tranche);
-    if(!key || tranchesAvecOF.has(key)) return false;
-    const trErp = state.tranches.find(t=>String(t.nom||'').trim().toLowerCase()===key);
-    if(trErp && (trErp.statut_erp==='termine' || trErp.statut_erp==='livre')) return false;
-    return true;
-  }).map(d=>({
-    id:'—', tranche:d.tranche, atelier:'Usinage', commentaire:'',
-    date_debut:'', date_creation:'', date_production:'',
-    statut:'usinage_seul', _isUsinage:true, _ctvx:d.date_ctvx||''
-  }));
+  const f = state._suiviProdFiltres;
+  const q = norm(f.search);
 
-  const toutesLignes = [
-    ...articlesAffiches.map(a=>({...a, _ctvx: dateCtvxParTranche[norm(a.tranche)]||''})),
-    ...lignesUsinage
-  ];
+  // Application des filtres au niveau des phases, en remontant chantier/tranche si au moins une phase matche
+  const treeFiltre = tree.map(({ch, tranches})=>{
+    const trsF = tranches.map(({tr, phases})=>{
+      const phsF = phases.filter(({ph, ateliers, fichier_taille})=>{
+        if(f.atelier && !ateliers.includes(f.atelier)) return false;
+        if(f.taille==='dispo' && !fichier_taille) return false;
+        if(f.taille==='non_dispo' && fichier_taille) return false;
+        if(q && !(norm(ch.nom).includes(q)||norm(tr.nom).includes(q)||norm(ph.nom).includes(q)||norm(ph.num).includes(q))) return false;
+        return true;
+      });
+      return {tr, phases: phsF};
+    }).filter(t=>t.phases.length);
+    return {ch, tranches: trsF};
+  }).filter(c=>c.tranches.length);
 
-  // Tri par date au plus tôt : date de début prod si dispo, sinon CTVX
-  const sortKey = a => a.date_debut || a._ctvx || '9999-12-31';
-  toutesLignes.sort((a,b)=> sortKey(a).localeCompare(sortKey(b)));
-
-  const parTranche = {};
-  toutesLignes.forEach(a=>{
-    const k = a.tranche||'(sans tranche)';
-    if(!parTranche[k]) parTranche[k]={articles:[]};
-    parTranche[k].articles.push(a);
-  });
-
-  const enCours = articlesAffiches.length;
-  const usinageSeulCount = lignesUsinage.length;
+  const totalPhases = tree.reduce((s,c)=>s+c.tranches.reduce((s2,t)=>s2+t.phases.length,0),0);
+  const dispoCount = tree.reduce((s,c)=>s+c.tranches.reduce((s2,t)=>s2+t.phases.filter(p=>p.fichier_taille).length,0),0);
 
   let html = `<div style="padding:16px 20px">`;
 
-  if(prochainEffacement) {
-    const dateAff = prochainEffacement.split('-').reverse().join('/');
-    html += `<div style="background:#fef3cd;border:1px solid #f0c040;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#7d5a00">
-      ⚠ Les articles produits sont automatiquement supprimés 12 mois après leur création.
-      <strong>Prochain effacement : ${dateAff}</strong>
-    </div>`;
-  }
-
-  html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+  html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--blue)">${totalOF}</div>
-      <div style="font-size:11px;color:var(--text3)">OF créés (total)</div>
+      <div style="font-size:22px;font-weight:700;color:var(--blue)">${totalPhases}</div>
+      <div style="font-size:11px;color:var(--text3)">Phases à produire</div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--green)">${produitsOF}</div>
-      <div style="font-size:11px;color:var(--text3)">Produits (masqués ci-dessous)</div>
+      <div style="font-size:22px;font-weight:700;color:var(--green)">${dispoCount}</div>
+      <div style="font-size:11px;color:var(--text3)">Fichier de taille dispo</div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--orange)">${enCours}</div>
-      <div style="font-size:11px;color:var(--text3)">En cours</div>
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--purple)">${usinageSeulCount}</div>
-      <div style="font-size:11px;color:var(--text3)">Usinage seul</div>
+      <div style="font-size:22px;font-weight:700;color:var(--orange)">${totalPhases-dispoCount}</div>
+      <div style="font-size:11px;color:var(--text3)">Fichier manquant</div>
     </div>
   </div>`;
 
-  if(!totalOF) html += `<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
-    <button class="btn btn-sm btn-sim" onclick="syncInitialeOF()" style="font-size:12px">
-      🔄 Importer les OF depuis le planning prod
-    </button>
-    <span style="font-size:11px;color:var(--text3)">Synchronise tous les OF actuels du planning prod vers ce suivi</span>
+  html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+    <input type="text" value="${esc(f.search)}" placeholder="Rechercher chantier, tranche, phase…"
+      oninput="state._suiviProdFiltres.search=this.value;renderSuiviProd()"
+      style="flex:1;max-width:280px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"/>
+    <select onchange="state._suiviProdFiltres.atelier=this.value;renderSuiviProd()"
+      style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
+      <option value="">Tous ateliers</option>
+      ${[...ateliersConnus].sort().map(a=>`<option value="${esc(a)}"${f.atelier===a?' selected':''}>${esc(a)}</option>`).join('')}
+    </select>
+    <select onchange="state._suiviProdFiltres.taille=this.value;renderSuiviProd()"
+      style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
+      <option value="">Fichier taille : tous</option>
+      <option value="dispo"${f.taille==='dispo'?' selected':''}>✅ Disponible</option>
+      <option value="non_dispo"${f.taille==='non_dispo'?' selected':''}>⚠ Non disponible</option>
+    </select>
+    <button class="btn btn-sm" onclick="toggleAllSuiviProd(true)">Tout déplier</button>
+    <button class="btn btn-sm" onclick="toggleAllSuiviProd(false)">Tout replier</button>
   </div>`;
 
-  if(!toutesLignes.length){
-    html += '<div style="text-align:center;padding:2rem;color:var(--text3)">Aucun OF en cours ni tranche usinage seul à afficher.</div>';
+  if(!treeFiltre.length){
+    html += `<div style="text-align:center;padding:2rem;color:var(--text3)">Aucune phase à afficher pour ces critères.</div>`;
   } else {
-    html += `<table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead>
-        <tr style="background:var(--blue);color:#fff">
-          <th style="padding:8px 10px;text-align:left">ID</th>
-          <th style="padding:8px 10px;text-align:left">Tranche</th>
-          <th style="padding:8px 10px;text-align:left">Atelier</th>
-          <th style="padding:8px 10px;text-align:left">Commentaire</th>
-<th style="padding:8px 10px;text-align:left">Phases</th>
-          <th style="padding:8px 10px;text-align:center">CTVX</th>
-          <th style="padding:8px 10px;text-align:center">Début Prod</th>
-          <th style="padding:8px 10px;text-align:center">Créé le</th>
-          <th style="padding:8px 10px;text-align:center">Produit le</th>
-          <th style="padding:8px 10px;text-align:center">Statut</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${toutesLignes.map((a,i)=>{
-          const rowBg = i%2===0?'':'background:var(--bg)';
-          const isUs = a._isUsinage;
-          const statLabel = isUs ? '⚙️ Usinage seul' : '🔧 En cours';
-          const statColor = isUs ? 'var(--purple)' : 'var(--orange)';
-          return '<tr style="'+rowBg+(isUs?';font-style:italic':'')+'">' +
-            '<td style="padding:7px 10px;font-family:monospace;font-weight:600;color:var(--blue)">'+esc(a.id||'')+'</td>' +
-            '<td style="padding:7px 10px;font-weight:500">'+esc(a.tranche||'')+'</td>' +
-            '<td style="padding:7px 10px;color:var(--text2)">'+esc(a.atelier||'')+'</td>' +
-            '<td style="padding:7px 10px;color:var(--text2)">'+esc(a.commentaire||'')+'</td>' +
-'<td style="padding:7px 10px">'+phasesHtml(a)+'</td>' +
-            '<td style="padding:7px 10px;text-align:center">'+(esc(a._ctvx||'')||'—')+'</td>' +
-            '<td style="padding:7px 10px;text-align:center">'+(esc(a.date_debut||'')||'—')+'</td>' +
-            '<td style="padding:7px 10px;text-align:center;color:var(--text3)">'+esc(a.date_creation||'')+'</td>' +
-            '<td style="padding:7px 10px;text-align:center;color:var(--text3)">'+(esc(a.date_production||'')||'—')+'</td>' +
-            '<td style="padding:7px 10px;text-align:center;font-weight:600;color:'+statColor+'">'+statLabel+'</td>' +
-            '</tr>';
-        }).join('')}
-      </tbody>
-    </table>
-
-    <div style="margin-top:20px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)">Avancement par tranche (lignes affichées)</div>
-      ${Object.entries(parTranche).map(([tranche, data])=>{
-        const tot = data.articles.length;
-        return '<div style="margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:8px 12px">' +
-          '<span style="font-size:12px;font-weight:600">'+esc(tranche)+'</span>' +
-          '<span style="font-size:11px;color:var(--text3);margin-left:8px">'+tot+' ligne'+(tot>1?'s':'')+'</span>' +
-          '</div>';
-      }).join('')}
-    </div>
-  `}
+    treeFiltre.forEach(({ch, tranches})=>{
+      html += `<div style="margin-bottom:6px">
+        <div onclick="toggleNode('ch','${ch.id}');renderSuiviProd()" style="cursor:pointer;background:#EAF1FB;font-weight:600;padding:8px 12px;border-radius:8px 8px 0 0;font-size:13px;display:flex;align-items:center;gap:6px">
+          <span class="chevron${ch.open?' open':''}">▶</span> ${esc(ch.nom)}
+          <span style="font-weight:400;color:var(--text2);font-size:11px;margin-left:6px">${tranches.length} tranche${tranches.length>1?'s':''}</span>
+        </div>`;
+      if(ch.open || q){
+        tranches.forEach(({tr, phases})=>{
+          html += `<div onclick="toggleNode('tr','${tr.id}');renderSuiviProd()" style="cursor:pointer;background:var(--surface2);padding:7px 12px 7px 28px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px">
+            <span class="chevron${tr.open?' open':''}">▶</span> ${esc(tr.nom)}
+            <span style="font-weight:400;color:var(--text3);font-size:10px;margin-left:6px">${phases.length} phase${phases.length>1?'s':''}</span>
+          </div>`;
+          if(tr.open || q){
+            phases.forEach(({ph, ateliers, fichier_taille})=>{
+              const badgeAteliers = ateliers.length
+                ? ateliers.map(a=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;margin-right:3px">${esc(a)}</span>`).join('')
+                : '<span style="color:var(--text3);font-size:10px">—</span>';
+              html += `<div style="padding:7px 12px 7px 48px;border-bottom:1px solid var(--border);font-size:12px;display:flex;align-items:center;gap:10px;background:var(--surface)">
+                <span style="min-width:60px;font-weight:600;color:var(--blue);font-family:'DM Mono',monospace;font-size:11px">${esc(ph.num||'')}</span>
+                <span style="flex:1">${esc(ph.nom||'')}</span>
+                <span>${badgeAteliers}</span>
+                <button onclick="event.stopPropagation();toggleFichierTaille('${ph.id}')"
+                  style="border:none;background:none;cursor:pointer;display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;
+                  background:${fichier_taille?'var(--green-bg)':'var(--orange-bg)'};color:${fichier_taille?'var(--green)':'var(--orange)'};border:1px solid ${fichier_taille?'var(--green-border)':'var(--orange-border)'}">
+                  ${fichier_taille?'✅ Fichier dispo':'⚠ Fichier manquant'}
+                </button>
+              </div>`;
+            });
+          }
+        });
+      }
+      html += `</div>`;
+    });
+  }
 
   html += '</div>';
   el.innerHTML = html;
 }
 
+function toggleFichierTaille(phaseId){
+  const ph = state.phases.find(p=>p.id===phaseId);
+  if(!ph) return;
+  ph.fichier_taille = !ph.fichier_taille;
+  scheduleSave();
+  renderSuiviProd();
+  toast(ph.fichier_taille ? '✅ Fichier de taille marqué disponible' : '⚠ Fichier de taille marqué non disponible');
+}
+
+function toggleAllSuiviProd(v){
+  state.chantiers.forEach(c=>c.open=v);
+  state.tranches.forEach(t=>t.open=v);
+  renderSuiviProd();
+}
 async function syncInitialeOF() {
   if(!confirm('Importer tous les OF du planning prod vers le suivi production ?\nCela créera les articles manquants.')) return;
   toast('⟳ Import en cours…');
