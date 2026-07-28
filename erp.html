@@ -7624,36 +7624,46 @@ async function renderSuiviProd(){
   if(!state._suiviProdFiltres) state._suiviProdFiltres = {search:'', atelier:'', taille:''};
   const norm = s => String(s||'').trim().toLowerCase();
 
-  function trancheAteliers(trNom){
+  function ofsPourTranche(trNom){
     const key = norm(trNom);
-    const set = new Set();
-    (state.suivi_prod||[]).forEach(o=>{ if(norm(o.tranche)===key && o.atelier) set.add(o.atelier); });
-    return [...set];
+    return (state.suivi_prod||[]).filter(o=>norm(o.tranche)===key);
   }
-
+  function trancheAteliers(trNom){
+    return [...new Set(ofsPourTranche(trNom).map(o=>o.atelier).filter(Boolean))];
+  }
+  function trancheEstProduite(trNom){
+    const ofs = ofsPourTranche(trNom);
+    if(!ofs.length) return false;
+    return ofs.every(o=>o.statut==='termine' || o.statut==='produit');
+  }
   function trancheSortDate(trNom){
     const key = norm(trNom);
-    const debuts = (state.suivi_prod||[]).filter(o=>norm(o.tranche)===key && o.date_debut).map(o=>o.date_debut);
+    const debuts = ofsPourTranche(trNom).filter(o=>o.date_debut).map(o=>o.date_debut);
     if(debuts.length) return debuts.reduce((min,d)=>(!min||d<min)?d:min, null);
     const dSrc = (state.dates_erp||[]).find(d=>norm(d.tranche)===key);
     return dSrc?.date_ctvx || '9999-12-31';
   }
 
-  // Construction : une entrée par tranche non produite, avec ses phases
   let lignes = state.tranches
     .filter(tr => tr.statut_erp!=='termine' && tr.statut_erp!=='livre')
+    .filter(tr => !trancheEstProduite(tr.nom))
     .map(tr=>{
-      const phs = state.phases.filter(p=>p.tid===tr.id);
-      if(!phs.length) return null;
+      const phsReelles = state.phases.filter(p=>p.tid===tr.id);
       const dSrc = (state.dates_erp||[]).find(d=>norm(d.tranche)===norm(tr.nom));
+      const usinageSeul = dSrc?.taillage && !dSrc.assemblage && !dSrc.equipement;
       let ateliers = trancheAteliers(tr.nom);
-      if(!ateliers.length && dSrc?.taillage && !dSrc.assemblage && !dSrc.equipement) ateliers = ['Usinage'];
-      return {
-        tr,
-        ateliers,
-        sortDate: trancheSortDate(tr.nom),
-        phases: phs.map(ph=>({ph, fichier_taille: !!ph.fichier_taille}))
-      };
+
+      let phases;
+      if(phsReelles.length){
+        phases = phsReelles.map(ph=>({id:ph.id, num:ph.num||'', nom:ph.nom||'', fichier_taille: !!ph.fichier_taille, virtuelle:false}));
+      } else if(usinageSeul){
+        ateliers = ['Usinage'];
+        phases = [{id:'us_'+tr.id, num:'Taillage', nom:'Fichier de taille à préparer', fichier_taille: !!tr.fichier_taille_usinage, virtuelle:true}];
+      } else {
+        return null; // ni phase réelle, ni besoin usinage seul → rien à montrer
+      }
+
+      return { tr, ateliers, sortDate: trancheSortDate(tr.nom), phases };
     })
     .filter(Boolean);
 
@@ -7666,7 +7676,7 @@ async function renderSuiviProd(){
 
   lignes = lignes.map(l=>({
     ...l,
-    phases: l.phases.filter(({ph,fichier_taille})=>{
+    phases: l.phases.filter(({fichier_taille})=>{
       if(f.taille==='dispo' && !fichier_taille) return false;
       if(f.taille==='non_dispo' && fichier_taille) return false;
       return true;
@@ -7674,7 +7684,7 @@ async function renderSuiviProd(){
   })).filter(l=>{
     if(!l.phases.length) return false;
     if(f.atelier && !l.ateliers.includes(f.atelier)) return false;
-    if(q && !(norm(l.tr.nom).includes(q) || l.phases.some(({ph})=>norm(ph.nom).includes(q)||norm(ph.num).includes(q)))) return false;
+    if(q && !(norm(l.tr.nom).includes(q) || l.phases.some(p=>norm(p.nom).includes(q)||norm(p.num).includes(q)))) return false;
     return true;
   }).sort((a,b)=>a.sortDate.localeCompare(b.sortDate));
 
@@ -7730,20 +7740,20 @@ async function renderSuiviProd(){
       <tbody>
         ${lignes.map((l,i)=>{
           const dateAff = l.sortDate && l.sortDate!=='9999-12-31' ? l.sortDate.split('-').reverse().join('/') : '—';
-          const isCtvx = l.ateliers.length===0 || (!(state.suivi_prod||[]).some(o=>norm(o.tranche)===norm(l.tr.nom)&&o.date_debut));
+          const aDebutProd = ofsPourTranche(l.tr.nom).some(o=>o.date_debut);
           const atelierAff = l.ateliers.length ? l.ateliers.join(', ') : '—';
-          const phasesHtml = l.phases.map(({ph,fichier_taille})=>`
+          const phasesHtml = l.phases.map(p=>`
             <div style="display:flex;align-items:center;gap:8px;padding:3px 0">
-              <span style="min-width:50px;font-weight:600;color:var(--blue);font-family:'DM Mono',monospace;font-size:11px">${esc(ph.num||'')}</span>
-              <span style="flex:1;font-size:11px">${esc(ph.nom||'')}</span>
-              <label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:${fichier_taille?'var(--green)':'var(--text3)'};font-weight:600;white-space:nowrap">
-                <input type="checkbox" ${fichier_taille?'checked':''} onchange="toggleFichierTaille('${ph.id}')" style="width:14px;height:14px;cursor:pointer;accent-color:var(--green)"/>
+              <span style="min-width:60px;font-weight:600;color:var(--blue);font-family:'DM Mono',monospace;font-size:11px">${esc(p.num||'')}</span>
+              <span style="flex:1;font-size:11px${p.virtuelle?';font-style:italic;color:var(--text3)':''}">${esc(p.nom||'')}</span>
+              <label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:${p.fichier_taille?'var(--green)':'var(--text3)'};font-weight:600;white-space:nowrap">
+                <input type="checkbox" ${p.fichier_taille?'checked':''} onchange="${p.virtuelle?`toggleFichierTailleTranche('${l.tr.id}')`:`toggleFichierTaille('${p.id}')`}" style="width:14px;height:14px;cursor:pointer;accent-color:var(--green)"/>
                 Fichier de taille dispo
               </label>
             </div>`).join('');
           return `<tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
             <td style="padding:7px 10px;font-family:'DM Mono',monospace;white-space:nowrap;vertical-align:top">
-              ${dateAff}${isCtvx?'<span style="font-size:9px;color:var(--text3);display:block">CTVX</span>':'<span style="font-size:9px;color:var(--blue);display:block">Début prod</span>'}
+              ${dateAff}${aDebutProd?'<span style="font-size:9px;color:var(--blue);display:block">Début prod</span>':'<span style="font-size:9px;color:var(--text3);display:block">CTVX</span>'}
             </td>
             <td style="padding:7px 10px;font-weight:500;vertical-align:top">${esc(l.tr.nom)}</td>
             <td style="padding:7px 10px;color:var(--text2);vertical-align:top;white-space:nowrap">${esc(atelierAff)}</td>
@@ -7765,6 +7775,15 @@ function toggleFichierTaille(phaseId){
   scheduleSave();
   renderSuiviProd();
   toast(ph.fichier_taille ? '✅ Fichier de taille marqué disponible' : '⚠ Fichier de taille marqué non disponible');
+}
+
+function toggleFichierTailleTranche(trId){
+  const tr = state.tranches.find(t=>t.id===trId);
+  if(!tr) return;
+  tr.fichier_taille_usinage = !tr.fichier_taille_usinage;
+  scheduleSave();
+  renderSuiviProd();
+  toast(tr.fichier_taille_usinage ? '✅ Fichier de taille marqué disponible' : '⚠ Fichier de taille marqué non disponible');
 }
 async function syncInitialeOF() {
   if(!confirm('Importer tous les OF du planning prod vers le suivi production ?\nCela créera les articles manquants.')) return;
