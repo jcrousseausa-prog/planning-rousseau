@@ -309,23 +309,61 @@
     }
   }
 
-  function demanderOperation(nom){
+   function demanderChoix(nom, titre, options){
     return new Promise(resolve=>{
       const screen = document.getElementById('taskScreen');
-      document.getElementById('taskTop').textContent = nom.toUpperCase() + ' — Choisissez votre tâche';
-      document.getElementById('taskButtons').innerHTML = OPERATIONS.map(op =>
-        `<button class="btn btn-primary" style="padding:26px 10px;font-size:19px" data-op="${escapeHtml(op)}">${escapeHtml(op)}</button>`
-      ).join('');
+      document.getElementById('taskTop').textContent = nom.toUpperCase() + ' — ' + titre;
+      document.getElementById('taskButtons').innerHTML =
+        '<div style="max-height:60vh;overflow-y:auto;width:100%;max-width:600px;margin:0 auto;text-align:left">' +
+        options.map((op,i) =>
+          `<div style="padding:12px 18px;font-size:19px;border-bottom:1px solid rgba(255,255,255,.25);display:flex;gap:14px">
+             <span style="font-weight:900;min-width:34px">${i+1}.</span>
+             <span>${escapeHtml(op)}</span>
+           </div>`
+        ).join('') +
+        '</div>' +
+        '<div style="margin-top:20px;font-size:16px;opacity:.9">Tapez le numéro puis Entrée, ou scannez un code</div>' +
+        '<input type="text" id="choiceInput" autocomplete="off" inputmode="none" style="margin-top:12px;padding:12px 18px;font-size:20px;border-radius:10px;border:none;width:260px;text-align:center"/>';
       screen.classList.add('show');
+
+      const input = document.getElementById('choiceInput');
+      input.focus();
+
       const handler = (e)=>{
-        const btn = e.target.closest('[data-op]');
-        if (!btn) return;
-        screen.removeEventListener('click', handler);
+        if (e.key !== 'Enter') return;
+        const val = input.value.trim();
+        input.value = '';
+        if (!val) return;
+
+        let resultat = null;
+        if (/^\d+$/.test(val)) {
+          const idx = parseInt(val, 10) - 1;
+          if (idx >= 0 && idx < options.length) resultat = options[idx];
+        }
+        if (!resultat) {
+          const match = options.find(o => o.toLowerCase() === val.toLowerCase());
+          if (match) resultat = match;
+        }
+        if (!resultat) {
+          input.style.background = '#ffcdd2';
+          setTimeout(()=>{ input.style.background=''; }, 400);
+          return;
+        }
+
+        input.removeEventListener('keydown', handler);
         screen.classList.remove('show');
-        resolve(btn.getAttribute('data-op'));
+        resolve(resultat);
       };
-      screen.addEventListener('click', handler);
+      input.addEventListener('keydown', handler);
     });
+  }
+
+  function demanderOperation(nom){
+    return demanderChoix(nom, 'Choisissez votre tâche', OPERATIONS);
+  }
+
+  function demanderChantier(nom, operation){
+    return demanderChoix(nom, operation + ' — Choisissez le chantier', CHANTIERS);
   }
 
   function demanderChantier(nom, operation){
