@@ -317,8 +317,9 @@
     }
   }
 
-   function demanderChoix(nom, titre, options){
+     function demanderChoix(nom, titre, options){
     return new Promise(resolve=>{
+      choiceScreenActive = true;
       const screen = document.getElementById('taskScreen');
       document.getElementById('taskTop').textContent = nom.toUpperCase() + ' — ' + titre;
       document.getElementById('taskButtons').innerHTML =
@@ -358,8 +359,10 @@
           return;
         }
 
-        input.removeEventListener('keydown', handler);
+          input.removeEventListener('keydown', handler);
         screen.classList.remove('show');
+        choiceScreenActive = false;
+        document.getElementById('scanInput').focus();
         resolve(resultat);
       };
       input.addEventListener('keydown', handler);
