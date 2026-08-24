@@ -1,764 +1,822 @@
-/***********************
- *  OUTPUT HELPERS
- ***********************/
-function json_(obj) {
-  return ContentService
-    .createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pointage Présence</title>
 
-function text_(s) {
-  return ContentService
-    .createTextOutput(String(s || ''))
-    .setMimeType(ContentService.MimeType.TEXT);
-}
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
 
-/***********************
- *  WEB APP ENDPOINTS
- ***********************/
-function doOptions(e) {
-  return text_('OK');
-}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      background: linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+      min-height:100vh;
+      padding:20px;
+      overflow-x:hidden;
+    }
 
-function doPost(e) {
-  try {
-    const data = JSON.parse((e && e.postData && e.postData.contents) || "{}");
-    const action = data.action;
+    .container{ max-width:1400px; margin:0 auto; }
 
-    if (action === 'startPresence') return json_(startPresence_(data));
-    if (action === 'endPresence') return json_(endPresence_(data));
-    if (action === 'togglePresence') return json_(togglePresence_(data));
-    if (action === 'autoClosePresence') return json_(autoClosePresenceAndOF_(data));
+    .header{
+      background:white; padding:30px; border-radius:15px;
+      box-shadow:0 10px 30px rgba(0,0,0,.2); margin-bottom:20px; text-align:center;
+    }
 
-    return json_({ success: false, error: "Action inconnue: " + action });
-  } catch (err) {
-    return json_({
-      success: false,
-      error: String(err),
-      stack: err && err.stack ? err.stack : ''
+    .header h1{
+      color:#667eea; font-size:32px; display:flex; align-items:center; justify-content:center;
+      gap:20px; flex-wrap:wrap;
+    }
+
+    .status-bar{
+      background:white; padding:12px 15px; border-radius:10px; margin-bottom:20px;
+      text-align:center; box-shadow:0 4px 6px rgba(0,0,0,.1);
+    }
+
+    .status-connected{ color:#10b981; font-weight:800; }
+    .status-error{ color:#ef4444; font-weight:800; }
+
+    .panel{
+      background:white; border-radius:15px; overflow:hidden;
+      box-shadow:0 10px 30px rgba(0,0,0,.2);
+      padding:25px;
+    }
+
+    .form-group{ margin-bottom:16px; }
+
+    .form-group label{
+      display:block; margin-bottom:8px; font-weight:800; color:#374151;
+    }
+
+    .form-group input{
+      width:100%; padding:14px; border:2px solid #e5e7eb; border-radius:8px; font-size:16px;
+    }
+
+    .input-group{ display:flex; gap:10px; }
+
+    .btn{
+      padding:14px 22px; border:none; border-radius:8px; font-size:16px; font-weight:900;
+      cursor:pointer; transition: all .2s ease;
+      white-space:nowrap;
+    }
+
+    .btn-primary{ background:#667eea; color:white; }
+    .btn-primary:hover{ background:#5568d3; }
+    .btn:disabled{ opacity:.65; cursor:not-allowed; }
+
+    table{
+      width:100%; border-collapse:collapse; background:white; border-radius:10px; overflow:hidden;
+    }
+
+    thead{ background:#f3f4f6; }
+
+    th{
+      padding:12px; text-align:left; font-weight:900; color:#374151;
+    }
+
+    td{
+      padding:12px; border-top:1px solid #e5e7eb; vertical-align:top;
+    }
+
+    tr:hover{ background:#f9fafb; }
+
+    .status-badge{
+      padding:6px 12px; border-radius:999px; font-size:13px; font-weight:900;
+    }
+
+    .status-active{ background:#d1fae5; color:#065f46; }
+    .status-ended{ background:#fee2e2; color:#991b1b; }
+
+    .toast{
+      position:fixed; top:18px; left:50%; transform:translateX(-50%);
+      background:white; padding:14px 18px; border-radius:12px;
+      box-shadow:0 10px 30px rgba(0,0,0,.25);
+      z-index:9999; max-width:92vw; font-weight:800;
+    }
+
+    .toast.ok{ border-left:6px solid #10b981; }
+    .toast.err{ border-left:6px solid #ef4444; }
+
+    .queue-hint{
+      margin-top:8px;
+      font-weight:800;
+      color:#374151;
+      font-size:13px;
+      min-height:18px;
+    }
+
+    .presence-oops{
+      color:#ff0000;
+      font-weight:900;
+    }
+
+    /* =========================
+       MODE USINE / BADGEUSE
+       ========================= */
+    .factory-screen{
+      position:fixed;
+      inset:0;
+      z-index:20000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex-direction:column;
+      text-align:center;
+      opacity:0;
+      visibility:hidden;
+      pointer-events:none;
+      transition:opacity .12s ease;
+      padding:30px;
+    }
+
+    .factory-screen.show{
+      opacity:1;
+      visibility:visible;
+    }
+
+    .factory-screen.entry{
+      background:#00c853; /* vert très visible */
+      color:#ffffff;
+    }
+
+    .factory-screen.exit{
+      background:#d50000; /* rouge sortie */
+      color:#ffffff;
+    }
+
+    .factory-mode-top{
+      font-size:clamp(28px, 4vw, 56px);
+      font-weight:900;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      opacity:.95;
+      margin-bottom:25px;
+      text-shadow:0 4px 20px rgba(0,0,0,.25);
+    }
+
+    .factory-mode-name{
+      font-size:clamp(60px, 10vw, 180px);
+      line-height:.95;
+      font-weight:1000;
+      letter-spacing:.01em;
+      text-transform:uppercase;
+      max-width:95vw;
+      word-break:break-word;
+      text-shadow:
+        0 4px 0 rgba(0,0,0,.15),
+        0 10px 30px rgba(0,0,0,.22);
+    }
+
+    .factory-mode-bottom{
+      margin-top:28px;
+      font-size:clamp(22px, 3.2vw, 46px);
+      font-weight:900;
+      opacity:.98;
+      text-shadow:0 4px 20px rgba(0,0,0,.25);
+    }
+
+    .factory-pulse{
+      animation:factoryPulse .45s ease 2;
+    }
+
+    @keyframes factoryPulse{
+      0%{ transform:scale(1); }
+      50%{ transform:scale(1.025); }
+      100%{ transform:scale(1); }
+    }
+
+    @media (max-width: 900px){
+      .input-group{ flex-direction:column; }
+      .btn{ width:100%; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+
+  <div class="status-bar">
+    <span id="statusText">🔄 Vérification de la connexion…</span>
+  </div>
+
+  <div class="header">
+    <h1>
+      <img src="logo.png" alt="Logo" style="height:60px;width:auto;border:3px solid #2c3e50;border-radius:8px;padding:5px;background:white;">
+      Pointage Présence
+    </h1>
+  </div>
+
+  <div class="panel">
+    <div class="form-group">
+      <label>Scanner l’ID employé</label>
+      <div class="input-group">
+        <input
+          type="text"
+          id="scanInput"
+          placeholder="Scannez l’ID (ex: 111)..."
+          autocomplete="off"
+          inputmode="none"
+          onkeydown="if(event.key==='Enter'){ event.preventDefault(); handlePresenceScan(); }"
+        >
+        <button id="presenceBtn" class="btn btn-primary" onclick="handlePresenceScan()">Pointer</button>
+      </div>
+      <div id="queueHint" class="queue-hint"></div>
+    </div>
+
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Employé</th>
+            <th>Début</th>
+            <th>Fin</th>
+            <th>Temps</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody id="presenceTableBody">
+          <tr><td colspan="5" style="text-align:center;">Chargement...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ÉCRAN PLEIN MODE USINE -->
+<div id="factoryScreen" class="factory-screen" aria-hidden="true">
+  <div id="factoryTop" class="factory-mode-top">POINTAGE ENREGISTRÉ</div>
+  <div id="factoryName" class="factory-mode-name">NOM EMPLOYÉ</div>
+  <div id="factoryBottom" class="factory-mode-bottom">ENTRÉE</div>
+</div>
+
+<script>
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzzTvmU8uvjwEpdV8Q1bB9zo_XUJH0-e3K0cX_Snt7sCnGbEbbojASPmkUa8d2gswrI/exec";
+
+  let EMP_BY_ID = new Map();
+  let presenceRecords = [];
+
+  let processing = false;
+  let queue = [];
+  let syncTimer = null;
+  let lastLocalChangeAt = 0;
+
+  const STORAGE_KEY = 'pointage-presence-id-v7';
+  const SCAN_LOCK_MS = 2000;
+  const employeeCooldown = new Map();
+
+  let factoryTimer = null;
+
+  window.onload = function() {
+    testConnection();
+
+    loadEmployees().finally(async () => {
+      loadLocalSafe_();
+      await loadPresenceFromServer(true);
+
+      if (syncTimer) clearInterval(syncTimer);
+      syncTimer = setInterval(() => loadPresenceFromServer(false), 30000);
+
+      lockFocus();
+      updateQueueInfo();
+    });
+  };
+
+  /***********************
+   * Compat / réseau
+   ***********************/
+  function safeNormalize_(s){
+    s = String(s || '').trim().toLowerCase();
+    try { if (s.normalize) s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch(e) {}
+    return s;
+  }
+
+  function http_(url, opts){
+    opts = opts || {};
+    if (window.fetch) return fetch(url, opts);
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(opts.method || 'GET', url, true);
+      if (opts.headers) Object.keys(opts.headers).forEach(k => xhr.setRequestHeader(k, opts.headers[k]));
+      xhr.timeout = 15000;
+      xhr.onload = () => resolve({
+        ok: xhr.status >= 200 && xhr.status < 300,
+        status: xhr.status,
+        text: () => Promise.resolve(xhr.responseText)
+      });
+      xhr.ontimeout = () => reject(new Error('timeout'));
+      xhr.onerror = () => reject(new Error('network'));
+      xhr.send(opts.body || null);
     });
   }
-}
 
-function doGet(e) {
-  const action = (e && e.parameter && e.parameter.action) || '';
+  /***********************
+   * Focus lock
+   ***********************/
+  function lockFocus(){
+    const input = document.getElementById('scanInput');
+    input.focus();
 
-  if (action === 'getEmployees') return json_(getEmployees_());
-  if (action === 'getPresence') return json_(getPresence_());
+    document.addEventListener('mousedown', (e) => {
+      if (e.target !== input) setTimeout(() => input.focus(), 0);
+    }, true);
 
-  return text_('API Pointage OK');
-}
+    input.addEventListener('blur', () => setTimeout(() => input.focus(), 0));
 
-/***********************
- *  HELPERS
- ***********************/
-function norm_(s) {
-  return String(s || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-}
-
-function nowFR_() {
-  return Utilities.formatDate(new Date(), 'Europe/Paris', 'dd/MM/yyyy HH:mm:ss');
-}
-
-function parseFRDate_(v) {
-  if (v instanceof Date && !isNaN(v)) return v;
-  const m = String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
-  if (!m) return null;
-  return new Date(
-    Number(m[3]),
-    Number(m[2]) - 1,
-    Number(m[1]),
-    Number(m[4]),
-    Number(m[5]),
-    Number(m[6] || 0)
-  );
-}
-
-function formatDurationPresence_(ms) {
-  ms = Math.max(0, Number(ms || 0));
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
-  return h + 'h ' + m + 'min';
-}
-
-function formatDurationHMS_(ms) {
-  ms = Math.max(0, Number(ms || 0));
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  const pad = function(n) { return String(n).padStart(2, '0'); };
-  return pad(h) + ':' + pad(m) + ':' + pad(s);
-}
-
-/***********************
- *  CACHE (employee state)
- ***********************/
-const CACHE_TTL_SEC = 21600; // 6h
-
-function cache_() {
-  return CacheService.getScriptCache();
-}
-
-function cacheKeyEmp_(employeeId) {
-  return 'empId:' + String(employeeId || '').trim();
-}
-
-function getEmpStateCached_(employeeId) {
-  const raw = cache_().get(cacheKeyEmp_(employeeId));
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch (e) {
-    return null;
-  }
-}
-
-function setEmpStateCached_(employeeId, state) {
-  cache_().put(cacheKeyEmp_(employeeId), JSON.stringify(state || {}), CACHE_TTL_SEC);
-}
-
-/***********************
- *  REQUEST DEDUP
- ***********************/
-function requestKey_(requestId) {
-  return 'req:' + String(requestId || '').trim();
-}
-
-function isDuplicateRequest_(requestId) {
-  requestId = String(requestId || '').trim();
-  if (!requestId) return false;
-
-  const c = cache_();
-  const key = requestKey_(requestId);
-  const found = c.get(key);
-  if (found) return true;
-
-  c.put(key, '1', 30); // déduplication pendant 30 sec
-  return false;
-}
-
-/***********************
- *  Lookup Employé name
- *  Employés: A=ID, B=Employé
- ***********************/
-function getEmployeeNameById_(ss, employeeId) {
-  const sh = ss.getSheetByName('Employés');
-  if (!sh) return '';
-
-  const lastRow = sh.getLastRow();
-  if (lastRow < 2) return '';
-
-  const finder = sh.getRange(2, 1, lastRow - 1, 1)
-    .createTextFinder(String(employeeId))
-    .matchEntireCell(true);
-
-  const cell = finder.findNext();
-  if (!cell) return '';
-
-  const row = cell.getRow();
-  return String(sh.getRange(row, 2).getValue() || '').trim();
-}
-
-/***********************
- *  FAST SCAN Presence FROM BOTTOM
- *  Présence:
- *  A=ID, B=employeeId, C=Employé, D=Début,
- *  E=Fin, F=Temps pass, G=Statut
- ***********************/
-function scanPresenceFromBottom_(presSh, employeeId, blockSize) {
-  const lastRow = presSh.getLastRow();
-  if (lastRow < 2) return { active: null, lastAny: null };
-
-  const blocks = Math.ceil((lastRow - 1) / blockSize);
-
-  for (let b = 0; b < blocks; b++) {
-    const endRow = lastRow - (b * blockSize);
-    const startRow = Math.max(2, endRow - blockSize + 1);
-    const numRows = endRow - startRow + 1;
-
-    const values = presSh.getRange(startRow, 1, numRows, 7).getValues();
-
-    for (let i = values.length - 1; i >= 0; i--) {
-      const r = values[i];
-      if (String(r[1] || '').trim() !== String(employeeId)) continue;
-
-      const fin = r[4];
-      const statut = r[6];
-      const isActive = ((fin === '' || fin == null) && norm_(statut) === 'en cours');
-
-      const rowIndex = startRow + i;
-      const rec = {
-        row: rowIndex,
-        id: String(r[0] || ''),
-        debut: r[3] || '',
-        nom: String(r[2] || '')
-      };
-
-      if (isActive) return { active: rec, lastAny: rec };
-      return { active: null, lastAny: rec };
-    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab' || e.key === 'Escape') {
+        e.preventDefault();
+        input.focus();
+      }
+    }, true);
   }
 
-  return { active: null, lastAny: null };
-}
-
-function validateActiveCache_(presSh, employeeId, state) {
-  const row = Number(state && state.activeRow);
-  if (!row || row < 2 || row > presSh.getLastRow()) return null;
-
-  const r = presSh.getRange(row, 1, 1, 7).getValues()[0];
-  const okId = String(r[1] || '').trim() === String(employeeId);
-  const finEmpty = (r[4] === '' || r[4] == null);
-  const stOk = norm_(r[6]) === 'en cours';
-
-  if (!(okId && finEmpty && stOk)) return null;
-
-  return {
-    row: row,
-    id: String(r[0] || ''),
-    debut: r[3] || '',
-    nom: String(r[2] || '')
-  };
-}
-
-/***********************
- *  OF (Opérations) sync
- ***********************/
-const SHEET_OF = 'OF';
-
-function props_() {
-  return PropertiesService.getScriptProperties();
-}
-
-function lastOpKey_(employeeId) {
-  return 'LAST_OP_' + String(employeeId || '').trim();
-}
-
-function setLastOpToResume_(employeeId, obj) {
-  props_().setProperty(lastOpKey_(employeeId), JSON.stringify(obj || {}));
-}
-
-function getLastOpToResume_(employeeId) {
-  const raw = props_().getProperty(lastOpKey_(employeeId));
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch (e) {
-    return null;
-  }
-}
-
-function findLastOFWithEmptyFin_(ofSh, employeeId, windowSize) {
-  const lastRow = ofSh.getLastRow();
-  if (lastRow < 2) return null;
-
-  const win = Math.min(windowSize || 8000, lastRow - 1);
-  const startRow = lastRow - win + 1;
-
-  const values = ofSh.getRange(startRow, 1, win, 10).getValues(); // A..J
-
-  for (let i = values.length - 1; i >= 0; i--) {
-    const r = values[i];
-    const eid = String(r[1] || '').trim(); // B
-    if (eid !== String(employeeId)) continue;
-
-    const fin = r[6]; // G
-    const finEmpty = (fin === '' || fin == null);
-
-    if (finEmpty) {
-      return {
-        row: startRow + i,
-        id: String(r[0] || ''),
-        nom: String(r[2] || '').trim(),
-        operation: String(r[3] || '').trim(),
-        of: String(r[4] || '').trim(),
-        debutTxt: r[5] || '',
-        tempsTxt: r[7] || ''
-      };
-    }
+  /***********************
+   * UI helpers
+   ***********************/
+  function toast(msg, ok=true, duration=2000){
+    const d = document.createElement('div');
+    d.className = 'toast ' + (ok ? 'ok':'err');
+    d.textContent = msg;
+    document.body.appendChild(d);
+    setTimeout(()=>{ d.remove(); }, duration);
   }
 
-  return null;
-}
-
-function hasOFInProgress_(ofSh, employeeId) {
-  return Boolean(findLastOFWithEmptyFin_(ofSh, employeeId, 4000));
-}
-
-function findLastTerminatedOFKey_(ofSh, employeeId, windowSize) {
-  const lastRow = ofSh.getLastRow();
-  if (lastRow < 2) return null;
-
-  const win = Math.min(windowSize || 8000, lastRow - 1);
-  const startRow = lastRow - win + 1;
-
-  const values = ofSh.getRange(startRow, 1, win, 9).getValues(); // A..I
-
-  for (let i = values.length - 1; i >= 0; i--) {
-    const r = values[i];
-    const eid = String(r[1] || '').trim(); // B
-    if (eid !== String(employeeId)) continue;
-
-    const statut = norm_(r[8] || ''); // I
-    if (statut === 'termine' || statut === 'terminé') {
-      return {
-        operation: String(r[3] || '').trim(),
-        of: String(r[4] || '').trim()
-      };
-    }
+  function setStatus(msg, ok){
+    const el = document.getElementById('statusText');
+    el.textContent = msg;
+    el.className = ok ? 'status-connected' : 'status-error';
   }
 
-  return null;
-}
-
-function closeOFForEmployee_(ofSh, employeeId, finTxt, presenceId) {
-  const rec = findLastOFWithEmptyFin_(ofSh, employeeId, 8000);
-  if (!rec) return null;
-
-  let temps = String(rec.tempsTxt || '').trim();
-  if (!temps) {
-    const d0 = parseFRDate_(rec.debutTxt);
-    const d1 = parseFRDate_(finTxt) || new Date();
-    temps = d0 ? formatDurationHMS_(d1 - d0) : '';
+  function updateQueueInfo(){
+    const waiting = queue.length;
+    document.getElementById('queueHint').textContent =
+      waiting > 0 ? `Scans en attente : ${waiting}` : '';
   }
 
-  ofSh.getRange(rec.row, 7, 1, 4).setValues([[
-    finTxt,
-    temps,
-    'Terminé',
-    String(presenceId || '')
-  ]]);
-
-  return {
-    operation: rec.operation,
-    of: rec.of
-  };
-}
-
-function restartOFIfNoneInProgress_(ss, employeeId, key, debutTxt) {
-  if (!key || !key.operation || !key.of) return false;
-
-  const ofSh = ss.getSheetByName(SHEET_OF);
-  if (!ofSh) return false;
-
-  if (hasOFInProgress_(ofSh, employeeId)) return false;
-
-  const nom = getEmployeeNameById_(ss, employeeId) || '';
-  const newId = Utilities.getUuid().replace(/-/g, '').slice(0, 8);
-
-  ofSh.appendRow([
-    newId,
-    employeeId,
-    nom,
-    key.operation,
-    key.of,
-    debutTxt,
-    '',
-    '',
-    'En cours',
-    'AUTO_RESTART'
-  ]);
-
-  return true;
-}
-
-/***********************
- *  CORE START / END / TOGGLE
- ***********************/
-function startPresence_(d) {
-  const employeeId = String(d.employeeId || '').trim();
-  const requestId = String(d.requestId || '').trim();
-
-  if (!employeeId) {
-    return { success: false, error: 'employeeId manquant' };
+  function escapeHtml(s){
+    return String(s ?? '').replace(/[&<>"']/g, (m) => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+    }[m]));
   }
 
-  const lock = LockService.getScriptLock();
-  lock.waitLock(15000);
+  /***********************
+   * Affichage badgeuse
+   ***********************/
+  function showFactoryScreen(employeeName, mode){
+    const screen = document.getElementById('factoryScreen');
+    const top = document.getElementById('factoryTop');
+    const name = document.getElementById('factoryName');
+    const bottom = document.getElementById('factoryBottom');
 
-  try {
-    if (isDuplicateRequest_(requestId)) {
-      return { success: true, duplicate: true, mode: 'start', employeeId: employeeId };
+    if (factoryTimer) {
+      clearTimeout(factoryTimer);
+      factoryTimer = null;
     }
 
-    const ss = SpreadsheetApp.getActive();
-    const presSh = ss.getSheetByName('Présence');
-    if (!presSh) return { success: false, error: "Feuille manquante: Présence" };
+    screen.classList.remove('entry', 'exit', 'show', 'factory-pulse');
 
-    let state = getEmpStateCached_(employeeId) || {};
-    let active = validateActiveCache_(presSh, employeeId, state);
+    const isExit = mode === 'exit';
 
-    if (!active) {
-      const scan = scanPresenceFromBottom_(presSh, employeeId, 500);
-      active = scan.active;
-      if (active) state.activeRow = active.row;
-      else delete state.activeRow;
-    }
+    screen.classList.add(isExit ? 'exit' : 'entry');
+    screen.classList.add('show');
+    screen.classList.add('factory-pulse');
 
-    if (active) {
-      return {
-        success: true,
-        alreadyActive: true,
-        mode: 'start',
-        employeeId: employeeId,
-        presenceId: active.id
-      };
-    }
+    top.textContent = 'POINTAGE ENREGISTRÉ';
+    name.textContent = String(employeeName || '').toUpperCase();
+    bottom.textContent = isExit ? 'SORTIE' : 'ENTRÉE';
 
-    const newId = String(d.recordId || Date.now());
-    const debut = String(d.debut || nowFR_());
-    const nom = String(d.nom || getEmployeeNameById_(ss, employeeId) || '').trim();
+    screen.setAttribute('aria-hidden', 'false');
 
-    presSh.appendRow([newId, employeeId, nom, debut, '', '', 'En cours']);
-
-    state.activeRow = presSh.getLastRow();
-    setEmpStateCached_(employeeId, state);
-
-    const ofSh = ss.getSheetByName(SHEET_OF);
-    if (ofSh) {
-      const key = getLastOpToResume_(employeeId) || findLastTerminatedOFKey_(ofSh, employeeId, 8000);
-      restartOFIfNoneInProgress_(ss, employeeId, key, debut);
-    }
-
-    return {
-      success: true,
-      mode: 'start',
-      employeeId: employeeId,
-      presenceId: newId,
-      nom: nom
-    };
-
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function endPresence_(d) {
-  const employeeId = String(d.employeeId || '').trim();
-  const requestId = String(d.requestId || '').trim();
-
-  if (!employeeId) {
-    return { success: false, error: 'employeeId manquant' };
+    factoryTimer = setTimeout(() => {
+      screen.classList.remove('show', 'factory-pulse');
+      screen.setAttribute('aria-hidden', 'true');
+    }, 1500);
   }
 
-  const lock = LockService.getScriptLock();
-  lock.waitLock(15000);
+  /***********************
+   * Date formatting
+   ***********************/
+  function formatDisplayFR_(value){
+    if (value == null || value === '') return '-';
 
-  try {
-    if (isDuplicateRequest_(requestId)) {
-      return { success: true, duplicate: true, mode: 'end', employeeId: employeeId };
+    if (/^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}(:\d{2})?$/.test(String(value))) {
+      return String(value).replace(/:\d{2}$/, '');
     }
 
-    const ss = SpreadsheetApp.getActive();
-    const presSh = ss.getSheetByName('Présence');
-    if (!presSh) return { success: false, error: "Feuille manquante: Présence" };
-
-    let state = getEmpStateCached_(employeeId) || {};
-    let active = validateActiveCache_(presSh, employeeId, state);
-
-    if (!active) {
-      const scan = scanPresenceFromBottom_(presSh, employeeId, 500);
-      active = scan.active;
-      if (active) state.activeRow = active.row;
-      else delete state.activeRow;
-    }
-
-    if (!active) {
-      return {
-        success: true,
-        alreadyEnded: true,
-        mode: 'end',
-        employeeId: employeeId
-      };
-    }
-
-    const fin = String(d.fin || nowFR_());
-    const tempsPresence = String(d.temps || (function() {
-      const d0 = parseFRDate_(active.debut);
-      const d1 = parseFRDate_(fin) || new Date();
-      return d0 ? formatDurationPresence_(d1 - d0) : '';
-    })());
-
-    presSh.getRange(active.row, 5, 1, 3).setValues([[fin, tempsPresence, 'Terminé']]);
-
-    const ofSh = ss.getSheetByName(SHEET_OF);
-    if (ofSh) {
-      const closedKey = closeOFForEmployee_(ofSh, employeeId, fin, active.id);
-      if (closedKey && closedKey.operation && closedKey.of) {
-        setLastOpToResume_(employeeId, closedKey);
+    const iso = String(value);
+    if (/^\d{4}-\d{2}-\d{2}T/.test(iso)) {
+      const d = new Date(iso);
+      if (!isNaN(d)) {
+        return d.toLocaleString('fr-FR', {
+          day:'2-digit', month:'2-digit', year:'numeric',
+          hour:'2-digit', minute:'2-digit'
+        });
       }
     }
 
-    delete state.activeRow;
-    setEmpStateCached_(employeeId, state);
-
-    return {
-      success: true,
-      mode: 'end',
-      employeeId: employeeId,
-      presenceId: active.id
-    };
-
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function togglePresence_(d) {
-  const employeeId = String(d.employeeId || '').trim();
-  if (!employeeId) return { success: false, error: 'employeeId manquant' };
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(15000);
-
-  try {
-    const ss = SpreadsheetApp.getActive();
-    const presSh = ss.getSheetByName('Présence');
-    if (!presSh) return { success: false, error: "Feuille manquante: Présence" };
-
-    let state = getEmpStateCached_(employeeId) || {};
-
-    let active = validateActiveCache_(presSh, employeeId, state);
-    if (!active) {
-      const scan = scanPresenceFromBottom_(presSh, employeeId, 500);
-      active = scan.active;
-      if (active) state.activeRow = active.row;
-      else delete state.activeRow;
+    const d2 = new Date(String(value));
+    if (!isNaN(d2)) {
+      return d2.toLocaleString('fr-FR', {
+        day:'2-digit', month:'2-digit', year:'numeric',
+        hour:'2-digit', minute:'2-digit'
+      });
     }
 
-    const now = new Date();
-    const nowTxt = nowFR_();
+    return String(value);
+  }
 
-    // FIN présence
-    if (active) {
-      const fin = String(d.fin || nowTxt);
-      const tempsPresence = String(d.temps || (function() {
-        const d0 = parseFRDate_(active.debut);
-        return d0 ? formatDurationPresence_(now - d0) : '';
-      })());
+  /***********************
+   * API
+   ***********************/
+  function testConnection(){
+    setStatus('🔄 Connexion en cours…', false);
+    http_(SCRIPT_URL, { method:'GET', cache:'no-store' })
+      .then(r => r.text().then(t => {
+        if (r.ok && String(t).includes('OK')) setStatus('✅ Connecté à Google Sheets', true);
+        else setStatus(`⚠️ Connexion incertaine (HTTP ${r.status})`, false);
+      }))
+      .catch((e)=>{
+        console.error(e);
+        setStatus('❌ Erreur de connexion', false);
+      });
+  }
 
-      presSh.getRange(active.row, 5, 1, 3).setValues([[fin, tempsPresence, 'Terminé']]);
+  function get(action){
+    const url = SCRIPT_URL + '?action=' + encodeURIComponent(action) + '&_ts=' + Date.now();
+    return http_(url, { method:'GET', cache:'no-store' })
+      .then(r => r.text().then(t => {
+        if (!r.ok) throw new Error(`HTTP ${r.status} ${action} | ${String(t).slice(0,120)}`);
+        try { return JSON.parse(t); }
+        catch(e){ throw new Error(`Non-JSON ${action} | ${String(t).slice(0,120)}`); }
+      }));
+  }
 
-      const ofSh = ss.getSheetByName(SHEET_OF);
-      if (ofSh) {
-        const closedKey = closeOFForEmployee_(ofSh, employeeId, fin, active.id);
-        if (closedKey && closedKey.operation && closedKey.of) {
-          setLastOpToResume_(employeeId, closedKey);
+  function post(action, payload){
+    const body = JSON.stringify(Object.assign({action}, payload || {}));
+    return http_(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body,
+      cache:'no-store'
+    }).then(r => r.text().then(t => {
+      if (!r.ok) throw new Error(`HTTP ${r.status} POST ${action} | ${String(t).slice(0,120)}`);
+      try { return JSON.parse(t); }
+      catch(e){ throw new Error(`POST non-JSON ${action} | ${String(t).slice(0,120)}`); }
+    }));
+  }
+
+  async function loadEmployees(){
+    try {
+      const rows = await get('getEmployees');
+      EMP_BY_ID = new Map();
+      (rows || []).forEach(r => {
+        const id = String(r[0] ?? '').trim();
+        const nom = String(r[1] ?? '').trim();
+        if (id && nom) EMP_BY_ID.set(id, nom);
+      });
+      toast(`✅ Employés chargés (${EMP_BY_ID.size})`, true, 2000);
+    } catch (e) {
+      console.error(e);
+      EMP_BY_ID = new Map();
+      toast('❌ Erreur chargement employés: ' + String(e.message || e).slice(0,120), false, 2000);
+    }
+  }
+
+  /***********************
+   * Local storage
+   ***********************/
+  function loadLocalSafe_(){
+    try {
+      const p = localStorage.getItem(STORAGE_KEY);
+      if (!p) { presenceRecords = []; return; }
+      const obj = JSON.parse(p);
+      const recs = Array.isArray(obj.records) ? obj.records : [];
+      presenceRecords = recs.filter(r => r && r.employeeId);
+    } catch(e){
+      presenceRecords = [];
+    }
+    renderPresence();
+  }
+
+  function saveLocal(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ records: presenceRecords }));
+  }
+
+  /***********************
+   * Durée
+   ***********************/
+  function parseFRDateTime_(s){
+    const m = String(s || '').match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (!m) return null;
+    return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4]), Number(m[5]), Number(m[6] || 0));
+  }
+
+  function calcDurationFromFR_(startFR, endDate){
+    const d0 = parseFRDateTime_(startFR);
+    if (!d0) return '';
+    const diff = endDate - d0;
+    const h = Math.floor(diff/3600000);
+    const m = Math.floor((diff%3600000)/60000);
+    return h + 'h ' + m + 'min';
+  }
+
+  function isActiveRecordStrict_(r){
+    const finTxt = String(r.fin ?? '').trim();
+    const finEmpty = (finTxt === '' || finTxt === '-');
+    const st = safeNormalize_(r.statut || '');
+    return finEmpty && st === 'en cours';
+  }
+
+  function parseDurationToMinutes_(txt){
+    if (!txt) return null;
+    const s = String(txt).trim().toLowerCase();
+    const m = s.match(/^(\d+)\s*h(?:\s*(\d+)\s*min)?$/);
+    if (!m) return null;
+    const h = Number(m[1] || 0);
+    const min = Number(m[2] || 0);
+    return (h * 60) + min;
+  }
+
+  function shouldHighlightOvertime_(record){
+    const active = isActiveRecordStrict_(record);
+    if (active) return false;
+
+    const mins = parseDurationToMinutes_(record.temps);
+    if (mins == null) return false;
+
+    return mins > 330;
+  }
+
+  /***********************
+   * Sync depuis Sheets
+   ***********************/
+  async function loadPresenceFromServer(showToast=false){
+    if (!showToast && (Date.now() - lastLocalChangeAt) < 2000) return;
+
+    try {
+      const rows = await get('getPresence');
+      const list = (rows || []).map(r => ({
+        id: String(r[0] ?? ''),
+        employeeId: String(r[1] ?? '').trim(),
+        nom: String(r[2] ?? '').trim(),
+        debut: String(r[3] ?? ''),
+        fin: (r[4] == null || r[4] === '') ? null : String(r[4]),
+        temps: (r[5] == null || r[5] === '') ? null : String(r[5]),
+        statut: String(r[6] ?? '')
+      })).filter(x => x.employeeId);
+
+      for (const it of list){
+        if (!it.nom) it.nom = EMP_BY_ID.get(it.employeeId) || '';
+      }
+
+      list.sort((a,b)=>{
+        function toDate(x){
+          if(!x) return new Date(0);
+          const m = x.match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})/);
+          if(m) return new Date(m[3],m[2]-1,m[1],m[4],m[5]);
+          const d = new Date(x);
+          return isNaN(d)? new Date(0): d;
         }
-      }
+        const da = toDate(a.fin || a.debut);
+        const db = toDate(b.fin || b.debut);
+        return db - da;
+      });
 
-      delete state.activeRow;
-      setEmpStateCached_(employeeId, state);
+      presenceRecords = list;
 
-      return {
-        success: true,
-        mode: 'end',
-        employeeId: employeeId,
-        presenceId: active.id
-      };
+      renderPresence();
+      saveLocal();
+
+      if (showToast) toast('🔄 Synchronisé avec Google Sheets', true, 2000);
+    } catch (e) {
+      console.error(e);
+      toast("⚠️ Sync impossible: " + String(e.message || e).slice(0,140), false, 2000);
     }
-
-    // DEBUT présence
-    const newId = String(Date.now());
-    const debut = String(d.debut || nowTxt);
-    const nom = getEmployeeNameById_(ss, employeeId) || '';
-
-    presSh.appendRow([newId, employeeId, nom, debut, '', '', 'En cours']);
-
-    state.activeRow = presSh.getLastRow();
-    setEmpStateCached_(employeeId, state);
-
-    const ofSh = ss.getSheetByName(SHEET_OF);
-    if (ofSh) {
-      const key = getLastOpToResume_(employeeId) || findLastTerminatedOFKey_(ofSh, employeeId, 8000);
-      restartOFIfNoneInProgress_(ss, employeeId, key, debut);
-    }
-
-    return {
-      success: true,
-      mode: 'start',
-      employeeId: employeeId,
-      presenceId: newId,
-      nom: nom
-    };
-
-  } finally {
-    lock.releaseLock();
   }
-}
 
-/***********************
- *  GETTERS (API)
- ***********************/
-function getPresence_() {
-  const sh = SpreadsheetApp.getActive().getSheetByName('Présence');
-  if (!sh) return [];
+  /***********************
+   * Anti double scan
+   ***********************/
+  function isEmployeeLocked_(employeeId){
+    const expireAt = employeeCooldown.get(employeeId) || 0;
+    if (expireAt <= Date.now()) {
+      employeeCooldown.delete(employeeId);
+      return false;
+    }
+    return true;
+  }
 
-  const v = sh.getDataRange().getValues();
-  if (v.length <= 1) return [];
+  function lockEmployee_(employeeId, ms){
+    employeeCooldown.set(employeeId, Date.now() + ms);
+  }
 
-  v.shift();
-  return v;
-}
+  function unlockEmployee_(employeeId){
+    employeeCooldown.delete(employeeId);
+  }
 
-function getEmployees_() {
-  const sh = SpreadsheetApp.getActive().getSheetByName('Employés');
-  if (!sh) return [];
+  function makeRequestId_(employeeId){
+    return [
+      'REQ',
+      employeeId,
+      Date.now(),
+      Math.random().toString(36).slice(2, 10)
+    ].join('_');
+  }
 
-  const v = sh.getDataRange().getValues();
-  if (v.length <= 1) return [];
+  /***********************
+   * API start/end
+   ***********************/
+  function startPresence_(payload){
+    return post('startPresence', payload);
+  }
 
-  v.shift();
-  return v;
-}
+  function endPresence_(payload){
+    return post('endPresence', payload);
+  }
 
-/**
- * Ferme toutes les présences "En cours" + ferme l'OF associée
- */
-function autoClosePresenceAndOF_(data) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(15000);
+  /***********************
+   * Scan
+   ***********************/
+  async function handlePresenceScan(){
+    const input = document.getElementById('scanInput');
+    const raw = String(input.value || '');
+    input.value = '';
+    input.focus();
 
-  try {
-    const ss = SpreadsheetApp.getActive();
-    const presSh = ss.getSheetByName('Présence');
-    if (!presSh) return { success: false, error: "Feuille manquante: Présence" };
+    const cleaned = raw
+      .replace(/[\u0000-\u001F\u007F\u00A0]/g, ' ')
+      .replace(/\u001d/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-    const ofSh = ss.getSheetByName(SHEET_OF);
+    const candidates = cleaned.match(/\b\d{1,6}\b/g);
+    let employeeId = candidates ? candidates[candidates.length - 1] : '';
 
-    const lastRow = presSh.getLastRow();
-    if (lastRow < 2) return { success: true, closed: 0, closedOF: 0 };
+    if (employeeId === '0') employeeId = '';
 
-    const tz = 'Europe/Paris';
-    let finDate = new Date();
-
-    if (data && data.finTxt) {
-      const parsed = parseFRDate_(String(data.finTxt));
-      if (parsed) finDate = parsed;
+    if (!employeeId) {
+      toast("❌ Scan illisible. Contenu: " + cleaned, false, 2000);
+      return;
     }
 
-    const finTxt = Utilities.formatDate(finDate, tz, 'dd/MM/yyyy HH:mm:ss');
+    const nom = EMP_BY_ID.get(employeeId);
+    if (!nom){
+      toast("❌ ID inconnu. Scanne un ID existant (ex: 111).", false, 2000);
+      return;
+    }
 
-    const range = presSh.getRange(2, 1, lastRow - 1, 7);
-    const values = range.getValues();
+    if (isEmployeeLocked_(employeeId)) {
+      toast(`⏳ Pointage déjà pris en compte pour ${nom}`, true, 2000);
+      return;
+    }
 
-    let closed = 0;
-    let closedOF = 0;
+    lockEmployee_(employeeId, SCAN_LOCK_MS);
+    toast(`✅ Pointage pris en compte : ${nom}`, true, 2000);
 
-    for (let i = 0; i < values.length; i++) {
-      const row = values[i];
+    queue.push(employeeId);
+    updateQueueInfo();
 
-      const presenceId = String(row[0] || '').trim();
-      const employeeId = String(row[1] || '').trim();
-      const debutTxt = row[3];
-      const finCell = row[4];
-      const statut = row[6];
+    if (processing){
+      if (queue.length >= 8) toast('⏳ Beaucoup de scans en attente…', true, 2000);
+      return;
+    }
 
-      if (!employeeId) continue;
+    processing = true;
 
-      const finEmpty = (finCell === '' || finCell == null);
-      const isEnCours = (norm_(statut) === 'en cours');
-      if (!(finEmpty && isEnCours)) continue;
+    try {
+      while (queue.length > 0){
+        const eid = queue.shift();
+        updateQueueInfo();
 
-      const d0 = parseFRDate_(debutTxt);
-      const ms = d0 ? (finDate.getTime() - d0.getTime()) : 0;
+        const empName = EMP_BY_ID.get(eid) || eid;
+        const lastForEmployee = presenceRecords.find(r => r.employeeId === eid) || null;
 
-      row[4] = finTxt;
-      row[5] = d0 ? formatDurationPresence_(ms) : '';
-      row[6] = 'Terminé';
-      closed++;
+        const now = new Date();
+        const nowTxt = now.toLocaleString('fr-FR', {
+          day:'2-digit', month:'2-digit', year:'numeric',
+          hour:'2-digit', minute:'2-digit', second:'2-digit'
+        });
 
-      if (ofSh) {
-        const closedKey = closeOFForEmployee_(ofSh, employeeId, finTxt, presenceId);
-        if (closedKey && closedKey.operation && closedKey.of) {
-          setLastOpToResume_(employeeId, closedKey);
-          closedOF++;
+        const requestId = makeRequestId_(eid);
+        const shouldEnd = lastForEmployee && isActiveRecordStrict_(lastForEmployee);
+
+        if (shouldEnd){
+          const temps = calcDurationFromFR_(lastForEmployee.debut, now) || '';
+
+          presenceRecords = presenceRecords.map(r => {
+            if (r.id === lastForEmployee.id){
+              return { ...r, fin: nowTxt, temps, statut:'Terminé' };
+            }
+            return r;
+          });
+
+          lastLocalChangeAt = Date.now();
+          renderPresence();
+          saveLocal();
+
+          showFactoryScreen(empName, 'exit');
+
+          try {
+            const res = await endPresence_({
+              requestId: requestId,
+              employeeId: eid,
+              recordId: lastForEmployee.id,
+              fin: nowTxt,
+              temps: temps
+            });
+
+            if (res && res.success) {
+              toast(`Présence terminée : ${empName}`, true, 2000);
+            } else {
+              toast('❌ Erreur serveur (fin)', false, 2000);
+              console.error(res);
+              unlockEmployee_(eid);
+            }
+          } catch (err) {
+            console.error(err);
+            toast('❌ Erreur réseau (fin): ' + String(err.message || err).slice(0,90), false, 2000);
+            unlockEmployee_(eid);
+          } finally {
+            loadPresenceFromServer(false);
+          }
+
+        } else {
+          const rec = {
+            id: String(Date.now()),
+            employeeId: eid,
+            nom: empName,
+            debut: nowTxt,
+            fin: null,
+            temps: null,
+            statut: 'En cours'
+          };
+
+          presenceRecords = [rec].concat(presenceRecords);
+          lastLocalChangeAt = Date.now();
+          renderPresence();
+          saveLocal();
+
+          showFactoryScreen(empName, 'entry');
+
+          try {
+            const res = await startPresence_({
+              requestId: requestId,
+              employeeId: eid,
+              recordId: rec.id,
+              nom: empName,
+              debut: rec.debut
+            });
+
+            if (res && res.success) {
+              toast(`Présence démarrée : ${empName}`, true, 2000);
+            } else {
+              toast('❌ Erreur serveur (début)', false, 2000);
+              console.error(res);
+              unlockEmployee_(eid);
+            }
+          } catch (err) {
+            console.error(err);
+            toast('❌ Erreur réseau (début): ' + String(err.message || err).slice(0,90), false, 2000);
+            unlockEmployee_(eid);
+          } finally {
+            loadPresenceFromServer(false);
+          }
         }
+
+        input.focus();
       }
-
-      const state = getEmpStateCached_(employeeId) || {};
-      if (state && state.activeRow) {
-        delete state.activeRow;
-        setEmpStateCached_(employeeId, state);
-      }
+    } finally {
+      processing = false;
+      updateQueueInfo();
+      input.focus();
     }
-
-    if (closed > 0) range.setValues(values);
-
-    return {
-      success: true,
-      closed: closed,
-      closedOF: closedOF,
-      fin: finTxt
-    };
-
-  } catch (err) {
-    return {
-      success: false,
-      error: String(err),
-      stack: err && err.stack ? err.stack : ''
-    };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/***********************
- * Triggers + menu
- ***********************/
-function installAutoCloseTrigger_() {
-  ScriptApp.getProjectTriggers().forEach(function(t) {
-    if (t.getHandlerFunction() === 'autoClosePresenceDaily_') {
-      ScriptApp.deleteTrigger(t);
-    }
-  });
-
-  ScriptApp.newTrigger('autoClosePresenceDaily_')
-    .timeBased()
-    .everyDays(1)
-    .atHour(1)
-    .create();
-}
-
-function autoClosePresenceDaily_() {
-  autoClosePresenceAndOF_({});
-}
-
-function autoClosePresenceDaily() {
-  autoClosePresenceAndOF_({});
-}
-
-function onOpenResetMenu_() {
-  SpreadsheetApp.getUi()
-    .createMenu('Pointage')
-    .addItem('Reset filtres', 'resetFiltres_')
-    .addToUi();
-}
-
-function resetFiltres_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName('Synthèse pointage opérations');
-
-  if (!sh) {
-    SpreadsheetApp.getUi().alert("Onglet introuvable: Synthèse pointage opérations");
-    return;
   }
 
-  sh.getRange('B4').clearContent();
-  sh.getRange('B6').clearContent();
-  sh.getRange('B8').clearContent();
-  sh.getRange('D2').clearContent();
-  sh.getRange('D6').clearContent();
-  sh.getRange('F4').clearContent();
+  /***********************
+   * Render
+   ***********************/
+  function renderPresence(){
+    const tbody = document.getElementById('presenceTableBody');
+    if (!presenceRecords.length){
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Aucun pointage</td></tr>';
+      return;
+    }
 
-  sh.getRange('B2').activate();
-}
+    tbody.innerHTML = presenceRecords.map(r=>{
+      const active = isActiveRecordStrict_(r);
+      const nom = r.nom || (EMP_BY_ID.get(r.employeeId) || '');
+      const highlight = shouldHighlightOvertime_(r);
 
-function onOpen(e) {
-  onOpenResetMenu_();
-}
+      return `<tr>
+        <td>${escapeHtml(nom)}</td>
+        <td>${escapeHtml(formatDisplayFR_(r.debut))}</td>
+        <td>${escapeHtml(formatDisplayFR_(r.fin))}</td>
+        <td class="${highlight ? 'presence-oops' : ''}">${escapeHtml(r.temps || '-')}</td>
+        <td><span class="status-badge ${active?'status-active':'status-ended'}">${active?'En cours':'Terminé'}</span></td>
+      </tr>`;
+    }).join('');
+  }
+</script>
+
+</body>
+</html>
