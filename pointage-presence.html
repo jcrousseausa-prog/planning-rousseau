@@ -1,0 +1,764 @@
+/***********************
+ *  OUTPUT HELPERS
+ ***********************/
+function json_(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function text_(s) {
+  return ContentService
+    .createTextOutput(String(s || ''))
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+
+/***********************
+ *  WEB APP ENDPOINTS
+ ***********************/
+function doOptions(e) {
+  return text_('OK');
+}
+
+function doPost(e) {
+  try {
+    const data = JSON.parse((e && e.postData && e.postData.contents) || "{}");
+    const action = data.action;
+
+    if (action === 'startPresence') return json_(startPresence_(data));
+    if (action === 'endPresence') return json_(endPresence_(data));
+    if (action === 'togglePresence') return json_(togglePresence_(data));
+    if (action === 'autoClosePresence') return json_(autoClosePresenceAndOF_(data));
+
+    return json_({ success: false, error: "Action inconnue: " + action });
+  } catch (err) {
+    return json_({
+      success: false,
+      error: String(err),
+      stack: err && err.stack ? err.stack : ''
+    });
+  }
+}
+
+function doGet(e) {
+  const action = (e && e.parameter && e.parameter.action) || '';
+
+  if (action === 'getEmployees') return json_(getEmployees_());
+  if (action === 'getPresence') return json_(getPresence_());
+
+  return text_('API Pointage OK');
+}
+
+/***********************
+ *  HELPERS
+ ***********************/
+function norm_(s) {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function nowFR_() {
+  return Utilities.formatDate(new Date(), 'Europe/Paris', 'dd/MM/yyyy HH:mm:ss');
+}
+
+function parseFRDate_(v) {
+  if (v instanceof Date && !isNaN(v)) return v;
+  const m = String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return null;
+  return new Date(
+    Number(m[3]),
+    Number(m[2]) - 1,
+    Number(m[1]),
+    Number(m[4]),
+    Number(m[5]),
+    Number(m[6] || 0)
+  );
+}
+
+function formatDurationPresence_(ms) {
+  ms = Math.max(0, Number(ms || 0));
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return h + 'h ' + m + 'min';
+}
+
+function formatDurationHMS_(ms) {
+  ms = Math.max(0, Number(ms || 0));
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = function(n) { return String(n).padStart(2, '0'); };
+  return pad(h) + ':' + pad(m) + ':' + pad(s);
+}
+
+/***********************
+ *  CACHE (employee state)
+ ***********************/
+const CACHE_TTL_SEC = 21600; // 6h
+
+function cache_() {
+  return CacheService.getScriptCache();
+}
+
+function cacheKeyEmp_(employeeId) {
+  return 'empId:' + String(employeeId || '').trim();
+}
+
+function getEmpStateCached_(employeeId) {
+  const raw = cache_().get(cacheKeyEmp_(employeeId));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
+function setEmpStateCached_(employeeId, state) {
+  cache_().put(cacheKeyEmp_(employeeId), JSON.stringify(state || {}), CACHE_TTL_SEC);
+}
+
+/***********************
+ *  REQUEST DEDUP
+ ***********************/
+function requestKey_(requestId) {
+  return 'req:' + String(requestId || '').trim();
+}
+
+function isDuplicateRequest_(requestId) {
+  requestId = String(requestId || '').trim();
+  if (!requestId) return false;
+
+  const c = cache_();
+  const key = requestKey_(requestId);
+  const found = c.get(key);
+  if (found) return true;
+
+  c.put(key, '1', 30); // déduplication pendant 30 sec
+  return false;
+}
+
+/***********************
+ *  Lookup Employé name
+ *  Employés: A=ID, B=Employé
+ ***********************/
+function getEmployeeNameById_(ss, employeeId) {
+  const sh = ss.getSheetByName('Employés');
+  if (!sh) return '';
+
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return '';
+
+  const finder = sh.getRange(2, 1, lastRow - 1, 1)
+    .createTextFinder(String(employeeId))
+    .matchEntireCell(true);
+
+  const cell = finder.findNext();
+  if (!cell) return '';
+
+  const row = cell.getRow();
+  return String(sh.getRange(row, 2).getValue() || '').trim();
+}
+
+/***********************
+ *  FAST SCAN Presence FROM BOTTOM
+ *  Présence:
+ *  A=ID, B=employeeId, C=Employé, D=Début,
+ *  E=Fin, F=Temps pass, G=Statut
+ ***********************/
+function scanPresenceFromBottom_(presSh, employeeId, blockSize) {
+  const lastRow = presSh.getLastRow();
+  if (lastRow < 2) return { active: null, lastAny: null };
+
+  const blocks = Math.ceil((lastRow - 1) / blockSize);
+
+  for (let b = 0; b < blocks; b++) {
+    const endRow = lastRow - (b * blockSize);
+    const startRow = Math.max(2, endRow - blockSize + 1);
+    const numRows = endRow - startRow + 1;
+
+    const values = presSh.getRange(startRow, 1, numRows, 7).getValues();
+
+    for (let i = values.length - 1; i >= 0; i--) {
+      const r = values[i];
+      if (String(r[1] || '').trim() !== String(employeeId)) continue;
+
+      const fin = r[4];
+      const statut = r[6];
+      const isActive = ((fin === '' || fin == null) && norm_(statut) === 'en cours');
+
+      const rowIndex = startRow + i;
+      const rec = {
+        row: rowIndex,
+        id: String(r[0] || ''),
+        debut: r[3] || '',
+        nom: String(r[2] || '')
+      };
+
+      if (isActive) return { active: rec, lastAny: rec };
+      return { active: null, lastAny: rec };
+    }
+  }
+
+  return { active: null, lastAny: null };
+}
+
+function validateActiveCache_(presSh, employeeId, state) {
+  const row = Number(state && state.activeRow);
+  if (!row || row < 2 || row > presSh.getLastRow()) return null;
+
+  const r = presSh.getRange(row, 1, 1, 7).getValues()[0];
+  const okId = String(r[1] || '').trim() === String(employeeId);
+  const finEmpty = (r[4] === '' || r[4] == null);
+  const stOk = norm_(r[6]) === 'en cours';
+
+  if (!(okId && finEmpty && stOk)) return null;
+
+  return {
+    row: row,
+    id: String(r[0] || ''),
+    debut: r[3] || '',
+    nom: String(r[2] || '')
+  };
+}
+
+/***********************
+ *  OF (Opérations) sync
+ ***********************/
+const SHEET_OF = 'OF';
+
+function props_() {
+  return PropertiesService.getScriptProperties();
+}
+
+function lastOpKey_(employeeId) {
+  return 'LAST_OP_' + String(employeeId || '').trim();
+}
+
+function setLastOpToResume_(employeeId, obj) {
+  props_().setProperty(lastOpKey_(employeeId), JSON.stringify(obj || {}));
+}
+
+function getLastOpToResume_(employeeId) {
+  const raw = props_().getProperty(lastOpKey_(employeeId));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
+function findLastOFWithEmptyFin_(ofSh, employeeId, windowSize) {
+  const lastRow = ofSh.getLastRow();
+  if (lastRow < 2) return null;
+
+  const win = Math.min(windowSize || 8000, lastRow - 1);
+  const startRow = lastRow - win + 1;
+
+  const values = ofSh.getRange(startRow, 1, win, 10).getValues(); // A..J
+
+  for (let i = values.length - 1; i >= 0; i--) {
+    const r = values[i];
+    const eid = String(r[1] || '').trim(); // B
+    if (eid !== String(employeeId)) continue;
+
+    const fin = r[6]; // G
+    const finEmpty = (fin === '' || fin == null);
+
+    if (finEmpty) {
+      return {
+        row: startRow + i,
+        id: String(r[0] || ''),
+        nom: String(r[2] || '').trim(),
+        operation: String(r[3] || '').trim(),
+        of: String(r[4] || '').trim(),
+        debutTxt: r[5] || '',
+        tempsTxt: r[7] || ''
+      };
+    }
+  }
+
+  return null;
+}
+
+function hasOFInProgress_(ofSh, employeeId) {
+  return Boolean(findLastOFWithEmptyFin_(ofSh, employeeId, 4000));
+}
+
+function findLastTerminatedOFKey_(ofSh, employeeId, windowSize) {
+  const lastRow = ofSh.getLastRow();
+  if (lastRow < 2) return null;
+
+  const win = Math.min(windowSize || 8000, lastRow - 1);
+  const startRow = lastRow - win + 1;
+
+  const values = ofSh.getRange(startRow, 1, win, 9).getValues(); // A..I
+
+  for (let i = values.length - 1; i >= 0; i--) {
+    const r = values[i];
+    const eid = String(r[1] || '').trim(); // B
+    if (eid !== String(employeeId)) continue;
+
+    const statut = norm_(r[8] || ''); // I
+    if (statut === 'termine' || statut === 'terminé') {
+      return {
+        operation: String(r[3] || '').trim(),
+        of: String(r[4] || '').trim()
+      };
+    }
+  }
+
+  return null;
+}
+
+function closeOFForEmployee_(ofSh, employeeId, finTxt, presenceId) {
+  const rec = findLastOFWithEmptyFin_(ofSh, employeeId, 8000);
+  if (!rec) return null;
+
+  let temps = String(rec.tempsTxt || '').trim();
+  if (!temps) {
+    const d0 = parseFRDate_(rec.debutTxt);
+    const d1 = parseFRDate_(finTxt) || new Date();
+    temps = d0 ? formatDurationHMS_(d1 - d0) : '';
+  }
+
+  ofSh.getRange(rec.row, 7, 1, 4).setValues([[
+    finTxt,
+    temps,
+    'Terminé',
+    String(presenceId || '')
+  ]]);
+
+  return {
+    operation: rec.operation,
+    of: rec.of
+  };
+}
+
+function restartOFIfNoneInProgress_(ss, employeeId, key, debutTxt) {
+  if (!key || !key.operation || !key.of) return false;
+
+  const ofSh = ss.getSheetByName(SHEET_OF);
+  if (!ofSh) return false;
+
+  if (hasOFInProgress_(ofSh, employeeId)) return false;
+
+  const nom = getEmployeeNameById_(ss, employeeId) || '';
+  const newId = Utilities.getUuid().replace(/-/g, '').slice(0, 8);
+
+  ofSh.appendRow([
+    newId,
+    employeeId,
+    nom,
+    key.operation,
+    key.of,
+    debutTxt,
+    '',
+    '',
+    'En cours',
+    'AUTO_RESTART'
+  ]);
+
+  return true;
+}
+
+/***********************
+ *  CORE START / END / TOGGLE
+ ***********************/
+function startPresence_(d) {
+  const employeeId = String(d.employeeId || '').trim();
+  const requestId = String(d.requestId || '').trim();
+
+  if (!employeeId) {
+    return { success: false, error: 'employeeId manquant' };
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+
+  try {
+    if (isDuplicateRequest_(requestId)) {
+      return { success: true, duplicate: true, mode: 'start', employeeId: employeeId };
+    }
+
+    const ss = SpreadsheetApp.getActive();
+    const presSh = ss.getSheetByName('Présence');
+    if (!presSh) return { success: false, error: "Feuille manquante: Présence" };
+
+    let state = getEmpStateCached_(employeeId) || {};
+    let active = validateActiveCache_(presSh, employeeId, state);
+
+    if (!active) {
+      const scan = scanPresenceFromBottom_(presSh, employeeId, 500);
+      active = scan.active;
+      if (active) state.activeRow = active.row;
+      else delete state.activeRow;
+    }
+
+    if (active) {
+      return {
+        success: true,
+        alreadyActive: true,
+        mode: 'start',
+        employeeId: employeeId,
+        presenceId: active.id
+      };
+    }
+
+    const newId = String(d.recordId || Date.now());
+    const debut = String(d.debut || nowFR_());
+    const nom = String(d.nom || getEmployeeNameById_(ss, employeeId) || '').trim();
+
+    presSh.appendRow([newId, employeeId, nom, debut, '', '', 'En cours']);
+
+    state.activeRow = presSh.getLastRow();
+    setEmpStateCached_(employeeId, state);
+
+    const ofSh = ss.getSheetByName(SHEET_OF);
+    if (ofSh) {
+      const key = getLastOpToResume_(employeeId) || findLastTerminatedOFKey_(ofSh, employeeId, 8000);
+      restartOFIfNoneInProgress_(ss, employeeId, key, debut);
+    }
+
+    return {
+      success: true,
+      mode: 'start',
+      employeeId: employeeId,
+      presenceId: newId,
+      nom: nom
+    };
+
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function endPresence_(d) {
+  const employeeId = String(d.employeeId || '').trim();
+  const requestId = String(d.requestId || '').trim();
+
+  if (!employeeId) {
+    return { success: false, error: 'employeeId manquant' };
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+
+  try {
+    if (isDuplicateRequest_(requestId)) {
+      return { success: true, duplicate: true, mode: 'end', employeeId: employeeId };
+    }
+
+    const ss = SpreadsheetApp.getActive();
+    const presSh = ss.getSheetByName('Présence');
+    if (!presSh) return { success: false, error: "Feuille manquante: Présence" };
+
+    let state = getEmpStateCached_(employeeId) || {};
+    let active = validateActiveCache_(presSh, employeeId, state);
+
+    if (!active) {
+      const scan = scanPresenceFromBottom_(presSh, employeeId, 500);
+      active = scan.active;
+      if (active) state.activeRow = active.row;
+      else delete state.activeRow;
+    }
+
+    if (!active) {
+      return {
+        success: true,
+        alreadyEnded: true,
+        mode: 'end',
+        employeeId: employeeId
+      };
+    }
+
+    const fin = String(d.fin || nowFR_());
+    const tempsPresence = String(d.temps || (function() {
+      const d0 = parseFRDate_(active.debut);
+      const d1 = parseFRDate_(fin) || new Date();
+      return d0 ? formatDurationPresence_(d1 - d0) : '';
+    })());
+
+    presSh.getRange(active.row, 5, 1, 3).setValues([[fin, tempsPresence, 'Terminé']]);
+
+    const ofSh = ss.getSheetByName(SHEET_OF);
+    if (ofSh) {
+      const closedKey = closeOFForEmployee_(ofSh, employeeId, fin, active.id);
+      if (closedKey && closedKey.operation && closedKey.of) {
+        setLastOpToResume_(employeeId, closedKey);
+      }
+    }
+
+    delete state.activeRow;
+    setEmpStateCached_(employeeId, state);
+
+    return {
+      success: true,
+      mode: 'end',
+      employeeId: employeeId,
+      presenceId: active.id
+    };
+
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function togglePresence_(d) {
+  const employeeId = String(d.employeeId || '').trim();
+  if (!employeeId) return { success: false, error: 'employeeId manquant' };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const presSh = ss.getSheetByName('Présence');
+    if (!presSh) return { success: false, error: "Feuille manquante: Présence" };
+
+    let state = getEmpStateCached_(employeeId) || {};
+
+    let active = validateActiveCache_(presSh, employeeId, state);
+    if (!active) {
+      const scan = scanPresenceFromBottom_(presSh, employeeId, 500);
+      active = scan.active;
+      if (active) state.activeRow = active.row;
+      else delete state.activeRow;
+    }
+
+    const now = new Date();
+    const nowTxt = nowFR_();
+
+    // FIN présence
+    if (active) {
+      const fin = String(d.fin || nowTxt);
+      const tempsPresence = String(d.temps || (function() {
+        const d0 = parseFRDate_(active.debut);
+        return d0 ? formatDurationPresence_(now - d0) : '';
+      })());
+
+      presSh.getRange(active.row, 5, 1, 3).setValues([[fin, tempsPresence, 'Terminé']]);
+
+      const ofSh = ss.getSheetByName(SHEET_OF);
+      if (ofSh) {
+        const closedKey = closeOFForEmployee_(ofSh, employeeId, fin, active.id);
+        if (closedKey && closedKey.operation && closedKey.of) {
+          setLastOpToResume_(employeeId, closedKey);
+        }
+      }
+
+      delete state.activeRow;
+      setEmpStateCached_(employeeId, state);
+
+      return {
+        success: true,
+        mode: 'end',
+        employeeId: employeeId,
+        presenceId: active.id
+      };
+    }
+
+    // DEBUT présence
+    const newId = String(Date.now());
+    const debut = String(d.debut || nowTxt);
+    const nom = getEmployeeNameById_(ss, employeeId) || '';
+
+    presSh.appendRow([newId, employeeId, nom, debut, '', '', 'En cours']);
+
+    state.activeRow = presSh.getLastRow();
+    setEmpStateCached_(employeeId, state);
+
+    const ofSh = ss.getSheetByName(SHEET_OF);
+    if (ofSh) {
+      const key = getLastOpToResume_(employeeId) || findLastTerminatedOFKey_(ofSh, employeeId, 8000);
+      restartOFIfNoneInProgress_(ss, employeeId, key, debut);
+    }
+
+    return {
+      success: true,
+      mode: 'start',
+      employeeId: employeeId,
+      presenceId: newId,
+      nom: nom
+    };
+
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/***********************
+ *  GETTERS (API)
+ ***********************/
+function getPresence_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName('Présence');
+  if (!sh) return [];
+
+  const v = sh.getDataRange().getValues();
+  if (v.length <= 1) return [];
+
+  v.shift();
+  return v;
+}
+
+function getEmployees_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName('Employés');
+  if (!sh) return [];
+
+  const v = sh.getDataRange().getValues();
+  if (v.length <= 1) return [];
+
+  v.shift();
+  return v;
+}
+
+/**
+ * Ferme toutes les présences "En cours" + ferme l'OF associée
+ */
+function autoClosePresenceAndOF_(data) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const presSh = ss.getSheetByName('Présence');
+    if (!presSh) return { success: false, error: "Feuille manquante: Présence" };
+
+    const ofSh = ss.getSheetByName(SHEET_OF);
+
+    const lastRow = presSh.getLastRow();
+    if (lastRow < 2) return { success: true, closed: 0, closedOF: 0 };
+
+    const tz = 'Europe/Paris';
+    let finDate = new Date();
+
+    if (data && data.finTxt) {
+      const parsed = parseFRDate_(String(data.finTxt));
+      if (parsed) finDate = parsed;
+    }
+
+    const finTxt = Utilities.formatDate(finDate, tz, 'dd/MM/yyyy HH:mm:ss');
+
+    const range = presSh.getRange(2, 1, lastRow - 1, 7);
+    const values = range.getValues();
+
+    let closed = 0;
+    let closedOF = 0;
+
+    for (let i = 0; i < values.length; i++) {
+      const row = values[i];
+
+      const presenceId = String(row[0] || '').trim();
+      const employeeId = String(row[1] || '').trim();
+      const debutTxt = row[3];
+      const finCell = row[4];
+      const statut = row[6];
+
+      if (!employeeId) continue;
+
+      const finEmpty = (finCell === '' || finCell == null);
+      const isEnCours = (norm_(statut) === 'en cours');
+      if (!(finEmpty && isEnCours)) continue;
+
+      const d0 = parseFRDate_(debutTxt);
+      const ms = d0 ? (finDate.getTime() - d0.getTime()) : 0;
+
+      row[4] = finTxt;
+      row[5] = d0 ? formatDurationPresence_(ms) : '';
+      row[6] = 'Terminé';
+      closed++;
+
+      if (ofSh) {
+        const closedKey = closeOFForEmployee_(ofSh, employeeId, finTxt, presenceId);
+        if (closedKey && closedKey.operation && closedKey.of) {
+          setLastOpToResume_(employeeId, closedKey);
+          closedOF++;
+        }
+      }
+
+      const state = getEmpStateCached_(employeeId) || {};
+      if (state && state.activeRow) {
+        delete state.activeRow;
+        setEmpStateCached_(employeeId, state);
+      }
+    }
+
+    if (closed > 0) range.setValues(values);
+
+    return {
+      success: true,
+      closed: closed,
+      closedOF: closedOF,
+      fin: finTxt
+    };
+
+  } catch (err) {
+    return {
+      success: false,
+      error: String(err),
+      stack: err && err.stack ? err.stack : ''
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/***********************
+ * Triggers + menu
+ ***********************/
+function installAutoCloseTrigger_() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'autoClosePresenceDaily_') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+
+  ScriptApp.newTrigger('autoClosePresenceDaily_')
+    .timeBased()
+    .everyDays(1)
+    .atHour(1)
+    .create();
+}
+
+function autoClosePresenceDaily_() {
+  autoClosePresenceAndOF_({});
+}
+
+function autoClosePresenceDaily() {
+  autoClosePresenceAndOF_({});
+}
+
+function onOpenResetMenu_() {
+  SpreadsheetApp.getUi()
+    .createMenu('Pointage')
+    .addItem('Reset filtres', 'resetFiltres_')
+    .addToUi();
+}
+
+function resetFiltres_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName('Synthèse pointage opérations');
+
+  if (!sh) {
+    SpreadsheetApp.getUi().alert("Onglet introuvable: Synthèse pointage opérations");
+    return;
+  }
+
+  sh.getRange('B4').clearContent();
+  sh.getRange('B6').clearContent();
+  sh.getRange('B8').clearContent();
+  sh.getRange('D2').clearContent();
+  sh.getRange('D6').clearContent();
+  sh.getRange('F4').clearContent();
+
+  sh.getRange('B2').activate();
+}
+
+function onOpen(e) {
+  onOpenResetMenu_();
+}
