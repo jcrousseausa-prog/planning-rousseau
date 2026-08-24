@@ -3869,13 +3869,15 @@ function removeCaristePeriode(i){
 }
 
 function periodesChevauchent(periodes){
-  const valides = periodes.filter(p=>p.debut && p.fin);
-  for(let i=0;i<valides.length;i++){
-    for(let j=i+1;j<valides.length;j++){
-      const a=valides[i], b=valides[j];
-      if(a.debut <= b.fin && b.debut <= a.fin) return {a,b};
-    }
+  const valides = periodes.filter(p=>p.debut);
+for(let i=0;i<valides.length;i++){
+  for(let j=i+1;j<valides.length;j++){
+    const a=valides[i], b=valides[j];
+    const finA = a.fin || '9999-12-31';
+    const finB = b.fin || '9999-12-31';
+    if(a.debut <= finB && b.debut <= finA) return {a,b};
   }
+}
   return null;
 }
 
@@ -5143,7 +5145,7 @@ function renderAffectationLog(){
     const vendredi = new Date(lundi); vendredi.setDate(lundi.getDate()+4);
     const dLundi = lundi.toISOString().slice(0,10), dVendredi = vendredi.toISOString().slice(0,10);
     const periodes = emp.cariste_periodes||[];
-    const match = periodes.find(p=>p.debut && p.fin && p.debut<=dVendredi && p.fin>=dLundi);
+    const match = periodes.find(p=>p.debut && p.debut<=dVendredi && (!p.fin || p.fin>=dLundi));
     return match ? match.atelier : (emp.cariste_atelier||null);
   }
   const ateliersCaristes = [...new Set(empsSupport.map(e=>atelierPourSemaine(e, semSel)).filter(Boolean))];
