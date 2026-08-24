@@ -272,20 +272,28 @@
   /***********************
    * Focus lock
    ***********************/
+  let choiceScreenActive = false;
+
   function lockFocus(){
     const input = document.getElementById('scanInput');
     input.focus();
     document.addEventListener('mousedown', (e) => {
+      if (choiceScreenActive) return;
       if (e.target !== input) setTimeout(() => input.focus(), 0);
     }, true);
-    input.addEventListener('blur', () => setTimeout(() => input.focus(), 0));
+    input.addEventListener('blur', () => {
+      if (choiceScreenActive) return;
+      setTimeout(() => input.focus(), 0);
+    });
     document.addEventListener('keydown', (e) => {
+      if (choiceScreenActive) return;
       if (e.key === 'Tab' || e.key === 'Escape') {
         e.preventDefault();
         input.focus();
       }
     }, true);
   }
+  
 
   /***********************
    * Chantiers ERP (cross-projet)
