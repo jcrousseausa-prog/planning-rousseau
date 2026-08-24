@@ -201,6 +201,11 @@
     </div>
   </div>
 </div>
+  <!-- ÉCRAN CHOIX TÂCHE/CHANTIER -->
+<div id="taskScreen" class="factory-screen entry" aria-hidden="true">
+  <div class="factory-mode-top" id="taskTop">Sélectionnez votre tâche</div>
+  <div id="taskButtons" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px;max-width:90vw"></div>
+</div>
 <!-- ÉCRAN PLEIN MODE USINE -->
 <div id="factoryScreen" class="factory-screen" aria-hidden="true">
   <div id="factoryTop" class="factory-mode-top">POINTAGE ENREGISTRÉ</div>
@@ -219,9 +224,14 @@
   const SCAN_LOCK_MS = 2000;
   const employeeCooldown = new Map();
   let factoryTimer = null;
+    const ERP_SCRIPT_URL = "https://jcrousseausa-prog.github.io/planning-rousseau/erp.html";
+  let CHANTIERS = [];
+  let OPERATIONS = ['Assemblage','Isolation','Agrafage','Finition','Bardage','Chargement','Reprise','Usinage','Logistique'];
+  let chantiersDisponibles = false;
 
-  window.onload = function() {
+    window.onload = function() {
     testConnection();
+    chargerChantiersERP();
     loadEmployees().finally(async () => {
       loadLocalSafe_();
       await loadPresenceFromServer(true);
@@ -229,6 +239,24 @@
       syncTimer = setInterval(() => loadPresenceFromServer(false), 30000);
       lockFocus();
       updateQueueInfo();
+        async function chargerChantiersERP(){
+    try {
+      const res = await http_(ERP_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'getListeChantiersOperations'})
+      });
+      const txt = await res.text();
+      const r = JSON.parse(txt);
+      if (r.ok && r.chantiers && r.chantiers.length) {
+        CHANTIERS = r.chantiers;
+        if (r.operations && r.operations.length) OPERATIONS = r.operations;
+        chantiersDisponibles = true;
+      }
+    } catch(e) {
+      console.warn('Chantiers ERP indisponibles, pointage simple maintenu:', e);
+      chantiersDisponibles = false;
+    }
+  }
     });
   };
 
@@ -306,6 +334,43 @@
   /***********************
    * Affichage badgeuse
    ***********************/
+    function demanderOperation(nom){
+    return new Promise(resolve=>{
+      const screen = document.getElementById('taskScreen');
+      document.getElementById('taskTop').textContent = nom.toUpperCase() + ' — Choisissez votre tâche';
+      document.getElementById('taskButtons').innerHTML = OPERATIONS.map(op =>
+        `<button class="btn btn-primary" style="padding:26px 10px;font-size:19px" data-op="${escapeHtml(op)}">${escapeHtml(op)}</button>`
+      ).join('');
+      screen.classList.add('show');
+      const handler = (e)=>{
+        const btn = e.target.closest('[data-op]');
+        if (!btn) return;
+        screen.removeEventListener('click', handler);
+        screen.classList.remove('show');
+        resolve(btn.getAttribute('data-op'));
+      };
+      screen.addEventListener('click', handler);
+    });
+  }
+
+  function demanderChantier(nom, operation){
+    return new Promise(resolve=>{
+      const screen = document.getElementById('taskScreen');
+      document.getElementById('taskTop').textContent = nom.toUpperCase() + ' — ' + operation + ' — Choisissez le chantier';
+      document.getElementById('taskButtons').innerHTML = CHANTIERS.map(ch =>
+        `<button class="btn btn-primary" style="padding:22px 8px;font-size:15px" data-ch="${escapeHtml(ch)}">${escapeHtml(ch)}</button>`
+      ).join('');
+      screen.classList.add('show');
+      const handler = (e)=>{
+        const btn = e.target.closest('[data-ch]');
+        if (!btn) return;
+        screen.removeEventListener('click', handler);
+        screen.classList.remove('show');
+        resolve(btn.getAttribute('data-ch'));
+      };
+      screen.addEventListener('click', handler);
+    });
+  }
   function showFactoryScreen(employeeName, mode){
     const screen = document.getElementById('factoryScreen');
     const top = document.getElementById('factoryTop');
@@ -633,7 +698,14 @@
           } finally {
             loadPresenceFromServer(false);
           }
-        } else {
+           } else {
+          let operationChoisie = '', chantierChoisi = '';
+          if (chantiersDisponibles) {
+            operationChoisie = await demanderOperation(empName);
+            if (operationChoisie && operationChoisie !== 'Logistique' && operationChoisie !== 'Usinage') {
+              chantierChoisi = await demanderChantier(empName, operationChoisie);
+            }
+          }
           const rec = {
             id: String(Date.now()),
             employeeId: eid,
@@ -654,7 +726,9 @@
               employeeId: eid,
               recordId: rec.id,
               nom: empName,
-              debut: rec.debut
+              debut: rec.debut,
+              operation: operationChoisie,
+              of: chantierChoisi
             });
             if (res && res.success) {
               toast(`Présence démarrée : ${empName}`, true, 2000);
