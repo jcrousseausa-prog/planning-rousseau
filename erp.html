@@ -510,7 +510,7 @@ table.bl-lignes td.r{text-align:right}
       <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Rôle spécifique</label>
       <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-          <input type="checkbox" id="me-cariste" style="width:16px;height:16px" onchange="document.getElementById('me-cariste-atelier-wrap').style.display=this.checked?'flex':'none'"/>
+          <input type="checkbox" id="me-cariste" style="width:16px;height:16px" onchange="document.getElementById('me-cariste-atelier-wrap').style.display=this.checked?'block':'none'"/>
           <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4Ij4KICA8IS0tIENvcnBzIHByaW5jaXBhbCAtLT4KICA8cmVjdCB4PSIxMCIgeT0iMTQiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxMCIgcng9IjEuNSIgZmlsbD0iI0NDMjIwMCIvPgogIDwhLS0gQ2FiaW5lIC0tPgogIDxyZWN0IHg9IjE4IiB5PSI5IiB3aWR0aD0iOCIgaGVpZ2h0PSI4IiByeD0iMSIgZmlsbD0iI0REMzMxMSIvPgogIDwhLS0gVml0cmUgY2FiaW5lIC0tPgogIDxyZWN0IHg9IjE5LjUiIHk9IjEwLjUiIHdpZHRoPSI1IiBoZWlnaHQ9IjUiIHJ4PSIwLjUiIGZpbGw9IiM4OENDRUUiIG9wYWNpdHk9IjAuOCIvPgogIDwhLS0gTcOidCB2ZXJ0aWNhbCAtLT4KICA8cmVjdCB4PSI4IiB5PSI0IiB3aWR0aD0iMi41IiBoZWlnaHQ9IjE4IiByeD0iMSIgZmlsbD0iI0FBMTEwMCIvPgogIDwhLS0gRm91cmNoZXMgLS0+CiAgPHJlY3QgeD0iMiIgeT0iMjAiIHdpZHRoPSI4IiBoZWlnaHQ9IjEuOCIgcng9IjAuOCIgZmlsbD0iIzg4MTEwMCIvPgogIDxyZWN0IHg9IjIiIHk9IjIzIiB3aWR0aD0iOCIgaGVpZ2h0PSIxLjgiIHJ4PSIwLjgiIGZpbGw9IiM4ODExMDAiLz4KICA8IS0tIFJvdWUgYXZhbnQgLS0+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIFJvdWUgYXJyacOocmUgLS0+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIENvbnRyZXBvaWRzIGFycmnDqHJlIC0tPgogIDxyZWN0IHg9IjI0IiB5PSIxNyIgd2lkdGg9IjQiIGhlaWdodD0iNyIgcng9IjEiIGZpbGw9IiM5OTExMDAiLz4KICA8IS0tIEd5cm9waGFyZSAtLT4KICA8Y2lyY2xlIGN4PSIyMiIgY3k9IjguNSIgcj0iMS41IiBmaWxsPSIjRkY2NjAwIi8+CiAgPGNpcmNsZSBjeD0iMjIiIGN5PSI4LjUiIHI9IjAuNyIgZmlsbD0iI0ZGQUEwMCIvPgo8L3N2Zz4=" style="width:18px;height:18px;vertical-align:middle;margin-right:4px"> Cariste (affectation proportionnelle)
         </label>
       </div>
@@ -3837,7 +3837,56 @@ function openAddEmploye(){
   document.getElementById('modal-employe').classList.add('show');
   _ctx = {type:'add-employe'};
 }
+function renderCaristePeriodesList(){
+  const el = document.getElementById('me-cariste-periodes-list');
+  const periodes = _ctx._caristePeriodesEdit || [];
+  if(!periodes.length){
+    el.innerHTML = '<div style="font-size:11px;color:#7d5a00;font-style:italic">Aucune période — ajoutez-en une</div>';
+    return;
+  }
+  el.innerHTML = periodes.map((p,i)=>`
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;background:#fff;border:1px solid #f0c040;border-radius:6px;padding:6px 8px">
+      <select onchange="updateCaristePeriode(${i},'atelier',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px">
+        ${['B1','B2','B3','Men'].map(a=>`<option value="${a}"${p.atelier===a?' selected':''}>${a}</option>`).join('')}
+      </select>
+      <input type="date" value="${p.debut||''}" onchange="updateCaristePeriode(${i},'debut',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px"/>
+      <span style="font-size:11px;color:var(--text3)">→</span>
+      <input type="date" value="${p.fin||''}" onchange="updateCaristePeriode(${i},'fin',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px"/>
+      <button type="button" onclick="removeCaristePeriode(${i})" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:14px;margin-left:auto">✕</button>
+    </div>
+  `).join('');
+}
 
+function addCaristePeriode(){
+  if(!_ctx._caristePeriodesEdit) _ctx._caristePeriodesEdit = [];
+  _ctx._caristePeriodesEdit.push({atelier:'B1', debut:'', fin:''});
+  renderCaristePeriodesList();
+}
+
+function removeCaristePeriode(i){
+  _ctx._caristePeriodesEdit.splice(i,1);
+  renderCaristePeriodesList();
+}
+
+function periodesChevauchent(periodes){
+  const valides = periodes.filter(p=>p.debut && p.fin);
+  for(let i=0;i<valides.length;i++){
+    for(let j=i+1;j<valides.length;j++){
+      const a=valides[i], b=valides[j];
+      if(a.debut <= b.fin && b.debut <= a.fin) return {a,b};
+    }
+  }
+  return null;
+}
+
+function updateCaristePeriode(i, field, value){
+  _ctx._caristePeriodesEdit[i][field] = value;
+  const conflit = periodesChevauchent(_ctx._caristePeriodesEdit);
+  if(conflit){
+    toast(`⚠ Chevauchement : ${conflit.a.atelier} (${conflit.a.debut}→${conflit.a.fin}) et ${conflit.b.atelier} (${conflit.b.debut}→${conflit.b.fin})`);
+  }
+  renderCaristePeriodesList();
+}
 function openEditEmploye(id){
   const e = (state.employes||[]).find(x=>x.id===id);
   if(!e) return;
@@ -3853,9 +3902,12 @@ function openEditEmploye(id){
   // Charger l'historique des contrats
   _ctx._contratsEdit = e.contrats ? JSON.parse(JSON.stringify(e.contrats)) : [];
   renderContratsList();
-  document.getElementById('me-cariste').checked = e.cariste||false;
-  document.getElementById('me-cariste-atelier-wrap').style.display = e.cariste ? 'flex' : 'none';
-  if(e.cariste_atelier) document.getElementById('me-cariste-atelier').value = e.cariste_atelier;
+    document.getElementById('me-cariste').checked = e.cariste||false;
+  document.getElementById('me-cariste-atelier-wrap').style.display = e.cariste ? 'block' : 'none';
+  _ctx._caristePeriodesEdit = e.cariste_periodes
+    ? JSON.parse(JSON.stringify(e.cariste_periodes))
+    : (e.cariste_atelier ? [{atelier:e.cariste_atelier, debut:'', fin:''}] : []);
+  renderCaristePeriodesList();
   document.getElementById('me-interim-fields').style.display = e.statut==='interim'?'':'none';
   document.getElementById('me-statut').onchange = function(){
     document.getElementById('me-interim-fields').style.display = this.value==='interim'?'':'none';
@@ -3929,9 +3981,16 @@ function saveEmploye(){
     debut_mission: document.getElementById('me-debut-mission').value||null,
     fin_mission: document.getElementById('me-fin-mission').value||null,
     contrats: _ctx._contratsEdit||undefined,
-    cariste: document.getElementById('me-cariste')?.checked||false,
-    cariste_atelier: document.getElementById('me-cariste')?.checked ? (document.getElementById('me-cariste-atelier')?.value||'B1') : null,
+       cariste: document.getElementById('me-cariste')?.checked||false,
+    cariste_periodes: document.getElementById('me-cariste')?.checked ? (_ctx._caristePeriodesEdit||[]).filter(p=>p.atelier) : [],
   };
+  if(data.cariste){
+    const conflit = periodesChevauchent(data.cariste_periodes);
+    if(conflit){
+      toast(`❌ Impossible d'enregistrer : périodes en chevauchement (${conflit.a.atelier} et ${conflit.b.atelier})`);
+      return;
+    }
+  }
   if(_ctx.type==='edit-employe'){
     const idx = state.employes.findIndex(e=>e.id===_ctx.id);
     if(idx>=0) Object.assign(state.employes[idx], data);
@@ -5077,7 +5136,17 @@ function renderAffectationLog(){
   // Chaque cariste a son propre atelier de rattachement
   // On affiche un tableau par cariste ou on calcule par atelier unique si tous pareil
   // Atelier cible = union des ateliers des caristes (ou sélecteur si différents)
-  const ateliersCaristes = [...new Set(empsSupport.map(e=>e.cariste_atelier||'B1'))];
+    function atelierPourSemaine(emp, semaineVal){
+    const [y,w] = semaineVal.split('-W').map(Number);
+    const lundi = new Date(y,0,1+(w-1)*7);
+    lundi.setDate(lundi.getDate() - ((lundi.getDay()+6)%7));
+    const vendredi = new Date(lundi); vendredi.setDate(lundi.getDate()+4);
+    const dLundi = lundi.toISOString().slice(0,10), dVendredi = vendredi.toISOString().slice(0,10);
+    const periodes = emp.cariste_periodes||[];
+    const match = periodes.find(p=>p.debut && p.fin && p.debut<=dVendredi && p.fin>=dLundi);
+    return match ? match.atelier : (emp.cariste_atelier||null);
+  }
+  const ateliersCaristes = [...new Set(empsSupport.map(e=>atelierPourSemaine(e, semSel)).filter(Boolean))];
   const atelierCible = state._affectAtelier || ateliersCaristes[0] || 'B1';
 
   // Calculer les heures production par chantier pour l'atelier cible cette semaine
@@ -5127,8 +5196,8 @@ function renderAffectationLog(){
         ${ateliersProd.map(a=>`<option value="${a}"${a===atelierCible?' selected':''}>${a}</option>`).join('')}
       </select>
     </label>
-    ${empsSupport.length ? `<span style="font-size:11px;color:var(--text3)">
-      Caristes rattachés : ${empsSupport.map(e=>`<strong>${esc(e.nom)}</strong> → ${e.cariste_atelier||'B1'}`).join(' · ')}
+        ${empsSupport.length ? `<span style="font-size:11px;color:var(--text3)">
+      Caristes rattachés cette semaine : ${empsSupport.map(e=>`<strong>${esc(e.nom)}</strong> → ${atelierPourSemaine(e, semSel)||'non affecté'}`).join(' · ')}
     </span>` : ''}
   </div>
 
