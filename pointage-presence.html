@@ -201,7 +201,7 @@
     </div>
   </div>
 </div>
-  <!-- ÉCRAN CHOIX TÂCHE/CHANTIER -->
+<!-- ÉCRAN CHOIX TÂCHE/CHANTIER -->
 <div id="taskScreen" class="factory-screen entry" aria-hidden="true">
   <div class="factory-mode-top" id="taskTop">Sélectionnez votre tâche</div>
   <div id="taskButtons" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px;max-width:90vw"></div>
@@ -224,12 +224,12 @@
   const SCAN_LOCK_MS = 2000;
   const employeeCooldown = new Map();
   let factoryTimer = null;
-    const ERP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec";
+  const ERP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec";
   let CHANTIERS = [];
   let OPERATIONS = ['Assemblage','Isolation','Agrafage','Finition','Bardage','Chargement','Reprise','Usinage','Logistique'];
   let chantiersDisponibles = false;
 
-    window.onload = function() {
+  window.onload = function() {
     testConnection();
     chargerChantiersERP();
     loadEmployees().finally(async () => {
@@ -239,24 +239,6 @@
       syncTimer = setInterval(() => loadPresenceFromServer(false), 30000);
       lockFocus();
       updateQueueInfo();
-        async function chargerChantiersERP(){
-    try {
-      const res = await http_(ERP_SCRIPT_URL, {
-        method:'POST', headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({action:'getListeChantiersOperations'})
-      });
-      const txt = await res.text();
-      const r = JSON.parse(txt);
-      if (r.ok && r.chantiers && r.chantiers.length) {
-        CHANTIERS = r.chantiers;
-        if (r.operations && r.operations.length) OPERATIONS = r.operations;
-        chantiersDisponibles = true;
-      }
-    } catch(e) {
-      console.warn('Chantiers ERP indisponibles, pointage simple maintenu:', e);
-      chantiersDisponibles = false;
-    }
-  }
     });
   };
 
@@ -306,35 +288,28 @@
   }
 
   /***********************
-   * UI helpers
+   * Chantiers ERP (cross-projet)
    ***********************/
-  function toast(msg, ok=true, duration=2000){
-    const d = document.createElement('div');
-    d.className = 'toast ' + (ok ? 'ok':'err');
-    d.textContent = msg;
-    document.body.appendChild(d);
-    setTimeout(()=>{ d.remove(); }, duration);
-  }
-  function setStatus(msg, ok){
-    const el = document.getElementById('statusText');
-    el.textContent = msg;
-    el.className = ok ? 'status-connected' : 'status-error';
-  }
-  function updateQueueInfo(){
-    const waiting = queue.length;
-    document.getElementById('queueHint').textContent =
-      waiting > 0 ? `Scans en attente : ${waiting}` : '';
-  }
-  function escapeHtml(s){
-    return String(s ?? '').replace(/[&<>"']/g, (m) => ({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
-    }[m]));
+  async function chargerChantiersERP(){
+    try {
+      const res = await http_(ERP_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'getListeChantiersOperations'})
+      });
+      const txt = await res.text();
+      const r = JSON.parse(txt);
+      if (r.ok && r.chantiers && r.chantiers.length) {
+        CHANTIERS = r.chantiers;
+        if (r.operations && r.operations.length) OPERATIONS = r.operations;
+        chantiersDisponibles = true;
+      }
+    } catch(e) {
+      console.warn('Chantiers ERP indisponibles, pointage simple maintenu:', e);
+      chantiersDisponibles = false;
+    }
   }
 
-  /***********************
-   * Affichage badgeuse
-   ***********************/
-    function demanderOperation(nom){
+  function demanderOperation(nom){
     return new Promise(resolve=>{
       const screen = document.getElementById('taskScreen');
       document.getElementById('taskTop').textContent = nom.toUpperCase() + ' — Choisissez votre tâche';
@@ -371,6 +346,36 @@
       screen.addEventListener('click', handler);
     });
   }
+
+  /***********************
+   * UI helpers
+   ***********************/
+  function toast(msg, ok=true, duration=2000){
+    const d = document.createElement('div');
+    d.className = 'toast ' + (ok ? 'ok':'err');
+    d.textContent = msg;
+    document.body.appendChild(d);
+    setTimeout(()=>{ d.remove(); }, duration);
+  }
+  function setStatus(msg, ok){
+    const el = document.getElementById('statusText');
+    el.textContent = msg;
+    el.className = ok ? 'status-connected' : 'status-error';
+  }
+  function updateQueueInfo(){
+    const waiting = queue.length;
+    document.getElementById('queueHint').textContent =
+      waiting > 0 ? `Scans en attente : ${waiting}` : '';
+  }
+  function escapeHtml(s){
+    return String(s ?? '').replace(/[&<>"']/g, (m) => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+    }[m]));
+  }
+
+  /***********************
+   * Affichage badgeuse
+   ***********************/
   function showFactoryScreen(employeeName, mode){
     const screen = document.getElementById('factoryScreen');
     const top = document.getElementById('factoryTop');
@@ -698,7 +703,7 @@
           } finally {
             loadPresenceFromServer(false);
           }
-           } else {
+        } else {
           let operationChoisie = '', chantierChoisi = '';
           if (chantiersDisponibles) {
             operationChoisie = await demanderOperation(empName);
