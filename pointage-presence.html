@@ -4,10 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Pointage Présence</title>
-
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-
     body{
       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
       background: linear-gradient(135deg,#667eea 0%,#764ba2 100%);
@@ -15,88 +13,66 @@
       padding:20px;
       overflow-x:hidden;
     }
-
     .container{ max-width:1400px; margin:0 auto; }
-
     .header{
       background:white; padding:30px; border-radius:15px;
       box-shadow:0 10px 30px rgba(0,0,0,.2); margin-bottom:20px; text-align:center;
     }
-
     .header h1{
       color:#667eea; font-size:32px; display:flex; align-items:center; justify-content:center;
       gap:20px; flex-wrap:wrap;
     }
-
     .status-bar{
       background:white; padding:12px 15px; border-radius:10px; margin-bottom:20px;
       text-align:center; box-shadow:0 4px 6px rgba(0,0,0,.1);
     }
-
     .status-connected{ color:#10b981; font-weight:800; }
     .status-error{ color:#ef4444; font-weight:800; }
-
     .panel{
       background:white; border-radius:15px; overflow:hidden;
       box-shadow:0 10px 30px rgba(0,0,0,.2);
       padding:25px;
     }
-
     .form-group{ margin-bottom:16px; }
-
     .form-group label{
       display:block; margin-bottom:8px; font-weight:800; color:#374151;
     }
-
     .form-group input{
       width:100%; padding:14px; border:2px solid #e5e7eb; border-radius:8px; font-size:16px;
     }
-
     .input-group{ display:flex; gap:10px; }
-
     .btn{
       padding:14px 22px; border:none; border-radius:8px; font-size:16px; font-weight:900;
       cursor:pointer; transition: all .2s ease;
       white-space:nowrap;
     }
-
     .btn-primary{ background:#667eea; color:white; }
     .btn-primary:hover{ background:#5568d3; }
     .btn:disabled{ opacity:.65; cursor:not-allowed; }
-
     table{
       width:100%; border-collapse:collapse; background:white; border-radius:10px; overflow:hidden;
     }
-
     thead{ background:#f3f4f6; }
-
     th{
       padding:12px; text-align:left; font-weight:900; color:#374151;
     }
-
     td{
       padding:12px; border-top:1px solid #e5e7eb; vertical-align:top;
     }
-
     tr:hover{ background:#f9fafb; }
-
     .status-badge{
       padding:6px 12px; border-radius:999px; font-size:13px; font-weight:900;
     }
-
     .status-active{ background:#d1fae5; color:#065f46; }
     .status-ended{ background:#fee2e2; color:#991b1b; }
-
     .toast{
       position:fixed; top:18px; left:50%; transform:translateX(-50%);
       background:white; padding:14px 18px; border-radius:12px;
       box-shadow:0 10px 30px rgba(0,0,0,.25);
       z-index:9999; max-width:92vw; font-weight:800;
     }
-
     .toast.ok{ border-left:6px solid #10b981; }
     .toast.err{ border-left:6px solid #ef4444; }
-
     .queue-hint{
       margin-top:8px;
       font-weight:800;
@@ -104,12 +80,10 @@
       font-size:13px;
       min-height:18px;
     }
-
     .presence-oops{
       color:#ff0000;
       font-weight:900;
     }
-
     /* =========================
        MODE USINE / BADGEUSE
        ========================= */
@@ -128,22 +102,18 @@
       transition:opacity .12s ease;
       padding:30px;
     }
-
     .factory-screen.show{
       opacity:1;
       visibility:visible;
     }
-
     .factory-screen.entry{
       background:#00c853; /* vert très visible */
       color:#ffffff;
     }
-
     .factory-screen.exit{
       background:#d50000; /* rouge sortie */
       color:#ffffff;
     }
-
     .factory-mode-top{
       font-size:clamp(28px, 4vw, 56px);
       font-weight:900;
@@ -153,7 +123,6 @@
       margin-bottom:25px;
       text-shadow:0 4px 20px rgba(0,0,0,.25);
     }
-
     .factory-mode-name{
       font-size:clamp(60px, 10vw, 180px);
       line-height:.95;
@@ -166,7 +135,6 @@
         0 4px 0 rgba(0,0,0,.15),
         0 10px 30px rgba(0,0,0,.22);
     }
-
     .factory-mode-bottom{
       margin-top:28px;
       font-size:clamp(22px, 3.2vw, 46px);
@@ -174,38 +142,31 @@
       opacity:.98;
       text-shadow:0 4px 20px rgba(0,0,0,.25);
     }
-
     .factory-pulse{
       animation:factoryPulse .45s ease 2;
     }
-
     @keyframes factoryPulse{
       0%{ transform:scale(1); }
       50%{ transform:scale(1.025); }
       100%{ transform:scale(1); }
     }
-
     @media (max-width: 900px){
       .input-group{ flex-direction:column; }
       .btn{ width:100%; }
     }
   </style>
 </head>
-
 <body>
 <div class="container">
-
   <div class="status-bar">
     <span id="statusText">🔄 Vérification de la connexion…</span>
   </div>
-
   <div class="header">
     <h1>
       <img src="logo.png" alt="Logo" style="height:60px;width:auto;border:3px solid #2c3e50;border-radius:8px;padding:5px;background:white;">
       Pointage Présence
     </h1>
   </div>
-
   <div class="panel">
     <div class="form-group">
       <label>Scanner l’ID employé</label>
@@ -222,7 +183,6 @@
       </div>
       <div id="queueHint" class="queue-hint"></div>
     </div>
-
     <div style="overflow-x:auto;">
       <table>
         <thead>
@@ -241,41 +201,32 @@
     </div>
   </div>
 </div>
-
 <!-- ÉCRAN PLEIN MODE USINE -->
 <div id="factoryScreen" class="factory-screen" aria-hidden="true">
   <div id="factoryTop" class="factory-mode-top">POINTAGE ENREGISTRÉ</div>
   <div id="factoryName" class="factory-mode-name">NOM EMPLOYÉ</div>
   <div id="factoryBottom" class="factory-mode-bottom">ENTRÉE</div>
 </div>
-
 <script>
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzzTvmU8uvjwEpdV8Q1bB9zo_XUJH0-e3K0cX_Snt7sCnGbEbbojASPmkUa8d2gswrI/exec";
-
   let EMP_BY_ID = new Map();
   let presenceRecords = [];
-
   let processing = false;
   let queue = [];
   let syncTimer = null;
   let lastLocalChangeAt = 0;
-
   const STORAGE_KEY = 'pointage-presence-id-v7';
   const SCAN_LOCK_MS = 2000;
   const employeeCooldown = new Map();
-
   let factoryTimer = null;
 
   window.onload = function() {
     testConnection();
-
     loadEmployees().finally(async () => {
       loadLocalSafe_();
       await loadPresenceFromServer(true);
-
       if (syncTimer) clearInterval(syncTimer);
       syncTimer = setInterval(() => loadPresenceFromServer(false), 30000);
-
       lockFocus();
       updateQueueInfo();
     });
@@ -289,7 +240,6 @@
     try { if (s.normalize) s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch(e) {}
     return s;
   }
-
   function http_(url, opts){
     opts = opts || {};
     if (window.fetch) return fetch(url, opts);
@@ -315,13 +265,10 @@
   function lockFocus(){
     const input = document.getElementById('scanInput');
     input.focus();
-
     document.addEventListener('mousedown', (e) => {
       if (e.target !== input) setTimeout(() => input.focus(), 0);
     }, true);
-
     input.addEventListener('blur', () => setTimeout(() => input.focus(), 0));
-
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Tab' || e.key === 'Escape') {
         e.preventDefault();
@@ -340,19 +287,16 @@
     document.body.appendChild(d);
     setTimeout(()=>{ d.remove(); }, duration);
   }
-
   function setStatus(msg, ok){
     const el = document.getElementById('statusText');
     el.textContent = msg;
     el.className = ok ? 'status-connected' : 'status-error';
   }
-
   function updateQueueInfo(){
     const waiting = queue.length;
     document.getElementById('queueHint').textContent =
       waiting > 0 ? `Scans en attente : ${waiting}` : '';
   }
-
   function escapeHtml(s){
     return String(s ?? '').replace(/[&<>"']/g, (m) => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
@@ -367,26 +311,19 @@
     const top = document.getElementById('factoryTop');
     const name = document.getElementById('factoryName');
     const bottom = document.getElementById('factoryBottom');
-
     if (factoryTimer) {
       clearTimeout(factoryTimer);
       factoryTimer = null;
     }
-
     screen.classList.remove('entry', 'exit', 'show', 'factory-pulse');
-
     const isExit = mode === 'exit';
-
     screen.classList.add(isExit ? 'exit' : 'entry');
     screen.classList.add('show');
     screen.classList.add('factory-pulse');
-
     top.textContent = 'POINTAGE ENREGISTRÉ';
     name.textContent = String(employeeName || '').toUpperCase();
     bottom.textContent = isExit ? 'SORTIE' : 'ENTRÉE';
-
     screen.setAttribute('aria-hidden', 'false');
-
     factoryTimer = setTimeout(() => {
       screen.classList.remove('show', 'factory-pulse');
       screen.setAttribute('aria-hidden', 'true');
@@ -398,11 +335,9 @@
    ***********************/
   function formatDisplayFR_(value){
     if (value == null || value === '') return '-';
-
     if (/^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}(:\d{2})?$/.test(String(value))) {
       return String(value).replace(/:\d{2}$/, '');
     }
-
     const iso = String(value);
     if (/^\d{4}-\d{2}-\d{2}T/.test(iso)) {
       const d = new Date(iso);
@@ -413,7 +348,6 @@
         });
       }
     }
-
     const d2 = new Date(String(value));
     if (!isNaN(d2)) {
       return d2.toLocaleString('fr-FR', {
@@ -421,7 +355,6 @@
         hour:'2-digit', minute:'2-digit'
       });
     }
-
     return String(value);
   }
 
@@ -440,7 +373,6 @@
         setStatus('❌ Erreur de connexion', false);
       });
   }
-
   function get(action){
     const url = SCRIPT_URL + '?action=' + encodeURIComponent(action) + '&_ts=' + Date.now();
     return http_(url, { method:'GET', cache:'no-store' })
@@ -450,7 +382,6 @@
         catch(e){ throw new Error(`Non-JSON ${action} | ${String(t).slice(0,120)}`); }
       }));
   }
-
   function post(action, payload){
     const body = JSON.stringify(Object.assign({action}, payload || {}));
     return http_(SCRIPT_URL, {
@@ -497,7 +428,6 @@
     }
     renderPresence();
   }
-
   function saveLocal(){
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ records: presenceRecords }));
   }
@@ -510,7 +440,6 @@
     if (!m) return null;
     return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4]), Number(m[5]), Number(m[6] || 0));
   }
-
   function calcDurationFromFR_(startFR, endDate){
     const d0 = parseFRDateTime_(startFR);
     if (!d0) return '';
@@ -519,14 +448,12 @@
     const m = Math.floor((diff%3600000)/60000);
     return h + 'h ' + m + 'min';
   }
-
   function isActiveRecordStrict_(r){
     const finTxt = String(r.fin ?? '').trim();
     const finEmpty = (finTxt === '' || finTxt === '-');
     const st = safeNormalize_(r.statut || '');
     return finEmpty && st === 'en cours';
   }
-
   function parseDurationToMinutes_(txt){
     if (!txt) return null;
     const s = String(txt).trim().toLowerCase();
@@ -536,14 +463,11 @@
     const min = Number(m[2] || 0);
     return (h * 60) + min;
   }
-
   function shouldHighlightOvertime_(record){
     const active = isActiveRecordStrict_(record);
     if (active) return false;
-
     const mins = parseDurationToMinutes_(record.temps);
     if (mins == null) return false;
-
     return mins > 330;
   }
 
@@ -552,7 +476,6 @@
    ***********************/
   async function loadPresenceFromServer(showToast=false){
     if (!showToast && (Date.now() - lastLocalChangeAt) < 2000) return;
-
     try {
       const rows = await get('getPresence');
       const list = (rows || []).map(r => ({
@@ -564,11 +487,9 @@
         temps: (r[5] == null || r[5] === '') ? null : String(r[5]),
         statut: String(r[6] ?? '')
       })).filter(x => x.employeeId);
-
       for (const it of list){
         if (!it.nom) it.nom = EMP_BY_ID.get(it.employeeId) || '';
       }
-
       list.sort((a,b)=>{
         function toDate(x){
           if(!x) return new Date(0);
@@ -581,12 +502,9 @@
         const db = toDate(b.fin || b.debut);
         return db - da;
       });
-
       presenceRecords = list;
-
       renderPresence();
       saveLocal();
-
       if (showToast) toast('🔄 Synchronisé avec Google Sheets', true, 2000);
     } catch (e) {
       console.error(e);
@@ -605,15 +523,12 @@
     }
     return true;
   }
-
   function lockEmployee_(employeeId, ms){
     employeeCooldown.set(employeeId, Date.now() + ms);
   }
-
   function unlockEmployee_(employeeId){
     employeeCooldown.delete(employeeId);
   }
-
   function makeRequestId_(employeeId){
     return [
       'REQ',
@@ -629,7 +544,6 @@
   function startPresence_(payload){
     return post('startPresence', payload);
   }
-
   function endPresence_(payload){
     return post('endPresence', payload);
   }
@@ -642,80 +556,61 @@
     const raw = String(input.value || '');
     input.value = '';
     input.focus();
-
     const cleaned = raw
       .replace(/[\u0000-\u001F\u007F\u00A0]/g, ' ')
       .replace(/\u001d/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-
     const candidates = cleaned.match(/\b\d{1,6}\b/g);
     let employeeId = candidates ? candidates[candidates.length - 1] : '';
-
     if (employeeId === '0') employeeId = '';
-
     if (!employeeId) {
       toast("❌ Scan illisible. Contenu: " + cleaned, false, 2000);
       return;
     }
-
     const nom = EMP_BY_ID.get(employeeId);
     if (!nom){
       toast("❌ ID inconnu. Scanne un ID existant (ex: 111).", false, 2000);
       return;
     }
-
     if (isEmployeeLocked_(employeeId)) {
       toast(`⏳ Pointage déjà pris en compte pour ${nom}`, true, 2000);
       return;
     }
-
     lockEmployee_(employeeId, SCAN_LOCK_MS);
     toast(`✅ Pointage pris en compte : ${nom}`, true, 2000);
-
     queue.push(employeeId);
     updateQueueInfo();
-
     if (processing){
       if (queue.length >= 8) toast('⏳ Beaucoup de scans en attente…', true, 2000);
       return;
     }
-
     processing = true;
-
     try {
       while (queue.length > 0){
         const eid = queue.shift();
         updateQueueInfo();
-
         const empName = EMP_BY_ID.get(eid) || eid;
         const lastForEmployee = presenceRecords.find(r => r.employeeId === eid) || null;
-
         const now = new Date();
         const nowTxt = now.toLocaleString('fr-FR', {
           day:'2-digit', month:'2-digit', year:'numeric',
           hour:'2-digit', minute:'2-digit', second:'2-digit'
         });
-
         const requestId = makeRequestId_(eid);
         const shouldEnd = lastForEmployee && isActiveRecordStrict_(lastForEmployee);
-
         if (shouldEnd){
           const temps = calcDurationFromFR_(lastForEmployee.debut, now) || '';
-
           presenceRecords = presenceRecords.map(r => {
             if (r.id === lastForEmployee.id){
               return { ...r, fin: nowTxt, temps, statut:'Terminé' };
             }
             return r;
           });
-
           lastLocalChangeAt = Date.now();
           renderPresence();
           saveLocal();
-
           showFactoryScreen(empName, 'exit');
-
           try {
             const res = await endPresence_({
               requestId: requestId,
@@ -724,7 +619,6 @@
               fin: nowTxt,
               temps: temps
             });
-
             if (res && res.success) {
               toast(`Présence terminée : ${empName}`, true, 2000);
             } else {
@@ -739,7 +633,6 @@
           } finally {
             loadPresenceFromServer(false);
           }
-
         } else {
           const rec = {
             id: String(Date.now()),
@@ -750,14 +643,11 @@
             temps: null,
             statut: 'En cours'
           };
-
           presenceRecords = [rec].concat(presenceRecords);
           lastLocalChangeAt = Date.now();
           renderPresence();
           saveLocal();
-
           showFactoryScreen(empName, 'entry');
-
           try {
             const res = await startPresence_({
               requestId: requestId,
@@ -766,7 +656,6 @@
               nom: empName,
               debut: rec.debut
             });
-
             if (res && res.success) {
               toast(`Présence démarrée : ${empName}`, true, 2000);
             } else {
@@ -782,7 +671,6 @@
             loadPresenceFromServer(false);
           }
         }
-
         input.focus();
       }
     } finally {
@@ -801,12 +689,10 @@
       tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Aucun pointage</td></tr>';
       return;
     }
-
     tbody.innerHTML = presenceRecords.map(r=>{
       const active = isActiveRecordStrict_(r);
       const nom = r.nom || (EMP_BY_ID.get(r.employeeId) || '');
       const highlight = shouldHighlightOvertime_(r);
-
       return `<tr>
         <td>${escapeHtml(nom)}</td>
         <td>${escapeHtml(formatDisplayFR_(r.debut))}</td>
@@ -817,6 +703,5 @@
     }).join('');
   }
 </script>
-
 </body>
 </html>
