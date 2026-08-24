@@ -1451,6 +1451,7 @@ let _saveTimeout = null;
 let _pollInterval = null;
 let _sheetsLoaded = false;
 let _lastSaveHash = '';
+let _pendingSave = false;
 let _currentBLId = null;
 let _currentScreen = 'dashboard'; // onglet actif courant
 
@@ -1585,6 +1586,7 @@ function loadLS(){try{const s=localStorage.getItem('erp_v3');if(s){const d=JSON.
 
 function scheduleSave() {
   saveLS();
+  _pendingSave = true;
   if (_saveTimeout) clearTimeout(_saveTimeout);
   setSyncPill('saving', 'Enregistrement...');
   _saveTimeout = setTimeout(saveToSheets, 2000);
@@ -1672,16 +1674,16 @@ async function saveToSheets() {
       body: JSON.stringify({action: 'saveERP', data: payload})
     });
     const r = await res.json();
-    if (r.ok) {
+       if (r.ok) {
       setOnline();
-      // Mettre à jour le hash local pour éviter que le polling ne recharge
-      // nos propres données juste après notre sauvegarde
       if (r.hash) _lastSaveHash = r.hash;
       setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
     } else throw new Error(r.error);
   } catch(e) {
     setOffline('Erreur sauvegarde : ' + e.message);
     console.warn('saveERP error:', e);
+  } finally {
+    _pendingSave = false;
   }
 }
 
@@ -1754,7 +1756,7 @@ function startPolling() {
   // Recharger la fin d'usinage toutes les 15 minutes
   setInterval(() => { syncFinUsinageAuto(); }, 15 * 60 * 1000);
   _pollInterval = setInterval(async () => {
-    if (document.getElementById('sync-text').textContent === 'Enregistrement...') return;
+    if (_pendingSave) return;
     try {
       const res = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
