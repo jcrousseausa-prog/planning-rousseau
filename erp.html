@@ -5294,10 +5294,13 @@ function updValidationHeure(input){
 
 async function validerSemaineEmploye(employeeId){
   const lignes = (state._validationLignes||[]).filter(l=>l.employeeId===employeeId);
+  const nomComplet = lignes[0].nom;
   const corrections = lignes.map(l=>({
     presenceId: l.presenceId, employeeId: l.employeeId, nom: l.nom,
     semaine: l.semaine, jour: l.jour, heures: l.heures, taches: l.taches
   }));
+
+  // 1. Envoi côté serveur : ERP_Heures + marquage validé
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
       method:'POST', headers:{'Content-Type':'text/plain'},
@@ -5305,12 +5308,50 @@ async function validerSemaineEmploye(employeeId){
     });
     const r = await res.json();
     if(!r.ok) throw new Error(r.error);
-    toast(`✅ Semaine validée pour ${lignes[0].nom} (${r.valides} jour(s))`);
-    closeModal('modal-detail-validation');
-    renderValidationPointages();
+    toast(`✅ Semaine validée pour ${nomComplet} (${r.valides} jour(s))`);
   } catch(e){
     toast('❌ Erreur : ' + e.message);
+    return;
   }
+
+  // 2. Générer le PDF identique à l'existant : on injecte temporairement
+  //    les données dans state.heures au format attendu par exportPDFCDI
+  const emp = (state.employes||[]).find(e => {
+    // Rapprochement par matricule (employeeId du pointage = matricule ERP)
+    return String(e.matricule||'').trim() === String(employeeId).trim();
+  });
+
+  if(!emp){
+    toast('⚠ Employé introuvable dans l\'ERP (matricule '+employeeId+') — PDF non généré. Corrigez la fiche employé.');
+    renderValidationPointages();
+    return;
+  }
+
+  const JOURS_ISO_VERS_NOM = {1:'Lundi',2:'Mardi',3:'Mercredi',4:'Jeudi',5:'Vendredi'}; // Samedi (6) volontairement exclu du PDF
+
+  // Convertir la semaine ISO (AAAA-Wxx) vers le format attendu par exportPDFCDI (AAAA-Sxx)
+  const [anneeISO, semNumISO] = lignes[0].semaine.split('-W');
+  const semaineFormatPDF = anneeISO + '-S' + semNumISO;
+
+  if(!state.heures) state.heures = [];
+  // Retire d'éventuelles anciennes lignes "pointage" déjà injectées pour cette semaine/employé
+  state.heures = state.heures.filter(h => !(h.emp_id===emp.id && h.semaine===semaineFormatPDF && h.type_saisie==='pointage_temp'));
+
+  lignes.forEach(l=>{
+    const nomJour = JOURS_ISO_VERS_NOM[l.jourSemaine];
+    if(!nomJour) return; // samedi : pas injecté, n'apparaîtra pas sur le PDF (comportement voulu)
+    const chantiers = (l.taches||[]).map(t=>t.chantier).filter(Boolean);
+    state.heures.push({
+      id: uid(), emp_id: emp.id, semaine: semaineFormatPDF, jour: nomJour,
+      atelier: '', h_mat: l.heures, h_am: 0, chantier1: chantiers[0]||'', chantier2: chantiers[1]||'',
+      statut: emp.statut||'CDI', type_saisie: 'pointage_temp', comment: 'Validé depuis pointage'
+    });
+  });
+
+  exportPDFCDI(emp.id, semaineFormatPDF);
+
+  closeModal('modal-detail-validation');
+  renderValidationPointages();
 }
 
 function updValidationHeure(input){
