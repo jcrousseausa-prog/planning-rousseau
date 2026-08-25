@@ -735,12 +735,19 @@
           } finally {
             loadPresenceFromServer(false);
           }
-        } else {
+                } else {
           let operationChoisie = '', chantierChoisi = '';
           if (chantiersDisponibles) {
-            operationChoisie = await demanderOperation(empName);
-            if (operationChoisie && operationChoisie !== 'Logistique' && operationChoisie !== 'Usinage') {
-              chantierChoisi = await demanderChantier(empName, operationChoisie);
+            const choixInitial = await demanderOperation(empName);
+            if (choixInitial === REPRISE_LABEL) {
+              // Reprise automatique : le backend réutilise la dernière tâche en cours
+              operationChoisie = '';
+              chantierChoisi = '';
+            } else {
+              operationChoisie = choixInitial;
+              if (operationChoisie && operationChoisie !== 'Logistique' && operationChoisie !== 'Usinage') {
+                chantierChoisi = await demanderChantier(empName, operationChoisie);
+              }
             }
           }
           const rec = {
