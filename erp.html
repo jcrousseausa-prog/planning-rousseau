@@ -1680,7 +1680,19 @@ async function saveToSheets() {
     _pendingSave = false;
   }
 }
-
+window.addEventListener('beforeunload', function(e){
+  if(_pendingSave){
+    e.preventDefault();
+    e.returnValue = 'Une sauvegarde est en cours — attendez quelques secondes avant de fermer.';
+    return e.returnValue;
+  }
+});
+  document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'hidden' && _pendingSave && _saveTimeout){
+    clearTimeout(_saveTimeout);
+    saveToSheets();
+  }
+});
 async function loadFromSheets() {
   try {
     // Un seul appel qui retourne tout
