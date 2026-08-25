@@ -270,6 +270,7 @@
   }
 
   let choiceScreenActive = false;
+  let modeChangementTache = false;
   const REPRISE_LABEL = '↩ Reprendre le dernier pointage';
 
   function demanderChoix(nom, titre, options, zeroBased){
@@ -650,6 +651,9 @@
   function endPresence_(payload){
     return post('endPresence', payload);
   }
+  function changerTache_(payload){
+  return post('changerTache', payload);
+}
 
   /***********************
    * Scan
@@ -659,6 +663,13 @@
     const raw = String(input.value || '');
     input.value = '';
     input.focus();
+
+    if (raw.trim() === '999') {
+      modeChangementTache = true;
+      toast('🔄 Mode "Changement de tâche" activé — scannez votre badge', true, 2500);
+      return;
+    }
+
     const cleaned = raw
       .replace(/[\u0000-\u001F\u007F\u00A0]/g, ' ')
       .replace(/\u001d/g, ' ')
@@ -671,10 +682,46 @@
       toast("❌ Scan illisible. Contenu: " + cleaned, false, 2000);
       return;
     }
-    const nom = EMP_BY_ID.get(employeeId);
+        const nom = EMP_BY_ID.get(employeeId);
     if (!nom){
       toast("❌ ID inconnu. Scanne un ID existant (ex: 111).", false, 2000);
+      modeChangementTache = false;
       return;
+    }
+
+    if (modeChangementTache) {
+      modeChangementTache = false;
+      const lastForEmployee = presenceRecords.find(r => r.employeeId === employeeId) || null;
+      const estActif = lastForEmployee && isActiveRecordStrict_(lastForEmployee);
+      if (!estActif) {
+        toast(`⚠ ${nom} n'est pas en cours de présence — changement impossible`, false, 3000);
+        return;
+      }
+      if (!chantiersDisponibles) {
+        toast('⚠ Liste des tâches indisponible pour le moment', false, 3000);
+        return;
+      }
+      const operationChoisie = await demanderOperation(nom);
+      if (operationChoisie === REPRISE_LABEL) {
+        toast('⚠ Choisissez une tâche précise pour changer', false, 3000);
+        return;
+      }
+      let chantierChoisi = '';
+      if (operationChoisie && operationChoisie !== 'Logistique' && operationChoisie !== 'Usinage') {
+        chantierChoisi = await demanderChantier(nom, operationChoisie);
+      }
+      try {
+        const res = await changerTache_({ employeeId, operation: operationChoisie, of: chantierChoisi });
+        if (res && res.success) {
+          toast(`✅ Tâche changée : ${operationChoisie}${chantierChoisi ? ' — ' + chantierChoisi : ''}`, true, 3000);
+        } else {
+          toast('❌ Erreur lors du changement de tâche', false, 2500);
+        }
+      } catch(e) {
+        toast('❌ Erreur réseau : ' + String(e.message||e).slice(0,90), false, 2500);
+      }
+      return;
+    }
     }
     if (isEmployeeLocked_(employeeId)) {
       toast(`⏳ Pointage déjà pris en compte pour ${nom}`, true, 2000);
