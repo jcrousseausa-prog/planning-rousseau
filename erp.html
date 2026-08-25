@@ -5173,8 +5173,8 @@ async function renderValidationPointages(){
   const semaineActive = state._validationSem;
   const lignesFiltrees = lignes.filter(l=>l.semaine===semaineActive);
 
-    const parEmploye = {};
-  lignesFiltrees.forEach(l=>{
+      const parEmploye = {};
+  lignesFiltrees.filter(l => l.jourSemaine >= 1 && l.jourSemaine <= 5).forEach(l=>{
     if(!parEmploye[l.employeeId]) parEmploye[l.employeeId] = {nom:l.nom, employeeId:l.employeeId, jours:{}, total:0, toutValide:true};
     const emp = parEmploye[l.employeeId];
     if(!emp.jours[l.jourSemaine]) emp.jours[l.jourSemaine] = {heures:0, sessions:0};
@@ -5203,7 +5203,7 @@ async function renderValidationPointages(){
       <thead>
         <tr style="background:var(--blue);color:#fff">
           <th style="padding:8px 10px;text-align:left">Employé</th>
-          ${[1,2,3,4,5,6].map(j=>`<th style="padding:8px 10px;text-align:center">${joursLabels[j]}</th>`).join('')}
+                    ${[1,2,3,4,5].map(j=>`<th style="padding:8px 10px;text-align:center">${joursLabels[j]}</th>`).join('')}
           <th style="padding:8px 10px;text-align:center">Total</th>
           <th style="padding:8px 10px;text-align:center">Statut</th>
           <th style="padding:8px 10px;text-align:center">Action</th>
@@ -5213,7 +5213,7 @@ async function renderValidationPointages(){
         ${employesList.map((e,i)=>`
           <tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
             <td style="padding:7px 10px;font-weight:500">${esc(e.nom)}</td>
-                        ${[1,2,3,4,5,6].map(j=>{
+                                    ${[1,2,3,4,5].map(j=>{
               const jd = e.jours[j];
               return `<td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace">${jd?jd.heures.toFixed(2)+'h'+(jd.sessions>1?` <span style="color:var(--text3);font-size:9px">(${jd.sessions})</span>`:''):'—'}</td>`;
             }).join('')}
@@ -5238,7 +5238,7 @@ async function renderValidationPointages(){
 }
 
 function openDetailValidation(employeeId){
-  const lignes = (state._validationLignes||[]).filter(l=>l.employeeId===employeeId);
+  const lignes = (state._validationLignes||[]).filter(l=>l.employeeId===employeeId && l.jourSemaine>=1 && l.jourSemaine<=5);
   if(!lignes.length) return;
   const nom = lignes[0].nom;
   const joursLabels = {1:'Lundi',2:'Mardi',3:'Mercredi',4:'Jeudi',5:'Vendredi',6:'Samedi'};
