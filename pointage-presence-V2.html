@@ -380,24 +380,6 @@
     return demanderChoix(nom, operation + ' — Choisissez le chantier', CHANTIERS);
   }
 
-  function demanderChantier(nom, operation){
-    return new Promise(resolve=>{
-      const screen = document.getElementById('taskScreen');
-      document.getElementById('taskTop').textContent = nom.toUpperCase() + ' — ' + operation + ' — Choisissez le chantier';
-      btnContainer.innerHTML = CHANTIERS.map(ch =>
-        `<button class="btn btn-primary" style="padding:22px 8px;font-size:15px" data-ch="${escapeHtml(ch)}">${escapeHtml(ch)}</button>`
-      ).join('');
-      screen.classList.add('show');
-      const handler = (e)=>{
-        const btn = e.target.closest('[data-ch]');
-        if (!btn) return;
-        screen.removeEventListener('click', handler);
-        screen.classList.remove('show');
-        resolve(btn.getAttribute('data-ch'));
-      };
-      screen.addEventListener('click', handler);
-    });
-  }
 
   /***********************
    * UI helpers
