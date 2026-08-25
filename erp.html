@@ -458,7 +458,8 @@ table.bl-lignes td.r{text-align:right}
     <button class="htab" id="htab-planning" onclick="showHTab('planning')">📅 Planning ressources</button>
     <button class="htab" id="htab-recap" onclick="showHTab('recap')">📊 Récap chantiers</button>
     <button class="htab" id="htab-macro" onclick="showHTab('macro')">🗓 Vue macro</button>
-    <button class="htab" id="htab-affectation" onclick="showHTab('affectation')"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4Ij4KICA8IS0tIENvcnBzIHByaW5jaXBhbCAtLT4KICA8cmVjdCB4PSIxMCIgeT0iMTQiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxMCIgcng9IjEuNSIgZmlsbD0iI0NDMjIwMCIvPgogIDwhLS0gQ2FiaW5lIC0tPgogIDxyZWN0IHg9IjE4IiB5PSI5IiB3aWR0aD0iOCIgaGVpZ2h0PSI4IiByeD0iMSIgZmlsbD0iI0REMzMxMSIvPgogIDwhLS0gVml0cmUgY2FiaW5lIC0tPgogIDxyZWN0IHg9IjE5LjUiIHk9IjEwLjUiIHdpZHRoPSI1IiBoZWlnaHQ9IjUiIHJ4PSIwLjUiIGZpbGw9IiM4OENDRUUiIG9wYWNpdHk9IjAuOCIvPgogIDwhLS0gTcOidCB2ZXJ0aWNhbCAtLT4KICA8cmVjdCB4PSI4IiB5PSI0IiB3aWR0aD0iMi41IiBoZWlnaHQ9IjE4IiByeD0iMSIgZmlsbD0iI0FBMTEwMCIvPgogIDwhLS0gRm91cmNoZXMgLS0+CiAgPHJlY3QgeD0iMiIgeT0iMjAiIHdpZHRoPSI4IiBoZWlnaHQ9IjEuOCIgcng9IjAuOCIgZmlsbD0iIzg4MTEwMCIvPgogIDxyZWN0IHg9IjIiIHk9IjIzIiB3aWR0aD0iOCIgaGVpZ2h0PSIxLjgiIHJ4PSIwLjgiIGZpbGw9IiM4ODExMDAiLz4KICA8IS0tIFJvdWUgYXZhbnQgLS0+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIFJvdWUgYXJyacOocmUgLS0+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIENvbnRyZXBvaWRzIGFycmnDqHJlIC0tPgogIDxyZWN0IHg9IjI0IiB5PSIxNyIgd2lkdGg9IjQiIGhlaWdodD0iNyIgcng9IjEiIGZpbGw9IiM5OTExMDAiLz4KICA8IS0tIEd5cm9waGFyZSAtLT4KICA8Y2lyY2xlIGN4PSIyMiIgY3k9IjguNSIgcj0iMS41IiBmaWxsPSIjRkY2NjAwIi8+CiAgPGNpcmNsZSBjeD0iMjIiIGN5PSI4LjUiIHI9IjAuNyIgZmlsbD0iI0ZGQUEwMCIvPgo8L3N2Zz4=" style="width:14px;height:14px;vertical-align:middle;margin-right:4px"> Affectation Log</button>
+      <button class="htab" id="htab-affectation" onclick="showHTab('affectation')">...</button>
+    <button class="htab" id="htab-validation" onclick="showHTab('validation')">✅ Validation pointages</button>
   </div>
   <!-- Contenus -->
   <div id="hscreen-employes"></div>
@@ -467,6 +468,7 @@ table.bl-lignes td.r{text-align:right}
   <div id="hscreen-recap" style="display:none"></div>
   <div id="hscreen-macro" style="display:none"></div>
   <div id="hscreen-affectation" style="display:none"></div>
+  <div id="hscreen-validation" class="htab-content" style="display:none"></div>
 </div>
 
 <!-- MODAL EMPLOYE -->
@@ -3522,7 +3524,7 @@ function showQTab(tab){
 }
 
 function showHTab(tab){
-  ['employes','saisie','planning','recap','macro','affectation'].forEach(t=>{
+  ['employes','saisie','planning','recap','macro','affectation','validation'].forEach(t=>{
     document.getElementById('hscreen-'+t).style.display = t===tab?'':'none';
     document.getElementById('htab-'+t).classList.toggle('active', t===tab);
   });
@@ -3531,6 +3533,7 @@ function showHTab(tab){
   if(tab==='planning') renderPlanningRessources();
   if(tab==='recap') renderRecapHeures();
   if(tab==='affectation') renderAffectationLog();
+  if(tab==='validation') renderValidationPointages();
   if(tab==='macro'){
     // Toujours se positionner sur la semaine en cours à l'ouverture
     state._macroStartSem = getWeekISO(new Date());
@@ -8520,3 +8523,90 @@ function lancerImpressionAteliers(){
 
 </body>
 </html>
+async function renderValidationPointages(){
+  const el = document.getElementById('hscreen-validation');
+  if(!el) return;
+  el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">⟳ Chargement…</div>';
+
+  let lignes = [];
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'getPointageValidation'})
+    });
+    const r = await res.json();
+    if(!r.ok) throw new Error(r.error);
+    lignes = r.lignes||[];
+  } catch(e){
+    el.innerHTML = `<div style="padding:2rem;color:var(--red)">Erreur : ${esc(e.message)}</div>`;
+    return;
+  }
+
+  lignes.sort((a,b)=> b.jour.localeCompare(a.jour) || a.nom.localeCompare(b.nom,'fr'));
+
+  if(!lignes.length){
+    el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun pointage à valider.</div>';
+    return;
+  }
+
+  let html = `<div style="padding:16px 20px">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:var(--blue);color:#fff">
+          <th style="padding:8px 10px;text-align:left">Jour</th>
+          <th style="padding:8px 10px;text-align:left">Employé</th>
+          <th style="padding:8px 10px;text-align:center">Début (brut)</th>
+          <th style="padding:8px 10px;text-align:center">Début (arrondi)</th>
+          <th style="padding:8px 10px;text-align:center">Fin (brut)</th>
+          <th style="padding:8px 10px;text-align:center">Fin (arrondi)</th>
+          <th style="padding:8px 10px;text-align:left">Tâches du jour</th>
+          <th style="padding:8px 10px;text-align:center">Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lignes.map((l,i)=>{
+          const dateAff = l.jour.split('-').reverse().join('/');
+          const tachesHtml = l.taches.map(t=>
+            `<div style="font-size:10px;margin-bottom:2px">
+               <span style="color:var(--blue);font-weight:600">${esc(t.debut)}</span>
+               <span style="color:var(--text2)">— ${esc(t.operation)}</span>
+               ${t.chantier ? `<span style="color:var(--text3)"> · ${esc(t.chantier)}</span>` : ''}
+             </div>`
+          ).join('');
+          return `<tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
+            <td style="padding:7px 10px;white-space:nowrap">${dateAff}</td>
+            <td style="padding:7px 10px;font-weight:500">${esc(l.nom)}</td>
+            <td style="padding:7px 10px;text-align:center;color:var(--text3)">${esc(l.debut_brut)}</td>
+            <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--blue)">
+              <input type="time" value="${l.debut_arrondi}" data-presence-id="${l.presenceId}" data-champ="debut"
+                onchange="updValidationHeure(this)"
+                style="width:80px;padding:3px;border:1px solid var(--border);border-radius:5px;font-size:11px;text-align:center"/>
+            </td>
+            <td style="padding:7px 10px;text-align:center;color:var(--text3)">${esc(l.fin_brut)||'—'}</td>
+            <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--blue)">
+              ${l.fin_arrondi
+                ? `<input type="time" value="${l.fin_arrondi}" data-presence-id="${l.presenceId}" data-champ="fin"
+                    onchange="updValidationHeure(this)"
+                    style="width:80px;padding:3px;border:1px solid var(--border);border-radius:5px;font-size:11px;text-align:center"/>`
+                : '<span style="color:var(--orange)">En cours</span>'}
+            </td>
+            <td style="padding:7px 10px">${tachesHtml || '<span style="color:var(--text3);font-size:11px">—</span>'}</td>
+            <td style="padding:7px 10px;text-align:center">
+              <span style="font-size:10px;padding:2px 8px;border-radius:8px;background:var(--orange-bg);color:var(--orange);font-weight:600">À valider</span>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+
+  el.innerHTML = html;
+}
+
+function updValidationHeure(input){
+  const presenceId = input.getAttribute('data-presence-id');
+  const champ = input.getAttribute('data-champ');
+  const valeur = input.value;
+  console.log('Correction manuelle', presenceId, champ, valeur);
+  // Cette valeur corrigée sera prise en compte à l'étape "Valider" (à construire ensuite)
+}
