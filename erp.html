@@ -5162,8 +5162,10 @@ async function renderValidationPointages(){
     });
     const r = await res.json();
     if(!r.ok) throw new Error(r.error);
-    lignes = r.lignes||[];
+      lignes = r.lignes||[];
     semaines = r.semaines||[];
+    state._pauseMinutes = r.pauseMinutes;
+    state._pauseHeure = r.pauseHeure;
   } catch(e){
     el.innerHTML = `<div style="padding:2rem;color:var(--red)">Erreur : ${esc(e.message)}</div>`;
     return;
@@ -5186,13 +5188,18 @@ async function renderValidationPointages(){
 
   const joursLabels = {1:'Lun',2:'Mar',3:'Mer',4:'Jeu',5:'Ven',6:'Sam'};
 
-  let html = `<div style="padding:16px 20px">
-    <div style="margin-bottom:16px">
+    let html = `<div style="padding:16px 20px">
+    <div style="margin-bottom:16px;display:flex;gap:16px;align-items:center">
       <select onchange="state._validationSem=this.value;renderValidationPointages()"
         style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
         ${semaines.map(s=>`<option value="${s}"${s===semaineActive?' selected':''}>${s}</option>`).join('')}
       </select>
+            <span style="font-size:11px;color:var(--text2)">
+        Pause déduite : <input type="number" value="${state._pauseMinutes}" min="0" style="width:45px" onchange="updPauseConfig(this.value, null)"/> min à
+        <input type="time" value="${state._pauseHeure}" style="width:80px" onchange="updPauseConfig(null, this.value)"/>
+      </span>
     </div>`;
+    
 
   const employesList = Object.values(parEmploye).sort((a,b)=>a.nom.localeCompare(b.nom,'fr'));
 
@@ -8723,16 +8730,13 @@ function lancerImpressionAteliers(){
     </div>
   </div>
   <div class="form-group" style="margin-bottom:10px">
-    <label class="form-label">Description</label>
-    <textarea id="al-desc" rows="2" placeholder="Ce qui s'est passé, impact constaté…" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;resize:vertical"></textarea>
-  </div>
-  <div class="modal-footer">
-    <button class="btn" onclick="closeAleaModal()">Annuler</button>
-    <button class="btn btn-primary" onclick="saveAleaForm()">Enregistrer</button>
-  </div>
-</div>
-</div>
-
-</body>
-</html>
-
+async function updPauseConfig(minutes, heure){
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'setPauseConfig', minutes, heure})
+    });
+    toast('✅ Réglage pause mis à jour');
+    renderValidationPointages();
+  } catch(e){ toast('❌ Erreur : '+e.message); }
+}
