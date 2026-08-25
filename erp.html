@@ -5148,7 +5148,93 @@ function savePauseConfig(){
   scheduleSave();
   toast('Pauses enregistrées');
 }
+async function renderValidationPointages(){
+  const el = document.getElementById('hscreen-validation-pointages');
+  if(!el) return;
+  el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">⟳ Chargement…</div>';
 
+  let lignes = [];
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'getPointageValidation'})
+    });
+    const r = await res.json();
+    if(!r.ok) throw new Error(r.error);
+    lignes = r.lignes||[];
+  } catch(e){
+    el.innerHTML = `<div style="padding:2rem;color:var(--red)">Erreur : ${esc(e.message)}</div>`;
+    return;
+  }
+
+  lignes.sort((a,b)=> b.jour.localeCompare(a.jour) || a.nom.localeCompare(b.nom,'fr'));
+
+  if(!lignes.length){
+    el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun pointage à valider.</div>';
+    return;
+  }
+
+  let html = `<div style="padding:16px 20px">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:var(--blue);color:#fff">
+          <th style="padding:8px 10px;text-align:left">Jour</th>
+          <th style="padding:8px 10px;text-align:left">Employé</th>
+          <th style="padding:8px 10px;text-align:center">Début (brut)</th>
+          <th style="padding:8px 10px;text-align:center">Début (arrondi)</th>
+          <th style="padding:8px 10px;text-align:center">Fin (brut)</th>
+          <th style="padding:8px 10px;text-align:center">Fin (arrondi)</th>
+          <th style="padding:8px 10px;text-align:left">Tâches du jour</th>
+          <th style="padding:8px 10px;text-align:center">Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lignes.map((l,i)=>{
+          const dateAff = l.jour.split('-').reverse().join('/');
+          const tachesHtml = l.taches.map(t=>
+            `<div style="font-size:10px;margin-bottom:2px">
+               <span style="color:var(--blue);font-weight:600">${esc(t.debut)}</span>
+               <span style="color:var(--text2)">— ${esc(t.operation)}</span>
+               ${t.chantier ? `<span style="color:var(--text3)"> · ${esc(t.chantier)}</span>` : ''}
+             </div>`
+          ).join('');
+          return `<tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
+            <td style="padding:7px 10px;white-space:nowrap">${dateAff}</td>
+            <td style="padding:7px 10px;font-weight:500">${esc(l.nom)}</td>
+            <td style="padding:7px 10px;text-align:center;color:var(--text3)">${esc(l.debut_brut)}</td>
+            <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--blue)">
+              <input type="time" value="${l.debut_arrondi}" data-presence-id="${l.presenceId}" data-champ="debut"
+                onchange="updValidationHeure(this)"
+                style="width:80px;padding:3px;border:1px solid var(--border);border-radius:5px;font-size:11px;text-align:center"/>
+            </td>
+            <td style="padding:7px 10px;text-align:center;color:var(--text3)">${esc(l.fin_brut)||'—'}</td>
+            <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--blue)">
+              ${l.fin_arrondi
+                ? `<input type="time" value="${l.fin_arrondi}" data-presence-id="${l.presenceId}" data-champ="fin"
+                    onchange="updValidationHeure(this)"
+                    style="width:80px;padding:3px;border:1px solid var(--border);border-radius:5px;font-size:11px;text-align:center"/>`
+                : '<span style="color:var(--orange)">En cours</span>'}
+            </td>
+            <td style="padding:7px 10px">${tachesHtml || '<span style="color:var(--text3);font-size:11px">—</span>'}</td>
+            <td style="padding:7px 10px;text-align:center">
+              <span style="font-size:10px;padding:2px 8px;border-radius:8px;background:var(--orange-bg);color:var(--orange);font-weight:600">À valider</span>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+
+  el.innerHTML = html;
+}
+
+function updValidationHeure(input){
+  const presenceId = input.getAttribute('data-presence-id');
+  const champ = input.getAttribute('data-champ');
+  const valeur = input.value;
+  console.log('Correction manuelle', presenceId, champ, valeur);
+  // Cette valeur corrigée sera prise en compte à l'étape "Valider" (à construire ensuite)
+}
 // ── AFFECTATION PROPORTIONNELLE LOG/CARISTES ──
 function renderAffectationLog(){
   const el = document.getElementById('hscreen-affectation');
@@ -8523,90 +8609,4 @@ function lancerImpressionAteliers(){
 
 </body>
 </html>
-async function renderValidationPointages(){
-  const el = document.getElementById('hscreen-validation');
-  if(!el) return;
-  el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">⟳ Chargement…</div>';
 
-  let lignes = [];
-  try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST', headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify({action:'getPointageValidation'})
-    });
-    const r = await res.json();
-    if(!r.ok) throw new Error(r.error);
-    lignes = r.lignes||[];
-  } catch(e){
-    el.innerHTML = `<div style="padding:2rem;color:var(--red)">Erreur : ${esc(e.message)}</div>`;
-    return;
-  }
-
-  lignes.sort((a,b)=> b.jour.localeCompare(a.jour) || a.nom.localeCompare(b.nom,'fr'));
-
-  if(!lignes.length){
-    el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun pointage à valider.</div>';
-    return;
-  }
-
-  let html = `<div style="padding:16px 20px">
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead>
-        <tr style="background:var(--blue);color:#fff">
-          <th style="padding:8px 10px;text-align:left">Jour</th>
-          <th style="padding:8px 10px;text-align:left">Employé</th>
-          <th style="padding:8px 10px;text-align:center">Début (brut)</th>
-          <th style="padding:8px 10px;text-align:center">Début (arrondi)</th>
-          <th style="padding:8px 10px;text-align:center">Fin (brut)</th>
-          <th style="padding:8px 10px;text-align:center">Fin (arrondi)</th>
-          <th style="padding:8px 10px;text-align:left">Tâches du jour</th>
-          <th style="padding:8px 10px;text-align:center">Statut</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${lignes.map((l,i)=>{
-          const dateAff = l.jour.split('-').reverse().join('/');
-          const tachesHtml = l.taches.map(t=>
-            `<div style="font-size:10px;margin-bottom:2px">
-               <span style="color:var(--blue);font-weight:600">${esc(t.debut)}</span>
-               <span style="color:var(--text2)">— ${esc(t.operation)}</span>
-               ${t.chantier ? `<span style="color:var(--text3)"> · ${esc(t.chantier)}</span>` : ''}
-             </div>`
-          ).join('');
-          return `<tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
-            <td style="padding:7px 10px;white-space:nowrap">${dateAff}</td>
-            <td style="padding:7px 10px;font-weight:500">${esc(l.nom)}</td>
-            <td style="padding:7px 10px;text-align:center;color:var(--text3)">${esc(l.debut_brut)}</td>
-            <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--blue)">
-              <input type="time" value="${l.debut_arrondi}" data-presence-id="${l.presenceId}" data-champ="debut"
-                onchange="updValidationHeure(this)"
-                style="width:80px;padding:3px;border:1px solid var(--border);border-radius:5px;font-size:11px;text-align:center"/>
-            </td>
-            <td style="padding:7px 10px;text-align:center;color:var(--text3)">${esc(l.fin_brut)||'—'}</td>
-            <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--blue)">
-              ${l.fin_arrondi
-                ? `<input type="time" value="${l.fin_arrondi}" data-presence-id="${l.presenceId}" data-champ="fin"
-                    onchange="updValidationHeure(this)"
-                    style="width:80px;padding:3px;border:1px solid var(--border);border-radius:5px;font-size:11px;text-align:center"/>`
-                : '<span style="color:var(--orange)">En cours</span>'}
-            </td>
-            <td style="padding:7px 10px">${tachesHtml || '<span style="color:var(--text3);font-size:11px">—</span>'}</td>
-            <td style="padding:7px 10px;text-align:center">
-              <span style="font-size:10px;padding:2px 8px;border-radius:8px;background:var(--orange-bg);color:var(--orange);font-weight:600">À valider</span>
-            </td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
-  </div>`;
-
-  el.innerHTML = html;
-}
-
-function updValidationHeure(input){
-  const presenceId = input.getAttribute('data-presence-id');
-  const champ = input.getAttribute('data-champ');
-  const valeur = input.value;
-  console.log('Correction manuelle', presenceId, champ, valeur);
-  // Cette valeur corrigée sera prise en compte à l'étape "Valider" (à construire ensuite)
-}
