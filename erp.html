@@ -5153,79 +5153,161 @@ async function renderValidationPointages(){
   if(!el) return;
   el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">⟳ Chargement…</div>';
 
-  let lignes = [];
+  const semSel = state._validationSem || '';
+  let lignes = [], semaines = [];
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
       method:'POST', headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify({action:'getPointageValidation'})
+      body: JSON.stringify({action:'getPointageValidation', semaine: semSel})
     });
     const r = await res.json();
     if(!r.ok) throw new Error(r.error);
     lignes = r.lignes||[];
+    semaines = r.semaines||[];
   } catch(e){
     el.innerHTML = `<div style="padding:2rem;color:var(--red)">Erreur : ${esc(e.message)}</div>`;
     return;
   }
 
-  lignes.sort((a,b)=> b.jour.localeCompare(a.jour) || a.nom.localeCompare(b.nom,'fr'));
+  if(!state._validationSem && semaines.length) state._validationSem = semaines[0];
+  const semaineActive = state._validationSem;
+  const lignesFiltrees = lignes.filter(l=>l.semaine===semaineActive);
 
-  if(!lignes.length){
-    el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun pointage à valider.</div>';
-    return;
-  }
+  const parEmploye = {};
+  lignesFiltrees.forEach(l=>{
+    if(!parEmploye[l.employeeId]) parEmploye[l.employeeId] = {nom:l.nom, employeeId:l.employeeId, jours:{}, total:0, toutValide:true};
+    parEmploye[l.employeeId].jours[l.jourSemaine] = l;
+    parEmploye[l.employeeId].total += l.heures;
+    if(!l.deja_valide) parEmploye[l.employeeId].toutValide = false;
+  });
+
+  const joursLabels = {1:'Lun',2:'Mar',3:'Mer',4:'Jeu',5:'Ven',6:'Sam'};
 
   let html = `<div style="padding:16px 20px">
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <div style="margin-bottom:16px">
+      <select onchange="state._validationSem=this.value;renderValidationPointages()"
+        style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
+        ${semaines.map(s=>`<option value="${s}"${s===semaineActive?' selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>`;
+
+  const employesList = Object.values(parEmploye).sort((a,b)=>a.nom.localeCompare(b.nom,'fr'));
+
+  if(!employesList.length){
+    html += '<div style="text-align:center;padding:2rem;color:var(--text3)">Aucun pointage pour cette semaine.</div>';
+  } else {
+    html += `<table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead>
         <tr style="background:var(--blue);color:#fff">
-          <th style="padding:8px 10px;text-align:left">Jour</th>
           <th style="padding:8px 10px;text-align:left">Employé</th>
-          <th style="padding:8px 10px;text-align:center">Début (brut)</th>
-          <th style="padding:8px 10px;text-align:center">Début (arrondi)</th>
-          <th style="padding:8px 10px;text-align:center">Fin (brut)</th>
-          <th style="padding:8px 10px;text-align:center">Fin (arrondi)</th>
-          <th style="padding:8px 10px;text-align:left">Tâches du jour</th>
+          ${[1,2,3,4,5,6].map(j=>`<th style="padding:8px 10px;text-align:center">${joursLabels[j]}</th>`).join('')}
+          <th style="padding:8px 10px;text-align:center">Total</th>
           <th style="padding:8px 10px;text-align:center">Statut</th>
+          <th style="padding:8px 10px;text-align:center">Action</th>
         </tr>
       </thead>
       <tbody>
-        ${lignes.map((l,i)=>{
-          const dateAff = l.jour.split('-').reverse().join('/');
-          const tachesHtml = l.taches.map(t=>
-            `<div style="font-size:10px;margin-bottom:2px">
-               <span style="color:var(--blue);font-weight:600">${esc(t.debut)}</span>
-               <span style="color:var(--text2)">— ${esc(t.operation)}</span>
-               ${t.chantier ? `<span style="color:var(--text3)"> · ${esc(t.chantier)}</span>` : ''}
-             </div>`
-          ).join('');
-          return `<tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
-            <td style="padding:7px 10px;white-space:nowrap">${dateAff}</td>
-            <td style="padding:7px 10px;font-weight:500">${esc(l.nom)}</td>
-            <td style="padding:7px 10px;text-align:center;color:var(--text3)">${esc(l.debut_brut)}</td>
-            <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--blue)">
-              <input type="time" value="${l.debut_arrondi}" data-presence-id="${l.presenceId}" data-champ="debut"
-                onchange="updValidationHeure(this)"
-                style="width:80px;padding:3px;border:1px solid var(--border);border-radius:5px;font-size:11px;text-align:center"/>
-            </td>
-            <td style="padding:7px 10px;text-align:center;color:var(--text3)">${esc(l.fin_brut)||'—'}</td>
-            <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--blue)">
-              ${l.fin_arrondi
-                ? `<input type="time" value="${l.fin_arrondi}" data-presence-id="${l.presenceId}" data-champ="fin"
-                    onchange="updValidationHeure(this)"
-                    style="width:80px;padding:3px;border:1px solid var(--border);border-radius:5px;font-size:11px;text-align:center"/>`
-                : '<span style="color:var(--orange)">En cours</span>'}
-            </td>
-            <td style="padding:7px 10px">${tachesHtml || '<span style="color:var(--text3);font-size:11px">—</span>'}</td>
+        ${employesList.map((e,i)=>`
+          <tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
+            <td style="padding:7px 10px;font-weight:500">${esc(e.nom)}</td>
+            ${[1,2,3,4,5,6].map(j=>{
+              const l = e.jours[j];
+              return `<td style="padding:7px 10px;text-align:center;font-family:'DM Mono',monospace">${l?l.heures.toFixed(2)+'h':'—'}</td>`;
+            }).join('')}
+            <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--blue)">${e.total.toFixed(2)}h</td>
             <td style="padding:7px 10px;text-align:center">
-              <span style="font-size:10px;padding:2px 8px;border-radius:8px;background:var(--orange-bg);color:var(--orange);font-weight:600">À valider</span>
+              <span style="font-size:10px;padding:2px 8px;border-radius:8px;background:${e.toutValide?'var(--green-bg)':'var(--orange-bg)'};color:${e.toutValide?'var(--green)':'var(--orange)'};font-weight:600">
+                ${e.toutValide?'✓ Validé':'À valider'}
+              </span>
             </td>
-          </tr>`;
-        }).join('')}
+            <td style="padding:7px 10px;text-align:center">
+              <button class="btn btn-sm" onclick='openDetailValidation(${JSON.stringify(e.employeeId)})'>Détail</button>
+            </td>
+          </tr>
+        `).join('')}
       </tbody>
-    </table>
+    </table>`;
+  }
+
+  html += '</div>';
+  el.innerHTML = html;
+  state._validationLignes = lignesFiltrees;
+}
+
+function openDetailValidation(employeeId){
+  const lignes = (state._validationLignes||[]).filter(l=>l.employeeId===employeeId);
+  if(!lignes.length) return;
+  const nom = lignes[0].nom;
+  const joursLabels = {1:'Lundi',2:'Mardi',3:'Mercredi',4:'Jeudi',5:'Vendredi',6:'Samedi'};
+
+  let html = `<div style="padding:20px;max-width:700px">
+    <h3 style="margin-bottom:16px">${esc(nom)} — Détail semaine ${esc(lignes[0].semaine)}</h3>
+    ${lignes.sort((a,b)=>a.jourSemaine-b.jourSemaine).map(l=>`
+      <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="font-weight:600;margin-bottom:6px">${joursLabels[l.jourSemaine]||''} ${l.jour.split('-').reverse().join('/')}</div>
+        <div style="display:flex;gap:16px;align-items:center;margin-bottom:8px">
+          <label style="font-size:11px">Début <span style="color:var(--text3)">(brut ${esc(l.debut_brut)})</span>
+            <input type="time" value="${l.debut_arrondi}" data-presence-id="${l.presenceId}" data-champ="debut" onchange="updValidationHeure(this)"
+              style="margin-left:4px;padding:4px;border:1px solid var(--border);border-radius:5px"/>
+          </label>
+          <label style="font-size:11px">Fin <span style="color:var(--text3)">(brut ${esc(l.fin_brut)||'—'})</span>
+            <input type="time" value="${l.fin_arrondi}" data-presence-id="${l.presenceId}" data-champ="fin" onchange="updValidationHeure(this)"
+              style="margin-left:4px;padding:4px;border:1px solid var(--border);border-radius:5px"/>
+          </label>
+        </div>
+        <div style="font-size:11px;color:var(--text2)">
+          ${l.taches.map(t=>`${esc(t.debut)} — ${esc(t.operation)}${t.chantier?' · '+esc(t.chantier):''}`).join('<br>') || 'Aucune tâche renseignée'}
+        </div>
+      </div>
+    `).join('')}
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+      <button class="btn" onclick="closeModal('modal-detail-validation')">Fermer</button>
+      <button class="btn btn-primary" onclick='validerSemaineEmploye(${JSON.stringify(employeeId)})'>✅ Valider la semaine</button>
+    </div>
   </div>`;
 
-  el.innerHTML = html;
+  let modal = document.getElementById('modal-detail-validation');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'modal-detail-validation';
+    modal.className = 'modal-bg';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div class="modal" style="max-width:750px">${html}</div>`;
+  modal.classList.add('show');
+}
+
+function updValidationHeure(input){
+  const presenceId = input.getAttribute('data-presence-id');
+  const champ = input.getAttribute('data-champ');
+  const ligne = (state._validationLignes||[]).find(l=>l.presenceId===presenceId);
+  if(!ligne) return;
+  if(champ==='debut') ligne.debut_arrondi = input.value;
+  if(champ==='fin') ligne.fin_arrondi = input.value;
+  const [hD,mD] = ligne.debut_arrondi.split(':').map(Number);
+  const [hF,mF] = ligne.fin_arrondi.split(':').map(Number);
+  ligne.heures = Math.max(0, (hF*60+mF - (hD*60+mD))/60);
+}
+
+async function validerSemaineEmploye(employeeId){
+  const lignes = (state._validationLignes||[]).filter(l=>l.employeeId===employeeId);
+  const corrections = lignes.map(l=>({
+    presenceId: l.presenceId, employeeId: l.employeeId, nom: l.nom,
+    semaine: l.semaine, jour: l.jour, heures: l.heures, taches: l.taches
+  }));
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'validerSemainePointage', corrections})
+    });
+    const r = await res.json();
+    if(!r.ok) throw new Error(r.error);
+    toast(`✅ Semaine validée pour ${lignes[0].nom} (${r.valides} jour(s))`);
+    closeModal('modal-detail-validation');
+    renderValidationPointages();
+  } catch(e){
+    toast('❌ Erreur : ' + e.message);
+  }
 }
 
 function updValidationHeure(input){
