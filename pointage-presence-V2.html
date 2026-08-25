@@ -736,9 +736,10 @@
             loadPresenceFromServer(false);
           }
                 } else {
-          let operationChoisie = '', chantierChoisi = '';
+                 } else {
+          let operationChoisie = '', chantierChoisi = '', choixInitial = '';
           if (chantiersDisponibles) {
-            const choixInitial = await demanderOperation(empName);
+            choixInitial = await demanderOperation(empName);
             if (choixInitial === REPRISE_LABEL) {
               // Reprise automatique : le backend réutilise la dernière tâche en cours
               operationChoisie = '';
