@@ -321,8 +321,11 @@
     return new Promise(resolve=>{
       choiceScreenActive = true;
       const screen = document.getElementById('taskScreen');
+      const btnContainer = document.getElementById('taskButtons');
+      btnContainer.style.display = 'block';
+      btnContainer.style.width = '100%';
       document.getElementById('taskTop').textContent = nom.toUpperCase() + ' — ' + titre;
-      document.getElementById('taskButtons').innerHTML =
+      btnContainer.innerHTML =
         '<div style="max-height:60vh;overflow-y:auto;width:100%;max-width:600px;margin:0 auto;text-align:left">' +
         options.map((op,i) =>
           `<div style="padding:12px 18px;font-size:19px;border-bottom:1px solid rgba(255,255,255,.25);display:flex;gap:14px">
@@ -381,7 +384,7 @@
     return new Promise(resolve=>{
       const screen = document.getElementById('taskScreen');
       document.getElementById('taskTop').textContent = nom.toUpperCase() + ' — ' + operation + ' — Choisissez le chantier';
-      document.getElementById('taskButtons').innerHTML = CHANTIERS.map(ch =>
+      btnContainer.innerHTML = CHANTIERS.map(ch =>
         `<button class="btn btn-primary" style="padding:22px 8px;font-size:15px" data-ch="${escapeHtml(ch)}">${escapeHtml(ch)}</button>`
       ).join('');
       screen.classList.add('show');
