@@ -272,7 +272,7 @@
   let choiceScreenActive = false;
   const REPRISE_LABEL = '↩ Reprendre le dernier pointage';
 
-  function demanderChoix(nom, titre, options){
+  function demanderChoix(nom, titre, options, zeroBased){
     return new Promise(resolve=>{
       choiceScreenActive = true;
       const screen = document.getElementById('taskScreen');
@@ -284,7 +284,7 @@
         '<div style="max-height:60vh;overflow-y:auto;width:100%;max-width:600px;margin:0 auto;text-align:left">' +
         options.map((op,i) =>
           `<div style="padding:12px 18px;font-size:19px;border-bottom:1px solid rgba(255,255,255,.25);display:flex;gap:14px">
-             <span style="font-weight:900;min-width:34px">${i+1}.</span>
+             <span style="font-weight:900;min-width:34px">${zeroBased ? i : i+1}.</span>
              <span>${escapeHtml(op)}</span>
            </div>`
         ).join('') +
@@ -302,9 +302,9 @@
         input.value = '';
         if (!val) return;
 
-        let resultat = null;
+               let resultat = null;
         if (/^\d+$/.test(val)) {
-          const idx = parseInt(val, 10) - 1;
+          const idx = zeroBased ? parseInt(val, 10) : parseInt(val, 10) - 1;
           if (idx >= 0 && idx < options.length) resultat = options[idx];
         }
         if (!resultat) {
@@ -327,8 +327,8 @@
     });
   }
 
-  function demanderOperation(nom){
-    return demanderChoix(nom, 'Choisissez votre tâche', OPERATIONS);
+    function demanderOperation(nom){
+    return demanderChoix(nom, 'Choisissez votre tâche', [REPRISE_LABEL, ...OPERATIONS], true);
   }
 
   function demanderChantier(nom, operation){
