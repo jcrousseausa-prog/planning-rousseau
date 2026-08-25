@@ -765,7 +765,7 @@
           saveLocal();
           showFactoryScreen(empName, 'entry');
           try {
-            const res = await startPresence_({
+                        const res = await startPresence_({
               requestId: requestId,
               employeeId: eid,
               recordId: rec.id,
@@ -775,7 +775,15 @@
               of: chantierChoisi
             });
             if (res && res.success) {
-              toast(`Présence démarrée : ${empName}`, true, 2000);
+              if (choixInitial === REPRISE_LABEL) {
+                if (res.reprise) {
+                  toast(`↩ Reprise : ${res.reprise.operation}${res.reprise.of ? ' — ' + res.reprise.of : ''}`, true, 3500);
+                } else {
+                  toast(`⚠ Aucune tâche antérieure trouvée pour ${empName} — entrée enregistrée sans tâche`, false, 3500);
+                }
+              } else {
+                toast(`Présence démarrée : ${empName}`, true, 2000);
+              }
             } else {
               toast('❌ Erreur serveur (début)', false, 2000);
               console.error(res);
