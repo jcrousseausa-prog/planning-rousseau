@@ -269,55 +269,9 @@
     });
   }
 
-  /***********************
-   * Focus lock
-   ***********************/
   let choiceScreenActive = false;
 
-  function lockFocus(){
-    const input = document.getElementById('scanInput');
-    input.focus();
-    document.addEventListener('mousedown', (e) => {
-      if (choiceScreenActive) return;
-      if (e.target !== input) setTimeout(() => input.focus(), 0);
-    }, true);
-    input.addEventListener('blur', () => {
-      if (choiceScreenActive) return;
-      setTimeout(() => input.focus(), 0);
-    });
-    document.addEventListener('keydown', (e) => {
-      if (choiceScreenActive) return;
-      if (e.key === 'Tab' || e.key === 'Escape') {
-        e.preventDefault();
-        input.focus();
-      }
-    }, true);
-  }
-  
-
-  /***********************
-   * Chantiers ERP (cross-projet)
-   ***********************/
-  async function chargerChantiersERP(){
-    try {
-      const res = await http_(ERP_SCRIPT_URL, {
-        method:'POST', headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({action:'getListeChantiersOperations'})
-      });
-      const txt = await res.text();
-      const r = JSON.parse(txt);
-      if (r.ok && r.chantiers && r.chantiers.length) {
-        CHANTIERS = r.chantiers;
-        if (r.operations && r.operations.length) OPERATIONS = r.operations;
-        chantiersDisponibles = true;
-      }
-    } catch(e) {
-      console.warn('Chantiers ERP indisponibles, pointage simple maintenu:', e);
-      chantiersDisponibles = false;
-    }
-  }
-
-     function demanderChoix(nom, titre, options){
+  function demanderChoix(nom, titre, options){
     return new Promise(resolve=>{
       choiceScreenActive = true;
       const screen = document.getElementById('taskScreen');
@@ -335,7 +289,7 @@
         ).join('') +
         '</div>' +
         '<div style="margin-top:20px;font-size:16px;opacity:.9">Tapez le numéro puis Entrée, ou scannez un code</div>' +
-       '<input type="text" id="choiceInput" autocomplete="off" style="margin-top:12px;padding:12px 18px;font-size:20px;border-radius:10px;border:none;width:260px;text-align:center"/>';
+        '<input type="text" id="choiceInput" autocomplete="off" style="margin-top:12px;padding:12px 18px;font-size:20px;border-radius:10px;border:none;width:260px;text-align:center"/>';
       screen.classList.add('show');
 
       const input = document.getElementById('choiceInput');
@@ -362,7 +316,7 @@
           return;
         }
 
-          input.removeEventListener('keydown', handler);
+        input.removeEventListener('keydown', handler);
         screen.classList.remove('show');
         choiceScreenActive = false;
         document.getElementById('scanInput').focus();
@@ -380,6 +334,50 @@
     return demanderChoix(nom, operation + ' — Choisissez le chantier', CHANTIERS);
   }
 
+  /***********************
+   * Focus lock
+   ***********************/
+  function lockFocus(){
+    const input = document.getElementById('scanInput');
+    input.focus();
+    document.addEventListener('mousedown', (e) => {
+      if (choiceScreenActive) return;
+      if (e.target !== input) setTimeout(() => input.focus(), 0);
+    }, true);
+    input.addEventListener('blur', () => {
+      if (choiceScreenActive) return;
+      setTimeout(() => input.focus(), 0);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (choiceScreenActive) return;
+      if (e.key === 'Tab' || e.key === 'Escape') {
+        e.preventDefault();
+        input.focus();
+      }
+    }, true);
+  }
+
+  /***********************
+   * Chantiers ERP (cross-projet)
+   ***********************/
+  async function chargerChantiersERP(){
+    try {
+      const res = await http_(ERP_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'getListeChantiersOperations'})
+      });
+      const txt = await res.text();
+      const r = JSON.parse(txt);
+      if (r.ok && r.chantiers && r.chantiers.length) {
+        CHANTIERS = r.chantiers;
+        if (r.operations && r.operations.length) OPERATIONS = r.operations;
+        chantiersDisponibles = true;
+      }
+    } catch(e) {
+      console.warn('Chantiers ERP indisponibles, pointage simple maintenu:', e);
+      chantiersDisponibles = false;
+    }
+  }
 
   /***********************
    * UI helpers
