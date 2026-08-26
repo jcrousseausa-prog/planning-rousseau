@@ -263,6 +263,7 @@ table.bl-lignes td.r{text-align:right}
   <button class="app-tab" id="tab-fourns" onclick="showTab('fourns')">🏢 Fournisseurs</button>
   <button class="app-tab" id="tab-receptions" onclick="showTab('receptions')">🚚 Réceptions</button>
   <button class="app-tab" id="tab-stock" onclick="showTab('stock')">📦 Stock</button>
+  <button class="app-tab" id="tab-articles" onclick="showTab('articles')">🗂️ Articles</button>
 </div>
 <main>
 <!-- ══ COMMANDES ══ -->
@@ -382,6 +383,19 @@ table.bl-lignes td.r{text-align:right}
       <tbody id="stock-tbody"></tbody>
     </table>
   </div>
+</div>
+<!-- ══ ARTICLES ══ -->
+<div class="screen" id="screen-articles">
+  <div class="toolbar no-print">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="article-search" placeholder="Rechercher un article…" oninput="renderArticles()"/>
+    </div>
+    <button class="btn btn-primary" onclick="openNewArticle()">+ Nouvel article</button>
+  </div>
+  <p style="font-size:11px;color:var(--text3);margin:-4px 0 12px">Fiches de référence pour les articles suivis en stock : seuil de réappro, fournisseur habituel, historique. Un article hors gestion de stock n'a pas besoin de fiche ici.</p>
+  <div class="metrics" id="article-metrics" style="margin-bottom:12px"></div>
+  <div id="article-list"></div>
 </div>
 </main>
 <div id="toast"></div>
@@ -540,6 +554,48 @@ table.bl-lignes td.r{text-align:right}
     </div>
   </div>
 </div>
+<!-- ══ MODAL FICHE ARTICLE ══ -->
+<div class="modal-bg" id="modal-article" onclick="if(event.target===this)closeModal('modal-article')">
+  <div class="modal" style="width:560px">
+    <h2 id="ma-title">Nouvel article</h2>
+    <div class="field"><label>Désignation *</label><input type="text" id="ma-designation" placeholder="Doit correspondre à la désignation utilisée sur les commandes"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label>Unité</label><input type="text" id="ma-unite" placeholder="ml, kg, u…"/></div>
+      <div class="field"><label>Fournisseur habituel</label>
+        <select id="ma-fourn"><option value="">—</option></select>
+      </div>
+    </div>
+    <div class="field"><label>Emplacement par défaut</label>
+      <select id="ma-emplacement"><option value="">— Non défini —</option></select>
+    </div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin:14px 0 8px">Réapprovisionnement</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="field"><label>Quantité mini</label><input type="number" step="0.01" min="0" id="ma-seuil" placeholder="avant réappro"/></div>
+      <div class="field"><label>Délai d'appro (j)</label><input type="number" step="1" min="0" id="ma-delai"/></div>
+      <div class="field"><label>Qté de réappro</label><input type="number" step="0.01" min="0" id="ma-qte-reappro"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-article')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveArticle()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+<!-- ══ MODAL MISE AU REBUT ══ -->
+<div class="modal-bg" id="modal-rebut" onclick="if(event.target===this)closeModal('modal-rebut')">
+  <div class="modal" style="width:440px">
+    <h2>Mettre au rebut — <span id="mrb-designation"></span></h2>
+    <div class="field"><label>Emplacement source *</label>
+      <select id="mrb-emplacement" onchange="onRebutEmplacementChange()"></select>
+    </div>
+    <div class="field"><label>Quantité à mettre au rebut *</label><input type="number" step="0.01" min="0" id="mrb-quantite"/></div>
+    <div id="mrb-dispo" style="font-size:11px;color:var(--text3);margin:-6px 0 10px"></div>
+    <div class="field"><label>Motif *</label><textarea id="mrb-motif" style="min-height:50px;resize:vertical;width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" placeholder="Ex: humidité, casse au déchargement…"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-rebut')">Annuler</button>
+      <button class="btn btn-red" onclick="saveRebut()">♻️ Mettre au rebut</button>
+    </div>
+  </div>
+</div>
 <!-- ══ MODAL IMPRESSION COMMANDE ══ -->
 <div class="modal-bg" id="modal-print-cde" onclick="if(event.target===this)closeModal('modal-print-cde')">
   <div class="modal" style="width:720px;max-width:98vw">
@@ -676,6 +732,8 @@ let state = {
   receptions: [],     // { id, cdeId, cdeNum, fournId, fournNom, blNumero, blDate, date, lignes:[...], created_at }
   transferts: [],      // { id, date, designation, quantite, emplacementSourceId, emplacementDestId, note }
   emplacements_defaut: [], // { designation, emplacementId } — emplacement mémorisé par article, proposé automatiquement à la réception
+  articles: [],       // { id, designation, unite, fournisseur_id, fournisseur_nom, seuil_mini, delai_appro_jours, qte_reappro } — fiches des articles suivis en stock
+  rebuts: [],          // { id, date, designation, quantite, emplacementId, motif, created_at } — mises au rebut (traçabilité)
 };
 let _ctx = {};
 let _nbLignes = 0;
@@ -693,6 +751,7 @@ async function init() {
   renderRecapCommandes();
   renderPrevisionnel();
   renderStock();
+  renderArticles();
   renderMetrics();
   setSyncPill('ok','Synchronisé');
   document.getElementById('rt-label').textContent = 'Connecté';
@@ -719,6 +778,8 @@ async function loadData() {
       state.receptions   = r.receptions   || [];
       state.transferts    = r.transferts   || [];
       state.emplacements_defaut = r.emplacements_defaut || [];
+      state.articles      = r.articles     || [];
+      state.rebuts         = r.rebuts       || [];
     }
   } catch(e) { console.warn('loadData:', e); }
 }
@@ -729,7 +790,8 @@ async function saveData() {
       body:JSON.stringify({action:'saveAchats',data:{
         commandes:state.commandes,fournisseurs:state.fournisseurs,stock_mp:state.stock_mp,
         emplacements:state.emplacements,receptions:state.receptions,transferts:state.transferts,
-        emplacements_defaut:state.emplacements_defaut
+        emplacements_defaut:state.emplacements_defaut,
+        articles:state.articles,rebuts:state.rebuts
       }})
     });
     const r = await res.json();
@@ -774,7 +836,7 @@ function populateFournSelects() {
   const opts = ['<option value="">— Sélectionner —</option>',
     ...state.fournisseurs.map(f=>`<option value="${f.id}">${esc(f.nom)}</option>`)
   ].join('');
-  ['mc-fourn','ms-fourn'].forEach(id=>{ const el=document.getElementById(id);if(el)el.innerHTML=opts; });
+  ['mc-fourn','ms-fourn','ma-fourn'].forEach(id=>{ const el=document.getElementById(id);if(el)el.innerHTML=opts; });
 }
 function populateChantierSelects() {
   const opts = ['<option value="">— Sans chantier —</option>',
@@ -1063,6 +1125,7 @@ function saveCde(statut) {
   renderRecapCommandes();
   renderPrevisionnel();
   renderStock();
+  renderArticles();
   renderMetrics();
   toast(statut==='Validée'?'✅ Commande validée':'💾 Brouillon enregistré');
 }
@@ -1613,7 +1676,7 @@ function saveReception() {
   cde.statut = recueQte>=totalQte ? 'Reçue' : 'Réception partielle';
   closeModal('modal-reception');
   saveData();
-  renderCdes(); renderReceptions(); renderRecapCommandes(); renderPrevisionnel(); renderStock(); renderMetrics();
+  renderCdes(); renderReceptions(); renderRecapCommandes(); renderPrevisionnel(); renderStock(); renderArticles(); renderMetrics();
   toast('✅ Réception enregistrée');
   openPrintBL(reception.id);
 }
@@ -1853,12 +1916,12 @@ function saveStock() {
     entree:new Date().toISOString().slice(0,10),
     created_at:new Date().toISOString()
   });
-  closeModal('modal-stock');saveData();renderStock();toast('Entrée stock enregistrée');
+  closeModal('modal-stock');saveData();renderStock();renderArticles();toast('Entrée stock enregistrée');
 }
 function deleteStock(id){
   if(!confirm('Supprimer cette entrée ?'))return;
   state.stock_mp=state.stock_mp.filter(s=>s.id!==id);
-  saveData();renderStock();
+  saveData();renderStock();renderArticles();
 }
 function renderStock(){
   const q=(document.getElementById('stock-search')?.value||'').toLowerCase();
@@ -1875,7 +1938,7 @@ function renderStock(){
     <td style="font-size:12px;color:var(--text3)">${esc(s.unite||'')}</td>
     <td class="dp ${s.entree?'dp-green':'dp-orange'}" style="display:inline-block;margin-top:6px">${s.entree?fmtDate(s.entree):'en attente'}</td>
     <td style="font-size:11px">${s.cde_num?`<span class="badge badge-blue">${esc(s.cde_num)}</span>`:'—'}</td>
-    <td><span class="badge ${s.statut==='en_stock'?'badge-green':s.statut==='en_attente'?'badge-orange':'badge-gray'}">${s.statut==='en_stock'?'En stock':s.statut==='en_attente'?'Attendu':'Sorti'}</span></td>
+    <td><span class="badge ${s.statut==='en_stock'?'badge-green':s.statut==='en_attente'?'badge-orange':s.statut==='rebut'?'badge-red':'badge-gray'}">${s.statut==='en_stock'?'En stock':s.statut==='en_attente'?'Attendu':s.statut==='rebut'?'♻️ Rebut':'Sorti'}</span></td>
     <td><button class="btn btn-sm btn-red" onclick="deleteStock('${s.id}')">✕</button></td>
   </tr>`).join('');
 }
@@ -1949,8 +2012,248 @@ function saveTransfert() {
     created_at: new Date().toISOString(),
   });
   closeModal('modal-transfert');
-  saveData(); renderStock();
+  saveData(); renderStock(); renderArticles();
   toast('🔄 Transfert enregistré');
+}
+// ═══ FICHES ARTICLES ═════════════════════════════════════════════════════
+// Une fiche article n'a de sens que pour un article suivi en stock : elle
+// centralise le seuil de réappro, le fournisseur habituel et l'historique.
+// Le rattachement au stock/commandes/réceptions se fait par désignation
+// normalisée (accents/casse ignorés côté espaces, comme pour les
+// emplacements par défaut) — pas de clé étrangère stricte.
+function lotsEnStockArticle(designation) {
+  const n = normaliserDesignation(designation);
+  return state.stock_mp.filter(s=>normaliserDesignation(s.designation)===n && s.statut==='en_stock');
+}
+function stockActuelArticle(designation) {
+  const lots = lotsEnStockArticle(designation);
+  const parEmplacement = {};
+  lots.forEach(l=>{ const id=l.emplacementId||''; parEmplacement[id]=(parEmplacement[id]||0)+(Number(l.quantite)||0); });
+  const total = lots.reduce((s,l)=>s+(Number(l.quantite)||0),0);
+  return { total, parEmplacement, unite: lots[0]?.unite||'' };
+}
+function pmpArticle(designation) {
+  // Prix Moyen Pondéré : moyenne des PU de réception, pondérée par les
+  // quantités reçues — c'est l'historique des réceptions qui fait foi
+  // (pas les commandes, dont le prix peut encore changer avant livraison).
+  const n = normaliserDesignation(designation);
+  let sommeQte=0, sommeMontant=0;
+  state.receptions.forEach(r=>{
+    (r.lignes||[]).forEach(l=>{
+      if (normaliserDesignation(l.desc)===n && l.quantite>0) {
+        sommeQte += l.quantite;
+        sommeMontant += l.quantite * (l.prixUnitaire||0);
+      }
+    });
+  });
+  return sommeQte>0.001 ? sommeMontant/sommeQte : null;
+}
+function historiqueCommandesArticle(designation) {
+  const n = normaliserDesignation(designation);
+  const out = [];
+  state.commandes.forEach(c=>{
+    (c.lignes||[]).forEach(l=>{
+      if (normaliserDesignation(l.desc)===n) out.push({ cdeNum:c.num, date:c.date, fournNom:c.fourn_nom, statut:c.statut, qte:l.qte, recue:l.recue||0 });
+    });
+  });
+  return out.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+}
+function historiqueReceptionsArticle(designation) {
+  const n = normaliserDesignation(designation);
+  const out = [];
+  state.receptions.forEach(r=>{
+    (r.lignes||[]).forEach(l=>{
+      if (normaliserDesignation(l.desc)===n) out.push({ date:r.blDate, blNumero:r.blNumero, fournNom:r.fournNom, qte:l.quantite, pu:l.prixUnitaire||0 });
+    });
+  });
+  return out.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+}
+function openNewArticle() {
+  _ctx = {type:'new-article'};
+  document.getElementById('ma-title').textContent = 'Nouvel article';
+  ['ma-designation','ma-unite','ma-seuil','ma-delai','ma-qte-reappro'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('ma-fourn').value = '';
+  populateEmplacementSelects(['ma-emplacement']);
+  document.getElementById('ma-emplacement').value = '';
+  document.getElementById('modal-article').classList.add('show');
+}
+function openEditArticle(id) {
+  const a = state.articles.find(x=>x.id===id);
+  if (!a) return;
+  _ctx = {type:'edit-article', id};
+  document.getElementById('ma-title').textContent = 'Modifier — '+a.designation;
+  document.getElementById('ma-designation').value = a.designation||'';
+  document.getElementById('ma-unite').value = a.unite||'';
+  document.getElementById('ma-fourn').value = a.fournisseur_id||'';
+  document.getElementById('ma-seuil').value = a.seuil_mini||'';
+  document.getElementById('ma-delai').value = a.delai_appro_jours||'';
+  document.getElementById('ma-qte-reappro').value = a.qte_reappro||'';
+  populateEmplacementSelects(['ma-emplacement']);
+  document.getElementById('ma-emplacement').value = getEmplacementDefaut(a.designation)||'';
+  document.getElementById('modal-article').classList.add('show');
+}
+function saveArticle() {
+  const designation = document.getElementById('ma-designation').value.trim();
+  if (!designation) { document.getElementById('ma-designation').style.borderColor='var(--red)'; return; }
+  document.getElementById('ma-designation').style.borderColor='';
+  const fournId = document.getElementById('ma-fourn').value;
+  const fourn = state.fournisseurs.find(f=>f.id===fournId);
+  const ancien = _ctx.type==='edit-article' ? state.articles.find(x=>x.id===_ctx.id) : null;
+  const article = {
+    id: _ctx.type==='edit-article' ? _ctx.id : uid(),
+    designation, unite: document.getElementById('ma-unite').value.trim(),
+    fournisseur_id: fournId, fournisseur_nom: fourn?.nom||'',
+    seuil_mini: parseFloat(document.getElementById('ma-seuil').value)||0,
+    delai_appro_jours: parseInt(document.getElementById('ma-delai').value)||0,
+    qte_reappro: parseFloat(document.getElementById('ma-qte-reappro').value)||0,
+    open: ancien?.open||false,
+    created_at: ancien?.created_at || new Date().toISOString(),
+  };
+  if (_ctx.type==='edit-article') {
+    const idx = state.articles.findIndex(x=>x.id===_ctx.id);
+    if (idx>=0) state.articles[idx]=article;
+  } else {
+    state.articles.push(article);
+  }
+  const emplId = document.getElementById('ma-emplacement').value;
+  if (emplId) setEmplacementDefaut(designation, emplId);
+  closeModal('modal-article');
+  saveData(); renderArticles(); toast('Fiche article enregistrée');
+}
+function deleteArticle(id) {
+  if (!confirm('Supprimer cette fiche article ? Le stock et l\'historique existants ne sont pas supprimés, seule la fiche de référence disparaît.')) return;
+  state.articles = state.articles.filter(a=>a.id!==id);
+  saveData(); renderArticles(); toast('Fiche article supprimée');
+}
+function toggleArticle(id) { const a=state.articles.find(x=>x.id===id); if(a){ a.open=!a.open; renderArticles(); } }
+function renderArticleMetrics() {
+  const sousSeuil = state.articles.filter(a=>a.seuil_mini>0 && stockActuelArticle(a.designation).total < a.seuil_mini).length;
+  document.getElementById('article-metrics').innerHTML = `
+    <div class="metric"><div class="metric-k">Fiches articles</div><div class="metric-v">${state.articles.length}</div></div>
+    <div class="metric"><div class="metric-k">Sous le seuil mini</div><div class="metric-v${sousSeuil>0?' warn':' ok'}">${sousSeuil}</div></div>`;
+}
+function renderArticles() {
+  renderArticleMetrics();
+  const q=(document.getElementById('article-search')?.value||'').toLowerCase();
+  const articles = state.articles.filter(a=>!q||a.designation.toLowerCase().includes(q));
+  if (!articles.length) {
+    document.getElementById('article-list').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune fiche article. Cliquez sur "+ Nouvel article".</div>';
+    return;
+  }
+  document.getElementById('article-list').innerHTML = articles.map(a=>{
+    const stock = stockActuelArticle(a.designation);
+    const pmp = pmpArticle(a.designation);
+    const sousSeuil = a.seuil_mini>0 && stock.total < a.seuil_mini;
+    const defautId = getEmplacementDefaut(a.designation);
+    const cdes = historiqueCommandesArticle(a.designation);
+    const recs = historiqueReceptionsArticle(a.designation);
+    return `<div class="fourn-card">
+      <div class="fourn-header" onclick="toggleArticle('${a.id}')">
+        <span class="chevron${a.open?' open':''}">▶</span>
+        <span style="font-weight:700;font-size:14px;flex:1">${esc(a.designation)}</span>
+        ${a.unite?`<span class="badge badge-gray">${esc(a.unite)}</span>`:''}
+        <span class="badge ${sousSeuil?'badge-red':'badge-green'}">${fmtQte(stock.total)} en stock</span>
+        ${sousSeuil?`<span class="badge badge-red">⚠ sous le seuil (${fmtQte(a.seuil_mini)})</span>`:''}
+        ${pmp!=null?`<span class="badge badge-blue">PMP ${fmtEuro(pmp)}</span>`:''}
+        <div onclick="event.stopPropagation()" style="display:flex;gap:5px">
+          <button class="btn btn-sm" onclick="openEditArticle('${a.id}')">✎</button>
+          <button class="btn btn-sm btn-red" onclick="deleteArticle('${a.id}')">✕</button>
+        </div>
+      </div>
+      ${a.open?`<div class="fourn-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px;font-size:12px">
+          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Fournisseur habituel</div>${esc(a.fournisseur_nom||'—')}</div>
+          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Emplacement par défaut</div>${defautId?esc(libelleEmplacement(defautId)):'—'}</div>
+          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Délai d'appro</div>${a.delai_appro_jours?a.delai_appro_jours+' j':'—'}</div>
+          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Qté de réappro</div>${a.qte_reappro?fmtQte(a.qte_reappro)+' '+esc(a.unite||''):'—'}</div>
+        </div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Stock par emplacement</div>
+        ${Object.keys(stock.parEmplacement).length?`<div class="table-wrap" style="margin-bottom:12px">
+          <table class="stock-table"><thead><tr><th>Emplacement</th><th style="text-align:right">Quantité</th><th></th></tr></thead>
+          <tbody>${Object.entries(stock.parEmplacement).map(([empId,qte])=>`<tr>
+            <td>${empId?`<span class="emp">${esc(libelleEmplacement(empId))}</span>`:'<span style="color:var(--text3);font-size:11px">Non localisé</span>'}</td>
+            <td class="r">${fmtQte(qte)} ${esc(a.unite||'')}</td>
+            <td><button class="btn btn-sm" onclick="openRebut('${a.id}')">♻️ Rebut</button></td>
+          </tr>`).join('')}</tbody></table>
+        </div>`:`<div style="font-size:12px;color:var(--text3);margin-bottom:12px">Aucun stock actuellement.</div>`}
+        ${cdes.length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Historique commandes</div>
+        <div class="table-wrap" style="margin-bottom:12px">
+          <table class="stock-table"><thead><tr><th>Commande</th><th>Date</th><th>Fournisseur</th><th>Statut</th><th style="text-align:right">Qté cdée</th><th style="text-align:right">Qté reçue</th></tr></thead>
+          <tbody>${cdes.slice(0,10).map(c=>`<tr>
+            <td>${esc(c.cdeNum||'—')}</td><td>${fmtDate(c.date)}</td><td>${esc(c.fournNom||'—')}</td>
+            <td><span class="badge ${STATUS_COLORS[c.statut]||'badge-gray'}">${esc(c.statut||'—')}</span></td>
+            <td class="r">${fmtQte(c.qte)}</td><td class="r">${fmtQte(c.recue)}</td>
+          </tr>`).join('')}</tbody></table>
+        </div>`:''}
+        ${recs.length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Historique réceptions</div>
+        <div class="table-wrap">
+          <table class="stock-table"><thead><tr><th>BL</th><th>Date</th><th>Fournisseur</th><th style="text-align:right">Qté reçue</th><th style="text-align:right">PU</th></tr></thead>
+          <tbody>${recs.slice(0,10).map(r=>`<tr>
+            <td>${esc(r.blNumero||'—')}</td><td>${fmtDate(r.date)}</td><td>${esc(r.fournNom||'—')}</td>
+            <td class="r">${fmtQte(r.qte)}</td><td class="r">${fmtEuro(r.pu)}</td>
+          </tr>`).join('')}</tbody></table>
+        </div>`:''}
+      </div>`:''}</div>`;
+  }).join('');
+}
+// ═══ MISE AU REBUT ══════════════════════════════════════════════════════════
+// Sort de stock une quantité endommagée/HS, sans passer par un transfert
+// (pas de destination) : décrémente le lot, journalise dans state.rebuts,
+// et laisse une trace visible dans l'onglet Stock (statut "rebut").
+function openRebut(articleId) {
+  const a = state.articles.find(x=>x.id===articleId);
+  if (!a) return;
+  _ctx = {type:'rebut', designation:a.designation, unite:a.unite};
+  document.getElementById('mrb-designation').textContent = a.designation;
+  const stock = stockActuelArticle(a.designation);
+  const opts = Object.entries(stock.parEmplacement).filter(([,q])=>q>0.001)
+    .map(([id,q])=>`<option value="${id}">${id?esc(libelleEmplacement(id)):'Non localisé'} (${fmtQte(q)})</option>`).join('');
+  document.getElementById('mrb-emplacement').innerHTML = opts || '<option value="">— Aucun stock disponible —</option>';
+  document.getElementById('mrb-quantite').value = '';
+  document.getElementById('mrb-motif').value = '';
+  onRebutEmplacementChange();
+  document.getElementById('modal-rebut').classList.add('show');
+}
+function onRebutEmplacementChange() {
+  const empId = document.getElementById('mrb-emplacement').value;
+  const stock = stockActuelArticle(_ctx.designation||'');
+  const dispo = stock.parEmplacement[empId]||0;
+  document.getElementById('mrb-dispo').textContent = `Disponible à cet emplacement : ${fmtQte(dispo)} ${_ctx.unite||''}`;
+}
+function saveRebut() {
+  const empId = document.getElementById('mrb-emplacement').value;
+  const quantite = parseFloat(document.getElementById('mrb-quantite').value)||0;
+  const motif = document.getElementById('mrb-motif').value.trim();
+  const designation = _ctx.designation;
+  if (!designation) return;
+  if (quantite<=0) { alert('Quantité invalide.'); return; }
+  if (!motif) { alert('Le motif est obligatoire.'); return; }
+  const stock = stockActuelArticle(designation);
+  const dispo = stock.parEmplacement[empId]||0;
+  if (quantite>dispo+0.001 && !confirm(`Seulement ${fmtQte(dispo)} disponible à cet emplacement. Mettre au rebut ${fmtQte(quantite)} quand même ?`)) return;
+  // Décrémente le(s) lot(s) en stock à cet emplacement (FIFO simple sur les lignes existantes)
+  let reste = quantite;
+  const lots = lotsEnStockArticle(designation).filter(l=>(l.emplacementId||'')===empId);
+  const unite = lots[0]?.unite || _ctx.unite || '';
+  for (const l of lots) {
+    if (reste<=0.001) break;
+    const pris = Math.min(reste, l.quantite);
+    l.quantite -= pris; reste -= pris;
+  }
+  state.stock_mp = state.stock_mp.filter(s=>!(normaliserDesignation(s.designation)===normaliserDesignation(designation) && (s.emplacementId||'')===empId && s.statut==='en_stock' && s.quantite<=0.001));
+  // Laisse une trace visible dans l'onglet Stock
+  state.stock_mp.push({
+    id: uid(), designation, quantite, unite, emplacementId: empId,
+    fourn_id:'', fourn_nom:'', cde_num:'', chantier_id:'', chantier_nom:'',
+    statut:'rebut', entree:new Date().toISOString().slice(0,10), created_at:new Date().toISOString(),
+  });
+  state.rebuts.unshift({
+    id: uid(), date: new Date().toISOString().slice(0,10), designation, quantite,
+    emplacementId: empId, motif, created_at: new Date().toISOString(),
+  });
+  closeModal('modal-rebut');
+  saveData(); renderArticles(); renderStock();
+  toast('♻️ Mise au rebut enregistrée');
 }
 // ═══ DÉMARRAGE ════════════════════════════════════════════════════════════
 init();
