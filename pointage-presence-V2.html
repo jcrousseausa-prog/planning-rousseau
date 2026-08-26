@@ -526,18 +526,27 @@ let choixZeroBased = false;
         catch(e){ throw new Error(`Non-JSON ${action} | ${String(t).slice(0,120)}`); }
       }));
   }
-  function post(action, payload){
+    async function post(action, payload, tentative){
+    tentative = tentative || 1;
     const body = JSON.stringify(Object.assign({action}, payload || {}));
-    return http_(SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body,
-      cache:'no-store'
-    }).then(r => r.text().then(t => {
+    try {
+      const r = await http_(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body,
+        cache:'no-store'
+      });
+      const t = await r.text();
       if (!r.ok) throw new Error(`HTTP ${r.status} POST ${action} | ${String(t).slice(0,120)}`);
       try { return JSON.parse(t); }
       catch(e){ throw new Error(`POST non-JSON ${action} | ${String(t).slice(0,120)}`); }
-    }));
+    } catch(err) {
+      if (tentative < 3) {
+        await new Promise(res => setTimeout(res, 500 * tentative));
+        return post(action, payload, tentative + 1);
+      }
+      throw err;
+    }
   }
 
   async function loadEmployees(){
