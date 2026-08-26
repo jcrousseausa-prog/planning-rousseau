@@ -342,62 +342,7 @@ const REPRISE_LABEL = '↩ Reprendre le dernier pointage';
     return demanderChoix(nom, operation + ' — Choisissez le chantier', CHANTIERS.map(c=>c.nom||c), false);
   }
 
-      btnContainer.innerHTML =
-        '<div style="max-height:56vh;overflow-y:auto;width:100%;max-width:560px;margin:0 auto;text-align:left;' +
-          'background:rgba(255,255,255,.13);border-radius:18px;padding:8px;box-shadow:0 8px 30px rgba(0,0,0,.15)">' +
-        CHANTIERS.map((ch,i) =>
-          `<div class="chantier-choice" data-chantier="${escapeHtml(ch.nom)}"
-                style="cursor:pointer;padding:14px 16px;font-size:17px;display:flex;align-items:center;gap:14px;
-                       ${i<CHANTIERS.length-1?'border-bottom:1px solid rgba(255,255,255,.15)':''}">
-             <span style="flex-shrink:0;min-width:44px;text-align:center;padding:4px 6px;border-radius:8px;
-                          background:rgba(255,255,255,.22);font-weight:800;font-size:13px;font-family:monospace">
-               ${escapeHtml(ch.code||'—')}
-             </span>
-             <span style="font-weight:500">${escapeHtml(ch.nom)}</span>
-           </div>`
-        ).join('') +
-        '</div>' +
-        '<div style="margin-top:22px;font-size:14px;opacity:.85">Touchez le chantier, ou scannez/tapez son code</div>' +
-        '<input type="text" id="choiceInput" autocomplete="off" ' +
-          'style="margin-top:14px;padding:14px 20px;font-size:22px;font-weight:700;border-radius:12px;border:none;' +
-          'width:220px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.2);color:#222"/>';
-
-      screen.classList.add('show');
-
-      const input = document.getElementById('choiceInput');
-      input.focus();
-
-      const finaliser = (nomChantier) => {
-        input.removeEventListener('keydown', keyHandler);
-        btnContainer.removeEventListener('click', clickHandler);
-        screen.classList.remove('show');
-        choiceScreenActive = false;
-        document.getElementById('scanInput').focus();
-        resolve(nomChantier);
-      };
-
-      const keyHandler = (e)=>{
-        if (e.key !== 'Enter') return;
-        const val = input.value.trim();
-        input.value = '';
-        if (!val) return;
-        const parCode = CHANTIERS.find(ch => ch.code && ch.code.toLowerCase() === val.toLowerCase());
-        if (parCode) { finaliser(parCode.nom); return; }
-        const parNom = CHANTIERS.find(ch => ch.nom.toLowerCase() === val.toLowerCase());
-        if (parNom) { finaliser(parNom.nom); return; }
-        input.style.background = '#ffcdd2';
-        setTimeout(()=>{ input.style.background=''; }, 400);
-      };
-      input.addEventListener('keydown', keyHandler);
-
-      const clickHandler = (e)=>{
-        const div = e.target.closest('[data-chantier]');
-        if (!div) return;
-        finaliser(div.getAttribute('data-chantier'));
-      };
-      btnContainer.addEventListener('click', clickHandler);
-    });
-  }
+      
 
   /***********************
    * Focus lock
