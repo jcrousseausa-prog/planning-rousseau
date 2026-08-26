@@ -286,6 +286,30 @@ let modeActuel = 'attente'; // 'attente' | 'choix'
 let choixResolver = null;
 let choixOptions = null;
 let choixZeroBased = false;
+    let timeoutInactivite = null;
+
+  function demarrerTimeoutInactivite(){
+    if (timeoutInactivite) clearTimeout(timeoutInactivite);
+    timeoutInactivite = setTimeout(() => {
+      annulerEcransEnCours();
+    }, 30000);
+  }
+
+  function arreterTimeoutInactivite(){
+    if (timeoutInactivite) { clearTimeout(timeoutInactivite); timeoutInactivite = null; }
+  }
+
+  function annulerEcransEnCours(){
+    document.getElementById('waitingBadgeScreen').classList.remove('show');
+    document.getElementById('taskScreen').classList.remove('show');
+    modeChangementTache = false;
+    modeActuel = 'attente';
+    choixResolver = null;
+    choixOptions = null;
+    document.getElementById('scanInput').value = '';
+    document.getElementById('scanInput').focus();
+    toast('⏱ Retour automatique — session annulée par inactivité', false, 2500);
+  }
 
   function demanderChoix(nom, titre, options, zeroBased){
     return new Promise(resolve=>{
@@ -316,7 +340,8 @@ let choixZeroBased = false;
         '</div>' +
         '<div style="margin-top:22px;font-size:14px;opacity:.85">Tapez le numéro sur la douchette, ou touchez une ligne</div>';
 
-      screen.classList.add('show');
+          screen.classList.add('show');
+      demarrerTimeoutInactivite();
 
       const clickHandler = (e)=>{
         const div = e.target.closest('[data-idx]');
@@ -330,7 +355,8 @@ let choixZeroBased = false;
     });
   }
 
-  function finaliserChoix(resultat){
+   function finaliserChoix(resultat){
+    arreterTimeoutInactivite();
     const screen = document.getElementById('taskScreen');
     screen.classList.remove('show');
     modeActuel = 'attente';
@@ -710,9 +736,10 @@ let choixZeroBased = false;
       return;
     }
 
-       if (raw.trim() === '999') {
+          if (raw.trim() === '999') {
       modeChangementTache = true;
       document.getElementById('waitingBadgeScreen').classList.add('show');
+      demarrerTimeoutInactivite();
       return;
     }
 
@@ -736,8 +763,9 @@ let choixZeroBased = false;
       return;
     }
 
-    if (modeChangementTache) {
+       if (modeChangementTache) {
       modeChangementTache = false;
+      arreterTimeoutInactivite();
       document.getElementById('waitingBadgeScreen').classList.remove('show');
       const lastForEmployee = presenceRecords.find(r => r.employeeId === employeeId) || null;
       const estActif = lastForEmployee && isActiveRecordStrict_(lastForEmployee);
