@@ -207,6 +207,11 @@
   </div>
 </div>
 <!-- ÉCRAN CHOIX TÂCHE/CHANTIER -->
+  <div id="waitingBadgeScreen" class="factory-screen task-select" aria-hidden="true">
+  <div class="factory-mode-top">🔄 Changement de tâche</div>
+  <div style="font-size:28px;font-weight:700;margin-top:10px">Scannez votre badge</div>
+  <div style="font-size:16px;opacity:.85;margin-top:14px">pour choisir votre nouvelle tâche</div>
+</div>
 <div id="taskScreen" class="factory-screen task-select" aria-hidden="true">
   <div class="factory-mode-top" id="taskTop">Sélectionnez votre tâche</div>
   <div id="taskButtons" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px;max-width:90vw"></div>
@@ -705,9 +710,9 @@ let choixZeroBased = false;
       return;
     }
 
-    if (raw.trim() === '999') {
+       if (raw.trim() === '999') {
       modeChangementTache = true;
-      toast('🔄 Mode "Changement de tâche" activé — scannez votre badge', true, 2500);
+      document.getElementById('waitingBadgeScreen').classList.add('show');
       return;
     }
 
@@ -723,15 +728,17 @@ let choixZeroBased = false;
       toast("❌ Scan illisible. Contenu: " + cleaned, false, 2000);
       return;
     }
-        const nom = EMP_BY_ID.get(employeeId);
+          const nom = EMP_BY_ID.get(employeeId);
     if (!nom){
       toast("❌ ID inconnu. Scanne un ID existant (ex: 111).", false, 2000);
       modeChangementTache = false;
+      document.getElementById('waitingBadgeScreen').classList.remove('show');
       return;
     }
 
     if (modeChangementTache) {
       modeChangementTache = false;
+      document.getElementById('waitingBadgeScreen').classList.remove('show');
       const lastForEmployee = presenceRecords.find(r => r.employeeId === employeeId) || null;
       const estActif = lastForEmployee && isActiveRecordStrict_(lastForEmployee);
       if (!estActif) {
