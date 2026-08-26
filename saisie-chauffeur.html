@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Saisie Tournée Chauffeur</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); min-height:100vh; padding:20px; }
+  .container{ max-width:700px; margin:0 auto; }
+  .panel{ background:white; border-radius:15px; padding:25px; box-shadow:0 10px 30px rgba(0,0,0,.2); margin-bottom:20px; }
+  h1{ color:#667eea; font-size:24px; margin-bottom:20px; text-align:center; }
+  label{ display:block; font-weight:800; color:#374151; margin-bottom:6px; font-size:13px; }
+  select, input{ width:100%; padding:12px; border:2px solid #e5e7eb; border-radius:8px; font-size:15px; margin-bottom:16px; }
+  .ligne{ background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px; padding:14px; margin-bottom:12px; position:relative; }
+  .ligne .grid{ display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px; }
+  .ligne select, .ligne input{ margin-bottom:0; }
+  .btn-remove{ position:absolute; top:8px; right:8px; background:#fee2e2; color:#991b1b; border:none;
+    border-radius:6px; width:26px; height:26px; cursor:pointer; font-weight:800; }
+  .btn{ padding:14px 20px; border:none; border-radius:8px; font-size:15px; font-weight:800; cursor:pointer; width:100%; }
+  .btn-add{ background:#eef2ff; color:#667eea; margin-bottom:16px; }
+  .btn-submit{ background:#667eea; color:white; }
+  .toast{ position:fixed; top:18px; left:50%; transform:translateX(-50%); background:white; padding:14px 18px;
+    border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.25); z-index:9999; font-weight:800; }
+  .toast.ok{ border-left:6px solid #10b981; } .toast.err{ border-left:6px solid #ef4444; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="panel">
+    <h1>🚚 Saisie Tournée</h1>
+    <label>Chauffeur</label>
+    <select id="selChauffeur"><option value="">— Chargement… —</option></select>
+    <label>Date</label>
+    <input type="date" id="selDate"/>
+  </div>
+  <div class="panel">
+    <div id="lignesContainer"></div>
+    <button class="btn btn-add" onclick="ajouterLigne()">+ Ajouter un chantier</button>
+    <button class="btn btn-submit" onclick="validerTournee()">✅ Valider la tournée</button>
+  </div>
+</div>
+<script>
+  const ERP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec";
+  const POINTAGE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzzTvmU8uvjwEpdV8Q1bB9zo_XUJH0-e3K0cX_Snt7sCnGbEbbojASPmkUa8d2gswrI/exec";
+  let CHANTIERS = [];
+  let ligneCount = 0;
+
+  document.getElementById('selDate').value = new Date().toISOString().slice(0,10);
+
+  function toast(msg, ok=true){
+    const d = document.createElement('div');
+    d.className = 'toast ' + (ok?'ok':'err');
+    d.textContent = msg;
+    document.body.appendChild(d);
+    setTimeout(()=>d.remove(), 2500);
+  }
+
+  async function chargerDonnees(){
+    try {
+      const [resCh, resChant] = await Promise.all([
+        fetch(ERP_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getChauffeurs'})}),
+        fetch(ERP_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getListeChantiersOperations'})})
+      ]);
+      const rCh = await resCh.json();
+      const rChant = await resChant.json();
+      const sel = document.getElementById('selChauffeur');
+      if (rCh.ok && rCh.chauffeurs.length) {
+        sel.innerHTML = '<option value="">— Sélectionner —</option>' +
+          rCh.chauffeurs.map(c=>`<option value="${c.matricule}">${c.nom}</option>`).join('');
+      } else {
+        sel.innerHTML = '<option value="">Aucun chauffeur trouvé</option>';
+      }
+      if (rChant.ok && rChant.chantiers.length) {
+        CHANTIERS = rChant.chantiers.map(c=>c.nom||c);
+      }
+      ajouterLigne();
+    } catch(e) {
+      toast('Erreur de chargement : ' + e.message, false);
+    }
+  }
+
+  function ajouterLigne(){
+    ligneCount++;
+    const id = 'ligne_' + ligneCount;
+    const div = document.createElement('div');
+    div.className = 'ligne';
+    div.id = id;
+    div.innerHTML = `
+      <button class="btn-remove" onclick="document.getElementById('${id}').remove()">✕</button>
+      <div class="grid">
+        <div>
+          <label>Chantier</label>
+          <select class="selChantier">
+            <option value="">— Choisir —</option>
+            ${CHANTIERS.map(c=>`<option value="${c}">${c}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Temps (h)</label>
+          <input type="number" class="inpTemps" step="0.25" min="0" placeholder="Ex: 2.5"/>
+        </div>
+        <div>
+          <label>Nb tours</label>
+          <input type="number" class="inpTours" min="0" placeholder="Ex: 3"/>
+        </div>
+      </div>`;
+    document.getElementById('lignesContainer').appendChild(div);
+  }
+
+  async function validerTournee(){
+    const employeeId = document.getElementById('selChauffeur').value;
+    const date = document.getElementById('selDate').value;
+    if (!employeeId) { toast('Sélectionnez un chauffeur', false); return; }
+    if (!date) { toast('Sélectionnez une date', false); return; }
+
+    const lignesEl = document.querySelectorAll('.ligne');
+    const lignes = [];
+    lignesEl.forEach(el=>{
+      const chantier = el.querySelector('.selChantier').value;
+      const temps = el.querySelector('.inpTemps').value;
+      const nbTours = el.querySelector('.inpTours').value;
+      if (chantier && temps) lignes.push({chantier, temps, nbTours});
+    });
+    if (!lignes.length) { toast('Ajoutez au moins une ligne complète', false); return; }
+
+    try {
+      const res = await fetch(POINTAGE_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'saisirTourneeChauffeur', employeeId, date, lignes})
+      });
+      const r = await res.json();
+      if (r.success) {
+        toast(`✅ Tournée enregistrée (${r.count} ligne${r.count>1?'s':''})`, true);
+        document.getElementById('lignesContainer').innerHTML = '';
+        ligneCount = 0;
+        ajouterLigne();
+      } else {
+        toast('❌ ' + (r.error||'Erreur inconnue'), false);
+      }
+    } catch(e) {
+      toast('❌ Erreur réseau : ' + e.message, false);
+    }
+  }
+
+  chargerDonnees();
+</script>
+</body>
+</html>
