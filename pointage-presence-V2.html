@@ -176,13 +176,14 @@
     <div class="form-group">
       <label>Scanner l’ID employé</label>
       <div class="input-group">
-        <input
-          type="text"
-          id="scanInput"
-          placeholder="Scannez l’ID (ex: 111)..."
-          autocomplete="off"
-          inputmode="none"
-          onkeydown="if(event.key==='Enter'){ event.preventDefault(); handlePresenceScan(); }"
+       <input
+  type="text"
+  id="scanInput"
+  placeholder="Scannez l'ID (ex: 111)..."
+  autocomplete="off"
+  inputmode="numeric"
+  onkeydown="if(event.key==='Enter'){ event.preventDefault(); handlePresenceScan(); }"
+>
         >
         <button id="presenceBtn" class="btn btn-primary" onclick="handlePresenceScan()">Pointer</button>
       </div>
