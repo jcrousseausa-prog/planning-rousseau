@@ -450,7 +450,7 @@ let choixZeroBased = false;
   /***********************
    * Affichage badgeuse
    ***********************/
-  function showFactoryScreen(employeeName, mode){
+   function showFactoryScreen(employeeName, mode, texteBottom){
     const screen = document.getElementById('factoryScreen');
     const top = document.getElementById('factoryTop');
     const name = document.getElementById('factoryName');
@@ -466,7 +466,7 @@ let choixZeroBased = false;
     screen.classList.add('factory-pulse');
     top.textContent = 'POINTAGE ENREGISTRÉ';
     name.textContent = String(employeeName || '').toUpperCase();
-    bottom.textContent = isExit ? 'SORTIE' : 'ENTRÉE';
+    bottom.textContent = texteBottom || (isExit ? 'SORTIE' : 'ENTRÉE');
     screen.setAttribute('aria-hidden', 'false');
     factoryTimer = setTimeout(() => {
       screen.classList.remove('show', 'factory-pulse');
@@ -805,7 +805,7 @@ let choixZeroBased = false;
       try {
         const res = await changerTache_({ employeeId, operation: operationChoisie, of: chantierChoisi });
         if (res && res.success) {
-          toast(`✅ Tâche changée : ${operationChoisie}${chantierChoisi ? ' — ' + chantierChoisi : ''}`, true, 3000);
+          showFactoryScreen(nom, 'entry', operationChoisie + (chantierChoisi ? ' — ' + chantierChoisi : ''));
         } else {
           toast('❌ Erreur lors du changement de tâche', false, 2500);
         }
