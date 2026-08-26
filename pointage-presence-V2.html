@@ -672,20 +672,32 @@ const REPRISE_LABEL = '↩ Reprendre le dernier pointage';
     input.value = '';
     input.focus();
 
-    if (modeActuel === 'choix') {
+       if (modeActuel === 'choix') {
       const val = raw.trim();
       if (!val) return;
+
+      const candidatsId = val.replace(/[\u0000-\u001F\u007F\u00A0\u001d]/g,' ').match(/\b\d{1,6}\b/g);
+      const idPotentiel = candidatsId ? candidatsId[candidatsId.length-1] : '';
+      const ressembleABadge = idPotentiel && idPotentiel.length >= 3 && EMP_BY_ID.has(idPotentiel);
+
       let resultat = null;
-      if (/^\d+$/.test(val)) {
-        const idx = choixZeroBased ? parseInt(val,10) : parseInt(val,10) - 1;
-        if (choixOptions && idx >= 0 && idx < choixOptions.length) resultat = choixOptions[idx];
+      if (!ressembleABadge) {
+        if (/^\d+$/.test(val)) {
+          const idx = choixZeroBased ? parseInt(val,10) : parseInt(val,10) - 1;
+          if (choixOptions && idx >= 0 && idx < choixOptions.length) resultat = choixOptions[idx];
+        }
+        if (!resultat && choixOptions) {
+          const match = choixOptions.find(o => String(o).toLowerCase() === val.toLowerCase());
+          if (match) resultat = match;
+        }
       }
-      if (!resultat && choixOptions) {
-        const match = choixOptions.find(o => String(o).toLowerCase() === val.toLowerCase());
-        if (match) resultat = match;
-      }
+
       if (!resultat) {
-        toast('❌ Choix invalide, réessayez', false, 1500);
+        if (ressembleABadge) {
+          toast('⏳ Une personne est en train de pointer — attendez votre tour', false, 2000);
+        } else {
+          toast('❌ Choix invalide, réessayez', false, 1500);
+        }
         return;
       }
       finaliserChoix(resultat);
