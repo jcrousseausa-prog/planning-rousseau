@@ -70,7 +70,38 @@
     setTimeout(()=>d.remove(), 2500);
   }
 
-  async function chargerDonnees(){
+    async function chargerRecapSemaine(){
+    const employeeId = document.getElementById('selChauffeur').value;
+    const date = document.getElementById('selDate').value;
+    if (!employeeId || !date) return;
+    try {
+      const res = await fetch(POINTAGE_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'getRecapSemaineChauffeur', employeeId, date})
+      });
+      const r = await res.json();
+      if (!r.ok) return;
+      const jours = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+      const lundi = new Date(r.lundi);
+      let totalSem = 0;
+      let html = '';
+      for (let i=0;i<7;i++){
+        const d = new Date(lundi.getTime()); d.setDate(lundi.getDate()+i);
+        const key = d.toISOString().slice(0,10);
+        const h = r.parJour[key] || 0;
+        totalSem += h;
+        const estAujourdhui = key === date;
+        html += `<div style="padding:6px 10px;border-radius:8px;background:${estAujourdhui?'#eef2ff':'#f9fafb'};
+          border:1px solid ${estAujourdhui?'#667eea':'#e5e7eb'};font-size:11px;text-align:center;min-width:52px">
+          <div style="font-weight:800;color:#374151">${jours[i]}</div>
+          <div style="color:${h>0?'#667eea':'#bbb'};font-weight:700">${h>0?fmtHeures(h):'—'}</div>
+        </div>`;
+      }
+      document.getElementById('detailSemaine').innerHTML = html;
+      document.getElementById('totalSemaine').textContent = fmtHeures(totalSem);
+    } catch(e) { console.warn(e); }
+  }
+ async function chargerDonnees(){
     try {
       const [resCh, resChant] = await Promise.all([
         fetch(ERP_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getChauffeurs'})}),
