@@ -505,17 +505,24 @@ let choixZeroBased = false;
   /***********************
    * API
    ***********************/
-  function testConnection(){
+  async function testConnection(tentative){
+    tentative = tentative || 1;
     setStatus('🔄 Connexion en cours…', false);
-    http_(SCRIPT_URL, { method:'GET', cache:'no-store' })
-      .then(r => r.text().then(t => {
-        if (r.ok && String(t).includes('OK')) setStatus('✅ Connecté à Google Sheets', true);
-        else setStatus(`⚠️ Connexion incertaine (HTTP ${r.status})`, false);
-      }))
-      .catch((e)=>{
-        console.error(e);
-        setStatus('❌ Erreur de connexion', false);
-      });
+    try {
+      const r = await http_(SCRIPT_URL, { method:'GET', cache:'no-store' });
+      const t = await r.text();
+      if (r.ok && String(t).includes('OK')) {
+        setStatus('✅ Connecté à Google Sheets', true);
+        return;
+      }
+      throw new Error('HTTP ' + r.status);
+    } catch(e) {
+      if (tentative < 3) {
+        setTimeout(() => testConnection(tentative + 1), 700 * tentative);
+      } else {
+        setStatus('⚠️ Connexion incertaine — le pointage reste fonctionnel', false);
+      }
+    }
   }
   function get(action){
     const url = SCRIPT_URL + '?action=' + encodeURIComponent(action) + '&_ts=' + Date.now();
