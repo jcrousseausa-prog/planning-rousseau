@@ -816,12 +816,10 @@ let choixZeroBased = false;
               console.error(res);
               unlockEmployee_(eid);
             }
-          } catch (err) {
+               } catch (err) {
             console.error(err);
             toast('❌ Erreur réseau (fin): ' + String(err.message || err).slice(0,90), false, 2000);
             unlockEmployee_(eid);
-          } finally {
-            loadPresenceFromServer(false);
           }
                  } else {
           let operationChoisie = '', chantierChoisi = '', choixInitial = '';
@@ -877,12 +875,10 @@ let choixZeroBased = false;
               console.error(res);
               unlockEmployee_(eid);
             }
-          } catch (err) {
+                  } catch (err) {
             console.error(err);
             toast('❌ Erreur réseau (début): ' + String(err.message || err).slice(0,90), false, 2000);
             unlockEmployee_(eid);
-          } finally {
-            loadPresenceFromServer(false);
           }
         }
         input.focus();
