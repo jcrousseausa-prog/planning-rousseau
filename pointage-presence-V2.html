@@ -236,7 +236,7 @@
   let factoryTimer = null;
   const ERP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec";
   let CHANTIERS = [];
-  let OPERATIONS = ['Assemblage','Isolation','Agrafage','Finition','Bardage','Chargement','Reprise','Usinage','Logistique'];
+  let OPERATIONS = ['Assemblage','Isolation','Agrafage','Finition','Bardage','Chargement','Reprise','Robot','Speed Cut','Logistique'];
   let chantiersDisponibles = false;
 
   window.onload = function() {
@@ -799,7 +799,7 @@ let choixZeroBased = false;
         return;
       }
       let chantierChoisi = '';
-      if (operationChoisie && operationChoisie !== 'Logistique' && operationChoisie !== 'Usinage') {
+      if (operationChoisie && operationChoisie !== 'Logistique' && operationChoisie !== 'Robot' && operationChoisie !== 'Speed Cut') {
         chantierChoisi = await demanderChantier(nom, operationChoisie);
       }
       try {
@@ -882,7 +882,7 @@ let choixZeroBased = false;
               chantierChoisi = '';
             } else {
               operationChoisie = choixInitial;
-              if (operationChoisie && operationChoisie !== 'Logistique' && operationChoisie !== 'Usinage') {
+          if (operationChoisie && operationChoisie !== 'Logistique' && operationChoisie !== 'Robot' && operationChoisie !== 'Speed Cut') {
                 chantierChoisi = await demanderChantier(empName, operationChoisie);
               }
             }
