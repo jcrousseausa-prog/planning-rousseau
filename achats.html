@@ -400,7 +400,7 @@ table.bl-lignes td.r{text-align:right}
 </main>
 <div id="toast"></div>
 <!-- ══ MODAL NOUVELLE COMMANDE ══ -->
-<div class="modal-bg" id="modal-cde" onclick="if(event.target===this)closeModal('modal-cde')">
+<div class="modal-bg" id="modal-cde">
   <div class="modal" style="width:800px;max-width:98vw">
     <h2 id="mc-title">Nouvelle commande</h2>
     <!-- En-tête commande -->
@@ -475,7 +475,7 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </div>
 <!-- ══ MODAL FOURNISSEUR ══ -->
-<div class="modal-bg" id="modal-fourn" onclick="if(event.target===this)closeModal('modal-fourn')">
+<div class="modal-bg" id="modal-fourn">
   <div class="modal" style="width:600px">
     <h2 id="mf-title">Nouveau fournisseur</h2>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
@@ -518,7 +518,7 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </div>
 <!-- ══ MODAL STOCK MP (entrée manuelle) ══ -->
-<div class="modal-bg" id="modal-stock" onclick="if(event.target===this)closeModal('modal-stock')">
+<div class="modal-bg" id="modal-stock">
   <div class="modal" style="width:480px">
     <h2>Entrée en stock</h2>
     <div class="field"><label>Désignation *</label><input type="text" id="ms-designation"/></div>
@@ -555,7 +555,7 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </div>
 <!-- ══ MODAL FICHE ARTICLE ══ -->
-<div class="modal-bg" id="modal-article" onclick="if(event.target===this)closeModal('modal-article')">
+<div class="modal-bg" id="modal-article">
   <div class="modal" style="width:560px">
     <h2 id="ma-title">Nouvel article</h2>
     <div class="field"><label>Désignation *</label><input type="text" id="ma-designation" placeholder="Doit correspondre à la désignation utilisée sur les commandes"/></div>
@@ -581,7 +581,7 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </div>
 <!-- ══ MODAL MISE AU REBUT ══ -->
-<div class="modal-bg" id="modal-rebut" onclick="if(event.target===this)closeModal('modal-rebut')">
+<div class="modal-bg" id="modal-rebut">
   <div class="modal" style="width:440px">
     <h2>Mettre au rebut — <span id="mrb-designation"></span></h2>
     <div class="field"><label>Emplacement source *</label>
@@ -608,7 +608,7 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </div>
 <!-- ══ MODAL NOUVELLE RÉCEPTION ══ -->
-<div class="modal-bg" id="modal-reception" onclick="if(event.target===this)closeModal('modal-reception')">
+<div class="modal-bg" id="modal-reception">
   <div class="modal" style="width:820px;max-width:98vw">
     <h2>Nouvelle réception</h2>
     <div class="field-2" style="margin-bottom:12px">
@@ -653,7 +653,7 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </div>
 <!-- ══ MODAL EMPLACEMENTS ══ -->
-<div class="modal-bg" id="modal-emplacements" onclick="if(event.target===this)closeModal('modal-emplacements')">
+<div class="modal-bg" id="modal-emplacements">
   <div class="modal" style="width:560px">
     <h2>Emplacements de stockage</h2>
     <div class="field-2" style="align-items:end;margin-bottom:4px">
@@ -672,7 +672,7 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </div>
 <!-- ══ MODAL TRANSFERT INTERNE ══ -->
-<div class="modal-bg" id="modal-transfert" onclick="if(event.target===this)closeModal('modal-transfert')">
+<div class="modal-bg" id="modal-transfert">
   <div class="modal" style="width:520px">
     <h2>Transfert de stock interne</h2>
     <div class="warn-box">Déplace une quantité d'un emplacement vers un autre, sans effet sur le total en stock.</div>
@@ -705,7 +705,7 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </div>
 <!-- ══ MODAL EMPLACEMENT MANQUANT (à la réception) ══ -->
-<div class="modal-bg" id="modal-emplacement-manquant" onclick="if(event.target===this)closeModal('modal-emplacement-manquant')">
+<div class="modal-bg" id="modal-emplacement-manquant">
   <div class="modal" style="width:560px">
     <h2>Emplacement de stockage à renseigner</h2>
     <div class="warn-box">Ces articles n'ont pas encore d'emplacement par défaut. Choisissez-en un — il sera mémorisé pour les prochaines réceptions.</div>
