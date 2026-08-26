@@ -853,27 +853,22 @@ let choixZeroBased = false;
           lastLocalChangeAt = Date.now();
           renderPresence();
           saveLocal();
-          showFactoryScreen(empName, 'exit');
-          try {
-            const res = await endPresence_({
-              requestId: requestId,
-              employeeId: eid,
-              recordId: lastForEmployee.id,
-              fin: nowTxt,
-              temps: temps
-            });
-            if (res && res.success) {
-              toast(`Présence terminée : ${empName}`, true, 2000);
-            } else {
-              toast('❌ Erreur serveur (fin)', false, 2000);
-              console.error(res);
-              unlockEmployee_(eid);
+           showFactoryScreen(empName, 'exit');
+          endPresence_({
+            requestId: requestId,
+            employeeId: eid,
+            recordId: lastForEmployee.id,
+            fin: nowTxt,
+            temps: temps
+          }).then(res => {
+            if (!res || !res.success) {
+              console.error('Erreur serveur (fin)', res);
+              toast(`⚠ Sortie de ${empName} non confirmée par le serveur — réessaiera automatiquement`, false, 3000);
             }
-               } catch (err) {
+          }).catch(err => {
             console.error(err);
-            toast('❌ Erreur réseau (fin): ' + String(err.message || err).slice(0,90), false, 2000);
-            unlockEmployee_(eid);
-          }
+            toast(`⚠ Sortie de ${empName} en attente de synchronisation`, false, 2500);
+          });
                  } else {
           let operationChoisie = '', chantierChoisi = '', choixInitial = '';
           if (chantiersDisponibles) {
@@ -903,31 +898,29 @@ let choixZeroBased = false;
           renderPresence();
           saveLocal();
           showFactoryScreen(empName, 'entry');
-          try {
-                        const res = await startPresence_({
-              requestId: requestId,
-              employeeId: eid,
-              recordId: rec.id,
-              nom: empName,
-              debut: rec.debut,
-              operation: operationChoisie,
-              of: chantierChoisi
-            });
+          startPresence_({
+            requestId: requestId,
+            employeeId: eid,
+            recordId: rec.id,
+            nom: empName,
+            debut: rec.debut,
+            operation: operationChoisie,
+            of: chantierChoisi
+          }).then(res => {
             if (res && res.success) {
-              if (choixInitial === REPRISE_LABEL) {
-                if (res.reprise) {
-                  toast(`↩ Reprise : ${res.reprise.operation}${res.reprise.of ? ' — ' + res.reprise.of : ''}`, true, 3500);
-                } else {
-                  toast(`⚠ Aucune tâche antérieure trouvée pour ${empName} — entrée enregistrée sans tâche`, false, 3500);
-                }
-              } else {
-                toast(`Présence démarrée : ${empName}`, true, 2000);
+              if (choixInitial === REPRISE_LABEL && res.reprise) {
+                toast(`↩ Reprise confirmée : ${res.reprise.operation}${res.reprise.of ? ' — ' + res.reprise.of : ''}`, true, 3000);
+              } else if (choixInitial === REPRISE_LABEL && !res.reprise) {
+                toast(`⚠ Aucune tâche antérieure trouvée pour ${empName}`, false, 3000);
               }
             } else {
-              toast('❌ Erreur serveur (début)', false, 2000);
-              console.error(res);
-              unlockEmployee_(eid);
+              console.error('Erreur serveur (début)', res);
+              toast(`⚠ Entrée de ${empName} non confirmée — réessaiera automatiquement`, false, 3000);
             }
+          }).catch(err => {
+            console.error(err);
+            toast(`⚠ Entrée de ${empName} en attente de synchronisation`, false, 2500);
+          });
                   } catch (err) {
             console.error(err);
             toast('❌ Erreur réseau (début): ' + String(err.message || err).slice(0,90), false, 2000);
