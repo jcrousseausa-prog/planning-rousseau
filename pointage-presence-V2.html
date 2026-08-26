@@ -242,9 +242,11 @@
   window.onload = function() {
     testConnection();
     chargerChantiersERP();
-    loadEmployees().finally(async () => {
-      loadLocalSafe_();
-      await loadPresenceFromServer(true);
+    loadLocalSafe_();
+    Promise.all([
+      loadEmployees(),
+      loadPresenceFromServer(true)
+    ]).finally(() => {
       if (syncTimer) clearInterval(syncTimer);
       syncTimer = setInterval(() => loadPresenceFromServer(false), 30000);
       lockFocus();
