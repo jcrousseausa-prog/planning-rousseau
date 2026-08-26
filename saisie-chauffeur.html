@@ -42,6 +42,19 @@
   </div>
 </div>
 <script>
+   function fmtHeures(h){
+    const heures = Math.floor(h);
+    const minutes = Math.round((h - heures) * 60);
+    return heures + 'h' + String(minutes).padStart(2,'0');
+  }
+
+  function recalculerTotalJour(){
+    let total = 0;
+    document.querySelectorAll('.inpTemps').forEach(inp=>{
+      total += parseFloat(inp.value) || 0;
+    });
+    document.getElementById('totalJour').textContent = fmtHeures(total);
+  }
   const ERP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec";
   const POINTAGE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzzTvmU8uvjwEpdV8Q1bB9zo_XUJH0-e3K0cX_Snt7sCnGbEbbojASPmkUa8d2gswrI/exec";
   let CHANTIERS = [];
@@ -88,7 +101,7 @@
     div.className = 'ligne';
     div.id = id;
     div.innerHTML = `
-      <button class="btn-remove" onclick="document.getElementById('${id}').remove()">✕</button>
+            <button class="btn-remove" onclick="document.getElementById('${id}').remove();recalculerTotalJour()">✕</button>
       <div class="grid">
         <div>
           <label>Chantier</label>
@@ -97,9 +110,9 @@
             ${CHANTIERS.map(c=>`<option value="${c}">${c}</option>`).join('')}
           </select>
         </div>
-        <div>
+                <div>
           <label>Temps (h)</label>
-          <input type="number" class="inpTemps" step="0.25" min="0" placeholder="Ex: 2.5"/>
+          <input type="number" class="inpTemps" step="0.25" min="0" placeholder="Ex: 2.5" oninput="recalculerTotalJour()"/>
         </div>
         <div>
           <label>Nb tours</label>
@@ -130,12 +143,13 @@
         method:'POST', headers:{'Content-Type':'text/plain'},
         body: JSON.stringify({action:'saisirTourneeChauffeur', employeeId, date, lignes})
       });
-      const r = await res.json();
+       const r = await res.json();
       if (r.success) {
         toast(`✅ Tournée enregistrée (${r.count} ligne${r.count>1?'s':''})`, true);
         document.getElementById('lignesContainer').innerHTML = '';
         ligneCount = 0;
         ajouterLigne();
+        chargerRecapSemaine();
       } else {
         toast('❌ ' + (r.error||'Erreur inconnue'), false);
       }
@@ -144,7 +158,55 @@
     }
   }
 
-  chargerDonnees();
+  chargerDonnees().then(() => {
+    chargerRecapSemaine();
+  });
+  
+  document.getElementById('selChauffeur').addEventListener('change', chargerRecapSemaine);
+  document.getElementById('selDate').addEventListener('change', chargerRecapSemaine);
 </script>
 </body>
 </html>
+  <div class="panel" style="display:flex;gap:16px;text-align:center">
+    <div style="flex:1">
+      <div style="font-size:12px;color:#888;font-weight:700;text-transform:uppercase">Total du jour</div>
+      <div id="totalJour" style="font-size:32px;font-weight:900;color:#667eea">0h00</div>
+    </div>
+    <div style="flex:1;border-left:1px solid #e5e7eb;padding-left:16px">
+      <div style="font-size:12px;color:#888;font-weight:700;text-transform:uppercase">Total semaine</div>
+      <div id="totalSemaine" style="font-size:32px;font-weight:900;color:#764ba2">0h00</div>
+    </div>
+  </div>
+  <div id="detailSemaine" style="display:flex;gap:6px;justify-content:center;margin-bottom:16px;flex-wrap:wrap"></div>
+
+    async function chargerRecapSemaine(){
+    const employeeId = document.getElementById('selChauffeur').value;
+    const date = document.getElementById('selDate').value;
+    if (!employeeId || !date) return;
+    try {
+      const res = await fetch(POINTAGE_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'getRecapSemaineChauffeur', employeeId, date})
+      });
+      const r = await res.json();
+      if (!r.ok) return;
+      const jours = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+      const lundi = new Date(r.lundi);
+      let totalSem = 0;
+      let html = '';
+      for (let i=0;i<7;i++){
+        const d = new Date(lundi.getTime()); d.setDate(lundi.getDate()+i);
+        const key = d.toISOString().slice(0,10);
+        const h = r.parJour[key] || 0;
+        totalSem += h;
+        const estAujourdhui = key === date;
+        html += `<div style="padding:6px 10px;border-radius:8px;background:${estAujourdhui?'#eef2ff':'#f9fafb'};
+          border:1px solid ${estAujourdhui?'#667eea':'#e5e7eb'};font-size:11px;text-align:center;min-width:52px">
+          <div style="font-weight:800;color:#374151">${jours[i]}</div>
+          <div style="color:${h>0?'#667eea':'#bbb'};font-weight:700">${h>0?fmtHeures(h):'—'}</div>
+        </div>`;
+      }
+      document.getElementById('detailSemaine').innerHTML = html;
+      document.getElementById('totalSemaine').textContent = fmtHeures(totalSem);
+    } catch(e) { console.warn(e); }
+  }
