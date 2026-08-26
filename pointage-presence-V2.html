@@ -109,7 +109,12 @@
     .factory-screen.entry{
       background:#00c853; /* vert très visible */
       color:#ffffff;
-    }
+       }
+      .factory-screen.task-select{
+  background: linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+  color:#ffffff;
+}
+    
     .factory-screen.exit{
       background:#d50000; /* rouge sortie */
       color:#ffffff;
@@ -202,7 +207,7 @@
   </div>
 </div>
 <!-- ÉCRAN CHOIX TÂCHE/CHANTIER -->
-<div id="taskScreen" class="factory-screen entry" aria-hidden="true">
+<div id="taskScreen" class="factory-screen task-select" aria-hidden="true">
   <div class="factory-mode-top" id="taskTop">Sélectionnez votre tâche</div>
   <div id="taskButtons" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px;max-width:90vw"></div>
 </div>
