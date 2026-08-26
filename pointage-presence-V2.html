@@ -275,11 +275,12 @@
   }
 
    let choiceScreenActive = false;
+let modeChangementTache = false;
 const REPRISE_LABEL = '↩ Reprendre le dernier pointage';
-  let modeActuel = 'attente'; // 'attente' | 'choix'
-  let choixResolver = null;
-  let choixOptions = null;
-  let choixZeroBased = false;
+let modeActuel = 'attente'; // 'attente' | 'choix'
+let choixResolver = null;
+let choixOptions = null;
+let choixZeroBased = false;
 
   function demanderChoix(nom, titre, options, zeroBased){
     return new Promise(resolve=>{
