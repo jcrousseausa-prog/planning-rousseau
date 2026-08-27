@@ -922,11 +922,6 @@ let choixZeroBased = false;
             console.error(err);
             toast(`⚠ Entrée de ${empName} en attente de synchronisation`, false, 2500);
           });
-                  } catch (err) {
-            console.error(err);
-            toast('❌ Erreur réseau (début): ' + String(err.message || err).slice(0,90), false, 2000);
-            unlockEmployee_(eid);
-          }
         }
         input.focus();
       }
