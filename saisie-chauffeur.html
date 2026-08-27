@@ -22,12 +22,33 @@
   .btn-add{ background:#eef2ff; color:#667eea; margin-bottom:16px; }
   .btn-submit{ background:#667eea; color:white; }
   .toast{ position:fixed; top:18px; left:50%; transform:translateX(-50%); background:white; padding:14px 18px;
-    border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.25); z-index:9999; font-weight:800; }
+    border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.25); z-index:9999; font-weight:800; max-width:90vw; text-align:center; }
   .toast.ok{ border-left:6px solid #10b981; } .toast.err{ border-left:6px solid #ef4444; }
+
+  .confirm-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:none;
+    align-items:center; justify-content:center; z-index:10000; padding:20px; }
+  .confirm-overlay.show{ display:flex; }
+  .confirm-box{ background:white; border-radius:16px; padding:32px 28px; max-width:380px; text-align:center;
+    box-shadow:0 20px 60px rgba(0,0,0,.3); animation:pop .25s ease; }
+  @keyframes pop{ from{transform:scale(.9);opacity:0} to{transform:scale(1);opacity:1} }
+  .confirm-box .icon{ font-size:52px; margin-bottom:10px; }
+  .confirm-box h2{ color:#10b981; font-size:20px; margin-bottom:8px; }
+  .confirm-box p{ color:#555; font-size:14px; margin-bottom:20px; line-height:1.5; }
+  .confirm-box button{ background:#667eea; color:white; border:none; padding:12px 32px;
+    border-radius:8px; font-weight:800; font-size:14px; cursor:pointer; }
+
+  .totaux{ display:flex; gap:16px; text-align:center; }
+  .totaux > div{ flex:1; }
+  .totaux .label{ font-size:12px; color:#888; font-weight:700; text-transform:uppercase; }
+  .totaux .val{ font-size:32px; font-weight:900; }
+  #totalJour{ color:#667eea; } #totalSemaine{ color:#764ba2; }
+  .totaux .sep{ border-left:1px solid #e5e7eb; padding-left:16px; }
+  #detailSemaine{ display:flex; gap:6px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
 </style>
 </head>
 <body>
 <div class="container">
+
   <div class="panel">
     <h1>🚚 Saisie Tournée</h1>
     <label>Chauffeur</label>
@@ -35,32 +56,51 @@
     <label>Date</label>
     <input type="date" id="selDate"/>
   </div>
+
+  <div class="panel">
+    <div class="totaux">
+      <div>
+        <div class="label">Total du jour</div>
+        <div id="totalJour" class="val">0h00</div>
+      </div>
+      <div class="sep">
+        <div class="label">Total semaine</div>
+        <div id="totalSemaine" class="val">0h00</div>
+      </div>
+    </div>
+    <div id="detailSemaine"></div>
+  </div>
+
   <div class="panel">
     <div id="lignesContainer"></div>
     <button class="btn btn-add" onclick="ajouterLigne()">+ Ajouter un chantier</button>
     <button class="btn btn-submit" onclick="validerTournee()">✅ Valider la tournée</button>
   </div>
-</div>
-<script>
-   function fmtHeures(h){
-    const heures = Math.floor(h);
-    const minutes = Math.round((h - heures) * 60);
-    return heures + 'h' + String(minutes).padStart(2,'0');
-  }
 
-  function recalculerTotalJour(){
-    let total = 0;
-    document.querySelectorAll('.inpTemps').forEach(inp=>{
-      total += parseFloat(inp.value) || 0;
-    });
-    document.getElementById('totalJour').textContent = fmtHeures(total);
-  }
+</div>
+
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="icon">✅</div>
+    <h2>Tournée enregistrée</h2>
+    <p id="confirmDetail">Vos heures ont bien été prises en compte.</p>
+    <button onclick="document.getElementById('confirmOverlay').classList.remove('show')">OK</button>
+  </div>
+</div>
+
+<script>
   const ERP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec";
   const POINTAGE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzzTvmU8uvjwEpdV8Q1bB9zo_XUJH0-e3K0cX_Snt7sCnGbEbbojASPmkUa8d2gswrI/exec";
   let CHANTIERS = [];
   let ligneCount = 0;
 
   document.getElementById('selDate').value = new Date().toISOString().slice(0,10);
+
+  function fmtHeures(h){
+    const heures = Math.floor(h);
+    const minutes = Math.round((h - heures) * 60);
+    return heures + 'h' + String(minutes).padStart(2,'0');
+  }
 
   function toast(msg, ok=true){
     const d = document.createElement('div');
@@ -70,7 +110,22 @@
     setTimeout(()=>d.remove(), 2500);
   }
 
-    async function chargerRecapSemaine(){
+  function afficherConfirmation(nbLignes, totalH){
+    document.getElementById('confirmDetail').textContent =
+      `${nbLignes} chantier${nbLignes>1?'s':''} enregistré${nbLignes>1?'s':''} — ${fmtHeures(totalH)} au total.`;
+    document.getElementById('confirmOverlay').classList.add('show');
+  }
+
+  function recalculerTotalJour(){
+    let total = 0;
+    document.querySelectorAll('.inpTemps').forEach(inp=>{
+      total += parseFloat(inp.value) || 0;
+    });
+    document.getElementById('totalJour').textContent = fmtHeures(total);
+    return total;
+  }
+
+  async function chargerRecapSemaine(){
     const employeeId = document.getElementById('selChauffeur').value;
     const date = document.getElementById('selDate').value;
     if (!employeeId || !date) return;
@@ -101,7 +156,8 @@
       document.getElementById('totalSemaine').textContent = fmtHeures(totalSem);
     } catch(e) { console.warn(e); }
   }
- async function chargerDonnees(){
+
+  async function chargerDonnees(){
     try {
       const [resCh, resChant] = await Promise.all([
         fetch(ERP_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getChauffeurs'})}),
@@ -132,7 +188,7 @@
     div.className = 'ligne';
     div.id = id;
     div.innerHTML = `
-            <button class="btn-remove" onclick="document.getElementById('${id}').remove();recalculerTotalJour()">✕</button>
+      <button class="btn-remove" onclick="document.getElementById('${id}').remove();recalculerTotalJour()">✕</button>
       <div class="grid">
         <div>
           <label>Chantier</label>
@@ -141,7 +197,7 @@
             ${CHANTIERS.map(c=>`<option value="${c}">${c}</option>`).join('')}
           </select>
         </div>
-                <div>
+        <div>
           <label>Temps (h)</label>
           <input type="number" class="inpTemps" step="0.25" min="0" placeholder="Ex: 2.5" oninput="recalculerTotalJour()"/>
         </div>
@@ -151,6 +207,7 @@
         </div>
       </div>`;
     document.getElementById('lignesContainer').appendChild(div);
+    recalculerTotalJour();
   }
 
   async function validerTournee(){
@@ -169,14 +226,16 @@
     });
     if (!lignes.length) { toast('Ajoutez au moins une ligne complète', false); return; }
 
+    const totalH = lignes.reduce((s,l)=>s+(parseFloat(l.temps)||0), 0);
+
     try {
       const res = await fetch(POINTAGE_SCRIPT_URL, {
         method:'POST', headers:{'Content-Type':'text/plain'},
         body: JSON.stringify({action:'saisirTourneeChauffeur', employeeId, date, lignes})
       });
-       const r = await res.json();
+      const r = await res.json();
       if (r.success) {
-        toast(`✅ Tournée enregistrée (${r.count} ligne${r.count>1?'s':''})`, true);
+        afficherConfirmation(r.count, totalH);
         document.getElementById('lignesContainer').innerHTML = '';
         ligneCount = 0;
         ajouterLigne();
@@ -192,52 +251,9 @@
   chargerDonnees().then(() => {
     chargerRecapSemaine();
   });
-  
+
   document.getElementById('selChauffeur').addEventListener('change', chargerRecapSemaine);
   document.getElementById('selDate').addEventListener('change', chargerRecapSemaine);
 </script>
 </body>
 </html>
-  <div class="panel" style="display:flex;gap:16px;text-align:center">
-    <div style="flex:1">
-      <div style="font-size:12px;color:#888;font-weight:700;text-transform:uppercase">Total du jour</div>
-      <div id="totalJour" style="font-size:32px;font-weight:900;color:#667eea">0h00</div>
-    </div>
-    <div style="flex:1;border-left:1px solid #e5e7eb;padding-left:16px">
-      <div style="font-size:12px;color:#888;font-weight:700;text-transform:uppercase">Total semaine</div>
-      <div id="totalSemaine" style="font-size:32px;font-weight:900;color:#764ba2">0h00</div>
-    </div>
-  </div>
-  <div id="detailSemaine" style="display:flex;gap:6px;justify-content:center;margin-bottom:16px;flex-wrap:wrap"></div>
-
-    async function chargerRecapSemaine(){
-    const employeeId = document.getElementById('selChauffeur').value;
-    const date = document.getElementById('selDate').value;
-    if (!employeeId || !date) return;
-    try {
-      const res = await fetch(POINTAGE_SCRIPT_URL, {
-        method:'POST', headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({action:'getRecapSemaineChauffeur', employeeId, date})
-      });
-      const r = await res.json();
-      if (!r.ok) return;
-      const jours = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-      const lundi = new Date(r.lundi);
-      let totalSem = 0;
-      let html = '';
-      for (let i=0;i<7;i++){
-        const d = new Date(lundi.getTime()); d.setDate(lundi.getDate()+i);
-        const key = d.toISOString().slice(0,10);
-        const h = r.parJour[key] || 0;
-        totalSem += h;
-        const estAujourdhui = key === date;
-        html += `<div style="padding:6px 10px;border-radius:8px;background:${estAujourdhui?'#eef2ff':'#f9fafb'};
-          border:1px solid ${estAujourdhui?'#667eea':'#e5e7eb'};font-size:11px;text-align:center;min-width:52px">
-          <div style="font-weight:800;color:#374151">${jours[i]}</div>
-          <div style="color:${h>0?'#667eea':'#bbb'};font-weight:700">${h>0?fmtHeures(h):'—'}</div>
-        </div>`;
-      }
-      document.getElementById('detailSemaine').innerHTML = html;
-      document.getElementById('totalSemaine').textContent = fmtHeures(totalSem);
-    } catch(e) { console.warn(e); }
-  }
