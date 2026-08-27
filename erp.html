@@ -466,6 +466,7 @@ table.bl-lignes td.r{text-align:right}
   <div id="hscreen-saisie" style="display:none"></div>
   <div id="hscreen-planning" style="display:none"></div>
   <div id="hscreen-recap" style="display:none"></div>
+  <div id="recap-tours-chantiers"></div>
   <div id="hscreen-macro" style="display:none"></div>
   <div id="hscreen-affectation" style="display:none"></div>
   <div id="hscreen-validation" class="htab-content" style="display:none"></div>
@@ -5266,8 +5267,8 @@ function openDetailValidation(employeeId){
               style="margin-left:4px;padding:4px;border:1px solid var(--border);border-radius:5px"/>
           </label>
         </div>
-        <div style="font-size:11px;color:var(--text2)">
-          ${l.taches.map(t=>`${esc(t.debut)} — ${esc(t.operation)}${t.chantier?' · '+esc(t.chantier):''}`).join('<br>') || 'Aucune tâche renseignée'}
+               <div style="font-size:11px;color:var(--text2)">
+          ${l.taches.map(t=>`${esc(t.debut)} — ${esc(t.operation)}${t.chantier?' · '+esc(t.chantier):''}${t.nbTours?' · <strong>'+esc(t.nbTours)+' tour'+(t.nbTours>1?'s':'')+'</strong>':''}`).join('<br>') || 'Aucune tâche renseignée'}
         </div>
       </div>
     `).join('')}
@@ -5595,12 +5596,33 @@ function renderRecapHeures(){
   const el = document.getElementById('hscreen-recap');
   const heures = state.heures||[];
   const employes = state.employes||[];
-
   if(!heures.length){
     el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune heure saisie</div>';
+    renderToursChantiers();
     return;
   }
-
+async function renderToursChantiers(){
+  const el = document.getElementById('recap-tours-chantiers');
+  if(!el) return;
+  const semDeb = state._recapSemDeb || '';
+  const semFin = state._recapSemFin || '';
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'getToursParChantier', semDeb, semFin})
+    });
+    const r = await res.json();
+    if(!r.ok || !r.tours.length){ el.innerHTML=''; return; }
+    el.innerHTML = `<div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text2)">🚚 Nombre de tours par chantier</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">
+        ${r.tours.map(t=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px">
+          <strong>${esc(t.chantier)}</strong> — ${t.tours} tour${t.tours>1?'s':''}
+        </div>`).join('')}
+      </div>
+    </div>`;
+  } catch(e){ console.warn(e); }
+}
   const semaines = getSemainesDisponibles().reverse(); // chrono
   const semDeb = state._recapSemDeb || '';
   const semFin = state._recapSemFin || '';
