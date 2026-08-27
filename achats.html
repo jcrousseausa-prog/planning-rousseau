@@ -720,7 +720,7 @@ table.bl-lignes td.r{text-align:right}
 // ⚠️ À REMPLACER par l'URL /exec obtenue après le déploiement du nouveau
 // backend Achats (Code.gs) — voir DEPLOIEMENT_ACHATS.md. L'URL ci-dessous
 // est un espace réservé, aucun backend ne répond encore à cette adresse.
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby1jaBhdZE6dICs_8oYS4nZXZe_2lJg57IkhhEIxZFeCuBOnKWKR3AIA4JNnaBeNZU/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec';
 // ═══ STATE ════════════════════════════════════════════════════════════════
 let state = {
   commandes: [],
@@ -947,9 +947,10 @@ function addLigneCde(data={}) {
   const div = document.createElement('div');
   div.id = 'ligne-'+i;
   div.style.cssText = 'display:grid;grid-template-columns:2fr 80px 80px 100px 100px 120px 32px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)';
-  // Articles stock disponibles pour liaison
-  const stockOpts = state.articles_stock.filter(a=>a.statut==='en_stock')
-    .map(a=>`<option value="${a.id}">${esc(a.designation)}</option>`).join('');
+  // Fiches articles existantes, pour lier la ligne à une fiche précise
+  // (plutôt qu'à une désignation tapée librement, source d'erreurs de lien).
+  const articleOpts = state.articles.slice().sort((a,b)=>a.designation.localeCompare(b.designation))
+    .map(a=>`<option value="${a.id}"${data.stock_art===a.id?' selected':''}>${esc(a.designation)}</option>`).join('');
   div.innerHTML = `
     <input type="hidden" id="l${i}-id" value="${esc(data.id||'')}"/>
     <input type="text" id="l${i}-desc" value="${esc(data.desc||'')}" placeholder="Désignation de l'article" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"/>
@@ -965,12 +966,12 @@ function addLigneCde(data={}) {
     </div>
     <button onclick="removeLigne(${i})" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:16px">✕</button>
     <div id="l${i}-stock-wrap" style="grid-column:1/-1;display:${data.gerer_stock?'block':'none'};padding:4px 0 2px;background:var(--blue-bg);border-radius:6px;padding:6px 10px;margin-top:2px">
-      <label style="font-size:11px;color:var(--blue);font-weight:600">Article stock à lier :</label>
-      <select id="l${i}-stock-art" style="margin-left:8px;padding:4px 8px;border:1px solid var(--blue-border);border-radius:6px;font-family:inherit;font-size:12px">
-        <option value="">— Nouvel article —</option>
-        ${stockOpts}
+      <label style="font-size:11px;color:var(--blue);font-weight:600">Article (fiche) :</label>
+      <select id="l${i}-stock-art" onchange="onLigneArticleChange(${i})" style="margin-left:8px;padding:4px 8px;border:1px solid var(--blue-border);border-radius:6px;font-family:inherit;font-size:12px">
+        <option value="">— Nouvel article (créera une fiche) —</option>
+        ${articleOpts}
       </select>
-      <input type="text" id="l${i}-stock-nom" value="${esc(data.stock_nom||'')}" placeholder="Nom dans le stock (si nouvel article)" style="margin-left:8px;padding:4px 8px;border:1px solid var(--blue-border);border-radius:6px;font-family:inherit;font-size:12px;width:200px"/>
+      <span style="margin-left:8px;font-size:10px;color:var(--text3)">Sélectionner une fiche remplit désignation/unité ci-dessus — garantit le lien avec l'onglet Articles.</span>
     </div>`;
   wrap.appendChild(div);
   if (data.qte && data.pu) updateLigneTotals();
@@ -979,6 +980,16 @@ function removeLigne(i) {
   const el = document.getElementById('ligne-'+i);
   if (el) el.remove();
   updateLigneTotals();
+}
+function onLigneArticleChange(i) {
+  const artId = document.getElementById('l'+i+'-stock-art')?.value;
+  if (!artId) return; // "Nouvel article" — on laisse la saisie libre telle quelle
+  const art = state.articles.find(a=>a.id===artId);
+  if (!art) return;
+  const descEl = document.getElementById('l'+i+'-desc');
+  const uniteEl = document.getElementById('l'+i+'-unite');
+  if (descEl) descEl.value = art.designation;
+  if (uniteEl && art.unite) uniteEl.value = art.unite;
 }
 function toggleStockSelect(i) {
   const chk = document.getElementById('l'+i+'-stock-chk');
@@ -1013,7 +1024,6 @@ function getLignes() {
       total: (parseFloat(document.getElementById('l'+i+'-qte')?.value)||0) * (parseFloat(document.getElementById('l'+i+'-pu')?.value)||0),
       gerer_stock: document.getElementById('l'+i+'-stock-chk')?.checked||false,
       stock_art: document.getElementById('l'+i+'-stock-art')?.value||'',
-      stock_nom: document.getElementById('l'+i+'-stock-nom')?.value?.trim()||'',
       recue: null,
       stock_mp_id: null,
     });
@@ -1104,19 +1114,30 @@ function saveCde(statut) {
     if (idx>=0) state.commandes[idx] = cde;
   } else {
     state.commandes.unshift(cde);
-    // Créer les articles stock si nécessaire, en attente de réception (statut 'en_attente')
+    // Pour chaque ligne suivie en stock : garantit une fiche article (la lie
+    // si elle existe déjà, la crée sinon — jamais de ligne stock "orpheline"
+    // sans fiche), puis crée l'entrée de stock "en attente" que la réception
+    // viendra compléter.
     lignes.filter(l=>l.gerer_stock).forEach(l=>{
-      const nom = l.stock_art ? null : (l.stock_nom||l.desc);
-      if (!l.stock_art && nom) {
-        const entree = {
-          id:uid(), designation:nom, quantite:0, unite:l.unite, emplacementId:'',
-          fourn_id:fournId, fourn_nom:fourn?.nom||'',
-          cde_num:num, chantier_id:chantierEl.value, chantier_nom:chantier?.nom||'',
-          statut:'en_attente', entree:'', created_at:new Date().toISOString()
+      let article = l.stock_art ? state.articles.find(a=>a.id===l.stock_art) : null;
+      if (!article) article = state.articles.find(a=>normaliserDesignation(a.designation)===normaliserDesignation(l.desc));
+      if (!article) {
+        article = {
+          id: uid(), designation: l.desc, unite: l.unite,
+          fournisseur_id: fournId, fournisseur_nom: fourn?.nom||'',
+          seuil_mini: 0, delai_appro_jours: 0, qte_reappro: 0,
+          open: false, created_at: new Date().toISOString(),
         };
-        state.stock_mp.push(entree);
-        l.stock_mp_id = entree.id; // permet à la réception de retrouver précisément cette ligne
+        state.articles.push(article);
       }
+      const entree = {
+        id:uid(), designation:article.designation, quantite:0, unite:l.unite, emplacementId:'',
+        fourn_id:fournId, fourn_nom:fourn?.nom||'',
+        cde_num:num, chantier_id:chantierEl.value, chantier_nom:chantier?.nom||'',
+        statut:'en_attente', entree:'', created_at:new Date().toISOString()
+      };
+      state.stock_mp.push(entree);
+      l.stock_mp_id = entree.id; // permet à la réception de retrouver précisément cette ligne
     });
   }
   closeModal('modal-cde');
