@@ -1,2283 +1,921 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rousseau — Achats & Fournisseurs</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-:root{
-  --bg:#F5F4F0;--surface:#FFF;--surface2:#FAFAF8;
-  --border:#E4E2DA;--border2:#C8C5BC;
-  --text:#1C1B18;--text2:#6B6860;--text3:#A8A59E;
-  --blue:#1A4F8A;--blue-bg:#EAF1FB;--blue-border:#AECDF5;
-  --green:#1A6640;--green-bg:#E8F5EE;--green-border:#A3D9B8;
-  --orange:#B85C0A;--orange-bg:#FDF3E8;--orange-border:#F5C98A;
-  --red:#9B1C1C;--red-bg:#FDF0F0;--red-border:#F5ABAB;
-  --purple:#5A2D8A;--purple-bg:#F2EDF9;--purple-border:#C9AEED;
-  --teal:#0E6B6B;--teal-bg:#E6F5F5;--teal-border:#8DD4D4;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
-header{background:var(--surface);border-bottom:1px solid var(--border);padding:.75rem 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:50;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-.logo{font-size:16px;font-weight:600;letter-spacing:-.02em}
-.logo em{color:var(--text3);font-style:normal;font-weight:400}
-.header-right{display:flex;gap:8px;margin-left:auto;align-items:center;flex-wrap:wrap}
-.rt-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.rt-label{font-size:11px;color:var(--green);font-weight:500}
-.sync-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);transition:all .3s}
-.sync-pill.saving{background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)}
-.sync-pill.error{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
-.sync-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
-.sync-pill.saving .sync-dot{animation:blink .6s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.app-tabs{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:0;overflow-x:auto;position:sticky;top:49px;z-index:40;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.app-tab{padding:10px 15px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s}
-.app-tab:hover{color:var(--text)}
-.app-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
-.notif-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red);margin-left:4px;vertical-align:middle}
-.new-badge{display:inline-block;background:var(--green);color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle;text-transform:uppercase;letter-spacing:.04em}
-main{padding:16px 20px;max-width:1600px;margin:0 auto}
-.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px}
-.metric{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
-.metric-k{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
-.metric-v{font-size:20px;font-weight:600;font-family:'DM Mono',monospace}
-.metric-v.warn{color:var(--orange)}.metric-v.alert{color:var(--red)}.metric-v.ok{color:var(--green)}
-.metric-sub{font-size:10px;color:var(--text3);margin-top:1px}
-.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.search-wrap{position:relative;flex:1;max-width:320px}
-.search-wrap input{width:100%;padding:7px 10px 7px 32px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)}
-.search-wrap input:focus{outline:none;border-color:var(--blue)}
-.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px;pointer-events:none}
-.btn{padding:7px 13px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px;font-weight:500;transition:background .15s;white-space:nowrap}
-.btn:hover{background:var(--bg)}
-.btn-primary{background:var(--blue);color:#fff;border-color:var(--blue)}.btn-primary:hover{background:#153f6e}
-.btn-green{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
-.btn-orange{background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)}
-.btn-red{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
-.btn-purple{background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)}
-.btn-sm{padding:3px 9px;font-size:11px;border-radius:6px}
-.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;overflow-x:auto}
-table{width:100%;border-collapse:collapse;min-width:980px}
-th{background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
-td{padding:7px 11px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:13px}
-tr:last-child td{border-bottom:none}
-.row-chantier td{background:#EAF1FB;font-weight:600}
-.row-chantier:hover td{background:#DDEAF8;cursor:pointer}
-.row-tranche td{background:var(--surface2);padding-left:26px!important}
-.row-tranche:hover td{background:#F0EFE8;cursor:pointer}
-.row-phase td{background:var(--surface);padding-left:42px!important;font-size:12px}
-.row-phase:hover td{background:#F5F4F0;cursor:pointer}
-.row-article td{background:#FAFAF8;padding-left:58px!important;font-size:12px;color:var(--text2)}
-.row-article:hover td{background:#F0EFE8}
-.row-add td{background:#F8F8F5;padding-left:58px!important;border-bottom:1px solid var(--border)}
-.row-add-ph td{background:#F4F4F2;padding-left:42px!important;border-bottom:1px solid var(--border)}
-.row-add-tr td{background:#EEF3FB;padding-left:26px!important;border-bottom:1px solid var(--border)}
-.chevron{display:inline-block;font-size:9px;color:var(--text3);margin-right:5px;transition:transform .18s;user-select:none}
-.chevron.open{transform:rotate(90deg)}
-.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;white-space:nowrap;gap:3px}
-.badge-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
-.badge-orange{background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border)}
-.badge-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
-.badge-blue{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border)}
-.badge-purple{background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple-border)}
-.badge-gray{background:var(--bg);color:var(--text2);border:1px solid var(--border)}
-.badge-teal{background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-border)}
-.prog{display:flex;align-items:center;gap:6px;min-width:80px}
-.prog-bar{flex:1;height:5px;border-radius:3px;background:var(--border);overflow:hidden;min-width:36px}
-.prog-fill{height:100%;border-radius:3px;transition:width .3s}
-.prog-blue{background:var(--blue)}.prog-green{background:var(--green)}.prog-orange{background:var(--orange)}
-.prog-label{font-size:11px;font-family:'DM Mono',monospace;color:var(--text2);min-width:28px}
-.dp{font-size:10px;padding:2px 7px;border-radius:5px;font-family:'DM Mono',monospace;font-weight:500;white-space:nowrap}
-.dp-orange{background:var(--orange-bg);color:var(--orange)}
-.dp-blue{background:var(--blue-bg);color:var(--blue)}
-.dp-green{background:var(--green-bg);color:var(--green)}
-.dp-red{background:var(--red-bg);color:var(--red)}
-.dp-purple{background:var(--purple-bg);color:var(--purple)}
-.emp{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--purple-bg);color:var(--purple);font-weight:700;font-family:'DM Mono',monospace;border:1px solid var(--purple-border)}
-/* CDE */
-.cde-list{display:flex;flex-direction:column;gap:8px}
-.cde-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-.cde-header{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer}
-.cde-header:hover{background:var(--surface2)}
-.cde-body{border-top:1px solid var(--border);padding:12px 14px;background:var(--surface2)}
-.cde-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
-.cde-meta .k{color:var(--text3);display:block;margin-bottom:2px;font-size:10px}
-.cde-meta .v{font-weight:600;color:var(--text);font-size:12px}
-.lignes-table{width:100%;border-collapse:collapse;font-size:12px}
-.lignes-table th{background:var(--bg);padding:5px 8px;text-align:left;border-bottom:1px solid var(--border);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text2)}
-.lignes-table td{padding:5px 8px;border-bottom:1px solid var(--border)}
-.lignes-table tr:last-child td{border-bottom:none}
-.lignes-table td.r{text-align:right;font-family:'DM Mono',monospace}
-.ecart-bad{color:var(--red);font-weight:600}.ecart-ok{color:var(--green);font-weight:600}
-/* STOCK */
-.stock-table{width:100%;border-collapse:collapse}
-.stock-table th{background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
-.stock-table td{padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
-.stock-table tr:last-child td{border-bottom:none}
-.stock-table tr:hover td{background:#FAFAF8}
-.stock-table tr.sorti td{opacity:.45}
-/* BL */
-.bl-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px}
-.bl-header{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer}
-.bl-header:hover{background:var(--surface2)}
-.bl-body{border-top:1px solid var(--border);padding:14px;background:var(--surface2)}
-/* CHARGE */
-.charge-block{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px}
-.charge-head{padding:10px 14px;color:#fff;font-weight:600;font-size:13px;display:flex;align-items:center;gap:10px}
-.charge-week-title{padding:5px 14px;background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);border-bottom:1px solid var(--border)}
-.charge-line{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border)}
-.charge-line:last-child{border-bottom:none}
-.charge-line:hover{background:var(--bg)}
-/* MODAL */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:center;justify-content:center;padding:16px}
-.modal-bg.show{display:flex}
-.modal{background:var(--surface);border-radius:14px;padding:20px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.18)}
-.modal h2{font-size:15px;font-weight:600;margin-bottom:14px}
-.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
-.field{margin-bottom:12px}
-.field label{display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-.field input,.field select,.field textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)}
-.field input:focus,.field select:focus{outline:none;border-color:var(--blue)}
-.field-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.field-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-.info-box{background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--blue);margin-bottom:10px}
-.warn-box{background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--orange);margin-bottom:10px}
-/* BL PRINT */
-.bl-print-wrap{background:#fff;border:1px solid var(--border);border-radius:8px;padding:16px;font-size:12px}
-.bl-print-title{text-align:center;font-size:15px;font-weight:700;border:1px solid #888;padding:4px;margin-bottom:10px;letter-spacing:.1em}
-.bl-print-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
-.bl-print-box{border:1px solid #888;padding:7px;font-size:11px;line-height:1.5;border-radius:3px}
-.bl-print-box strong{display:block;margin-bottom:3px;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
-table.bl-lignes{width:100%;border-collapse:collapse;font-size:11px}
-table.bl-lignes th{background:#f0f0f0;padding:4px 7px;border:1px solid #888;text-align:left;font-size:10px;text-transform:uppercase}
-table.bl-lignes td{padding:4px 7px;border:1px solid #ccc;min-height:20px}
-table.bl-lignes td.r{text-align:right}
-.bl-sigs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-.bl-sig-box{border:1px solid #888;border-radius:3px;padding:7px;min-height:55px;font-size:10px;font-weight:700}
-.screen{display:none}.screen.active{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.screen.active{animation:fadeIn .18s ease}
-#toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--text);color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:500;z-index:999;opacity:0;transform:translateY(10px);transition:all .25s;pointer-events:none}
-#toast.show{opacity:1;transform:translateY(0)}
-.toggle-check{appearance:none;width:16px;height:16px;border:1.5px solid var(--border2);border-radius:4px;cursor:pointer;position:relative;background:var(--surface);flex-shrink:0}
-.toggle-check:checked{background:var(--green);border-color:var(--green)}
-.toggle-check:checked::after{content:'✓';position:absolute;top:-1px;left:2px;font-size:11px;color:#fff;font-weight:700}
-@media print{
-  header,.app-tabs,.toolbar,#bl-actions{display:none!important}
-  body{background:#fff}
-}
-/* ── HEURES MODULE ── */
-.htab { padding:9px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s; }
-.htab:hover { color:var(--text); }
-.htab.active { color:var(--text);border-bottom-color:var(--text); }
-.emp-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:1rem; }
-.emp-card { background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px; }
-.emp-card-name { font-size:13px;font-weight:600; }
-.emp-card-meta { font-size:11px;color:var(--text2); }
-.emp-badge-cdi { background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700; }
-.emp-badge-interim { background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700; }
-.emp-badge-cdd { background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700; }
-.planning-print { background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden; }
-.planning-print th { background:#1A4F8A;color:#fff;font-size:11px;padding:8px 10px;text-align:center;border:1px solid rgba(255,255,255,.2); }
-.planning-print td { padding:7px 10px;border:1px solid var(--border);font-size:12px;vertical-align:middle; }
-.pp-present { background:#EAFAF1;color:#1E8449;font-weight:600;text-align:center;border-radius:4px;padding:2px 6px;font-size:11px; }
-.pp-absent  { background:#FDECEA;color:#C0392B;font-weight:600;text-align:center;border-radius:4px;padding:2px 6px;font-size:11px; }
-.pp-rtt    { background:#EAF2FB;color:#1A5276;font-weight:600;text-align:center;border-radius:4px;padding:2px 6px;font-size:11px; }
-@media print {
-  .app-tab,.htab,.btn,.toolbar,#conn-bar,header,.tabs,#jours-panel-area { display:none!important; }
-  .screen { display:block!important; }
-  .planning-print { border:none; }
-}
-/* ── MODULE ACHATS SPÉCIFIQUE ── */
-.fourn-card {
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;
-  overflow:hidden;margin-bottom:8px;
-}
-.fourn-header {
-  display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;
-}
-.fourn-header:hover {background:var(--surface2);}
-.fourn-body {border-top:1px solid var(--border);padding:16px;background:var(--surface2);}
-.contact-row {
-  display:flex;align-items:center;gap:10px;padding:8px 0;
-  border-bottom:1px solid var(--border);font-size:13px;
-}
-.contact-row:last-child {border-bottom:none;}
-.cde-card {
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;
-  overflow:hidden;margin-bottom:8px;
-}
-.cde-header {
-  display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;
-}
-.cde-header:hover {background:var(--surface2);}
-.cde-body {border-top:1px solid var(--border);padding:16px;background:var(--surface2);}
-.ligne-cde {
-  display:grid;grid-template-columns:2fr 1fr 80px 80px 100px 100px 32px;
-  gap:8px;align-items:center;padding:8px 0;
-  border-bottom:1px solid var(--border);
-}
-.ligne-cde:last-child {border-bottom:none;}
-.ligne-cde input, .ligne-cde select {
-  padding:5px 8px;border:1px solid var(--border);border-radius:6px;
-  font-family:inherit;font-size:12px;background:var(--surface);width:100%;
-}
-.status-dot {
-  width:8px;height:8px;border-radius:50%;flex-shrink:0;
-}
-.num-cde {
-  font-family:'DM Mono',monospace;font-weight:700;font-size:13px;
-  color:var(--blue);
-}
-/* Print */
-@media print {
-  .no-print {display:none!important;}
-  header,.app-tabs,.toolbar {display:none!important;}
-  body {background:#fff;}
-  .cde-print {display:block!important;}
-}
-.cde-print {display:none;}
-</style>
-</head>
-<body>
-<header>
-  <div style="display:flex;align-items:center;gap:12px">
-    <img src="data:image/png;base64,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" style="height:36px;width:auto" alt="Rousseau"/>
-    <div class="logo">Achats <em>/ Commandes & Fournisseurs</em></div>
-  </div>
-  <div class="header-right">
-    <div class="rt-dot"></div>
-    <span class="rt-label" id="rt-label">Prêt</span>
-    <a href="erp.html" style="font-size:12px;color:var(--text2);text-decoration:none;border:1px solid var(--border);padding:4px 10px;border-radius:7px">← ERP</a>
-    <span class="sync-pill" id="sync-pill" style="display:none">
-      <span class="sync-dot"></span>
-      <span id="sync-text">Synchronisé</span>
-    </span>
-  </div>
-</header>
-<div class="app-tabs">
-  <button class="app-tab active" id="tab-cdes" onclick="showTab('cdes')">📋 Commandes</button>
-  <button class="app-tab" id="tab-fourns" onclick="showTab('fourns')">🏢 Fournisseurs</button>
-  <button class="app-tab" id="tab-receptions" onclick="showTab('receptions')">🚚 Réceptions</button>
-  <button class="app-tab" id="tab-stock" onclick="showTab('stock')">📦 Stock</button>
-  <button class="app-tab" id="tab-articles" onclick="showTab('articles')">🗂️ Articles</button>
-</div>
-<main>
-<!-- ══ COMMANDES ══ -->
-<div class="screen active" id="screen-cdes">
-  <div class="toolbar no-print">
-    <div class="search-wrap">
-      <span class="search-icon">🔍</span>
-      <input type="text" id="cde-search" placeholder="Rechercher commande, fournisseur…" oninput="renderCdes()"/>
-    </div>
-    <select class="btn" id="cde-fil-statut" onchange="renderCdes()">
-      <option value="">Tous statuts</option>
-      <option value="Brouillon">Brouillon</option>
-      <option value="Validée">Validée</option>
-      <option value="Envoyée">Envoyée</option>
-      <option value="Réception partielle">Réception partielle</option>
-      <option value="Reçue">Reçue</option>
-      <option value="Litige">Litige</option>
-    </select>
-    <select class="btn" id="cde-fil-chantier" onchange="renderCdes()">
-      <option value="">Tous chantiers</option>
-    </select>
-    <button class="btn btn-primary" onclick="openNewCde()">+ Nouvelle commande</button>
-  </div>
-  <div class="metrics" id="cde-metrics" style="margin-bottom:12px"></div>
-  <div id="cde-list"></div>
-</div>
-<!-- ══ FOURNISSEURS ══ -->
-<div class="screen" id="screen-fourns">
-  <div class="toolbar no-print">
-    <div class="search-wrap">
-      <span class="search-icon">🔍</span>
-      <input type="text" id="fourn-search" placeholder="Rechercher fournisseur…" oninput="renderFourns()"/>
-    </div>
-    <button class="btn btn-primary" onclick="openNewFourn()">+ Nouveau fournisseur</button>
-  </div>
-  <div id="fourn-list"></div>
-</div>
-<!-- ══ RÉCEPTIONS ══ -->
-<div class="screen" id="screen-receptions">
-  <div class="toolbar no-print">
-    <div class="search-wrap">
-      <span class="search-icon">🔍</span>
-      <input type="text" id="recep-search" placeholder="Rechercher BL, commande, fournisseur…" oninput="renderReceptions()"/>
-    </div>
-    <button class="btn btn-primary" onclick="openNewReception()">+ Nouvelle réception</button>
-  </div>
-  <div class="metrics" id="recep-metrics" style="margin-bottom:12px"></div>
+// ═══════════════════════════════════════════════════════════════════════════
+//  APPS SCRIPT — ROUSSEAU CONSTRUCTION
+//  Planning Production + ERP Tableau de Pilotage
+//  Version 2 — multi-utilisateurs + LockService + polling hash
+// ═══════════════════════════════════════════════════════════════════════════
 
-  <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin:4px 0 8px">Prévisionnel de réception</div>
-  <div class="toolbar no-print" style="margin-bottom:10px">
-    <select class="btn" id="prev-periode" onchange="onPrevPeriodeChange()">
-      <option value="semaine">Cette semaine</option>
-      <option value="semaine_prochaine">Semaine prochaine</option>
-      <option value="mois">Ce mois-ci</option>
-      <option value="retard">En retard</option>
-      <option value="personnalise">Période personnalisée…</option>
-    </select>
-    <input type="date" id="prev-debut" class="btn" style="display:none" onchange="renderPrevisionnel()"/>
-    <input type="date" id="prev-fin" class="btn" style="display:none" onchange="renderPrevisionnel()"/>
-  </div>
-  <div class="metrics" id="prev-metrics" style="margin-bottom:12px"></div>
-  <div class="table-wrap" style="margin-bottom:24px">
-    <table class="stock-table">
-      <thead><tr>
-        <th>Article</th><th style="text-align:right">Qté restante</th><th>Unité</th>
-        <th>Commande</th><th>Fournisseur</th><th>Chantier</th><th>Livraison prévue</th>
-      </tr></thead>
-      <tbody id="prev-tbody"></tbody>
-    </table>
-  </div>
+const SS = SpreadsheetApp.getActiveSpreadsheet();
 
-  <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px">Suivi des commandes</div>
-  <div class="toolbar no-print" style="margin-bottom:10px">
-    <select class="btn" id="recap-fil-statut" onchange="renderRecapCommandes()">
-      <option value="">Toutes</option>
-      <option value="attente">En attente de réception</option>
-      <option value="recu">Réceptionnées</option>
-    </select>
-    <select class="btn" id="recap-fil-chantier" onchange="renderRecapCommandes()">
-      <option value="">Tous chantiers</option>
-    </select>
-    <select class="btn" id="recap-tri" onchange="renderRecapCommandes()">
-      <option value="date_desc">Trier : date de réception (récent → ancien)</option>
-      <option value="date_asc">Trier : date de réception (ancien → récent)</option>
-      <option value="chantier">Trier : chantier (A → Z)</option>
-    </select>
-  </div>
-  <div class="table-wrap" style="margin-bottom:24px">
-    <table class="stock-table">
-      <thead><tr>
-        <th>Commande</th><th>Fournisseur</th><th>Chantier</th><th>Statut</th><th>Progression</th><th>Dernière réception</th><th></th>
-      </tr></thead>
-      <tbody id="recap-cdes-tbody"></tbody>
-    </table>
-  </div>
+// ═══ POINT D'ENTRÉE ═══════════════════════════════════════════════════════
+function doPost(e) {
+  try {
+    const payload = JSON.parse(e.postData.contents);
+    const action  = payload.action;
 
-  <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px">Historique des réceptions</div>
-  <div id="recep-list"></div>
-</div>
-<!-- ══ STOCK ══ -->
-<div class="screen" id="screen-stock">
-  <div class="toolbar no-print">
-    <div class="search-wrap">
-      <span class="search-icon">🔍</span>
-      <input type="text" id="stock-search" placeholder="Rechercher un article en stock…" oninput="renderStock()"/>
-    </div>
-    <button class="btn" onclick="openEmplacements()">📍 Emplacements</button>
-    <button class="btn" onclick="openNewTransfert()">🔄 Transfert interne</button>
-    <button class="btn btn-primary" onclick="openNewStock()">+ Entrée stock</button>
-  </div>
-  <div class="table-wrap">
-    <table class="stock-table">
-      <thead><tr>
-        <th>Désignation</th><th>Emplacement</th><th>Fournisseur</th><th>Chantier</th>
-        <th>Quantité</th><th>Unité</th><th>Entrée le</th><th>CDE n°</th><th>Statut</th><th></th>
-      </tr></thead>
-      <tbody id="stock-tbody"></tbody>
-    </table>
-  </div>
-</div>
-<!-- ══ ARTICLES ══ -->
-<div class="screen" id="screen-articles">
-  <div class="toolbar no-print">
-    <div class="search-wrap">
-      <span class="search-icon">🔍</span>
-      <input type="text" id="article-search" placeholder="Rechercher un article…" oninput="renderArticles()"/>
-    </div>
-    <button class="btn btn-primary" onclick="openNewArticle()">+ Nouvel article</button>
-  </div>
-  <p style="font-size:11px;color:var(--text3);margin:-4px 0 12px">Fiches de référence pour les articles suivis en stock : seuil de réappro, fournisseur habituel, historique. Un article hors gestion de stock n'a pas besoin de fiche ici.</p>
-  <div class="metrics" id="article-metrics" style="margin-bottom:12px"></div>
-  <div id="article-list"></div>
-</div>
-</main>
-<div id="toast"></div>
-<!-- ══ MODAL NOUVELLE COMMANDE ══ -->
-<div class="modal-bg" id="modal-cde">
-  <div class="modal" style="width:800px;max-width:98vw">
-    <h2 id="mc-title">Nouvelle commande</h2>
-    <!-- En-tête commande -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
-      <div class="field">
-        <label>N° Commande</label>
-        <input type="text" id="mc-num" readonly style="background:var(--bg);font-family:'DM Mono',monospace;font-weight:700;color:var(--blue)"/>
-      </div>
-      <div class="field">
-        <label>Référence interne</label>
-        <input type="text" id="mc-ref" placeholder="Ex: HYROME-CHAR-S26"/>
-      </div>
-      <div class="field">
-        <label>Date commande</label>
-        <input type="date" id="mc-date"/>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-      <div class="field">
-        <label>Fournisseur</label>
-        <select id="mc-fourn" onchange="onFournChange()">
-          <option value="">— Sélectionner —</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Contact chez le fournisseur</label>
-        <select id="mc-contact">
-          <option value="">— Sélectionner le fournisseur d'abord —</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Chantier</label>
-        <select id="mc-chantier">
-          <option value="">— Sans chantier —</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Date réception prévue *</label>
-        <input type="date" id="mc-dliv"/>
-      </div>
-    </div>
-    <div class="field" style="margin-bottom:14px">
-      <label>Commentaire / objet de la commande</label>
-      <textarea id="mc-comment" style="min-height:50px;resize:vertical;width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"></textarea>
-    </div>
-    <!-- Lignes de commande -->
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin-bottom:8px">
-      Lignes de commande
-    </div>
-    <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:12px">
-      <div style="display:grid;grid-template-columns:2fr 80px 80px 100px 100px 120px 32px;gap:8px;margin-bottom:6px">
-        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Désignation</div>
-        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Qté</div>
-        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Unité</div>
-        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">PU HT (€)</div>
-        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Total HT</div>
-        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Stock article</div>
-        <div></div>
-      </div>
-      <div id="lignes-cde-wrap"></div>
-      <button class="btn btn-sm" style="margin-top:8px" onclick="addLigneCde()">+ Ligne</button>
-    </div>
-    <div style="display:flex;justify-content:flex-end;align-items:center;gap:16px;margin-bottom:14px">
-      <div style="font-size:13px;color:var(--text2)">Total HT</div>
-      <div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--blue)" id="mc-total">0,00 €</div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-cde')">Annuler</button>
-      <button class="btn" onclick="saveCde('Brouillon')">💾 Brouillon</button>
-      <button class="btn btn-primary" onclick="saveCde('Validée')">✓ Valider la commande</button>
-    </div>
-  </div>
-</div>
-<!-- ══ MODAL FOURNISSEUR ══ -->
-<div class="modal-bg" id="modal-fourn">
-  <div class="modal" style="width:600px">
-    <h2 id="mf-title">Nouveau fournisseur</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div class="field"><label>Nom fournisseur *</label><input type="text" id="mf-nom" placeholder="Ex: SAPLAM"/></div>
-      <div class="field"><label>SIRET</label><input type="text" id="mf-siret" placeholder="XXX XXX XXX XXXXX"/></div>
-    </div>
-    <div class="field" style="margin-bottom:12px">
-      <label>Adresse</label>
-      <textarea id="mf-adresse" style="min-height:60px;resize:vertical;width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" placeholder="Rue, CP, Ville"></textarea>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div class="field"><label>Conditions paiement</label>
-        <select id="mf-paiement" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px">
-          <option value="comptant">Comptant</option>
-          <option value="30j">30 jours</option>
-          <option value="30j_fin_mois">30 jours fin de mois</option>
-          <option value="45j_fin_mois">45 jours fin de mois</option>
-          <option value="60j">60 jours</option>
-          <option value="autre">Autre</option>
-        </select>
-      </div>
-      <div class="field"><label>Catégorie</label>
-        <input type="text" id="mf-categorie" placeholder="Ex: Bois, Quincaillerie, Transport…"/>
-      </div>
-    </div>
-    <div class="field" style="margin-bottom:12px">
-      <label>Notes / Commentaire</label>
-      <textarea id="mf-notes" style="min-height:50px;resize:vertical;width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"></textarea>
-    </div>
-    <!-- Contacts -->
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin-bottom:8px">
-      Contacts
-    </div>
-    <div id="contacts-wrap" style="margin-bottom:8px"></div>
-    <button class="btn btn-sm" onclick="addContact()">+ Ajouter un contact</button>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-fourn')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveFourn()">Enregistrer</button>
-    </div>
-  </div>
-</div>
-<!-- ══ MODAL STOCK MP (entrée manuelle) ══ -->
-<div class="modal-bg" id="modal-stock">
-  <div class="modal" style="width:480px">
-    <h2>Entrée en stock</h2>
-    <div class="field"><label>Désignation *</label><input type="text" id="ms-designation"/></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="field"><label>Quantité</label><input type="number" step="0.01" id="ms-qte"/></div>
-      <div class="field"><label>Unité</label><input type="text" id="ms-unite" placeholder="ml, kg, u…"/></div>
-    </div>
-    <div class="field"><label>Emplacement</label>
-      <select id="ms-emplacement">
-        <option value="">— Non localisé —</option>
-      </select>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="field"><label>Fournisseur</label>
-        <select id="ms-fourn">
-          <option value="">—</option>
-        </select>
-      </div>
-      <div class="field"><label>N° Commande liée</label>
-        <select id="ms-cde">
-          <option value="">—</option>
-        </select>
-      </div>
-    </div>
-    <div class="field"><label>Chantier</label>
-      <select id="ms-chantier">
-        <option value="">— Sans chantier —</option>
-      </select>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-stock')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveStock()">Enregistrer</button>
-    </div>
-  </div>
-</div>
-<!-- ══ MODAL FICHE ARTICLE ══ -->
-<div class="modal-bg" id="modal-article">
-  <div class="modal" style="width:560px">
-    <h2 id="ma-title">Nouvel article</h2>
-    <div class="field"><label>Désignation *</label><input type="text" id="ma-designation" placeholder="Doit correspondre à la désignation utilisée sur les commandes"/></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="field"><label>Unité</label><input type="text" id="ma-unite" placeholder="ml, kg, u…"/></div>
-      <div class="field"><label>Fournisseur habituel</label>
-        <select id="ma-fourn"><option value="">—</option></select>
-      </div>
-    </div>
-    <div class="field"><label>Emplacement par défaut</label>
-      <select id="ma-emplacement"><option value="">— Non défini —</option></select>
-    </div>
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin:14px 0 8px">Réapprovisionnement</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-      <div class="field"><label>Quantité mini</label><input type="number" step="0.01" min="0" id="ma-seuil" placeholder="avant réappro"/></div>
-      <div class="field"><label>Délai d'appro (j)</label><input type="number" step="1" min="0" id="ma-delai"/></div>
-      <div class="field"><label>Qté de réappro</label><input type="number" step="0.01" min="0" id="ma-qte-reappro"/></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-article')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveArticle()">Enregistrer</button>
-    </div>
-  </div>
-</div>
-<!-- ══ MODAL MISE AU REBUT ══ -->
-<div class="modal-bg" id="modal-rebut">
-  <div class="modal" style="width:440px">
-    <h2>Mettre au rebut — <span id="mrb-designation"></span></h2>
-    <div class="field"><label>Emplacement source *</label>
-      <select id="mrb-emplacement" onchange="onRebutEmplacementChange()"></select>
-    </div>
-    <div class="field"><label>Quantité à mettre au rebut *</label><input type="number" step="0.01" min="0" id="mrb-quantite"/></div>
-    <div id="mrb-dispo" style="font-size:11px;color:var(--text3);margin:-6px 0 10px"></div>
-    <div class="field"><label>Motif *</label><textarea id="mrb-motif" style="min-height:50px;resize:vertical;width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" placeholder="Ex: humidité, casse au déchargement…"></textarea></div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-rebut')">Annuler</button>
-      <button class="btn btn-red" onclick="saveRebut()">♻️ Mettre au rebut</button>
-    </div>
-  </div>
-</div>
-<!-- ══ MODAL IMPRESSION COMMANDE ══ -->
-<div class="modal-bg" id="modal-print-cde" onclick="if(event.target===this)closeModal('modal-print-cde')">
-  <div class="modal" style="width:720px;max-width:98vw">
-    <h2 id="mpc-title">Commande</h2>
-    <div id="mpc-body"></div>
-    <div class="modal-footer no-print">
-      <button class="btn" onclick="closeModal('modal-print-cde')">Fermer</button>
-      <button class="btn btn-primary" onclick="window.print()">🖨 Imprimer / PDF</button>
-    </div>
-  </div>
-</div>
-<!-- ══ MODAL NOUVELLE RÉCEPTION ══ -->
-<div class="modal-bg" id="modal-reception">
-  <div class="modal" style="width:820px;max-width:98vw">
-    <h2>Nouvelle réception</h2>
-    <div class="field-2" style="margin-bottom:12px">
-      <div class="field">
-        <label>Commande à réceptionner *</label>
-        <select id="mr-cde" onchange="onReceptionCdeChange()">
-          <option value="">— Sélectionner —</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Fournisseur</label>
-        <input type="text" id="mr-fourn" readonly style="background:var(--bg)"/>
-      </div>
-    </div>
-    <div class="field-2" style="margin-bottom:12px">
-      <div class="field">
-        <label>N° bon de livraison *</label>
-        <input type="text" id="mr-bl-numero" placeholder="ex. BL-2026-0457"/>
-      </div>
-      <div class="field">
-        <label>Date du BL *</label>
-        <input type="date" id="mr-bl-date"/>
-      </div>
-    </div>
-    <div id="mr-info" class="info-box" style="display:none">Sélectionnez une commande pour afficher ses lignes.</div>
-    <div id="mr-lignes-wrap"></div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-reception')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveReception()">✓ Valider la réception</button>
-    </div>
-  </div>
-</div>
-<!-- ══ MODAL IMPRESSION BON DE RÉCEPTION ══ -->
-<div class="modal-bg" id="modal-print-bl" onclick="if(event.target===this)closeModal('modal-print-bl')">
-  <div class="modal" style="width:720px;max-width:98vw">
-    <h2 id="mpb-title">Bon de réception</h2>
-    <div id="mpb-body"></div>
-    <div class="modal-footer no-print" id="bl-actions">
-      <button class="btn" onclick="closeModal('modal-print-bl')">Fermer</button>
-      <button class="btn btn-primary" onclick="window.print()">🖨 Imprimer / PDF</button>
-    </div>
-  </div>
-</div>
-<!-- ══ MODAL EMPLACEMENTS ══ -->
-<div class="modal-bg" id="modal-emplacements">
-  <div class="modal" style="width:560px">
-    <h2>Emplacements de stockage</h2>
-    <div class="field-2" style="align-items:end;margin-bottom:4px">
-      <div class="field"><label>Code</label><input type="text" id="me-code" placeholder="R1, A2…"/></div>
-      <div class="field"><label>Libellé *</label><input type="text" id="me-libelle" placeholder="Parc, Bâtiment A, Rayonnage…"/></div>
-    </div>
-    <div class="field">
-      <label>Emplacement parent</label>
-      <select id="me-parent"><option value="">— (racine) —</option></select>
-    </div>
-    <button class="btn btn-primary" onclick="saveEmplacement()" style="margin-bottom:14px">+ Ajouter</button>
-    <div id="emplacements-list"></div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-emplacements')">Fermer</button>
-    </div>
-  </div>
-</div>
-<!-- ══ MODAL TRANSFERT INTERNE ══ -->
-<div class="modal-bg" id="modal-transfert">
-  <div class="modal" style="width:520px">
-    <h2>Transfert de stock interne</h2>
-    <div class="warn-box">Déplace une quantité d'un emplacement vers un autre, sans effet sur le total en stock.</div>
-    <div class="field">
-      <label>Article en stock *</label>
-      <select id="mt-article" onchange="onTransfertArticleChange()">
-        <option value="">— Sélectionner —</option>
-      </select>
-    </div>
-    <div class="field-2">
-      <div class="field">
-        <label>Emplacement source *</label>
-        <select id="mt-source"><option value="">—</option></select>
-      </div>
-      <div class="field">
-        <label>Emplacement destination *</label>
-        <select id="mt-dest"><option value="">—</option></select>
-      </div>
-    </div>
-    <div class="field">
-      <label>Quantité *</label>
-      <input type="number" step="0.01" id="mt-quantite"/>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px" id="mt-dispo"></div>
-    </div>
-    <div class="field"><label>Note</label><input type="text" id="mt-note" placeholder="commentaire…"/></div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-transfert')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveTransfert()">Enregistrer le transfert</button>
-    </div>
-  </div>
-</div>
-<!-- ══ MODAL EMPLACEMENT MANQUANT (à la réception) ══ -->
-<div class="modal-bg" id="modal-emplacement-manquant">
-  <div class="modal" style="width:560px">
-    <h2>Emplacement de stockage à renseigner</h2>
-    <div class="warn-box">Ces articles n'ont pas encore d'emplacement par défaut. Choisissez-en un — il sera mémorisé pour les prochaines réceptions.</div>
-    <div id="mdm-liste"></div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-emplacement-manquant')">Plus tard</button>
-      <button class="btn btn-primary" onclick="validerEmplacementsManquants()">✓ Valider</button>
-    </div>
-  </div>
-</div>
-<script>
-// ⚠️ À REMPLACER par l'URL /exec obtenue après le déploiement du nouveau
-// backend Achats (Code.gs) — voir DEPLOIEMENT_ACHATS.md. L'URL ci-dessous
-// est un espace réservé, aucun backend ne répond encore à cette adresse.
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec';
-// ═══ STATE ════════════════════════════════════════════════════════════════
-let state = {
-  commandes: [],
-  fournisseurs: [],
-  stock_mp: [],
-  chantiers: [],
-  articles_stock: [], // Articles du stock ERP pour liaison
-  emplacements: [],   // { id, code, libelle, parentId }
-  receptions: [],     // { id, cdeId, cdeNum, fournId, fournNom, blNumero, blDate, date, lignes:[...], created_at }
-  transferts: [],      // { id, date, designation, quantite, emplacementSourceId, emplacementDestId, note }
-  emplacements_defaut: [], // { designation, emplacementId } — emplacement mémorisé par article, proposé automatiquement à la réception
-  articles: [],       // { id, designation, unite, fournisseur_id, fournisseur_nom, seuil_mini, delai_appro_jours, qte_reappro } — fiches des articles suivis en stock
-  rebuts: [],          // { id, date, designation, quantite, emplacementId, motif, created_at } — mises au rebut (traçabilité)
-};
-let _ctx = {};
-let _nbLignes = 0;
-let _nbContacts = 0;
-let _nbLignesRecep = 0;
-// ═══ INIT ═════════════════════════════════════════════════════════════════
-async function init() {
-  setSyncPill('saving','Chargement...');
-  await Promise.all([loadChantiers(), loadData()]);
-  populateFournSelects();
-  populateChantierSelects();
-  renderCdes();
-  renderFourns();
-  renderReceptions();
-  renderRecapCommandes();
-  renderPrevisionnel();
-  renderStock();
-  renderArticles();
-  renderMetrics();
-  setSyncPill('ok','Synchronisé');
-  document.getElementById('rt-label').textContent = 'Connecté';
+    if (action === 'saveTranches')  return wrap(saveTranches(payload));
+    if (action === 'getTranches')   return wrap(getTranches());
+    if (action === 'getCalendrier') return wrap(getCalendrier());
+    if (action === 'saveERP')       return wrap(saveERPSafe(payload.data));
+    if (action === 'getERP')        return wrap(getERP());
+    if (action === 'getERPHash')    return wrap(getERPHash());
+    if (action === 'genererDates')  return wrap(genererDates());
+    if (action === 'getOFTermines') return wrap(getOFTermines());
+    if (action === 'getProdB2')     return wrap(getProdB2());
+    if (action === 'getDATES')      return wrap(getDATES());
+    if (action === 'getDATES')      return wrap(getDATES());
+    if (action === 'syncOFToERP')   return wrap(syncOFToERP(payload.ofData));
+
+    return wrap({ok:false, error:'Action inconnue: ' + action});
+  } catch(err) {
+    return wrap({ok:false, error:err.message});
+  }
 }
-async function loadChantiers() {
+
+function doGet(e) {
+  return wrap({ok:true, message:'Apps Script Rousseau opérationnel v2'});
+}
+
+function wrap(data) {
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PLANNING PRODUCTION — TRANCHES
+// ═══════════════════════════════════════════════════════════════════════════
+
+function saveTranches(payload) {
+  const lock = LockService.getScriptLock();
   try {
-    const res = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERP'})});
-    const r = await res.json();
-    if (r.ok && r.data) {
-      state.chantiers = r.data.chantiers||[];
-      state.articles_stock = r.data.stock||[];
-    }
-  } catch(e) { console.warn('loadChantiers:', e); }
-}
-async function loadData() {
+    lock.waitLock(10000); // attendre max 10s
+  } catch(e) {
+    return {ok:false, error:'Serveur occupé, réessayez dans quelques secondes'};
+  }
+
   try {
-    const res = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getAchats'})});
-    const r = await res.json();
-    if (r.ok) {
-      state.commandes    = r.commandes    || [];
-      state.fournisseurs = r.fournisseurs || [];
-      state.stock_mp     = r.stock_mp     || [];
-      state.emplacements = r.emplacements || [];
-      state.receptions   = r.receptions   || [];
-      state.transferts    = r.transferts   || [];
-      state.emplacements_defaut = r.emplacements_defaut || [];
-      state.articles      = r.articles     || [];
-      state.rebuts         = r.rebuts       || [];
+    const tranches   = payload.tranches   || [];
+    const fermetures = payload.fermetures || [];
+    const joursOff   = payload.joursOff   || {};
+
+    // ── Feuille Planning Production ──
+    let sh = SS.getSheetByName('Planning Production');
+    if (!sh) sh = SS.insertSheet('Planning Production');
+    sh.clearContents();
+
+    const headers = ['id','atelier_id','nom','commentaire','date_debut','duree_jours',
+                     'date_besoin','ordre','lock_debut','lock_fin','lock_fin_date','parallel',
+                     'termine','_termineLe','phases'];
+    sh.getRange(1,1,1,headers.length).setValues([headers]);
+
+    if (tranches.length) {
+      const rows = tranches.map(t => [
+        t.id||'', t.atelier_id||'', t.nom||'', t.commentaire||'',
+        t.date_debut||'', t.duree_jours||1, t.date_besoin||'',
+        t.ordre||0, t.lock_debut||'FALSE', t.lock_fin||'FALSE',
+        t.lock_fin_date||'', t.parallel||'FALSE',
+        t.termine?'TRUE':'FALSE', t._termineLe||'',
+        t.phases ? JSON.stringify(t.phases) : '',
+        t.termine?'TRUE':'FALSE', t._termineLe||''
+      ]);
+      sh.getRange(2,1,rows.length,headers.length).setValues(rows);
     }
-  } catch(e) { console.warn('loadData:', e); }
-}
-async function saveData() {
-  setSyncPill('saving','Enregistrement...');
-  try {
-    const res = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({action:'saveAchats',data:{
-        commandes:state.commandes,fournisseurs:state.fournisseurs,stock_mp:state.stock_mp,
-        emplacements:state.emplacements,receptions:state.receptions,transferts:state.transferts,
-        emplacements_defaut:state.emplacements_defaut,
-        articles:state.articles,rebuts:state.rebuts
-      }})
-    });
-    const r = await res.json();
-    if (r.ok) setSyncPill('ok','Enregistré '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-    else throw new Error(r.error);
-  } catch(e) { setSyncPill('error','Erreur'); console.warn(e); }
-}
-// ═══ HELPERS ══════════════════════════════════════════════════════════════
-function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function fmtDate(s) { if(!s)return'—';try{const[y,m,d]=s.split('-');return`${d}/${m}/${y}`}catch{return s} }
-function fmtEuro(n) { return Number(n||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
-function fmtQte(n) { return Number(n||0).toLocaleString('fr-FR',{maximumFractionDigits:3}); }
-function toast(msg) { const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2500); }
-function setSyncPill(mode,text) {
-  const p=document.getElementById('sync-pill');p.style.display='inline-flex';
-  p.className='sync-pill'+(mode==='ok'?'':' '+mode);
-  document.getElementById('sync-text').textContent=text;
-}
-function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-function showTab(id) {
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.querySelectorAll('.app-tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('screen-'+id).classList.add('active');
-  document.getElementById('tab-'+id).classList.add('active');
-}
-function genNumeroCde() {
-  const annee = new Date().getFullYear();
-  const existing = state.commandes.filter(c=>c.num&&c.num.startsWith('CDE-'+annee+'-'));
-  const nums = existing.map(c=>parseInt((c.num.split('-')[2])||0)).filter(n=>!isNaN(n));
-  const next = nums.length ? Math.max(...nums)+1 : 1;
-  return `CDE-${annee}-${String(next).padStart(3,'0')}`;
-}
-function genNumeroBL() {
-  const annee = new Date().getFullYear();
-  const existing = state.receptions.filter(r=>r.blNumero&&r.blNumero.startsWith('REC-'+annee+'-'));
-  const nums = existing.map(r=>parseInt((r.blNumero.split('-')[2])||0)).filter(n=>!isNaN(n));
-  const next = nums.length ? Math.max(...nums)+1 : 1;
-  return `REC-${annee}-${String(next).padStart(3,'0')}`;
-}
-function populateFournSelects() {
-  const opts = ['<option value="">— Sélectionner —</option>',
-    ...state.fournisseurs.map(f=>`<option value="${f.id}">${esc(f.nom)}</option>`)
-  ].join('');
-  ['mc-fourn','ms-fourn','ma-fourn'].forEach(id=>{ const el=document.getElementById(id);if(el)el.innerHTML=opts; });
-}
-function populateChantierSelects() {
-  const opts = ['<option value="">— Sans chantier —</option>',
-    ...state.chantiers.map(c=>`<option value="${c.id}">${esc(c.nom)}</option>`)
-  ].join('');
-  ['mc-chantier','ms-chantier'].forEach(id=>{ const el=document.getElementById(id);if(el)el.innerHTML=opts; });
-  const filterOpts = ['<option value="">Tous chantiers</option>',
-    ...state.chantiers.map(c=>`<option value="${c.id}">${esc(c.nom)}</option>`)
-  ].join('');
-  const el = document.getElementById('cde-fil-chantier');
-  if(el) el.innerHTML = filterOpts;
-  const elRecap = document.getElementById('recap-fil-chantier');
-  if(elRecap) elRecap.innerHTML = filterOpts;
-}
-function onFournChange() {
-  const fournId = document.getElementById('mc-fourn').value;
-  const fourn = state.fournisseurs.find(f=>f.id===fournId);
-  const sel = document.getElementById('mc-contact');
-  if (!fourn || !fourn.contacts?.length) {
-    sel.innerHTML = '<option value="">— Aucun contact —</option>';
-    return;
-  }
-  sel.innerHTML = ['<option value="">— Sélectionner —</option>',
-    ...fourn.contacts.map((c,i)=>`<option value="${i}">${esc(c.nom)}${c.poste?' — '+c.poste:''}</option>`)
-  ].join('');
-}
-// ═══ EMPLACEMENTS ═══════════════════════════════════════════════════════
-function cheminEmplacement(id) {
-  if (!id) return '';
-  const map = Object.fromEntries(state.emplacements.map(e=>[e.id,e]));
-  const parts = []; let cur = map[id]; let guard = 0;
-  while (cur && guard++ < 20) { parts.unshift([cur.code,cur.libelle].filter(Boolean).join(' ')); cur = cur.parentId ? map[cur.parentId] : null; }
-  return parts.join(' / ');
-}
-function libelleEmplacement(id) { return id ? (cheminEmplacement(id) || 'Emplacement supprimé') : 'Non localisé'; }
-function optionsEmplacement(selectedId) {
-  return ['<option value="">— emplacement —</option>',
-    ...state.emplacements.map(e=>`<option value="${e.id}" ${e.id===selectedId?'selected':''}>${esc(cheminEmplacement(e.id))}</option>`)
-  ].join('');
-}
-function normaliserDesignation(s) { return String(s||'').trim().toLowerCase(); }
-function getEmplacementDefaut(desc) {
-  const n = normaliserDesignation(desc);
-  const r = state.emplacements_defaut.find(x=>normaliserDesignation(x.designation)===n);
-  return r ? r.emplacementId : '';
-}
-function setEmplacementDefaut(desc, emplacementId) {
-  const n = normaliserDesignation(desc);
-  const existant = state.emplacements_defaut.find(x=>normaliserDesignation(x.designation)===n);
-  if (existant) existant.emplacementId = emplacementId;
-  else state.emplacements_defaut.push({designation: desc, emplacementId});
-}
-function populateEmplacementSelects(ids) {
-  const opts = ['<option value="">— Non localisé —</option>',
-    ...state.emplacements.map(e=>`<option value="${e.id}">${esc(cheminEmplacement(e.id))}</option>`)
-  ].join('');
-  ids.forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML = opts; });
-}
-function openEmplacements() {
-  populateEmplacementParentSelect();
-  renderEmplacementsList();
-  document.getElementById('me-code').value='';
-  document.getElementById('me-libelle').value='';
-  document.getElementById('me-parent').value='';
-  document.getElementById('modal-emplacements').classList.add('show');
-}
-function populateEmplacementParentSelect() {
-  const opts = ['<option value="">— (racine) —</option>',
-    ...state.emplacements.map(e=>`<option value="${e.id}">${esc(cheminEmplacement(e.id))}</option>`)
-  ].join('');
-  document.getElementById('me-parent').innerHTML = opts;
-}
-function saveEmplacement() {
-  const libelle = document.getElementById('me-libelle').value.trim();
-  if (!libelle) { document.getElementById('me-libelle').style.borderColor='var(--red)'; return; }
-  document.getElementById('me-libelle').style.borderColor='';
-  state.emplacements.push({
-    id: uid(), code: document.getElementById('me-code').value.trim(),
-    libelle, parentId: document.getElementById('me-parent').value||''
-  });
-  document.getElementById('me-code').value=''; document.getElementById('me-libelle').value='';
-  populateEmplacementParentSelect(); renderEmplacementsList();
-  saveData(); toast('Emplacement ajouté');
-}
-function emplacementUtilise(id) {
-  return state.stock_mp.some(s=>s.emplacementId===id) || state.emplacements.some(e=>e.parentId===id);
-}
-function deleteEmplacement(id) {
-  if (emplacementUtilise(id)) { alert('Emplacement utilisé (stock ou sous-emplacements) : suppression impossible.'); return; }
-  if (!confirm('Supprimer cet emplacement ?')) return;
-  state.emplacements = state.emplacements.filter(e=>e.id!==id);
-  populateEmplacementParentSelect(); renderEmplacementsList(); saveData(); toast('Emplacement supprimé');
-}
-function renderEmplacementsList() {
-  const tries = [...state.emplacements].sort((a,b)=>cheminEmplacement(a.id).localeCompare(cheminEmplacement(b.id)));
-  const wrap = document.getElementById('emplacements-list');
-  if (!tries.length) { wrap.innerHTML = '<div style="font-size:12px;color:var(--text3)">Aucun emplacement.</div>'; return; }
-  wrap.innerHTML = tries.map(e=>`<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;border-bottom:1px solid var(--border);padding:6px 0">
-    <span>${e.code?`<span class="emp">${esc(e.code)}</span> `:''}${esc(e.libelle)}</span>
-    <button class="btn btn-sm btn-red" onclick="deleteEmplacement('${e.id}')">✕</button>
-  </div>`).join('');
-}
-// ═══ LIGNES DE COMMANDE ══════════════════════════════════════════════════
-function addLigneCde(data={}) {
-  _nbLignes++;
-  const i = _nbLignes;
-  const wrap = document.getElementById('lignes-cde-wrap');
-  const div = document.createElement('div');
-  div.id = 'ligne-'+i;
-  div.style.cssText = 'display:grid;grid-template-columns:2fr 80px 80px 100px 100px 120px 32px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)';
-  // Fiches articles existantes, pour lier la ligne à une fiche précise
-  // (plutôt qu'à une désignation tapée librement, source d'erreurs de lien).
-  const articleOpts = state.articles.slice().sort((a,b)=>a.designation.localeCompare(b.designation))
-    .map(a=>`<option value="${a.id}"${data.stock_art===a.id?' selected':''}>${esc(a.designation)}</option>`).join('');
-  div.innerHTML = `
-    <input type="hidden" id="l${i}-id" value="${esc(data.id||'')}"/>
-    <input type="text" id="l${i}-desc" value="${esc(data.desc||'')}" placeholder="Désignation de l'article" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"/>
-    <input type="number" id="l${i}-qte" value="${data.qte||''}" min="0" step="0.01" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;text-align:right;font-family:'DM Mono',monospace;font-size:12px" oninput="updateLigneTotals()"/>
-    <input type="text" id="l${i}-unite" value="${esc(data.unite||'')}" placeholder="u,ml…" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"/>
-    <input type="number" id="l${i}-pu" value="${data.pu||''}" min="0" step="0.01" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;text-align:right;font-family:'DM Mono',monospace;font-size:12px" oninput="updateLigneTotals()"/>
-    <span id="l${i}-total" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--blue);text-align:right">—</span>
-    <div style="display:flex;align-items:center;gap:5px">
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;white-space:nowrap">
-        <input type="checkbox" id="l${i}-stock-chk" ${data.gerer_stock?'checked':''} onchange="toggleStockSelect(${i})" style="width:auto"/>
-        📦 Stock
-      </label>
-    </div>
-    <button onclick="removeLigne(${i})" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:16px">✕</button>
-    <div id="l${i}-stock-wrap" style="grid-column:1/-1;display:${data.gerer_stock?'block':'none'};padding:4px 0 2px;background:var(--blue-bg);border-radius:6px;padding:6px 10px;margin-top:2px">
-      <label style="font-size:11px;color:var(--blue);font-weight:600">Article (fiche) :</label>
-      <select id="l${i}-stock-art" onchange="onLigneArticleChange(${i})" style="margin-left:8px;padding:4px 8px;border:1px solid var(--blue-border);border-radius:6px;font-family:inherit;font-size:12px">
-        <option value="">— Nouvel article (créera une fiche) —</option>
-        ${articleOpts}
-      </select>
-      <span style="margin-left:8px;font-size:10px;color:var(--text3)">Sélectionner une fiche remplit désignation/unité ci-dessus — garantit le lien avec l'onglet Articles.</span>
-    </div>`;
-  wrap.appendChild(div);
-  if (data.qte && data.pu) updateLigneTotals();
-}
-function removeLigne(i) {
-  const el = document.getElementById('ligne-'+i);
-  if (el) el.remove();
-  updateLigneTotals();
-}
-function onLigneArticleChange(i) {
-  const artId = document.getElementById('l'+i+'-stock-art')?.value;
-  if (!artId) return; // "Nouvel article" — on laisse la saisie libre telle quelle
-  const art = state.articles.find(a=>a.id===artId);
-  if (!art) return;
-  const descEl = document.getElementById('l'+i+'-desc');
-  const uniteEl = document.getElementById('l'+i+'-unite');
-  if (descEl) descEl.value = art.designation;
-  if (uniteEl && art.unite) uniteEl.value = art.unite;
-}
-function toggleStockSelect(i) {
-  const chk = document.getElementById('l'+i+'-stock-chk');
-  const wrap = document.getElementById('l'+i+'-stock-wrap');
-  if (wrap) wrap.style.display = chk?.checked ? 'block' : 'none';
-}
-function updateLigneTotals() {
-  let total = 0;
-  for (let i=1;i<=_nbLignes;i++) {
-    const qte = parseFloat(document.getElementById('l'+i+'-qte')?.value)||0;
-    const pu  = parseFloat(document.getElementById('l'+i+'-pu')?.value)||0;
-    const t   = qte*pu;
-    const el  = document.getElementById('l'+i+'-total');
-    if (el) el.textContent = t>0 ? fmtEuro(t) : '—';
-    total += t;
-  }
-  const totEl = document.getElementById('mc-total');
-  if (totEl) totEl.textContent = fmtEuro(total);
-}
-function getLignes() {
-  const lignes = [];
-  for (let i=1;i<=_nbLignes;i++) {
-    const desc = document.getElementById('l'+i+'-desc')?.value?.trim();
-    if (!desc) continue;
-    const existingId = document.getElementById('l'+i+'-id')?.value?.trim();
-    lignes.push({
-      id: existingId || uid(),
-      desc,
-      qte:  parseFloat(document.getElementById('l'+i+'-qte')?.value)||0,
-      unite: document.getElementById('l'+i+'-unite')?.value?.trim()||'',
-      pu:   parseFloat(document.getElementById('l'+i+'-pu')?.value)||0,
-      total: (parseFloat(document.getElementById('l'+i+'-qte')?.value)||0) * (parseFloat(document.getElementById('l'+i+'-pu')?.value)||0),
-      gerer_stock: document.getElementById('l'+i+'-stock-chk')?.checked||false,
-      stock_art: document.getElementById('l'+i+'-stock-art')?.value||'',
-      recue: null,
-      stock_mp_id: null,
-    });
-  }
-  return lignes;
-}
-// ═══ COMMANDES — CRUD ════════════════════════════════════════════════════
-function openNewCde() {
-  _ctx = {type:'new'};
-  _nbLignes = 0;
-  document.getElementById('mc-title').textContent = 'Nouvelle commande';
-  document.getElementById('mc-num').value = genNumeroCde();
-  document.getElementById('mc-ref').value = '';
-  document.getElementById('mc-date').value = new Date().toISOString().slice(0,10);
-  document.getElementById('mc-fourn').value = '';
-  document.getElementById('mc-contact').innerHTML = '<option value="">— Sélectionner le fournisseur dabord —</option>';
-  document.getElementById('mc-chantier').value = '';
-  document.getElementById('mc-dliv').value = '';
-  document.getElementById('mc-comment').value = '';
-  document.getElementById('lignes-cde-wrap').innerHTML = '';
-  document.getElementById('mc-total').textContent = '0,00 €';
-  populateFournSelects();
-  populateChantierSelects();
-  addLigneCde(); addLigneCde(); addLigneCde();
-  document.getElementById('modal-cde').classList.add('show');
-}
-function openEditCde(id) {
-  const cde = state.commandes.find(c=>c.id===id);
-  if (!cde) return;
-  _ctx = {type:'edit', id};
-  _nbLignes = 0;
-  document.getElementById('mc-title').textContent = 'Modifier — '+cde.num;
-  document.getElementById('mc-num').value = cde.num;
-  document.getElementById('mc-ref').value = cde.ref||'';
-  document.getElementById('mc-date').value = cde.date||'';
-  document.getElementById('mc-dliv').value = cde.dliv||'';
-  document.getElementById('mc-comment').value = cde.comment||'';
-  populateFournSelects();
-  populateChantierSelects();
-  document.getElementById('mc-fourn').value = cde.fourn_id||'';
-  onFournChange();
-  document.getElementById('mc-chantier').value = cde.chantier_id||'';
-  document.getElementById('lignes-cde-wrap').innerHTML = '';
-  (cde.lignes||[]).forEach(l=>addLigneCde(l));
-  if(!(cde.lignes?.length)) { addLigneCde(); addLigneCde(); }
-  updateLigneTotals();
-  document.getElementById('modal-cde').classList.add('show');
-}
-function saveCde(statut) {
-  const num = document.getElementById('mc-num').value.trim();
-  const fournId = document.getElementById('mc-fourn').value;
-  if (!fournId) { alert('Veuillez sélectionner un fournisseur'); return; }
-  const dliv = document.getElementById('mc-dliv').value;
-  if (statut!=='Brouillon' && !dliv) { alert('Veuillez renseigner une date de réception prévue.'); return; }
-  const fourn = state.fournisseurs.find(f=>f.id===fournId);
-  const lignes = getLignes();
-  const montant = lignes.reduce((s,l)=>s+l.total,0);
-  const chantierEl = document.getElementById('mc-chantier');
-  const chantier = state.chantiers.find(c=>c.id===chantierEl.value);
-  const contactIdx = parseInt(document.getElementById('mc-contact').value);
-  const contact = !isNaN(contactIdx) && fourn?.contacts?.[contactIdx] ? fourn.contacts[contactIdx] : null;
-  // Conserve les liaisons stock déjà établies (recue, stock_mp_id) si on modifie une commande existante
-  const ancienneCde = _ctx.type==='edit' ? state.commandes.find(c=>c.id===_ctx.id) : null;
-  if (ancienneCde) {
-    lignes.forEach(l=>{
-      const ancienne = (ancienneCde.lignes||[]).find(al=>al.id===l.id);
-      if (ancienne) { l.recue = ancienne.recue; l.stock_mp_id = ancienne.stock_mp_id||null; }
-    });
-  }
-  const cde = {
-    id: _ctx.type==='edit' ? _ctx.id : uid(),
-    num,
-    ref: document.getElementById('mc-ref').value.trim(),
-    date: document.getElementById('mc-date').value,
-    dliv,
-    fourn_id: fournId,
-    fourn_nom: fourn?.nom||'',
-    contact_nom: contact?.nom||'',
-    chantier_id: chantierEl.value,
-    chantier_nom: chantier?.nom||'',
-    comment: document.getElementById('mc-comment').value.trim(),
-    statut, montant, lignes,
-    created_at: _ctx.type==='edit' ? (state.commandes.find(c=>c.id===_ctx.id)?.created_at||new Date().toISOString()) : new Date().toISOString(),
-    open: false,
-  };
-  if (_ctx.type==='edit') {
-    const idx = state.commandes.findIndex(c=>c.id===_ctx.id);
-    if (idx>=0) state.commandes[idx] = cde;
-  } else {
-    state.commandes.unshift(cde);
-    // Pour chaque ligne suivie en stock : garantit une fiche article (la lie
-    // si elle existe déjà, la crée sinon — jamais de ligne stock "orpheline"
-    // sans fiche), puis crée l'entrée de stock "en attente" que la réception
-    // viendra compléter.
-    lignes.filter(l=>l.gerer_stock).forEach(l=>{
-      let article = l.stock_art ? state.articles.find(a=>a.id===l.stock_art) : null;
-      if (!article) article = state.articles.find(a=>normaliserDesignation(a.designation)===normaliserDesignation(l.desc));
-      if (!article) {
-        article = {
-          id: uid(), designation: l.desc, unite: l.unite,
-          fournisseur_id: fournId, fournisseur_nom: fourn?.nom||'',
-          seuil_mini: 0, delai_appro_jours: 0, qte_reappro: 0,
-          open: false, created_at: new Date().toISOString(),
-        };
-        state.articles.push(article);
-      }
-      const entree = {
-        id:uid(), designation:article.designation, quantite:0, unite:l.unite, emplacementId:'',
-        fourn_id:fournId, fourn_nom:fourn?.nom||'',
-        cde_num:num, chantier_id:chantierEl.value, chantier_nom:chantier?.nom||'',
-        statut:'en_attente', entree:'', created_at:new Date().toISOString()
-      };
-      state.stock_mp.push(entree);
-      l.stock_mp_id = entree.id; // permet à la réception de retrouver précisément cette ligne
-    });
-  }
-  closeModal('modal-cde');
-  saveData();
-  renderCdes();
-  renderRecapCommandes();
-  renderPrevisionnel();
-  renderStock();
-  renderArticles();
-  renderMetrics();
-  toast(statut==='Validée'?'✅ Commande validée':'💾 Brouillon enregistré');
-}
-function deleteCde(id) {
-  if (!confirm('Supprimer cette commande ?')) return;
-  state.commandes = state.commandes.filter(c=>c.id!==id);
-  saveData(); renderCdes(); renderRecapCommandes(); renderPrevisionnel(); renderMetrics(); toast('Commande supprimée');
-}
-function updateStatutCde(id, statut) {
-  const cde = state.commandes.find(c=>c.id===id);
-  if (cde) { cde.statut=statut; saveData(); renderCdes(); renderRecapCommandes(); renderPrevisionnel(); renderMetrics(); toast('Statut mis à jour'); }
-}
-// ═══ RENDU COMMANDES ══════════════════════════════════════════════════════
-function renderMetrics() {
-  const nb = state.commandes.length;
-  const attente = state.commandes.filter(c=>c.statut==='Envoyée'||c.statut==='Réception partielle').length;
-  const brouillon = state.commandes.filter(c=>c.statut==='Brouillon').length;
-  const montant = state.commandes.reduce((s,c)=>s+(c.montant||0),0);
-  document.getElementById('cde-metrics').innerHTML = `
-    <div class="metric"><div class="metric-k">Commandes</div><div class="metric-v">${nb}</div></div>
-    <div class="metric"><div class="metric-k">Montant engagé</div><div class="metric-v">${Math.round(montant/1000)}k€</div></div>
-    <div class="metric"><div class="metric-k">En attente</div><div class="metric-v${attente>0?' warn':' ok'}">${attente}</div></div>
-    <div class="metric"><div class="metric-k">Brouillons</div><div class="metric-v${brouillon>0?' warn':' ok'}">${brouillon}</div></div>`;
-}
-const STATUS_COLORS = {
-  'Brouillon':'badge-gray','Validée':'badge-blue','Envoyée':'badge-orange',
-  'Réception partielle':'badge-orange','Reçue':'badge-green','Litige':'badge-red'
-};
-const STATUS_DOTS = {
-  'Brouillon':'var(--text3)','Validée':'var(--blue)','Envoyée':'var(--orange)',
-  'Réception partielle':'var(--orange)','Reçue':'var(--green)','Litige':'var(--red)'
-};
-function renderCdes() {
-  const q = (document.getElementById('cde-search')?.value||'').toLowerCase();
-  const filStatut = document.getElementById('cde-fil-statut')?.value||'';
-  const filChantier = document.getElementById('cde-fil-chantier')?.value||'';
-  let cdes = state.commandes.filter(c=>{
-    if(filStatut && c.statut!==filStatut) return false;
-    if(filChantier && c.chantier_id!==filChantier) return false;
-    if(q && !c.num?.toLowerCase().includes(q) && !c.fourn_nom?.toLowerCase().includes(q)
-       && !c.chantier_nom?.toLowerCase().includes(q) && !c.ref?.toLowerCase().includes(q)) return false;
-    return true;
-  });
-  if (!cdes.length) {
-    document.getElementById('cde-list').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune commande trouvée.</div>';
-    return;
-  }
-  document.getElementById('cde-list').innerHTML = cdes.map(cde=>{
-    const montant = fmtEuro(cde.montant||0);
-    const badgeCls = STATUS_COLORS[cde.statut]||'badge-gray';
-    const dotColor = STATUS_DOTS[cde.statut]||'var(--text3)';
-    const totalQte = (cde.lignes||[]).reduce((s,l)=>s+(l.qte||0),0);
-    const recueQte = (cde.lignes||[]).reduce((s,l)=>s+(l.recue||0),0);
-    const pct = totalQte>0 ? Math.min(100,Math.round(recueQte/totalQte*100)) : 0;
-    return `<div class="cde-card">
-      <div class="cde-header" onclick="toggleCde('${cde.id}')">
-        <span class="chevron${cde.open?' open':''}">▶</span>
-        <span class="status-dot" style="background:${dotColor}"></span>
-        <span class="badge ${badgeCls}">${cde.statut}</span>
-        <span class="num-cde">${esc(cde.num)}</span>
-        ${cde.ref?`<span style="font-size:11px;color:var(--text3);border:1px solid var(--border);border-radius:4px;padding:1px 6px">${esc(cde.ref)}</span>`:''}
-        <span style="font-weight:600;font-size:13px;flex:1">${esc(cde.fourn_nom||'—')}</span>
-        ${cde.chantier_nom?`<span style="font-size:12px;color:var(--text2)">${esc(cde.chantier_nom)}</span>`:''}
-        <span style="font-size:13px;font-family:'DM Mono',monospace;font-weight:600;color:var(--blue)">${montant}</span>
-        ${cde.dliv?`<span class="dp dp-orange">Livr. ${fmtDate(cde.dliv)}</span>`:''}
-        <div class="no-print" style="display:flex;gap:5px;margin-left:8px" onclick="event.stopPropagation()">
-          <button class="btn btn-sm" onclick="openPrintCde('${cde.id}')">🖨</button>
-          <button class="btn btn-sm" onclick="openEditCde('${cde.id}')">✎</button>
-          <select class="btn btn-sm" onchange="updateStatutCde('${cde.id}',this.value)" style="font-size:11px;padding:3px 6px">
-            ${['Brouillon','Validée','Envoyée','Réception partielle','Reçue','Litige'].map(s=>`<option value="${s}"${s===cde.statut?' selected':''}>${s}</option>`).join('')}
-          </select>
-          <button class="btn btn-sm btn-red" onclick="deleteCde('${cde.id}')">✕</button>
-        </div>
-      </div>
-      ${cde.open?`<div class="cde-body">
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;font-size:12px">
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase">Fournisseur</div><div style="font-weight:600">${esc(cde.fourn_nom)}</div></div>
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase">Contact</div><div>${esc(cde.contact_nom||'—')}</div></div>
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase">Date commande</div><div>${fmtDate(cde.date)}</div></div>
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase">Réception prévue</div><div style="font-weight:600;color:${cde.dliv&&cde.dliv<new Date().toISOString().slice(0,10)&&cde.statut!=='Reçue'?'var(--red)':'inherit'}">${fmtDate(cde.dliv)}</div></div>
-        </div>
-        <div class="prog" style="margin-bottom:12px">
-          <div class="prog-bar"><div class="prog-fill ${pct>=100?'prog-green':'prog-blue'}" style="width:${pct}%"></div></div>
-          <span class="prog-label">${pct}%</span>
-          <span style="font-size:11px;color:var(--text2)">reçu (${fmtQte(recueQte)} / ${fmtQte(totalQte)})</span>
-        </div>
-        ${cde.comment?`<div style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:8px 12px;font-size:12px;margin-bottom:12px;color:var(--text2)">${esc(cde.comment)}</div>`:''}
-        <table class="lignes-table">
-          <thead><tr>
-            <th>Désignation</th><th style="text-align:center">Qté</th><th>Unité</th>
-            <th style="text-align:right">PU HT</th><th style="text-align:right">Total HT</th>
-            <th style="text-align:center">Reçu</th><th>Stock</th>
-          </tr></thead>
-          <tbody>
-          ${(cde.lignes||[]).map((l,i)=>`<tr>
-            <td style="font-weight:500">${esc(l.desc)}</td>
-            <td style="text-align:center;font-family:'DM Mono',monospace">${l.qte}</td>
-            <td style="color:var(--text3)">${esc(l.unite||'')}</td>
-            <td class="r">${fmtEuro(l.pu)}</td>
-            <td class="r" style="font-weight:600">${fmtEuro(l.total)}</td>
-            <td style="text-align:center;font-family:'DM Mono',monospace">${fmtQte(l.recue||0)}</td>
-            <td>${l.gerer_stock?'<span class="badge badge-blue">📦 Stock</span>':''}</td>
-          </tr>`).join('')}
-          </tbody>
-          <tfoot><tr style="background:var(--blue-bg)">
-            <td colspan="4" style="padding:8px 10px;font-weight:700;color:var(--blue)">TOTAL HT</td>
-            <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:700;font-size:14px;color:var(--blue)">${fmtEuro(cde.montant)}</td>
-            <td colspan="2"></td>
-          </tr></tfoot>
-        </table>
-        <div style="margin-top:10px;font-size:11px;color:var(--text3)">La réception (BL, emplacement de stockage) se fait depuis l'onglet « 🚚 Réceptions ».</div>
-      </div>`:''}</div>`;
-  }).join('');
-}
-function toggleCde(id) { const c=state.commandes.find(x=>x.id===id);if(c){c.open=!c.open;renderCdes();} }
-// ═══ IMPRESSION COMMANDE ══════════════════════════════════════════════════
-function openPrintCde(id) {
-  const cde = state.commandes.find(c=>c.id===id);
-  if (!cde) return;
-  const fourn = state.fournisseurs.find(f=>f.id===cde.fourn_id);
-  document.getElementById('mpc-title').textContent = cde.num;
-  document.getElementById('mpc-body').innerHTML = buildPrintCde(cde, fourn);
-  document.getElementById('modal-print-cde').classList.add('show');
-}
-function buildPrintCde(cde, fourn) {
-  const contact = cde.contact_nom ? `<br><strong>Contact :</strong> ${esc(cde.contact_nom)}` : '';
-  const adresse = fourn?.adresse ? `<br>${esc(fourn.adresse).replace(/\n/g,'<br>')}` : '';
-  return `<div style="font-family:Arial,sans-serif;font-size:12px">
-    <!-- En-tête -->
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1A4F8A;padding-bottom:12px;margin-bottom:16px">
-      <div>
-        <img src="data:image/png;base64,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" style="height:45px;margin-bottom:6px"/>
-        <div style="font-size:10px;color:#555">9 Chemin du Tour du Bois<br>49770 Longuenée-en-Anjou<br>Tél : 02 41 31 12 20</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-size:22px;font-weight:800;color:#1A4F8A">COMMANDE</div>
-        <div style="font-size:14px;font-weight:700;font-family:monospace">${esc(cde.num)}</div>
-        ${cde.ref?`<div style="font-size:11px;color:#888">Réf. interne : ${esc(cde.ref)}</div>`:''}
-        <div style="font-size:11px;color:#555">Date : ${fmtDate(cde.date)}</div>
-        ${cde.dliv?`<div style="font-size:11px;font-weight:600;color:#B85C0A">Livraison souhaitée : ${fmtDate(cde.dliv)}</div>`:''}
-      </div>
-    </div>
-    <!-- Adresses -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px">
-      <div style="border:1px solid #ddd;border-radius:6px;padding:10px">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:6px">Expéditeur</div>
-        <strong>ROUSSEAU CONSTRUCTION BOIS SAS</strong><br>
-        9 Chemin du Tour du Bois<br>49770 Longuenée-en-Anjou<br>
-        Tél : 02 41 31 12 20 — www.rousseausa.fr
-      </div>
-      <div style="border:1px solid #ddd;border-radius:6px;padding:10px">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:6px">Fournisseur</div>
-        <strong>${esc(fourn?.nom||cde.fourn_nom||'—')}</strong>
-        ${adresse}${contact}
-        ${fourn?.siret?`<br><span style="font-size:10px;color:#888">SIRET : ${esc(fourn.siret)}</span>`:''}
-      </div>
-    </div>
-    ${cde.chantier_nom?`<div style="background:#EAF1FB;border:1px solid #AECDF5;border-radius:6px;padding:7px 12px;margin-bottom:12px;font-size:12px"><strong>Chantier :</strong> ${esc(cde.chantier_nom)}</div>`:''}
-    ${cde.comment?`<div style="background:#F5F4F0;border:1px solid #E4E2DA;border-radius:6px;padding:7px 12px;margin-bottom:12px;font-size:11px;color:#555"><em>${esc(cde.comment)}</em></div>`:''}
-    <!-- Lignes -->
-    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px">
-      <thead><tr style="background:#1A4F8A;color:#fff">
-        <th style="padding:7px 10px;text-align:left">Désignation</th>
-        <th style="padding:7px 10px;text-align:center;width:60px">Qté</th>
-        <th style="padding:7px 10px;width:50px">Unité</th>
-        <th style="padding:7px 10px;text-align:right;width:80px">PU HT</th>
-        <th style="padding:7px 10px;text-align:right;width:90px">Total HT</th>
-      </tr></thead>
-      <tbody>
-      ${(cde.lignes||[]).map((l,i)=>`<tr style="${i%2?'background:#F9F9F9;':''}border-bottom:1px solid #EEE">
-        <td style="padding:6px 10px">${esc(l.desc)}</td>
-        <td style="padding:6px 10px;text-align:center;font-family:monospace">${l.qte}</td>
-        <td style="padding:6px 10px;color:#888">${esc(l.unite||'')}</td>
-        <td style="padding:6px 10px;text-align:right;font-family:monospace">${fmtEuro(l.pu)}</td>
-        <td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:600">${fmtEuro(l.total)}</td>
-      </tr>`).join('')}
-      </tbody>
-      <tfoot>
-        <tr style="background:#EAF1FB;border-top:2px solid #1A4F8A">
-          <td colspan="4" style="padding:8px 10px;font-weight:700;color:#1A4F8A">TOTAL HT</td>
-          <td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:800;font-size:14px;color:#1A4F8A">${fmtEuro(cde.montant)}</td>
-        </tr>
-      </tfoot>
-    </table>
-    ${fourn?.conditions_paiement?`<div style="font-size:10px;color:#888;border-top:1px solid #EEE;padding-top:8px">Conditions de paiement : ${esc(fourn.conditions_paiement)}</div>`:''}
-    <!-- Signatures -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:20px">
-      <div style="border:1px solid #CCC;border-radius:4px;padding:10px;min-height:60px">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#888">Émis par</div>
-      </div>
-      <div style="border:1px solid #CCC;border-radius:4px;padding:10px;min-height:60px">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#888">Accusé réception fournisseur</div>
-      </div>
-    </div>
-  </div>`;
-}
-// ═══ FOURNISSEURS — CRUD ══════════════════════════════════════════════════
-function addContact(data={}) {
-  _nbContacts++;
-  const i = _nbContacts;
-  const wrap = document.getElementById('contacts-wrap');
-  const div = document.createElement('div');
-  div.id = 'contact-'+i;
-  div.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px';
-  div.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 28px;gap:8px;align-items:center">
-      <input type="text" id="ct${i}-nom"   value="${esc(data.nom||'')}"   placeholder="Nom prénom"  style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"/>
-      <input type="text" id="ct${i}-poste" value="${esc(data.poste||'')}" placeholder="Poste / Rôle" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"/>
-      <input type="tel"  id="ct${i}-tel"   value="${esc(data.tel||'')}"   placeholder="Téléphone"   style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"/>
-      <input type="email" id="ct${i}-email" value="${esc(data.email||'')}" placeholder="Email"       style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"/>
-      <button onclick="document.getElementById('contact-${i}').remove()" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:16px">✕</button>
-    </div>`;
-  wrap.appendChild(div);
-}
-function getContacts() {
-  const contacts = [];
-  for (let i=1;i<=_nbContacts;i++) {
-    const nom = document.getElementById('ct'+i+'-nom')?.value?.trim();
-    if (!nom) continue;
-    contacts.push({
-      nom, poste: document.getElementById('ct'+i+'-poste')?.value?.trim()||'',
-      tel:  document.getElementById('ct'+i+'-tel')?.value?.trim()||'',
-      email:document.getElementById('ct'+i+'-email')?.value?.trim()||'',
-    });
-  }
-  return contacts;
-}
-function openNewFourn() {
-  _ctx = {type:'new-fourn'};
-  _nbContacts = 0;
-  document.getElementById('mf-title').textContent = 'Nouveau fournisseur';
-  ['mf-nom','mf-siret','mf-adresse','mf-notes','mf-categorie'].forEach(id=>{
-    const el=document.getElementById(id);if(el)el.value='';
-  });
-  document.getElementById('mf-paiement').value = 'comptant';
-  document.getElementById('contacts-wrap').innerHTML = '';
-  addContact();
-  document.getElementById('modal-fourn').classList.add('show');
-}
-function openEditFourn(id) {
-  const f = state.fournisseurs.find(x=>x.id===id);
-  if (!f) return;
-  _ctx = {type:'edit-fourn',id};
-  _nbContacts = 0;
-  document.getElementById('mf-title').textContent = 'Modifier — '+f.nom;
-  document.getElementById('mf-nom').value = f.nom||'';
-  document.getElementById('mf-siret').value = f.siret||'';
-  document.getElementById('mf-adresse').value = f.adresse||'';
-  document.getElementById('mf-paiement').value = f.conditions_paiement||'comptant';
-  document.getElementById('mf-categorie').value = f.categorie||'';
-  document.getElementById('mf-notes').value = f.notes||'';
-  document.getElementById('contacts-wrap').innerHTML = '';
-  (f.contacts||[]).forEach(c=>addContact(c));
-  if(!(f.contacts?.length)) addContact();
-  document.getElementById('modal-fourn').classList.add('show');
-}
-function saveFourn() {
-  const nom = document.getElementById('mf-nom').value.trim();
-  if (!nom) { document.getElementById('mf-nom').style.borderColor='var(--red)';return; }
-  document.getElementById('mf-nom').style.borderColor='';
-  const fourn = {
-    id: _ctx.type==='edit-fourn' ? _ctx.id : uid(),
-    nom,
-    siret: document.getElementById('mf-siret').value.trim(),
-    adresse: document.getElementById('mf-adresse').value.trim(),
-    conditions_paiement: document.getElementById('mf-paiement').value,
-    categorie: document.getElementById('mf-categorie').value.trim(),
-    notes: document.getElementById('mf-notes').value.trim(),
-    contacts: getContacts(),
-    created_at: _ctx.type==='edit-fourn' ? (state.fournisseurs.find(f=>f.id===_ctx.id)?.created_at||new Date().toISOString()) : new Date().toISOString(),
-    open: false,
-  };
-  if (_ctx.type==='edit-fourn') {
-    const idx=state.fournisseurs.findIndex(f=>f.id===_ctx.id);
-    if(idx>=0) state.fournisseurs[idx]=fourn;
-  } else {
-    state.fournisseurs.push(fourn);
-  }
-  closeModal('modal-fourn');
-  populateFournSelects();
-  saveData(); renderFourns(); toast('Fournisseur enregistré');
-}
-function deleteFourn(id) {
-  if(!confirm('Supprimer ce fournisseur ?'))return;
-  state.fournisseurs=state.fournisseurs.filter(f=>f.id!==id);
-  saveData();renderFourns();populateFournSelects();toast('Fournisseur supprimé');
-}
-function renderFourns() {
-  const q=(document.getElementById('fourn-search')?.value||'').toLowerCase();
-  const fourns=state.fournisseurs.filter(f=>!q||f.nom.toLowerCase().includes(q)||(f.categorie||'').toLowerCase().includes(q));
-  if(!fourns.length){
-    document.getElementById('fourn-list').innerHTML='<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun fournisseur. Cliquez sur "+ Nouveau fournisseur".</div>';return;
-  }
-  document.getElementById('fourn-list').innerHTML=fourns.map(f=>{
-    const nbCdes=state.commandes.filter(c=>c.fourn_id===f.id).length;
-    return `<div class="fourn-card">
-      <div class="fourn-header" onclick="toggleFourn('${f.id}')">
-        <span class="chevron${f.open?' open':''}">▶</span>
-        <span style="font-weight:700;font-size:14px;flex:1">${esc(f.nom)}</span>
-        ${f.categorie?`<span class="badge badge-blue">${esc(f.categorie)}</span>`:''}
-        ${nbCdes?`<span class="badge badge-gray">${nbCdes} commande${nbCdes>1?'s':''}</span>`:''}
-        <div onclick="event.stopPropagation()" style="display:flex;gap:5px">
-          <button class="btn btn-sm" onclick="openEditFourn('${f.id}')">✎</button>
-          <button class="btn btn-sm btn-red" onclick="deleteFourn('${f.id}')">✕</button>
-        </div>
-      </div>
-      ${f.open?`<div class="fourn-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;font-size:12px">
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">SIRET</div>${esc(f.siret||'—')}</div>
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Paiement</div>${esc(f.conditions_paiement||'—')}</div>
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Adresse</div>${esc(f.adresse||'—').replace(/\n/g,'<br>')}</div>
-        </div>
-        ${(f.contacts||[]).length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Contacts</div>
-        ${f.contacts.map(c=>`<div class="contact-row">
-          <span style="font-weight:600;min-width:150px">${esc(c.nom)}</span>
-          ${c.poste?`<span class="badge badge-gray" style="font-size:10px">${esc(c.poste)}</span>`:''}
-          ${c.tel?`<span style="color:var(--blue)">📞 ${esc(c.tel)}</span>`:''}
-          ${c.email?`<span style="color:var(--blue)">✉ ${esc(c.email)}</span>`:''}
-        </div>`).join('')}`:''}
-        ${f.notes?`<div style="margin-top:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:12px;color:var(--text2)">${esc(f.notes)}</div>`:''}
-      </div>`:''}</div>`;
-  }).join('');
-}
-function toggleFourn(id){const f=state.fournisseurs.find(x=>x.id===id);if(f){f.open=!f.open;renderFourns();}}
-// ═══ RÉCEPTIONS (circuit complet, BL obligatoire) ═════════════════════════
-function receptionsCommande(cdeId) {
-  return state.receptions.filter(r=>r.cdeId===cdeId);
-}
-function dejaRecuLigne(cdeId, ligneId) {
-  return receptionsCommande(cdeId).reduce((s,r)=>{
-    const l = (r.lignes||[]).find(x=>x.cdeLigneId===ligneId);
-    return s + (l ? Number(l.quantite)||0 : 0);
-  },0);
-}
-function commandesReceptionnables() {
-  return state.commandes.filter(c=>['Validée','Envoyée','Réception partielle'].includes(c.statut) && (c.lignes||[]).length>0);
-}
-function openNewReception() {
-  _ctx = {type:'new-reception'};
-  const opts = ['<option value="">— Sélectionner —</option>',
-    ...commandesReceptionnables().map(c=>`<option value="${c.id}">${esc(c.num)} · ${esc(c.fourn_nom||'')}</option>`)
-  ].join('');
-  document.getElementById('mr-cde').innerHTML = opts;
-  document.getElementById('mr-fourn').value = '';
-  document.getElementById('mr-bl-numero').value = genNumeroBL();
-  document.getElementById('mr-bl-date').value = new Date().toISOString().slice(0,10);
-  document.getElementById('mr-lignes-wrap').innerHTML = '';
-  document.getElementById('mr-info').style.display = 'block';
-  document.getElementById('mr-info').textContent = 'Sélectionnez une commande pour afficher ses lignes.';
-  document.getElementById('modal-reception').classList.add('show');
-}
-function onReceptionCdeChange() {
-  const cdeId = document.getElementById('mr-cde').value;
-  const cde = state.commandes.find(c=>c.id===cdeId);
-  const wrap = document.getElementById('mr-lignes-wrap');
-  const info = document.getElementById('mr-info');
-  if (!cde) { wrap.innerHTML=''; info.style.display='block'; document.getElementById('mr-fourn').value=''; return; }
-  document.getElementById('mr-fourn').value = cde.fourn_nom||'';
-  info.style.display = 'none';
-  _nbLignesRecep = 0;
-  wrap.innerHTML = `<table class="lignes-table" style="margin-bottom:10px">
-    <thead><tr><th>Désignation</th><th style="text-align:right">Commandé</th><th style="text-align:right">Déjà reçu</th>
-      <th style="text-align:right">Reliquat</th><th style="text-align:right">Qté reçue</th><th>Emplacement(s)</th></tr></thead>
-    <tbody id="mr-lignes-tbody"></tbody></table>`;
-  const tbody = document.getElementById('mr-lignes-tbody');
-  const manquants = [];
-  (cde.lignes||[]).forEach(l=>{
-    _nbLignesRecep++;
-    const idx = _nbLignesRecep;
-    const dejaRecu = dejaRecuLigne(cde.id, l.id);
-    const reliquat = Math.max(0,(l.qte||0)-dejaRecu);
-    const tr = document.createElement('tr');
-    tr.id = 'mrl-'+idx;
-    tr.dataset.ligneId = l.id;
-    tr.dataset.desc = l.desc;
-    tr.dataset.unite = l.unite||'';
-    tr.dataset.pu = l.pu||0;
-    tr.dataset.stockMpId = l.stock_mp_id||'';
-    tr.dataset.gererStock = l.gerer_stock?'1':'0';
-    let celluleEmplacement;
-    if (l.gerer_stock) {
-      const defautId = getEmplacementDefaut(l.desc);
-      const defautValide = defautId && state.emplacements.some(e=>e.id===defautId);
-      if (!defautValide && reliquat>0) manquants.push({idx, desc:l.desc});
-      celluleEmplacement = `<div class="mrl-empl-row" style="display:flex;gap:4px;align-items:center">
-        <select id="mrl${idx}-empl-0" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:11px">${optionsEmplacement(defautValide?defautId:'')}</select>
-        <input type="number" step="0.01" id="mrl${idx}-emplqte-0" value="${reliquat>0?reliquat:''}" placeholder="qté" style="width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;text-align:right;font-size:11px"/>
-      </div>
-      <button type="button" class="btn btn-sm" style="margin-top:4px" onclick="ajouterEmplacementReception(${idx})">+ diviser</button>
-      ${defautValide?`<div style="font-size:10px;color:var(--text3);margin-top:2px">📍 emplacement par défaut</div>`:''}
-      <div id="mrl${idx}-empl-warn" style="font-size:10px;color:var(--red);margin-top:2px"></div>`;
-    } else {
-      // Hors gestion de stock : un emplacement reste obligatoire (traçabilité de
-      // la réception) mais n'est ni pré-rempli ni mémorisé — l'article n'étant
-      // pas suivi en stock, son emplacement sera repris par un autre dès sa
-      // consommation, donc pas de notion d'emplacement "par défaut" pour lui.
-      celluleEmplacement = `<div class="mrl-empl-row" style="display:flex;gap:4px;align-items:center">
-        <select id="mrl${idx}-empl-0" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:11px">${optionsEmplacement('')}</select>
-        <input type="number" step="0.01" id="mrl${idx}-emplqte-0" value="${reliquat>0?reliquat:''}" placeholder="qté" style="width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;text-align:right;font-size:11px"/>
-      </div>
-      <div style="font-size:10px;color:var(--text3);margin-top:2px">hors stock — emplacement temporaire</div>
-      <div id="mrl${idx}-empl-warn" style="font-size:10px;color:var(--red);margin-top:2px"></div>`;
+
+    // ── Feuille Fermetures ──
+    let shF = SS.getSheetByName('Fermetures');
+    if (!shF) shF = SS.insertSheet('Fermetures');
+    shF.clearContents();
+    shF.getRange(1,1,1,2).setValues([['date','atelier']]);
+    if (fermetures.length) {
+      shF.getRange(2,1,fermetures.length,2).setValues(
+        fermetures.map(f => [f.date||'', f.atelier||'all'])
+      );
     }
-    tr.innerHTML = `
-      <td style="font-weight:500">${esc(l.desc)}</td>
-      <td class="r">${fmtQte(l.qte)} ${esc(l.unite||'')}</td>
-      <td class="r" style="color:var(--text2)">${fmtQte(dejaRecu)}</td>
-      <td class="r" style="font-weight:600;color:${reliquat>0?'var(--orange)':'var(--green)'}">${fmtQte(reliquat)}</td>
-      <td class="r"><input type="number" step="0.01" min="0" id="mrl${idx}-qte" value="${reliquat>0?reliquat:''}" style="width:80px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;text-align:right;font-family:'DM Mono',monospace;font-size:12px" oninput="onReceptionQteChange(${idx})"/></td>
-      <td id="mrl${idx}-empl-wrap">${celluleEmplacement}</td>`;
-    tbody.appendChild(tr);
-  });
-  if (manquants.length) ouvrirPopupEmplacementManquant(manquants);
-}
-function onReceptionQteChange(idx) {
-  const qte = parseFloat(document.getElementById('mrl'+idx+'-qte')?.value)||0;
-  const rows = document.querySelectorAll(`#mrl${idx}-empl-wrap .mrl-empl-row`);
-  if (rows.length===1) {
-    const q0 = document.getElementById('mrl'+idx+'-emplqte-0');
-    if (q0) q0.value = qte || '';
+
+    // ── Feuille JoursOff ──
+    let shJ = SS.getSheetByName('JoursOff');
+    if (!shJ) shJ = SS.insertSheet('JoursOff');
+    shJ.clearContents();
+    shJ.getRange(1,1,1,2).setValues([['atelier_id','jours_off']]);
+    const joRows = Object.entries(joursOff).map(([k,v]) => [k, JSON.stringify(v)]);
+    if (joRows.length) shJ.getRange(2,1,joRows.length,2).setValues(joRows);
+
+    // Ajouter colonne date_fin calculée (col 13)
+    if (tranches.length) {
+      // En-tête
+      sh.getRange(1, 13).setValue('date_fin');
+      // Calculer date_fin pour chaque ligne
+      const dataRange = sh.getRange(2, 1, tranches.length, 12).getValues();
+      const finValues = dataRange.map(row => {
+        const dateDebut = row[4]; // col E = date_debut (index 4)
+        const duree = parseInt(row[5]) || 1; // col F = duree_jours (index 5)
+        if (!dateDebut) return [''];
+        const d = new Date(dateDebut);
+        if (isNaN(d.getTime())) return [''];
+        // Ajouter les jours ouvrés
+        let count = 0;
+        let current = new Date(d);
+        while (count < duree - 1) {
+          current.setDate(current.getDate() + 1);
+          const dow = current.getDay();
+          if (dow !== 0 && dow !== 6) count++;
+        }
+        return [Utilities.formatDate(current, 'Europe/Paris', 'yyyy-MM-dd')];
+      });
+      sh.getRange(2, 13, tranches.length, 1).setValues(finValues);
+    }
+
+    return {ok:true, saved: tranches.length};
+  } finally {
+    lock.releaseLock();
   }
 }
-function ajouterEmplacementReception(idx) {
-  const wrap = document.getElementById('mrl'+idx+'-empl-wrap');
-  const rows = wrap.querySelectorAll('.mrl-empl-row');
-  const n = rows.length;
-  const div = document.createElement('div');
-  div.className = 'mrl-empl-row';
-  div.style.cssText = 'display:flex;gap:4px;align-items:center;margin-top:4px';
-  div.innerHTML = `
-    <select id="mrl${idx}-empl-${n}" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:11px">${optionsEmplacement('')}</select>
-    <input type="number" step="0.01" id="mrl${idx}-emplqte-${n}" placeholder="qté" style="width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;text-align:right;font-size:11px"/>
-    <button type="button" onclick="this.parentElement.remove()" style="border:none;background:none;color:var(--red);cursor:pointer">✕</button>`;
-  const boutonDiviser = wrap.nextElementSibling; // le bouton "+ diviser"
-  wrap.appendChild(div);
-}
-let _lignesEmplacementManquant = [];
-function ouvrirPopupEmplacementManquant(manquants) {
-  _lignesEmplacementManquant = manquants;
-  document.getElementById('mdm-liste').innerHTML = manquants.map((m,i)=>`
-    <div class="field" style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
-      <label>${esc(m.desc)}</label>
-      <select id="mdm-${i}-empl">${optionsEmplacement('')}</select>
-      <label style="display:flex;align-items:center;gap:5px;font-size:11px;margin-top:5px;font-weight:400;text-transform:none;color:var(--text2)">
-        <input type="checkbox" id="mdm-${i}-memoriser" checked style="width:auto"/> Mémoriser comme emplacement par défaut pour cet article
-      </label>
-    </div>`).join('');
-  document.getElementById('modal-emplacement-manquant').classList.add('show');
-}
-function validerEmplacementsManquants() {
-  let manque = false;
-  _lignesEmplacementManquant.forEach((m,i)=>{
-    const sel = document.getElementById(`mdm-${i}-empl`);
-    const chk = document.getElementById(`mdm-${i}-memoriser`);
-    const emplacementId = sel?.value||'';
-    if (!emplacementId) { manque = true; return; }
-    const selLigne = document.getElementById(`mrl${m.idx}-empl-0`);
-    if (selLigne) selLigne.value = emplacementId;
-    if (chk?.checked) setEmplacementDefaut(m.desc, emplacementId);
+
+function getTranches() {
+  const sh = SS.getSheetByName('Planning Production');
+  if (!sh) return {ok:true, tranches:[]};
+  const data = sh.getDataRange().getValues();
+  if (data.length < 2) return {ok:true, tranches:[]};
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const tranches = data.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = row[i]);
+    return obj;
+  }).filter(t => t.nom).map(t => {
+    t.nom = String(t.nom||'').trim().replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ');
+    return t;
   });
-  if (manque) { alert('Choisissez un emplacement pour chaque article listé (ou fermez avec "Plus tard").'); return; }
-  saveData();
-  closeModal('modal-emplacement-manquant');
-  toast('📍 Emplacement(s) renseigné(s)');
+  return {ok:true, tranches};
 }
-function getLignesReception() {
-  const lignes = [];
-  document.querySelectorAll('#mr-lignes-tbody tr').forEach(tr=>{
-    const idx = tr.id.split('-')[1];
-    const qte = parseFloat(document.getElementById('mrl'+idx+'-qte')?.value)||0;
-    if (qte<=0) return;
-    const empl = [];
-    tr.querySelectorAll(`#mrl${idx}-empl-wrap .mrl-empl-row`).forEach((row,n)=>{
-      const sel = document.getElementById(`mrl${idx}-empl-${n}`);
-      const inp = document.getElementById(`mrl${idx}-emplqte-${n}`);
-      const q = parseFloat(inp?.value)||0;
-      if (q>0) empl.push({emplacementId: sel?.value||'', quantite:q});
-    });
-    lignes.push({
-      cdeLigneId: tr.dataset.ligneId, desc: tr.dataset.desc, unite: tr.dataset.unite,
-      prixUnitaire: parseFloat(tr.dataset.pu)||0, quantite: qte,
-      stockMpId: tr.dataset.stockMpId||'', gererStock: tr.dataset.gererStock==='1',
-      repartition: empl, idx,
-    });
-  });
-  return lignes;
-}
-function saveReception() {
-  const cdeId = document.getElementById('mr-cde').value;
-  const cde = state.commandes.find(c=>c.id===cdeId);
-  if (!cde) { alert('Sélectionnez une commande.'); return; }
-  const blNumero = document.getElementById('mr-bl-numero').value.trim();
-  const blDate = document.getElementById('mr-bl-date').value;
-  if (!blNumero) { alert('Le n° de bon de livraison est obligatoire.'); return; }
-  if (!blDate) { alert('La date du BL est obligatoire.'); return; }
-  const lignes = getLignesReception();
-  if (!lignes.length) { alert('Saisissez au moins une quantité reçue.'); return; }
-  for (const l of lignes) {
-    // Un emplacement reste obligatoire même hors gestion de stock (traçabilité) —
-    // seule la mémorisation en emplacement par défaut ne s'applique qu'aux
-    // articles suivis en stock (gérés plus bas via gererStock).
-    const somme = l.repartition.reduce((s,r)=>s+r.quantite,0);
-    if (l.repartition.some(r=>!r.emplacementId)) { document.getElementById('mrl'+l.idx+'-empl-warn').textContent = 'Choisissez un emplacement.'; return; }
-    if (Math.abs(somme - l.quantite) > 0.005) { document.getElementById('mrl'+l.idx+'-empl-warn').textContent = `Répartition (${fmtQte(somme)}) ≠ quantité reçue (${fmtQte(l.quantite)}).`; return; }
-  }
-  const reception = {
-    id: uid(), cdeId: cde.id, cdeNum: cde.num, fournId: cde.fourn_id, fournNom: cde.fourn_nom,
-    blNumero, blDate, date: blDate,
-    lignes: lignes.map(l=>({
-      cdeLigneId: l.cdeLigneId, desc: l.desc, unite: l.unite, prixUnitaire: l.prixUnitaire,
-      quantite: l.quantite, repartition: l.repartition,
-    })),
-    created_at: new Date().toISOString(), open: false,
-  };
-  state.receptions.unshift(reception);
-  // Met à jour la quantité reçue sur la commande (mécanisme existant) + le statut
-  lignes.forEach(l=>{
-    const cl = (cde.lignes||[]).find(x=>x.id===l.cdeLigneId);
-    if (cl) cl.recue = (cl.recue||0) + l.quantite;
-    // Alimente le stock (statut en_attente -> en_stock), réparti par emplacement
-    if (l.gererStock && l.stockMpId) {
-      const entree = state.stock_mp.find(s=>s.id===l.stockMpId);
-      if (entree) {
-        if (l.repartition.length<=1) {
-          entree.quantite = (entree.quantite||0) + l.quantite;
-          entree.emplacementId = l.repartition[0]?.emplacementId || entree.emplacementId || '';
-          entree.statut = 'en_stock';
-          entree.entree = entree.entree || blDate;
+
+function getCalendrier() {
+  const data = {fermetures:[], joursOff:{}};
+
+  const shF = SS.getSheetByName('Fermetures');
+  if (shF) {
+    const rows = shF.getDataRange().getValues();
+    for (let i=1; i<rows.length; i++) {
+      if (rows[i][0]) {
+        // Formater la date en YYYY-MM-DD quelle que soit la valeur stockée
+        let dateStr = '';
+        const val = rows[i][0];
+        if (val instanceof Date) {
+          // Objet Date Google Sheets → formater en YYYY-MM-DD
+          dateStr = Utilities.formatDate(val, 'Europe/Paris', 'yyyy-MM-dd');
         } else {
-          // répartition sur plusieurs emplacements : la ligne d'origine prend la 1re part, les suivantes deviennent de nouvelles lignes de stock
-          entree.quantite = (entree.quantite||0) + l.repartition[0].quantite;
-          entree.emplacementId = l.repartition[0].emplacementId;
-          entree.statut = 'en_stock'; entree.entree = entree.entree || blDate;
-          l.repartition.slice(1).forEach(r=>{
-            state.stock_mp.push({
-              id: uid(), designation: entree.designation, quantite: r.quantite, unite: entree.unite,
-              emplacementId: r.emplacementId, fourn_id: entree.fourn_id, fourn_nom: entree.fourn_nom,
-              cde_num: entree.cde_num, chantier_id: entree.chantier_id, chantier_nom: entree.chantier_nom,
-              statut:'en_stock', entree: blDate, created_at: new Date().toISOString(),
-            });
+          // Chaîne texte → nettoyer
+          dateStr = String(val).trim().slice(0, 10);
+        }
+        if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+          data.fermetures.push({
+            date: dateStr,
+            atelier: String(rows[i][1]||'all')
           });
         }
       }
     }
-  });
-  const totalQte = (cde.lignes||[]).reduce((s,l)=>s+(l.qte||0),0);
-  const recueQte = (cde.lignes||[]).reduce((s,l)=>s+(l.recue||0),0);
-  cde.statut = recueQte>=totalQte ? 'Reçue' : 'Réception partielle';
-  closeModal('modal-reception');
-  saveData();
-  renderCdes(); renderReceptions(); renderRecapCommandes(); renderPrevisionnel(); renderStock(); renderArticles(); renderMetrics();
-  toast('✅ Réception enregistrée');
-  openPrintBL(reception.id);
-}
-function renderMetricsReceptions() {
-  const nb = state.receptions.length;
-  const enAttente = commandesReceptionnables().length;
-  document.getElementById('recep-metrics').innerHTML = `
-    <div class="metric"><div class="metric-k">Réceptions</div><div class="metric-v">${nb}</div></div>
-    <div class="metric"><div class="metric-k">Commandes en attente</div><div class="metric-v${enAttente>0?' warn':' ok'}">${enAttente}</div></div>`;
-}
-function renderReceptions() {
-  renderMetricsReceptions();
-  const q = (document.getElementById('recep-search')?.value||'').toLowerCase();
-  let recs = state.receptions.filter(r=>!q || r.blNumero?.toLowerCase().includes(q) || r.cdeNum?.toLowerCase().includes(q) || r.fournNom?.toLowerCase().includes(q));
-  if (!recs.length) {
-    document.getElementById('recep-list').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune réception enregistrée.</div>';
-    return;
   }
-  document.getElementById('recep-list').innerHTML = recs.map(r=>{
-    const montant = r.lignes.reduce((s,l)=>s+l.quantite*l.prixUnitaire,0);
-    return `<div class="bl-card">
-      <div class="bl-header" onclick="toggleReception('${r.id}')">
-        <span class="chevron${r.open?' open':''}">▶</span>
-        <span class="num-cde">${esc(r.blNumero)}</span>
-        <span class="dp dp-blue">${fmtDate(r.blDate)}</span>
-        <span style="font-weight:600;font-size:13px;flex:1">${esc(r.fournNom||'—')}</span>
-        <span style="font-size:11px;color:var(--text3)">cmd ${esc(r.cdeNum||'—')}</span>
-        <span style="font-size:13px;font-family:'DM Mono',monospace;font-weight:600;color:var(--blue)">${fmtEuro(montant)}</span>
-        <div class="no-print" style="display:flex;gap:5px;margin-left:8px" onclick="event.stopPropagation()">
-          <button class="btn btn-sm" onclick="openPrintBL('${r.id}')">🖨 Bon de réception</button>
-        </div>
-      </div>
-      ${r.open?`<div class="bl-body">
-        <table class="lignes-table">
-          <thead><tr><th>Désignation</th><th style="text-align:right">Qté reçue</th><th>Emplacement(s)</th><th style="text-align:right">PU</th><th style="text-align:right">Montant</th></tr></thead>
-          <tbody>${r.lignes.map(l=>`<tr>
-            <td style="font-weight:500">${esc(l.desc)}</td>
-            <td class="r">${fmtQte(l.quantite)} ${esc(l.unite||'')}</td>
-            <td>${(l.repartition||[]).map(rp=>`<span class="emp">${esc(libelleEmplacement(rp.emplacementId))} (${fmtQte(rp.quantite)})</span>`).join(' ')}</td>
-            <td class="r">${fmtEuro(l.prixUnitaire)}</td>
-            <td class="r" style="font-weight:600">${fmtEuro(l.quantite*l.prixUnitaire)}</td>
-          </tr>`).join('')}</tbody>
-        </table>
-      </div>`:''}
-    </div>`;
-  }).join('');
-}
-function toggleReception(id){ const r=state.receptions.find(x=>x.id===id); if(r){r.open=!r.open;renderReceptions();} }
-function onPrevPeriodeChange() {
-  const perso = document.getElementById('prev-periode').value==='personnalise';
-  document.getElementById('prev-debut').style.display = perso?'inline-block':'none';
-  document.getElementById('prev-fin').style.display = perso?'inline-block':'none';
-  renderPrevisionnel();
-}
-function calculerPeriode_(preset) {
-  const auj = new Date();
-  const iso = d => d.toISOString().slice(0,10);
-  const jour = auj.getDay(); // 0 = dimanche
-  const diffLundi = (jour===0 ? -6 : 1-jour);
-  const lundiCetteSemaine = new Date(auj); lundiCetteSemaine.setDate(auj.getDate()+diffLundi);
-  if (preset==='semaine') {
-    const fin = new Date(lundiCetteSemaine); fin.setDate(fin.getDate()+6);
-    return [iso(lundiCetteSemaine), iso(fin)];
-  }
-  if (preset==='semaine_prochaine') {
-    const debut = new Date(lundiCetteSemaine); debut.setDate(debut.getDate()+7);
-    const fin = new Date(debut); fin.setDate(fin.getDate()+6);
-    return [iso(debut), iso(fin)];
-  }
-  if (preset==='mois') {
-    const debut = new Date(auj.getFullYear(), auj.getMonth(), 1);
-    const fin = new Date(auj.getFullYear(), auj.getMonth()+1, 0);
-    return [iso(debut), iso(fin)];
-  }
-  if (preset==='retard') {
-    const hier = new Date(auj); hier.setDate(hier.getDate()-1);
-    return ['', iso(hier)];
-  }
-  return ['','']; // personnalisé, lu ailleurs
-}
-function renderPrevisionnel() {
-  const elPeriode = document.getElementById('prev-periode');
-  if (!elPeriode) return;
-  const preset = elPeriode.value||'semaine';
-  const [debut, fin] = preset==='personnalise'
-    ? [document.getElementById('prev-debut')?.value||'', document.getElementById('prev-fin')?.value||'']
-    : calculerPeriode_(preset);
-  const aujourdHuiISO = new Date().toISOString().slice(0,10);
-  const cdes = state.commandes.filter(c=>{
-    if (!['Validée','Envoyée','Réception partielle'].includes(c.statut)) return false;
-    if (!c.dliv) return false; // pas de date de livraison prévue : impossible à situer dans le temps
-    if (debut && c.dliv < debut) return false;
-    if (fin && c.dliv > fin) return false;
-    return true;
-  });
 
-  // Charge de réception au niveau article : chaque ligne encore à recevoir,
-  // avec sa commande et son fournisseur — plus parlant qu'un total par commande.
-  const lignesPrev = [];
-  cdes.forEach(cde=>{
-    (cde.lignes||[]).forEach(l=>{
-      const reliquat = (l.qte||0) - (l.recue||0);
-      if (reliquat > 0.0001) lignesPrev.push({ cde, l, reliquat });
-    });
-  });
-  lignesPrev.sort((a,b)=>(a.cde.dliv||'').localeCompare(b.cde.dliv||'') || a.l.desc.localeCompare(b.l.desc));
-
-  const nbCommandes = new Set(lignesPrev.map(x=>x.cde.id)).size;
-  const montantTotal = lignesPrev.reduce((s,x)=>s+x.reliquat*(x.l.pu||0),0);
-  document.getElementById('prev-metrics').innerHTML = `
-    <div class="metric"><div class="metric-k">Commandes attendues</div><div class="metric-v">${nbCommandes}</div></div>
-    <div class="metric"><div class="metric-k">Articles à recevoir</div><div class="metric-v">${lignesPrev.length}</div></div>
-    <div class="metric"><div class="metric-k">Montant restant estimé</div><div class="metric-v">${fmtEuro(montantTotal)}</div></div>`;
-
-  const tbody = document.getElementById('prev-tbody');
-  if (!lignesPrev.length) {
-    tbody.innerHTML = `<tr><td colspan="7" style="padding:2rem;text-align:center;color:var(--text3)">Aucun article attendu sur cette période.</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = lignesPrev.map(({cde,l,reliquat})=>{
-    const enRetard = cde.dliv && cde.dliv < aujourdHuiISO;
-    return `<tr>
-      <td style="font-weight:500">${esc(l.desc)}</td>
-      <td class="r">${fmtQte(reliquat)}</td>
-      <td>${esc(l.unite||'')}</td>
-      <td style="font-weight:600">${esc(cde.num)}</td>
-      <td>${esc(cde.fourn_nom||'—')}</td>
-      <td>${esc(cde.chantier_nom||'—')}</td>
-      <td style="${enRetard?'color:var(--red);font-weight:600':''}">${fmtDate(cde.dliv)}</td>
-    </tr>`;
-  }).join('');
-}
-function renderRecapCommandes() {
-  const filStatut = document.getElementById('recap-fil-statut')?.value||'';
-  const filChantier = document.getElementById('recap-fil-chantier')?.value||'';
-  const tri = document.getElementById('recap-tri')?.value||'date_desc';
-  let lignes = state.commandes.filter(c=>{
-    if (c.statut==='Brouillon') return false; // pas encore envoyée au fournisseur, hors suivi de réception
-    if (filStatut==='attente' && c.statut==='Reçue') return false;
-    if (filStatut==='recu' && c.statut!=='Reçue') return false;
-    if (filChantier && c.chantier_id!==filChantier) return false;
-    return true;
-  }).map(cde=>{
-    const derniereDate = receptionsCommande(cde.id).reduce((max,r)=> (r.blDate && r.blDate>max) ? r.blDate : max, '');
-    const totalQte = (cde.lignes||[]).reduce((s,l)=>s+(l.qte||0),0);
-    const recueQte = (cde.lignes||[]).reduce((s,l)=>s+(l.recue||0),0);
-    const pct = totalQte>0 ? Math.min(100,Math.round(recueQte/totalQte*100)) : 0;
-    return {cde, derniereDate, pct};
-  });
-  if (tri==='date_desc') lignes.sort((a,b)=>(b.derniereDate||'').localeCompare(a.derniereDate||''));
-  else if (tri==='date_asc') lignes.sort((a,b)=>(a.derniereDate||'').localeCompare(b.derniereDate||''));
-  else if (tri==='chantier') lignes.sort((a,b)=>(a.cde.chantier_nom||'').localeCompare(b.cde.chantier_nom||''));
-  const tbody = document.getElementById('recap-cdes-tbody');
-  if (!tbody) return;
-  if (!lignes.length) {
-    tbody.innerHTML = `<tr><td colspan="7" style="padding:2rem;text-align:center;color:var(--text3)">Aucune commande.</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = lignes.map(({cde,derniereDate,pct})=>{
-    const badgeCls = STATUS_COLORS[cde.statut]||'badge-gray';
-    return `<tr>
-      <td style="font-weight:600">${esc(cde.num)}</td>
-      <td>${esc(cde.fourn_nom||'—')}</td>
-      <td>${esc(cde.chantier_nom||'—')}</td>
-      <td><span class="badge ${badgeCls}">${cde.statut}</span></td>
-      <td><div class="prog"><div class="prog-bar"><div class="prog-fill ${pct>=100?'prog-green':'prog-blue'}" style="width:${pct}%"></div></div><span class="prog-label">${pct}%</span></div></td>
-      <td>${derniereDate?fmtDate(derniereDate):'—'}</td>
-      <td><button class="btn btn-sm" onclick="openEditCde('${cde.id}')">✎</button></td>
-    </tr>`;
-  }).join('');
-}
-function openPrintBL(id) {
-  const r = state.receptions.find(x=>x.id===id);
-  if (!r) return;
-  const fourn = state.fournisseurs.find(f=>f.id===r.fournId);
-  document.getElementById('mpb-title').textContent = 'Bon de réception — '+r.blNumero;
-  document.getElementById('mpb-body').innerHTML = buildPrintBL(r, fourn);
-  document.getElementById('modal-print-bl').classList.add('show');
-}
-function buildPrintBL(r, fourn) {
-  const montant = r.lignes.reduce((s,l)=>s+l.quantite*l.prixUnitaire,0);
-  return `<div class="bl-print-wrap">
-    <div class="bl-print-title">BON DE RÉCEPTION</div>
-    <div class="bl-print-grid">
-      <div class="bl-print-box"><strong>Réceptionné par</strong>ROUSSEAU CONSTRUCTION BOIS SAS<br>9 Chemin du Tour du Bois, 49770 Longuenée-en-Anjou</div>
-      <div class="bl-print-box"><strong>Fournisseur</strong>${esc(fourn?.nom||r.fournNom||'—')}${fourn?.adresse?`<br>${esc(fourn.adresse).replace(/\n/g,'<br>')}`:''}</div>
-    </div>
-    <div class="bl-print-grid">
-      <div class="bl-print-box"><strong>Bon de livraison</strong>${esc(r.blNumero)} — ${fmtDate(r.blDate)}</div>
-      <div class="bl-print-box"><strong>Commande liée</strong>${esc(r.cdeNum||'—')}</div>
-    </div>
-    <table class="bl-lignes" style="margin-top:10px">
-      <thead><tr><th>Désignation</th><th>Qté reçue</th><th>Emplacement(s)</th><th class="r">PU HT</th><th class="r">Montant HT</th></tr></thead>
-      <tbody>${r.lignes.map(l=>`<tr>
-        <td>${esc(l.desc)}</td>
-        <td>${fmtQte(l.quantite)} ${esc(l.unite||'')}</td>
-        <td>${(l.repartition||[]).map(rp=>esc(libelleEmplacement(rp.emplacementId))+' ('+fmtQte(rp.quantite)+')').join(', ')||'—'}</td>
-        <td class="r">${fmtEuro(l.prixUnitaire)}</td>
-        <td class="r">${fmtEuro(l.quantite*l.prixUnitaire)}</td>
-      </tr>`).join('')}</tbody>
-      <tfoot><tr><td colspan="4" style="text-align:right;font-weight:700;padding:5px 7px">TOTAL HT</td><td class="r" style="font-weight:700">${fmtEuro(montant)}</td></tr></tfoot>
-    </table>
-    <div class="bl-sigs">
-      <div class="bl-sig-box">Contrôlé par</div>
-      <div class="bl-sig-box">Mis en stock par</div>
-    </div>
-    <div style="font-size:9px;color:#888;margin-top:8px">Bon de réception généré le ${fmtDate(new Date().toISOString().slice(0,10))}. Marchandise contrôlée et mise en stock aux emplacements indiqués.</div>
-  </div>`;
-}
-// ═══ STOCK ════════════════════════════════════════════════════════════════
-function openNewStock() {
-  _ctx={type:'new-stock'};
-  ['ms-designation','ms-qte','ms-unite'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';} );
-  const cdeOpts=['<option value="">—</option>',...state.commandes.filter(c=>c.statut!=='Brouillon').map(c=>`<option value="${c.num}">${esc(c.num)} — ${esc(c.fourn_nom)}</option>`)].join('');
-  document.getElementById('ms-cde').innerHTML=cdeOpts;
-  populateFournSelects();populateChantierSelects();
-  populateEmplacementSelects(['ms-emplacement']);
-  document.getElementById('ms-emplacement').value = '';
-  document.getElementById('modal-stock').classList.add('show');
-}
-function saveStock() {
-  const designation=document.getElementById('ms-designation').value.trim();
-  if(!designation){document.getElementById('ms-designation').style.borderColor='var(--red)';return;}
-  const fournId=document.getElementById('ms-fourn').value;
-  const fourn=state.fournisseurs.find(f=>f.id===fournId);
-  const chantierEl=document.getElementById('ms-chantier');
-  const chantier=state.chantiers.find(c=>c.id===chantierEl.value);
-  state.stock_mp.push({
-    id:uid(),designation,
-    quantite: parseFloat(document.getElementById('ms-qte').value)||0,
-    unite:document.getElementById('ms-unite').value.trim(),
-    emplacementId: document.getElementById('ms-emplacement').value||'',
-    fourn_id:fournId,fourn_nom:fourn?.nom||'',
-    cde_num:document.getElementById('ms-cde').value,
-    chantier_id:chantierEl.value,chantier_nom:chantier?.nom||'',
-    statut:'en_stock',
-    entree:new Date().toISOString().slice(0,10),
-    created_at:new Date().toISOString()
-  });
-  closeModal('modal-stock');saveData();renderStock();renderArticles();toast('Entrée stock enregistrée');
-}
-function deleteStock(id){
-  if(!confirm('Supprimer cette entrée ?'))return;
-  state.stock_mp=state.stock_mp.filter(s=>s.id!==id);
-  saveData();renderStock();renderArticles();
-}
-function renderStock(){
-  const q=(document.getElementById('stock-search')?.value||'').toLowerCase();
-  const rows=state.stock_mp.filter(s=>!q||s.designation.toLowerCase().includes(q));
-  if(!rows.length){
-    document.getElementById('stock-tbody').innerHTML='<tr><td colspan="10" style="padding:2rem;text-align:center;color:var(--text3)">Aucune entrée en stock.</td></tr>';return;
-  }
-  document.getElementById('stock-tbody').innerHTML=rows.map(s=>`<tr class="${s.statut!=='en_stock'?'sorti':''}">
-    <td style="font-weight:500">${esc(s.designation)}</td>
-    <td>${s.emplacementId?`<span class="emp">${esc(libelleEmplacement(s.emplacementId))}</span>`:'<span style="color:var(--text3);font-size:11px">Non localisé</span>'}</td>
-    <td style="font-size:12px;color:var(--text2)">${esc(s.fourn_nom||'—')}</td>
-    <td style="font-size:12px;color:var(--text2)">${esc(s.chantier_nom||'—')}</td>
-    <td style="font-family:'DM Mono',monospace;font-size:12px">${s.statut==='en_attente'?'—':fmtQte(s.quantite)}</td>
-    <td style="font-size:12px;color:var(--text3)">${esc(s.unite||'')}</td>
-    <td class="dp ${s.entree?'dp-green':'dp-orange'}" style="display:inline-block;margin-top:6px">${s.entree?fmtDate(s.entree):'en attente'}</td>
-    <td style="font-size:11px">${s.cde_num?`<span class="badge badge-blue">${esc(s.cde_num)}</span>`:'—'}</td>
-    <td><span class="badge ${s.statut==='en_stock'?'badge-green':s.statut==='en_attente'?'badge-orange':s.statut==='rebut'?'badge-red':'badge-gray'}">${s.statut==='en_stock'?'En stock':s.statut==='en_attente'?'Attendu':s.statut==='rebut'?'♻️ Rebut':'Sorti'}</span></td>
-    <td><button class="btn btn-sm btn-red" onclick="deleteStock('${s.id}')">✕</button></td>
-  </tr>`).join('');
-}
-// ═══ TRANSFERTS INTERNES ════════════════════════════════════════════════
-function stockDisponibleParEmplacement(designation) {
-  const map = {};
-  state.stock_mp.filter(s=>s.designation===designation && s.statut==='en_stock').forEach(s=>{
-    const id = s.emplacementId||'';
-    map[id] = (map[id]||0) + (Number(s.quantite)||0);
-  });
-  return map;
-}
-function openNewTransfert() {
-  _ctx = {type:'new-transfert'};
-  const desigs = [...new Set(state.stock_mp.filter(s=>s.statut==='en_stock').map(s=>s.designation))];
-  document.getElementById('mt-article').innerHTML = ['<option value="">— Sélectionner —</option>',
-    ...desigs.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`)
-  ].join('');
-  document.getElementById('mt-source').innerHTML = '<option value="">—</option>';
-  populateEmplacementSelects(['mt-dest']);
-  document.getElementById('mt-quantite').value = '';
-  document.getElementById('mt-note').value = '';
-  document.getElementById('mt-dispo').textContent = '';
-  document.getElementById('modal-transfert').classList.add('show');
-}
-function onTransfertArticleChange() {
-  const desig = document.getElementById('mt-article').value;
-  const dispo = stockDisponibleParEmplacement(desig);
-  const opts = Object.entries(dispo).filter(([,q])=>q>0.001)
-    .map(([id,q])=>`<option value="${id}">${esc(libelleEmplacement(id))} (${fmtQte(q)})</option>`).join('');
-  document.getElementById('mt-source').innerHTML = '<option value="">—</option>'+opts;
-  document.getElementById('mt-dispo').textContent = '';
-}
-document.addEventListener('change', e=>{
-  if (e.target.id==='mt-source') {
-    const desig = document.getElementById('mt-article').value;
-    const dispo = stockDisponibleParEmplacement(desig)[e.target.value]||0;
-    document.getElementById('mt-dispo').textContent = e.target.value ? `Disponible à cet emplacement : ${fmtQte(dispo)}` : '';
-  }
-});
-function saveTransfert() {
-  const designation = document.getElementById('mt-article').value;
-  const source = document.getElementById('mt-source').value;
-  const dest = document.getElementById('mt-dest').value;
-  const quantite = parseFloat(document.getElementById('mt-quantite').value)||0;
-  if (!designation || !source || !dest) { alert('Article, emplacement source et destination sont requis.'); return; }
-  if (source===dest) { alert('La source et la destination doivent être différentes.'); return; }
-  if (quantite<=0) { alert('Quantité invalide.'); return; }
-  const dispo = stockDisponibleParEmplacement(designation)[source]||0;
-  if (quantite>dispo+0.001 && !confirm(`Seulement ${fmtQte(dispo)} disponible à cet emplacement. Transférer quand même ${fmtQte(quantite)} ?`)) return;
-  // Décrémente la/les lignes de stock à la source (FIFO simple sur les lignes existantes)
-  let reste = quantite;
-  const lignesSource = state.stock_mp.filter(s=>s.designation===designation && s.emplacementId===source && s.statut==='en_stock');
-  for (const l of lignesSource) {
-    if (reste<=0.001) break;
-    const pris = Math.min(reste, l.quantite);
-    l.quantite -= pris; reste -= pris;
-  }
-  state.stock_mp = state.stock_mp.filter(s=>!(s.designation===designation && s.emplacementId===source && s.statut==='en_stock' && s.quantite<=0.001));
-  // Ajoute à la destination : réutilise une ligne existante si possible, sinon en crée une
-  const ligneDest = state.stock_mp.find(s=>s.designation===designation && s.emplacementId===dest && s.statut==='en_stock');
-  if (ligneDest) ligneDest.quantite = (ligneDest.quantite||0) + quantite;
-  else state.stock_mp.push({
-    id: uid(), designation, quantite, unite: lignesSource[0]?.unite||'', emplacementId: dest,
-    fourn_id:'', fourn_nom:'', cde_num:'', chantier_id:'', chantier_nom:'',
-    statut:'en_stock', entree:new Date().toISOString().slice(0,10), created_at:new Date().toISOString(),
-  });
-  state.transferts.unshift({
-    id: uid(), date: new Date().toISOString().slice(0,10), designation, quantite,
-    emplacementSourceId: source, emplacementDestId: dest, note: document.getElementById('mt-note').value.trim(),
-    created_at: new Date().toISOString(),
-  });
-  closeModal('modal-transfert');
-  saveData(); renderStock(); renderArticles();
-  toast('🔄 Transfert enregistré');
-}
-// ═══ FICHES ARTICLES ═════════════════════════════════════════════════════
-// Une fiche article n'a de sens que pour un article suivi en stock : elle
-// centralise le seuil de réappro, le fournisseur habituel et l'historique.
-// Le rattachement au stock/commandes/réceptions se fait par désignation
-// normalisée (accents/casse ignorés côté espaces, comme pour les
-// emplacements par défaut) — pas de clé étrangère stricte.
-function lotsEnStockArticle(designation) {
-  const n = normaliserDesignation(designation);
-  return state.stock_mp.filter(s=>normaliserDesignation(s.designation)===n && s.statut==='en_stock');
-}
-function stockActuelArticle(designation) {
-  const lots = lotsEnStockArticle(designation);
-  const parEmplacement = {};
-  lots.forEach(l=>{ const id=l.emplacementId||''; parEmplacement[id]=(parEmplacement[id]||0)+(Number(l.quantite)||0); });
-  const total = lots.reduce((s,l)=>s+(Number(l.quantite)||0),0);
-  return { total, parEmplacement, unite: lots[0]?.unite||'' };
-}
-function pmpArticle(designation) {
-  // Prix Moyen Pondéré : moyenne des PU de réception, pondérée par les
-  // quantités reçues — c'est l'historique des réceptions qui fait foi
-  // (pas les commandes, dont le prix peut encore changer avant livraison).
-  const n = normaliserDesignation(designation);
-  let sommeQte=0, sommeMontant=0;
-  state.receptions.forEach(r=>{
-    (r.lignes||[]).forEach(l=>{
-      if (normaliserDesignation(l.desc)===n && l.quantite>0) {
-        sommeQte += l.quantite;
-        sommeMontant += l.quantite * (l.prixUnitaire||0);
+  const shJ = SS.getSheetByName('JoursOff');
+  if (shJ) {
+    const rows = shJ.getDataRange().getValues();
+    for (let i=1; i<rows.length; i++) {
+      if (rows[i][0]) {
+        try { data.joursOff[String(rows[i][0])] = JSON.parse(rows[i][1]); }
+        catch(e) { data.joursOff[String(rows[i][0])] = [5,6]; }
       }
-    });
-  });
-  return sommeQte>0.001 ? sommeMontant/sommeQte : null;
+    }
+  }
+
+  return {ok:true, data};
 }
-function historiqueCommandesArticle(designation) {
-  const n = normaliserDesignation(designation);
-  const out = [];
-  state.commandes.forEach(c=>{
-    (c.lignes||[]).forEach(l=>{
-      if (normaliserDesignation(l.desc)===n) out.push({ cdeNum:c.num, date:c.date, fournNom:c.fourn_nom, statut:c.statut, qte:l.qte, recue:l.recue||0 });
-    });
-  });
-  return out.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-}
-function historiqueReceptionsArticle(designation) {
-  const n = normaliserDesignation(designation);
-  const out = [];
-  state.receptions.forEach(r=>{
-    (r.lignes||[]).forEach(l=>{
-      if (normaliserDesignation(l.desc)===n) out.push({ date:r.blDate, blNumero:r.blNumero, fournNom:r.fournNom, qte:l.quantite, pu:l.prixUnitaire||0 });
-    });
-  });
-  return out.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-}
-function openNewArticle() {
-  _ctx = {type:'new-article'};
-  document.getElementById('ma-title').textContent = 'Nouvel article';
-  ['ma-designation','ma-unite','ma-seuil','ma-delai','ma-qte-reappro'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
-  document.getElementById('ma-fourn').value = '';
-  populateEmplacementSelects(['ma-emplacement']);
-  document.getElementById('ma-emplacement').value = '';
-  document.getElementById('modal-article').classList.add('show');
-}
-function openEditArticle(id) {
-  const a = state.articles.find(x=>x.id===id);
-  if (!a) return;
-  _ctx = {type:'edit-article', id};
-  document.getElementById('ma-title').textContent = 'Modifier — '+a.designation;
-  document.getElementById('ma-designation').value = a.designation||'';
-  document.getElementById('ma-unite').value = a.unite||'';
-  document.getElementById('ma-fourn').value = a.fournisseur_id||'';
-  document.getElementById('ma-seuil').value = a.seuil_mini||'';
-  document.getElementById('ma-delai').value = a.delai_appro_jours||'';
-  document.getElementById('ma-qte-reappro').value = a.qte_reappro||'';
-  populateEmplacementSelects(['ma-emplacement']);
-  document.getElementById('ma-emplacement').value = getEmplacementDefaut(a.designation)||'';
-  document.getElementById('modal-article').classList.add('show');
-}
-function saveArticle() {
-  const designation = document.getElementById('ma-designation').value.trim();
-  if (!designation) { document.getElementById('ma-designation').style.borderColor='var(--red)'; return; }
-  document.getElementById('ma-designation').style.borderColor='';
-  const fournId = document.getElementById('ma-fourn').value;
-  const fourn = state.fournisseurs.find(f=>f.id===fournId);
-  const ancien = _ctx.type==='edit-article' ? state.articles.find(x=>x.id===_ctx.id) : null;
-  const article = {
-    id: _ctx.type==='edit-article' ? _ctx.id : uid(),
-    designation, unite: document.getElementById('ma-unite').value.trim(),
-    fournisseur_id: fournId, fournisseur_nom: fourn?.nom||'',
-    seuil_mini: parseFloat(document.getElementById('ma-seuil').value)||0,
-    delai_appro_jours: parseInt(document.getElementById('ma-delai').value)||0,
-    qte_reappro: parseFloat(document.getElementById('ma-qte-reappro').value)||0,
-    open: ancien?.open||false,
-    created_at: ancien?.created_at || new Date().toISOString(),
+
+// ─── LECTURE onglet DATES ────────────────────────────────────────────────
+function getDATES() {
+  const sh = SS.getSheetByName('DATES') || SS.getSheetByName('Dates');
+  if(!sh) return {ok:false, error:'Onglet DATES introuvable'};
+
+  const rows = sh.getDataRange().getValues();
+  if(rows.length < 2) return {ok:true, data:[]};
+
+  const COL_TRANCHE = 4; // colonne E
+  const COL_DATE    = 6; // colonne G
+
+  // Normalisation robuste des noms
+  const normNom = function(s) {
+    return String(s||'')
+      .trim()
+      .replace(/[\u00A0\u00AD\u200B\uFEFF\u200C\u200D]/g, ' ')
+      .replace(/\s*-\s*/g, ' - ')
+      .replace(/\s+/g, ' ')
+      .trim();
   };
-  if (_ctx.type==='edit-article') {
-    const idx = state.articles.findIndex(x=>x.id===_ctx.id);
-    if (idx>=0) state.articles[idx]=article;
+
+  const tranches = [];
+  const nomsVus = new Set();
+
+  for(var i=1;i<rows.length;i++){
+    var nom = normNom(rows[i][COL_TRANCHE]);
+    if(!nom || nomsVus.has(nom.toLowerCase())) continue;
+    nomsVus.add(nom.toLowerCase());
+    var dateRaw = rows[i][COL_DATE];
+    var date = '';
+    if(dateRaw instanceof Date)
+      date = Utilities.formatDate(dateRaw, 'Europe/Paris', 'yyyy-MM-dd');
+    else if(dateRaw)
+      date = String(dateRaw).trim();
+    tranches.push({nom: nom, date_ctvx: date});
+  }
+  return {ok:true, data:tranches, total:tranches.length};
+}
+
+// ─── LECTURE Production_B2 ──────────────────────────────────────────────
+function getProdB2() {
+  // Chercher la feuille par son gid ou son nom
+  const sh = SS.getSheetByName('Production_B2') 
+           || SS.getSheets().find(s=>s.getSheetId()===1854865688);
+  if(!sh) return {ok:false, error:'Feuille Production_B2 introuvable'};
+
+  const rows = sh.getDataRange().getValues();
+  if(rows.length<2) return {ok:true, data:[]};
+
+  const headers = rows[0].map(h=>String(h).toLowerCase().trim());
+  const iSem  = headers.findIndex(h=>h.includes('semaine')||h.includes('week'));
+  const iM2B  = headers.findIndex(h=>h.includes('bard'));
+  const iM2S  = headers.findIndex(h=>h.includes('std')||h.includes('stan'));
+
+  if(iSem<0) return {ok:false, error:'Colonne Semaine introuvable dans Production_B2'};
+
+  const result = [];
+  for(let i=1;i<rows.length;i++){
+    const sem = parseInt(rows[i][iSem]);
+    if(!sem||isNaN(sem)) continue;
+    const m2b = iM2B>=0 ? (parseFloat(String(rows[i][iM2B]).replace(',','.'))||0) : 0;
+    const m2s = iM2S>=0 ? (parseFloat(String(rows[i][iM2S]).replace(',','.'))||0) : 0;
+    const existing = result.find(r=>r.semaine===sem);
+    if(existing){
+      existing.m2_barde += m2b;
+      existing.m2_std   += m2s;
+      existing.m2_total += m2b+m2s;
+    } else {
+      result.push({semaine:sem, m2_barde:m2b, m2_std:m2s, m2_total:m2b+m2s});
+    }
+  }
+  return {ok:true, data:result.sort((a,b)=>a.semaine-b.semaine)};
+}
+
+// ─── SYNC OF → ERP (rattachement direct à la Tranche) ───────────────────
+function syncOFToERP(ofData) {
+  if(!ofData || !ofData.tranche) return {ok:false, error:'Données OF manquantes'};
+
+  const trancheNom = ofData.tranche.trim().toLowerCase();
+  const commentaire = (ofData.commentaire||'').trim();
+  const today = Utilities.formatDate(new Date(), 'Europe/Paris', 'yyyy-MM-dd');
+
+  // 1. Trouver la tranche par nom dans ERP_Tranches
+  const shTranches = SS.getSheetByName('ERP_Tranches');
+  if(!shTranches) return {ok:false, error:'ERP_Tranches introuvable'};
+  const tRows = shTranches.getDataRange().getValues();
+  const tH = tRows[0].map(h=>String(h).toLowerCase());
+  const iTNom = tH.indexOf('nom');
+  const iTId  = tH.indexOf('id');
+  if(iTNom<0||iTId<0) return {ok:false, error:'Colonnes ERP_Tranches manquantes'};
+
+  let trancheId = null;
+  for(let i=1;i<tRows.length;i++){
+    if(String(tRows[i][iTNom]).trim().toLowerCase()===trancheNom){
+      trancheId = String(tRows[i][iTId]);
+      break;
+    }
+  }
+  if(!trancheId) return {ok:true, message:'Tranche ERP non trouvée: '+of.tranche};
+
+  // 2. Gérer les phases (plusieurs possibles, ou phase "À définir" si aucune)
+  const shPhases = SS.getSheetByName('ERP_Phases');
+  if(!shPhases) return {ok:false, error:'ERP_Phases introuvable'};
+  const phRows = shPhases.getDataRange().getValues();
+  const phH = phRows[0].map(h=>String(h).toLowerCase());
+  const iPhId  = phH.indexOf('id');
+  const iPhTid = phH.indexOf('tranche_id');
+  const iPhNom = phH.indexOf('nom');
+  if(iPhId<0||iPhTid<0) return {ok:false, error:'Colonnes ERP_Phases manquantes'};
+
+  // Phases à utiliser : celles de l'OF, ou "À définir" si aucune
+  const phasesNoms = (ofData.phases && ofData.phases.length) ? ofData.phases : ['À définir'];
+
+  // Trouver ou créer chaque phase pour cette tranche
+  const phaseIds = phasesNoms.map(nomPhase=>{
+    // Chercher phase existante avec ce nom pour cette tranche
+    for(let i=1;i<phRows.length;i++){
+      if(String(phRows[i][iPhTid])===trancheId &&
+         String(phRows[i][iPhNom]||'').toLowerCase()===nomPhase.toLowerCase()){
+        return String(phRows[i][iPhId]);
+      }
+    }
+    // Créer la phase
+    const newPhId = 'ph_'+Utilities.getUuid().replace(/-/g,'').slice(0,8);
+    const newPhRow = phH.map(h=>{
+      if(h==='id') return newPhId;
+      if(h==='tranche_id') return trancheId;
+      if(h==='num') return nomPhase;
+      if(h==='nom') return nomPhase;
+      if(h==='open') return 'FALSE';
+      return '';
+    });
+    shPhases.appendRow(newPhRow);
+    // Recharger les lignes pour les prochaines itérations
+    phRows.push(newPhRow.map ? [...newPhRow] : newPhRow);
+    return newPhId;
+  });
+
+  // 3. Trouver ou créer l'article dans ERP_Articles (une fois par phase)
+  const shArticles = SS.getSheetByName('ERP_Articles');
+  if(!shArticles) return {ok:false, error:'ERP_Articles introuvable'};
+  const aRows = shArticles.getDataRange().getValues();
+  const aH = aRows[0].map(h=>String(h).toLowerCase());
+  const iAId     = aH.indexOf('id');
+  const iAPid    = aH.indexOf('phase_id');
+  const iALib    = aH.indexOf('libelle');
+  const iAStatut = aH.indexOf('statut');
+  const iAAv     = aH.indexOf('avancement');
+  const iASprod  = aH.indexOf('date_sortie_prod');
+  const iASource = aH.indexOf('type_source');
+
+  if(iAId<0||iAPid<0) return {ok:false, error:'Colonnes ERP_Articles manquantes'};
+
+  // Créer/mettre à jour un article par phase
+  phaseIds.forEach(phaseId=>{
+    let artRowIdx = -1;
+    for(let i=1;i<aRows.length;i++){
+      if(String(aRows[i][iAPid])===phaseId &&
+         String(aRows[i][iALib]||'').trim().toLowerCase()===commentaire.toLowerCase() &&
+         String(aRows[i][iASource]||'')==='OF'){
+        artRowIdx = i+1;
+        break;
+      }
+    }
+    if(ofData.termine){
+      if(artRowIdx>0){
+        if(iAStatut>=0) shArticles.getRange(artRowIdx,iAStatut+1).setValue('termine');
+        if(iAAv>=0)     shArticles.getRange(artRowIdx,iAAv+1).setValue(100);
+        if(iASprod>=0)  shArticles.getRange(artRowIdx,iASprod+1).setValue(ofData.termineLe||today);
+      } else if(commentaire){
+        const newRow = aH.map(h=>{
+          if(h==='id') return 'of_'+Utilities.getUuid().replace(/-/g,'').slice(0,8);
+          if(h==='phase_id') return phaseId;
+          if(h==='libelle') return commentaire;
+          if(h==='operation') return of.atelier||'';
+          if(h==='statut') return 'termine';
+          if(h==='avancement') return 100;
+          if(h==='date_sortie_prod') return ofData.termineLe||today;
+          if(h==='type_source') return 'OF';
+          return '';
+        });
+        shArticles.appendRow(newRow);
+      }
+    } else {
+      if(artRowIdx>0){
+        if(iAStatut>=0) shArticles.getRange(artRowIdx,iAStatut+1).setValue('en_cours');
+        if(iAAv>=0)     shArticles.getRange(artRowIdx,iAAv+1).setValue(50);
+        if(iASprod>=0)  shArticles.getRange(artRowIdx,iASprod+1).setValue('');
+      }
+    }
+  });
+
+  // 4. Vérifier si tous les articles OF de cette tranche sont terminés
+  const aRowsFresh = shArticles.getDataRange().getValues();
+  const allOFs = aRowsFresh.slice(1).filter(r=>
+    phaseIds.includes(String(r[iAPid])) && String(r[iASource]||'')==='OF'
+  );
+  const tousTermines = allOFs.length>0 && allOFs.every(r=>String(r[iAStatut]||'')==='termine');
+  if(tousTermines){
+    // Marquer la tranche comme disponible dans ERP_Tranches
+    for(let i=1;i<tRows.length;i++){
+      if(String(tRows[i][iTId])===trancheId){
+        const iDisp = tH.indexOf('disponible');
+        if(iDisp>=0) shTranches.getRange(i+1,iDisp+1).setValue('TRUE');
+        break;
+      }
+    }
+  }
+
+  return {ok:true, message:'OF synchronisé: '+of.tranche+(tousTermines?' — TRANCHE DISPONIBLE':'')};
+}
+
+// ─── GET OF TERMINÉS depuis Planning Production// ─── GET OF TERMINÉS depuis Planning Production// ─── GET OF TERMINÉS depuis Planning Production ──────────────────────────
+function getOFTermines() {
+  const sh = SS.getSheetByName('Planning Production');
+  if(!sh) return {ok:false, error:'Feuille Planning Production introuvable'};
+
+  const rows = sh.getDataRange().getValues();
+  if(rows.length < 2) return {ok:true, data:[]};
+
+  // Colonnes attendues (à adapter selon votre structure) :
+  // A=atelier, B=tranche, C=commentaire, D=debut, E=fin, F=duree, G=besoin, H=statut, I=termine
+  const headers = rows[0].map(h=>String(h).toLowerCase().trim());
+
+  // Colonnes réelles de Planning Production (générées par saveTranches)
+  const iAtelier   = headers.indexOf('atelier_id');
+  const iTranche   = headers.indexOf('nom');       // nom = nom de la tranche (OF)
+  const iComment   = headers.indexOf('commentaire');
+  const iTermine   = headers.indexOf('termine');
+  const iTermineLe = headers.indexOf('_terminele');
+  const iFin       = headers.indexOf('date_debut'); // date_debut comme fallback
+  const iPhases    = headers.indexOf('phases');     // phases rattachées à l'OF
+
+  if(iTranche < 0) return {ok:false, error:'Colonne "nom" introuvable dans Planning Production. Headers: '+headers.join(',')};
+
+  const ofs = [];
+  for(let i=1; i<rows.length; i++){
+    const row = rows[i];
+    // Un OF est terminé si la colonne termine = TRUE ou "TRUE" ou "true" ou 1
+    const termine = row[iTermine];
+    const estTermine = termine===true || termine===1 || String(termine).toLowerCase()==='true';
+    if(!estTermine) continue;
+
+    const tranche = String(row[iTranche]||'').trim();
+    if(!tranche) continue;
+
+    // Parser les phases (stockées en JSON ou CSV)
+    let phases = [];
+    if(iPhases>=0 && row[iPhases]){
+      try{ phases = JSON.parse(row[iPhases]); }
+      catch(e){ phases = String(row[iPhases]).split(',').map(p=>p.trim()).filter(Boolean); }
+    }
+
+    ofs.push({
+      tranche,
+      commentaire: iComment>=0 ? String(row[iComment]||'').trim() : '',
+      atelier: iAtelier>=0 ? String(row[iAtelier]||'').trim() : '',
+      phases: phases,
+      termineLe: iTermineLe>=0 && row[iTermineLe] ?
+        Utilities.formatDate(new Date(row[iTermineLe]), 'Europe/Paris', 'yyyy-MM-dd') :
+        (iFin>=0 && row[iFin] instanceof Date ?
+          Utilities.formatDate(row[iFin], 'Europe/Paris', 'yyyy-MM-dd') : '')
+    });
+  }
+
+  return {ok:true, data:ofs};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ERP — SAUVEGARDE AVEC LOCK
+// ═══════════════════════════════════════════════════════════════════════════
+
+function saveERPSafe(data) {
+  // LockService : empêche deux sauvegardes simultanées
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000); // attendre max 15s
+  } catch(e) {
+    return {ok:false, error:'Serveur occupé — réessayez dans quelques secondes'};
+  }
+
+  try {
+    return saveERP(data);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function saveERP(data) {
+  if (!data) return {ok:false, error:'Pas de données'};
+
+  saveERPSheet('ERP_Chantiers',
+    ['id','nom','conduc','open'],
+    (data.chantiers||[]).map(c => [c.id,c.nom,c.conduc||'',c.open?'TRUE':'FALSE'])
+  );
+
+  saveERPSheet('ERP_Tranches',
+    ['id','chantier_id','nom','conduc','open','ctvx'],
+    (data.tranches||[]).map(t => [
+      t.id, t.cid||t.chantier_id||'', t.nom,
+      t.conduc||'', t.open?'TRUE':'FALSE', t.ctvx||''
+    ])
+  );
+
+  saveERPSheet('ERP_Phases',
+    ['id','tranche_id','num','nom','open'],
+    (data.phases||[]).map(p => [
+      p.id, p.tid||p.tranche_id||'', p.num||'', p.nom, p.open?'TRUE':'FALSE'
+    ])
+  );
+
+  saveERPSheet('ERP_Articles',
+    ['id','phase_id','libelle','operation','qte_m2','qte_m3',
+     'date_ctvx','date_sortie_be','date_sortie_prod','budget_heures','avancement','statut'],
+    (data.articles||[]).map(a => [
+      a.id, a.pid||a.phase_id||'',
+      a.libelle||'', a.operation||'',
+      a.qte_m2||'', a.qte_m3||'',
+      a.date_ctvx||'', a.date_sortie_be||'', a.date_sortie_prod||'',
+      a.budget_heures||'', a.avancement||0, a.statut||'planifie'
+    ])
+  );
+
+  saveERPSheet('ERP_Commandes',
+    ['id','fourn','chantier','statut','date','dliv','demandeur','comment','montant'],
+    (data.cdes||[]).map(c => [
+      c.id, c.fourn||'', c.chantier||'', c.statut||'Brouillon',
+      c.date||'', c.dliv||'', c.demandeur||'', c.comment||'', c.montant||0
+    ])
+  );
+
+  saveERPSheet('ERP_Stock',
+    ['id','emp','designation','chantier','type','qte','statut','entree','sortie','bl_num'],
+    (data.stock||[]).map(s => [
+      s.id, s.emp||'', s.designation||'', s.chantier||'', s.type||'PF',
+      s.qte||'', s.statut||'en_stock', s.entree||'', s.sortie||'', s.bl_num||''
+    ])
+  );
+
+  saveERPSheet('ERP_BL',
+    ['id','num','chantier','destinataire','chauffeur','camion','ref','date','statut'],
+    (data.bls||[]).map(b => [
+      b.id, b.num||'', b.chantier||'', b.destinataire||'',
+      b.chauffeur||'', b.camion||'', b.ref||'', b.date||'', b.statut||'brouillon'
+    ])
+  );
+
+  saveERPSheet('ERP_Interim',
+    ['key','mois','annee','heures','comment'],
+    (data.interim||[]).map(i => [i.key,i.mois,i.annee,i.heures,i.comment||''])
+  );
+
+  saveERPSheet('ERP_Retours',
+    ['id','type','priorite','module','description','commentaire','auteur','date','statut'],
+    (data.retours||[]).map(r => [
+      r.id, r.type||'', r.priorite||'normal', r.module||'',
+      r.description||'', r.commentaire||'', r.auteur||'',
+      r.date||'', r.statut||'nouveau'
+    ])
+  );
+
+  saveERPSheet('ERP_Employes',
+    ['id','nom','prenom','matricule','statut','atelier','agence','debut_mission','fin_mission','inactif','cariste','cariste_atelier','nb_contrats'],
+    (data.employes||[]).map(e => [
+      e.id, e.nom||'', e.prenom||'', e.matricule||'',
+      e.statut||'CDI', e.atelier||'B2', e.agence||'',
+      e.debut_mission||'', e.fin_mission||'',
+      e.inactif?'TRUE':'FALSE',
+      e.cariste?'TRUE':'FALSE',
+      e.cariste_atelier||'',
+      (e.contrats||[]).length
+    ])
+  );
+
+  // Construire un index des employés pour enrichir les heures
+  const empIndex = {};
+  (data.employes||[]).forEach(e => {
+    empIndex[e.id] = e;
+  });
+
+  saveERPSheet('ERP_Heures',
+    ['id','emp_id','matricule','nom','prenom','semaine','jour','atelier','horaire','absent','h_mat','h_am','total_hebdo','chantier1','chantier2','statut','type_saisie','comment'],
+    (data.heures||[]).map(h => {
+      const emp = empIndex[h.emp_id] || {};
+      return [
+        h.id,
+        h.emp_id||'',
+        emp.matricule||'',
+        emp.nom||'',
+        emp.prenom||'',
+        h.semaine||'', h.jour||'',
+        h.atelier||'', h.horaire||'', h.absent||'',
+        h.h_mat||0, h.h_am||0, h.total_hebdo||0,
+        h.chantier1||'', h.chantier2||'',
+        h.statut||'CDI', h.type_saisie||'', h.comment||''
+      ];
+    })
+  );
+
+  // Mettre à jour le hash après sauvegarde
+  updateERPHash();
+
+  return {ok:true, saved:{
+    chantiers: (data.chantiers||[]).length,
+    tranches:  (data.tranches||[]).length,
+    phases:    (data.phases||[]).length,
+    articles:  (data.articles||[]).length,
+  }};
+}
+
+function saveERPSheet(name, headers, rows) {
+  let sh = SS.getSheetByName(name);
+  if (!sh) sh = SS.insertSheet(name);
+  sh.clearContents();
+  sh.getRange(1,1,1,headers.length).setValues([headers]);
+  if (rows && rows.length) {
+    sh.getRange(2,1,rows.length,headers.length).setValues(rows);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  HASH — pour détecter les modifications sans recharger tout
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateERPHash() {
+  const now = new Date().getTime().toString();
+  PropertiesService.getScriptProperties().setProperty('erp_last_modified', now);
+}
+
+function getERPHash() {
+  const hash = PropertiesService.getScriptProperties().getProperty('erp_last_modified') || '0';
+  return {ok:true, hash};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ERP — LECTURE
+// ═══════════════════════════════════════════════════════════════════════════
+
+function getERP() {
+  const result = {
+    chantiers:[], tranches:[], phases:[], articles:[],
+    cdes:[], stock:[], bls:[], retours:[], interim:[],
+    employes:[], heures:[]
+  };
+
+  result.chantiers = readERPSheet('ERP_Chantiers', row => ({
+    id:row.id, nom:row.nom, conduc:row.conduc||'',
+    open:row.open==='TRUE'
+  }));
+
+  if (!result.chantiers.length) return {ok:false, reason:'no_data'};
+
+  result.tranches = readERPSheet('ERP_Tranches', row => ({
+    id:row.id, cid:row.chantier_id, nom:row.nom,
+    conduc:row.conduc||'', open:row.open==='TRUE', ctvx:row.ctvx||''
+  }));
+
+  result.phases = readERPSheet('ERP_Phases', row => ({
+    id:row.id, tid:row.tranche_id, num:row.num||'',
+    nom:row.nom, open:row.open==='TRUE'
+  }));
+
+  result.articles = readERPSheet('ERP_Articles', row => ({
+    id:row.id, pid:row.phase_id,
+    libelle:row.libelle||'', operation:row.operation||'',
+    qte_m2:row.qte_m2||'', qte_m3:row.qte_m3||'',
+    date_ctvx:row.date_ctvx||'', date_sortie_be:row.date_sortie_be||'',
+    date_sortie_prod:row.date_sortie_prod||'',
+    budget_heures:row.budget_heures||'',
+    avancement:row.avancement||0, statut:row.statut||'planifie'
+  }));
+
+  result.cdes = readERPSheet('ERP_Commandes', row => ({
+    id:row.id, fourn:row.fourn||'', chantier:row.chantier||'',
+    statut:row.statut||'Brouillon', date:row.date||'', dliv:row.dliv||'',
+    demandeur:row.demandeur||'', comment:row.comment||'',
+    montant:parseFloat(row.montant)||0, open:false, lignes:[]
+  }));
+
+  result.stock = readERPSheet('ERP_Stock', row => ({
+    id:row.id, emp:row.emp||'', designation:row.designation||'',
+    chantier:row.chantier||'', type:row.type||'PF', qte:row.qte||'',
+    statut:row.statut||'en_stock', entree:row.entree||'',
+    sortie:row.sortie||'', bl_num:row.bl_num||''
+  }));
+
+  result.bls = readERPSheet('ERP_BL', row => ({
+    id:row.id, num:row.num||'', chantier:row.chantier||'',
+    destinataire:row.destinataire||'', chauffeur:row.chauffeur||'',
+    camion:row.camion||'', ref:row.ref||'', date:row.date||'',
+    statut:row.statut||'brouillon', open:false, lignes:[]
+  }));
+
+  result.interim = readERPSheet('ERP_Interim', row => ({
+    key:row.key, mois:row.mois, annee:row.annee,
+    heures:parseFloat(row.heures)||0, comment:row.comment||''
+  }));
+
+  result.retours = readERPSheet('ERP_Retours', row => ({
+    id:row.id, type:row.type||'amelioration',
+    priorite:row.priorite||'normal', module:row.module||'',
+    description:row.description||'', commentaire:row.commentaire||'',
+    auteur:row.auteur||'', date:row.date||'',
+    statut:row.statut||'nouveau'
+  }));
+
+  result.employes = readERPSheet('ERP_Employes', row => ({
+    id:row.id, nom:row.nom||'', prenom:row.prenom||'',
+    matricule:row.matricule||'', statut:row.statut||'CDI',
+    atelier:row.atelier||'B2', agence:row.agence||'',
+    fin_mission:row.fin_mission||null,
+    inactif:row.inactif==='TRUE'
+  }));
+
+  result.heures = readERPSheet('ERP_Heures', row => ({
+    id:row.id, emp_id:row.emp_id||'',
+    semaine:row.semaine||'', jour:row.jour||'',
+    atelier:row.atelier||'', horaire:row.horaire||'',
+    absent:row.absent||'',
+    h_mat:parseFloat(row.h_mat)||0,
+    h_am:parseFloat(row.h_am)||0,
+    total_hebdo:parseFloat(row.total_hebdo)||0,
+    chantier1:row.chantier1||'', chantier2:row.chantier2||'',
+    statut:row.statut||'CDI',
+    type_saisie:row.type_saisie||'',
+    comment:row.comment||''
+  }));
+
+  return {ok:true, data:result};
+}
+
+function readERPSheet(name, mapper) {
+  const sh = SS.getSheetByName(name);
+  if (!sh) return [];
+  const data = sh.getDataRange().getValues();
+  if (data.length < 2) return [];
+  const headers = data[0].map(h => String(h).toLowerCase().trim()
+    .replace(/ /g,'_'));
+  return data.slice(1)
+    .filter(row => row[0])
+    .map(row => {
+      const obj = {};
+      headers.forEach((h,i) => obj[h] = String(row[i]===null||row[i]===undefined?'':row[i]).trim());
+      return mapper(obj);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ONGLET DATES — Généré automatiquement depuis ERP_Tranches
+// ═══════════════════════════════════════════════════════════════════════════
+
+function genererDates() {
+  // Lire les chantiers ERP → map id → nom
+  const shCh = SS.getSheetByName('ERP_Chantiers');
+  const shTr = SS.getSheetByName('ERP_Tranches');
+  const shPlan = SS.getSheetByName('Planning Production');
+
+  if (!shCh || !shTr) {
+    return {ok: false, error: 'Feuilles ERP_Chantiers ou ERP_Tranches introuvables'};
+  }
+
+  // Map chantiers id → nom
+  const chData = shCh.getDataRange().getValues();
+  const chHeaders = chData[0].map(h => String(h).toLowerCase().trim());
+  const chantiers = {};
+  for (let i = 1; i < chData.length; i++) {
+    const row = chData[i];
+    if (!row[0]) continue;
+    const id  = String(row[chHeaders.indexOf('id')]  ||'').trim();
+    const nom = String(row[chHeaders.indexOf('nom')] ||'').trim();
+    if (id) chantiers[id] = nom;
+  }
+
+  // Lire les tranches du Planning Production → map nom_tranche → date_fin_max
+  // La feuille Planning Production contient : id, atelier_id, nom, ..., date_debut, duree_jours, date_besoin
+  // On cherche la date de fin = date_debut + durée (calculée côté Apps Script)
+  const finParTranche = {}; // nom_tranche → date_fin la plus tardive tous ateliers
+  
+  if (shPlan) {
+    const planData = shPlan.getDataRange().getValues();
+    const planHeaders = planData[0].map(h => String(h).toLowerCase().trim());
+    const pNom    = planHeaders.indexOf('nom');
+    const pDebut  = planHeaders.indexOf('date_debut');
+    const pDuree  = planHeaders.indexOf('duree_jours');
+    const pFin    = planHeaders.indexOf('date_fin'); // si la colonne existe
+
+    for (let i = 1; i < planData.length; i++) {
+      const row = planData[i];
+      if (!row[pNom]) continue;
+      const nom   = String(row[pNom]||'').trim();
+      
+      // Essayer d'abord la colonne date_fin si elle existe
+      let finDate = '';
+      if (pFin >= 0 && row[pFin]) {
+        finDate = formatDate_(row[pFin]);
+      } else if (pDebut >= 0 && row[pDebut] && pDuree >= 0) {
+        // Calculer date_fin = date_debut + duree_jours (jours calendaires approx)
+        const debut = new Date(row[pDebut]);
+        if (!isNaN(debut.getTime())) {
+          const duree = parseInt(row[pDuree])||1;
+          // Ajouter les jours ouvrés (approx: +40% pour week-ends)
+          debut.setDate(debut.getDate() + Math.ceil(duree * 7/5));
+          finDate = Utilities.formatDate(debut, 'Europe/Paris', 'yyyy-MM-dd');
+        }
+      } else if (pDebut >= 0 && row[pDebut]) {
+        finDate = formatDate_(row[pDebut]);
+      }
+
+      if (!finDate || !nom) continue;
+
+      // Garder la date la plus tardive pour ce nom de tranche
+      if (!finParTranche[nom] || finDate > finParTranche[nom]) {
+        finParTranche[nom] = finDate;
+      }
+    }
+  }
+
+  // Lire les tranches ERP
+  const trData = shTr.getDataRange().getValues();
+  const trHeaders = trData[0].map(h => String(h).toLowerCase().trim());
+  const iId   = trHeaders.indexOf('id');
+  const iCid  = trHeaders.indexOf('chantier_id');
+  const iNom  = trHeaders.indexOf('nom');
+  const iCtvx = trHeaders.indexOf('ctvx');
+
+  // Créer ou vider l'onglet DATES
+  let shDates = SS.getSheetByName('DATES sortie production');
+  if (!shDates) {
+    shDates = SS.insertSheet('DATES sortie production');
   } else {
-    state.articles.push(article);
+    shDates.clearContents();
   }
-  const emplId = document.getElementById('ma-emplacement').value;
-  if (emplId) setEmplacementDefaut(designation, emplId);
-  closeModal('modal-article');
-  saveData(); renderArticles(); toast('Fiche article enregistrée');
-}
-function deleteArticle(id) {
-  if (!confirm('Supprimer cette fiche article ? Le stock et l\'historique existants ne sont pas supprimés, seule la fiche de référence disparaît.')) return;
-  state.articles = state.articles.filter(a=>a.id!==id);
-  saveData(); renderArticles(); toast('Fiche article supprimée');
-}
-function toggleArticle(id) { const a=state.articles.find(x=>x.id===id); if(a){ a.open=!a.open; renderArticles(); } }
-function renderArticleMetrics() {
-  const sousSeuil = state.articles.filter(a=>a.seuil_mini>0 && stockActuelArticle(a.designation).total < a.seuil_mini).length;
-  document.getElementById('article-metrics').innerHTML = `
-    <div class="metric"><div class="metric-k">Fiches articles</div><div class="metric-v">${state.articles.length}</div></div>
-    <div class="metric"><div class="metric-k">Sous le seuil mini</div><div class="metric-v${sousSeuil>0?' warn':' ok'}">${sousSeuil}</div></div>`;
-}
-function renderArticles() {
-  renderArticleMetrics();
-  const q=(document.getElementById('article-search')?.value||'').toLowerCase();
-  const articles = state.articles.filter(a=>!q||a.designation.toLowerCase().includes(q));
-  if (!articles.length) {
-    document.getElementById('article-list').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune fiche article. Cliquez sur "+ Nouvel article".</div>';
-    return;
+
+  // En-têtes
+  // Col B = Chantier, Col E = Tranche, Col G = Date fin production (comme attendu par ERP Sync CTVX)
+  shDates.getRange(1, 1, 1, 7).setValues([
+    ['#', 'Chantier', 'ID_Tranche', 'ID_Chantier', 'Tranche', '', 'Date_Fin_Production']
+  ]);
+
+  // Formatage en-têtes
+  const headerRange = shDates.getRange(1, 1, 1, 7);
+  headerRange.setBackground('#1A4F8A');
+  headerRange.setFontColor('#FFFFFF');
+  headerRange.setFontWeight('bold');
+
+  // Remplir les données
+  const rows = [];
+  let idx = 1;
+  for (let i = 1; i < trData.length; i++) {
+    const row = trData[i];
+    if (!row[iId]) continue;
+    const trancheId   = String(row[iId]  ||'').trim();
+    const chantierID  = String(row[iCid] ||'').trim();
+    const trancheNom  = String(row[iNom] ||'').trim();
+    const chantierNom = chantiers[chantierID] || chantierID;
+    if (!trancheNom) continue;
+
+    // Chercher la date de fin de production dans le Planning Production
+    // Correspondance par nom de tranche
+    const finDate = finParTranche[trancheNom] || '';
+
+    rows.push([idx++, chantierNom, trancheId, chantierID, trancheNom, '', finDate]);
   }
-  document.getElementById('article-list').innerHTML = articles.map(a=>{
-    const stock = stockActuelArticle(a.designation);
-    const pmp = pmpArticle(a.designation);
-    const sousSeuil = a.seuil_mini>0 && stock.total < a.seuil_mini;
-    const defautId = getEmplacementDefaut(a.designation);
-    const cdes = historiqueCommandesArticle(a.designation);
-    const recs = historiqueReceptionsArticle(a.designation);
-    return `<div class="fourn-card">
-      <div class="fourn-header" onclick="toggleArticle('${a.id}')">
-        <span class="chevron${a.open?' open':''}">▶</span>
-        <span style="font-weight:700;font-size:14px;flex:1">${esc(a.designation)}</span>
-        ${a.unite?`<span class="badge badge-gray">${esc(a.unite)}</span>`:''}
-        <span class="badge ${sousSeuil?'badge-red':'badge-green'}">${fmtQte(stock.total)} en stock</span>
-        ${sousSeuil?`<span class="badge badge-red">⚠ sous le seuil (${fmtQte(a.seuil_mini)})</span>`:''}
-        ${pmp!=null?`<span class="badge badge-blue">PMP ${fmtEuro(pmp)}</span>`:''}
-        <div onclick="event.stopPropagation()" style="display:flex;gap:5px">
-          <button class="btn btn-sm" onclick="openEditArticle('${a.id}')">✎</button>
-          <button class="btn btn-sm btn-red" onclick="deleteArticle('${a.id}')">✕</button>
-        </div>
-      </div>
-      ${a.open?`<div class="fourn-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px;font-size:12px">
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Fournisseur habituel</div>${esc(a.fournisseur_nom||'—')}</div>
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Emplacement par défaut</div>${defautId?esc(libelleEmplacement(defautId)):'—'}</div>
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Délai d'appro</div>${a.delai_appro_jours?a.delai_appro_jours+' j':'—'}</div>
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Qté de réappro</div>${a.qte_reappro?fmtQte(a.qte_reappro)+' '+esc(a.unite||''):'—'}</div>
-        </div>
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Stock par emplacement</div>
-        ${Object.keys(stock.parEmplacement).length?`<div class="table-wrap" style="margin-bottom:12px">
-          <table class="stock-table"><thead><tr><th>Emplacement</th><th style="text-align:right">Quantité</th><th></th></tr></thead>
-          <tbody>${Object.entries(stock.parEmplacement).map(([empId,qte])=>`<tr>
-            <td>${empId?`<span class="emp">${esc(libelleEmplacement(empId))}</span>`:'<span style="color:var(--text3);font-size:11px">Non localisé</span>'}</td>
-            <td class="r">${fmtQte(qte)} ${esc(a.unite||'')}</td>
-            <td><button class="btn btn-sm" onclick="openRebut('${a.id}')">♻️ Rebut</button></td>
-          </tr>`).join('')}</tbody></table>
-        </div>`:`<div style="font-size:12px;color:var(--text3);margin-bottom:12px">Aucun stock actuellement.</div>`}
-        ${cdes.length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Historique commandes</div>
-        <div class="table-wrap" style="margin-bottom:12px">
-          <table class="stock-table"><thead><tr><th>Commande</th><th>Date</th><th>Fournisseur</th><th>Statut</th><th style="text-align:right">Qté cdée</th><th style="text-align:right">Qté reçue</th></tr></thead>
-          <tbody>${cdes.slice(0,10).map(c=>`<tr>
-            <td>${esc(c.cdeNum||'—')}</td><td>${fmtDate(c.date)}</td><td>${esc(c.fournNom||'—')}</td>
-            <td><span class="badge ${STATUS_COLORS[c.statut]||'badge-gray'}">${esc(c.statut||'—')}</span></td>
-            <td class="r">${fmtQte(c.qte)}</td><td class="r">${fmtQte(c.recue)}</td>
-          </tr>`).join('')}</tbody></table>
-        </div>`:''}
-        ${recs.length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Historique réceptions</div>
-        <div class="table-wrap">
-          <table class="stock-table"><thead><tr><th>BL</th><th>Date</th><th>Fournisseur</th><th style="text-align:right">Qté reçue</th><th style="text-align:right">PU</th></tr></thead>
-          <tbody>${recs.slice(0,10).map(r=>`<tr>
-            <td>${esc(r.blNumero||'—')}</td><td>${fmtDate(r.date)}</td><td>${esc(r.fournNom||'—')}</td>
-            <td class="r">${fmtQte(r.qte)}</td><td class="r">${fmtEuro(r.pu)}</td>
-          </tr>`).join('')}</tbody></table>
-        </div>`:''}
-      </div>`:''}</div>`;
-  }).join('');
-}
-// ═══ MISE AU REBUT ══════════════════════════════════════════════════════════
-// Sort de stock une quantité endommagée/HS, sans passer par un transfert
-// (pas de destination) : décrémente le lot, journalise dans state.rebuts,
-// et laisse une trace visible dans l'onglet Stock (statut "rebut").
-function openRebut(articleId) {
-  const a = state.articles.find(x=>x.id===articleId);
-  if (!a) return;
-  _ctx = {type:'rebut', designation:a.designation, unite:a.unite};
-  document.getElementById('mrb-designation').textContent = a.designation;
-  const stock = stockActuelArticle(a.designation);
-  const opts = Object.entries(stock.parEmplacement).filter(([,q])=>q>0.001)
-    .map(([id,q])=>`<option value="${id}">${id?esc(libelleEmplacement(id)):'Non localisé'} (${fmtQte(q)})</option>`).join('');
-  document.getElementById('mrb-emplacement').innerHTML = opts || '<option value="">— Aucun stock disponible —</option>';
-  document.getElementById('mrb-quantite').value = '';
-  document.getElementById('mrb-motif').value = '';
-  onRebutEmplacementChange();
-  document.getElementById('modal-rebut').classList.add('show');
-}
-function onRebutEmplacementChange() {
-  const empId = document.getElementById('mrb-emplacement').value;
-  const stock = stockActuelArticle(_ctx.designation||'');
-  const dispo = stock.parEmplacement[empId]||0;
-  document.getElementById('mrb-dispo').textContent = `Disponible à cet emplacement : ${fmtQte(dispo)} ${_ctx.unite||''}`;
-}
-function saveRebut() {
-  const empId = document.getElementById('mrb-emplacement').value;
-  const quantite = parseFloat(document.getElementById('mrb-quantite').value)||0;
-  const motif = document.getElementById('mrb-motif').value.trim();
-  const designation = _ctx.designation;
-  if (!designation) return;
-  if (quantite<=0) { alert('Quantité invalide.'); return; }
-  if (!motif) { alert('Le motif est obligatoire.'); return; }
-  const stock = stockActuelArticle(designation);
-  const dispo = stock.parEmplacement[empId]||0;
-  if (quantite>dispo+0.001 && !confirm(`Seulement ${fmtQte(dispo)} disponible à cet emplacement. Mettre au rebut ${fmtQte(quantite)} quand même ?`)) return;
-  // Décrémente le(s) lot(s) en stock à cet emplacement (FIFO simple sur les lignes existantes)
-  let reste = quantite;
-  const lots = lotsEnStockArticle(designation).filter(l=>(l.emplacementId||'')===empId);
-  const unite = lots[0]?.unite || _ctx.unite || '';
-  for (const l of lots) {
-    if (reste<=0.001) break;
-    const pris = Math.min(reste, l.quantite);
-    l.quantite -= pris; reste -= pris;
+
+  if (rows.length > 0) {
+    shDates.getRange(2, 1, rows.length, 7).setValues(rows);
   }
-  state.stock_mp = state.stock_mp.filter(s=>!(normaliserDesignation(s.designation)===normaliserDesignation(designation) && (s.emplacementId||'')===empId && s.statut==='en_stock' && s.quantite<=0.001));
-  // Laisse une trace visible dans l'onglet Stock
-  state.stock_mp.push({
-    id: uid(), designation, quantite, unite, emplacementId: empId,
-    fourn_id:'', fourn_nom:'', cde_num:'', chantier_id:'', chantier_nom:'',
-    statut:'rebut', entree:new Date().toISOString().slice(0,10), created_at:new Date().toISOString(),
-  });
-  state.rebuts.unshift({
-    id: uid(), date: new Date().toISOString().slice(0,10), designation, quantite,
-    emplacementId: empId, motif, created_at: new Date().toISOString(),
-  });
-  closeModal('modal-rebut');
-  saveData(); renderArticles(); renderStock();
-  toast('♻️ Mise au rebut enregistrée');
+
+  // Mise en forme colonnes
+  shDates.setColumnWidth(1, 40);
+  shDates.setColumnWidth(2, 200);
+  shDates.setColumnWidth(3, 0); // masquer
+  shDates.setColumnWidth(4, 0); // masquer
+  shDates.setColumnWidth(5, 300);
+  shDates.setColumnWidth(6, 40);
+  shDates.setColumnWidth(7, 130);
+  shDates.setFrozenRows(1);
+
+  const nbAvecDate = rows.filter(r => r[6]).length;
+
+  return {
+    ok: true, 
+    count: rows.length, 
+    nbAvecDate: nbAvecDate,
+    message: rows.length + ' tranches — ' + nbAvecDate + ' avec date de fin production'
+  };
 }
-// ═══ DÉMARRAGE ════════════════════════════════════════════════════════════
-init();
-</script>
-</body>
-</html>
+
+function formatDate_(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, 'Europe/Paris', 'yyyy-MM-dd');
+  }
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return Utilities.formatDate(d, 'Europe/Paris', 'yyyy-MM-dd');
+  return s;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  TESTS — exécutables depuis l'éditeur Apps Script
+// ═══════════════════════════════════════════════════════════════════════════
+function testGetERP() {
+  const result = getERP();
+  Logger.log('Chantiers: ' + (result.data?.chantiers?.length||0));
+  Logger.log('Tranches: ' + (result.data?.tranches?.length||0));
+  Logger.log('Phases: ' + (result.data?.phases?.length||0));
+  Logger.log('Articles: ' + (result.data?.articles?.length||0));
+}
+
+function testSaveERP() {
+  const data = {
+    chantiers:[{id:'c001',nom:'TEST',conduc:'CG',open:false}],
+    tranches:[{id:'t1000',cid:'c001',nom:'TEST TRANCHE',conduc:'',open:false,ctvx:''}],
+    phases:[], articles:[], cdes:[], stock:[], bls:[]
+  };
+  Logger.log(JSON.stringify(saveERP(data)));
+}
+
+function testHash() {
+  updateERPHash();
+  Logger.log(JSON.stringify(getERPHash()));
+}
+
+function testGenererDates() {
+  const result = genererDates();
+  Logger.log(JSON.stringify(result));
+}
