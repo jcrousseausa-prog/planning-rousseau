@@ -370,6 +370,9 @@ table.bl-lignes td.r{text-align:right}
       <span class="search-icon">🔍</span>
       <input type="text" id="stock-search" placeholder="Rechercher un article en stock…" oninput="renderStock()"/>
     </div>
+    <select class="btn" id="stock-fil-emplacement" onchange="renderStock()">
+      <option value="">Tous emplacements</option>
+    </select>
     <button class="btn" onclick="openEmplacements()">📍 Emplacements</button>
     <button class="btn" onclick="openNewTransfert()">🔄 Transfert interne</button>
     <button class="btn btn-primary" onclick="openNewStock()">+ Entrée stock</button>
@@ -1944,9 +1947,39 @@ function deleteStock(id){
   state.stock_mp=state.stock_mp.filter(s=>s.id!==id);
   saveData();renderStock();renderArticles();
 }
+// id de l'emplacement + tous ses descendants (ex. une Zone renvoie aussi
+// toutes ses Allées et tous leurs Niveaux) — sert à filtrer le stock par
+// emplacement même quand le stock est rangé au niveau le plus fin.
+function emplacementEtDescendants_(id) {
+  const set = new Set([id]);
+  let ajoute = true;
+  while (ajoute) {
+    ajoute = false;
+    state.emplacements.forEach(e => {
+      if (e.parentId && set.has(e.parentId) && !set.has(e.id)) { set.add(e.id); ajoute = true; }
+    });
+  }
+  return set;
+}
 function renderStock(){
   const q=(document.getElementById('stock-search')?.value||'').toLowerCase();
-  const rows=state.stock_mp.filter(s=>!q||s.designation.toLowerCase().includes(q));
+  const filEmpl = document.getElementById('stock-fil-emplacement');
+  // repeuple la liste des emplacements à chaque rendu (simple et toujours à
+  // jour), en gardant la sélection en cours si elle existe toujours.
+  if (filEmpl) {
+    const selection = filEmpl.value;
+    const tries = [...state.emplacements].sort((a,b)=>cheminEmplacement(a.id).localeCompare(cheminEmplacement(b.id)));
+    filEmpl.innerHTML = ['<option value="">Tous emplacements</option>',
+      ...tries.map(e=>`<option value="${e.id}">${esc(cheminEmplacement(e.id))}</option>`)
+    ].join('');
+    if (tries.some(e=>e.id===selection)) filEmpl.value = selection;
+  }
+  const empSel = filEmpl?.value || '';
+  const empAutorises = empSel ? emplacementEtDescendants_(empSel) : null;
+  const rows=state.stock_mp.filter(s=>
+    (!q||s.designation.toLowerCase().includes(q))
+    && (!empAutorises || empAutorises.has(s.emplacementId||''))
+  );
   if(!rows.length){
     document.getElementById('stock-tbody').innerHTML='<tr><td colspan="10" style="padding:2rem;text-align:center;color:var(--text3)">Aucune entrée en stock.</td></tr>';return;
   }
