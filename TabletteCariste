@@ -3,7 +3,7 @@
   TABLETTE CARISTE — Liste à servir / chargement machines
   ------------------------------------------------------------
   Page servie par Apps Script (HtmlService), communique avec le
-  serveur via google.script.run (pas de fetch, pas de CORS).
+  serveur via google.script.run (pas de fetch, pas de CORS). 
   Fichier à créer dans le même projet Apps Script que
   TabletteCariste_API.gs, sous le nom EXACT "TabletteCariste".
 
