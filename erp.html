@@ -3848,11 +3848,11 @@ function openAddEmploye(){
   _ctx._contratsEdit = [];
   renderContratsList();
   document.getElementById('me-cariste').checked = false;
-  document.getElementById('me-cariste-atelier-wrap').style.display = 'none';
-  document.getElementById('me-cariste-atelier').value = 'B1';
-  document.getElementById('me-interim-fields').style.display = 'none';
-  document.getElementById('me-statut').onchange = function(){
-    document.getElementById('me-interim-fields').style.display = this.value==='interim'?'':'none';
+document.getElementById('me-cariste-atelier-wrap').style.display = 'none';
+_ctx._caristePeriodesEdit = [];
+renderCaristePeriodesList();
+document.getElementById('me-interim-fields').style.display = 'none';
+  
     // Auto-remplir l'ID si intérimaire
     if(this.value==='interim' && !document.getElementById('me-matricule').value){
       const nextId = getNextInterimId();
