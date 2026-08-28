@@ -3868,21 +3868,6 @@ function openAddEmploye(){
   document.getElementById('modal-employe').classList.add('show');
   _ctx = {type:'add-employe'};
 }
-  
-    // Auto-remplir l'ID si intérimaire
-    if(this.value==='interim' && !document.getElementById('me-matricule').value){
-      const nextId = getNextInterimId();
-      document.getElementById('me-matricule').value = nextId;
-      document.getElementById('me-matricule').style.background = 'var(--orange-bg)';
-      document.getElementById('me-matricule').title = 'ID suggéré automatiquement — modifiable';
-    } else if(this.value!=='interim'){
-      document.getElementById('me-matricule').style.background = '';
-      document.getElementById('me-matricule').title = '';
-    }
-  };
-  document.getElementById('modal-employe').classList.add('show');
-  _ctx = {type:'add-employe'};
-}
 function renderCaristePeriodesList(){
   const el = document.getElementById('me-cariste-periodes-list');
   const periodes = _ctx._caristePeriodesEdit || [];
@@ -8769,6 +8754,17 @@ function lancerImpressionAteliers(){
     </div>
   </div>
   <div class="form-group" style="margin-bottom:10px">
+    <label class="form-label">Description</label>
+    <textarea id="al-desc" rows="2" placeholder="Ce qui s'est passé, impact constaté…" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;resize:vertical"></textarea>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" onclick="closeAleaModal()">Annuler</button>
+    <button class="btn btn-primary" onclick="saveAleaForm()">Enregistrer</button>
+  </div>
+</div>
+</div>
+
+<script>
 async function updPauseConfig(minutes, heure){
   try {
     await fetch(APPS_SCRIPT_URL, {
@@ -8779,3 +8775,7 @@ async function updPauseConfig(minutes, heure){
     renderValidationPointages();
   } catch(e){ toast('❌ Erreur : '+e.message); }
 }
+</script>
+
+</body>
+</html>
