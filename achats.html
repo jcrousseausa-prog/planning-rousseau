@@ -2234,10 +2234,16 @@ function renderArticles() {
     const emplacements = Object.entries(stock.parEmplacement)
       .filter(([id,qte])=>id && qte>0.001)
       .sort((x,y)=>y[1]-x[1]);
+    // Repli "emplacement par défaut" : indicatif de rangement prévu sur la
+    // fiche article, PAS un stock confirmé. On ne l'utilise que si aucun
+    // emplacement réel n'a de stock, et on le marque toujours "(par défaut)"
+    // pour éviter toute confusion avec une localisation réelle.
+    const defautId = !emplacements.length ? getEmplacementDefaut(a.designation) : '';
+    const emplacementParDefaut = defautId ? libelleEmplacement(defautId) : '';
     const emplacementLabel = emplacements.length
       ? libelleEmplacement(emplacements[0][0]) + (emplacements.length>1?` +${emplacements.length-1}`:'')
-      : 'Non localisé';
-    return { a, stock, pmp, sousSeuil, emplacementLabel };
+      : (emplacementParDefaut ? `${emplacementParDefaut} (par défaut)` : 'Non localisé');
+    return { a, stock, pmp, sousSeuil, emplacementLabel, parDefaut: !!emplacementParDefaut };
   });
 
   // Filtre "Stock à 0 / sous le seuil" : cases en rupture totale (0) ou en
@@ -2269,7 +2275,7 @@ function renderArticles() {
     <th></th>
   </tr>`;
 
-  const corpsHtml = lignes.map(({a, stock, pmp, sousSeuil, emplacementLabel}) => {
+  const corpsHtml = lignes.map(({a, stock, pmp, sousSeuil, emplacementLabel, parDefaut}) => {
     const defautId = getEmplacementDefaut(a.designation);
     const cdes = historiqueCommandesArticle(a.designation);
     const recs = historiqueReceptionsArticle(a.designation);
@@ -2277,7 +2283,7 @@ function renderArticles() {
       <td><span class="chevron${a.open?' open':''}">▶</span></td>
       <td style="font-weight:700">${esc(a.designation)}${a.unite?` <span class="badge badge-gray">${esc(a.unite)}</span>`:''}</td>
       <td><span class="badge ${sousSeuil?'badge-red':'badge-green'}">${fmtQte(stock.total)}</span>${sousSeuil?` <span class="badge badge-red">⚠ seuil ${fmtQte(a.seuil_mini)}</span>`:''}</td>
-      <td>${emplacementLabel==='Non localisé'?'<span style="color:var(--text3)">Non localisé</span>':esc(emplacementLabel)}</td>
+      <td>${emplacementLabel==='Non localisé'?'<span style="color:var(--text3)">Non localisé</span>':(parDefaut?`<span style="color:var(--orange);font-style:italic">${esc(emplacementLabel)}</span>`:esc(emplacementLabel))}</td>
       <td>${esc(a.fournisseur_nom||'—')}</td>
       <td>${pmp!=null?fmtEuro(pmp):'—'}</td>
       <td>${a.seuil_mini?fmtQte(a.seuil_mini):'—'}</td>
