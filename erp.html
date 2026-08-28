@@ -3508,6 +3508,9 @@ function toast(msg){
 
 const ATELIERS_H = ['B1','B2','B3','Men','Log','Us','Transport'];
 const JOURS_SEMAINE = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
+// Pause hors temps de travail (atelier) — déduite automatiquement du Total H
+// pour chaque jour travaillé (0.25h = 15 min/jour). Modifiable ici si besoin.
+const PAUSE_JOUR_H = 0.25;
 
 // ── SOUS-ONGLETS ──
 function showQTab(tab){
@@ -4679,6 +4682,7 @@ function renderPlanningRessources(){
       <div>
         <div style="font-size:16px;font-weight:700">Planning Ressources Hebdomadaire</div>
         <div style="font-size:12px;color:#555">Semaine ${wn} — du ${dateJours[0]} au ${dateJours[4]} ${yr}</div>
+        <div style="font-size:10px;color:#888">Pause hors temps de travail : ${PAUSE_JOUR_H*60} min/jour déduite du Total H</div>
       </div>
     </div>
   </div>`;
@@ -4690,7 +4694,7 @@ function renderPlanningRessources(){
           <th style="background:#1A4F8A;color:#fff;padding:8px 12px;text-align:left;border:1px solid rgba(255,255,255,.2);min-width:160px">Employé</th>
           <th style="background:#1A4F8A;color:#fff;padding:8px 8px;text-align:center;border:1px solid rgba(255,255,255,.2);width:60px">Statut</th>
           ${JOURS_SEMAINE.map((j,i)=>`<th style="background:#1A4F8A;color:#fff;padding:8px 10px;text-align:center;border:1px solid rgba(255,255,255,.2);min-width:120px">${j}<br><span style="font-size:10px;opacity:.8;font-weight:400">${dateJours[i]}</span></th>`).join('')}
-          <th style="background:#1A4F8A;color:#fff;padding:8px 8px;text-align:center;border:1px solid rgba(255,255,255,.2);width:70px">Total H</th>
+          <th style="background:#1A4F8A;color:#fff;padding:8px 8px;text-align:center;border:1px solid rgba(255,255,255,.2);width:70px">Total H<br><span style="font-size:9px;opacity:.8;font-weight:400">pause ${PAUSE_JOUR_H*60}min/j déduite</span></th>
           <th style="background:#1A4F8A;color:#fff;padding:8px 8px;text-align:center;border:1px solid rgba(255,255,255,.2);width:80px"></th>
         </tr>
       </thead>
@@ -4732,8 +4736,12 @@ function renderPlanningRessources(){
       const lignes = heuresSem.filter(h=>h.emp_id===emp.id);
       // Total = lignes présence uniquement (pas les heures chantier)
       const lignesP = lignes.filter(l=>l.type_saisie==='presence'||l.horaire);
-      const totalH = (lignesP.length ? lignesP : lignes.filter(l=>l.chantier1))
+      const totalHBrut = (lignesP.length ? lignesP : lignes.filter(l=>l.chantier1))
         .reduce((s,l)=>s+(+l.h_mat||0),0);
+      // Pause hors temps de travail : 0.25h déduits par jour réellement travaillé
+      const joursTravailles = lignesP.filter(l=>l.horaire).length;
+      const pauseDeduite = joursTravailles * PAUSE_JOUR_H;
+      const totalH = Math.max(0, Math.round((totalHBrut - pauseDeduite)*100)/100);
       const bg = idx%2?'background:#FAFAF8;':'';
       const badge = emp.statut==='CDI'?'emp-badge-cdi':emp.statut==='interim'?'emp-badge-interim':'emp-badge-cdd';
 
@@ -4762,7 +4770,7 @@ function renderPlanningRessources(){
             ${cellContent}
           </td>`;
         }).join('')}
-        <td style="padding:6px 8px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'};border:1px solid var(--border)">${totalH>0?fmtH(totalH):'—'}</td>
+        <td style="padding:6px 8px;text-align:center;font-weight:700;font-family:'DM Mono',monospace;font-size:13px;color:${totalH>0?'var(--blue)':'var(--text3)'};border:1px solid var(--border)" title="${pauseDeduite>0?`Brut ${fmtH(totalHBrut)} − pause ${fmtH(pauseDeduite)} (${joursTravailles} j × ${PAUSE_JOUR_H*60}min)`:''}">${totalH>0?fmtH(totalH):'—'}</td>
         ${emp.statut==='interim'?`<td style="padding:4px 6px;border:1px solid var(--border)">
           <button onclick="toggleActifEmploye('${emp.id}');renderPlanningRessources()" 
             class="btn btn-sm btn-orange" style="font-size:10px;white-space:nowrap">
