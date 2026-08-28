@@ -3932,20 +3932,28 @@ function openEditEmploye(id){
   document.getElementById('me-debut-mission').value = e.debut_mission||'';
   document.getElementById('me-fin-mission').value = e.fin_mission||'';
   // Charger l'historique des contrats
-  _ctx._contratsEdit = e.contrats ? JSON.parse(JSON.stringify(e.contrats)) : [];
+  _ctx._contratsEdit = [];
   renderContratsList();
-    document.getElementById('me-cariste').checked = e.cariste||false;
-  document.getElementById('me-cariste-atelier-wrap').style.display = e.cariste ? 'block' : 'none';
-  _ctx._caristePeriodesEdit = e.cariste_periodes
-    ? JSON.parse(JSON.stringify(e.cariste_periodes))
-    : (e.cariste_atelier ? [{atelier:e.cariste_atelier, debut:'', fin:''}] : []);
+  document.getElementById('me-cariste').checked = false;
+  document.getElementById('me-cariste-atelier-wrap').style.display = 'none';
+  _ctx._caristePeriodesEdit = [];
   renderCaristePeriodesList();
-  document.getElementById('me-interim-fields').style.display = e.statut==='interim'?'':'none';
+  document.getElementById('me-interim-fields').style.display = 'none';
   document.getElementById('me-statut').onchange = function(){
     document.getElementById('me-interim-fields').style.display = this.value==='interim'?'':'none';
+    // Auto-remplir l'ID si intérimaire
+    if(this.value==='interim' && !document.getElementById('me-matricule').value){
+      const nextId = getNextInterimId();
+      document.getElementById('me-matricule').value = nextId;
+      document.getElementById('me-matricule').style.background = 'var(--orange-bg)';
+      document.getElementById('me-matricule').title = 'ID suggéré automatiquement — modifiable';
+    } else if(this.value!=='interim'){
+      document.getElementById('me-matricule').style.background = '';
+      document.getElementById('me-matricule').title = '';
+    }
   };
   document.getElementById('modal-employe').classList.add('show');
-  _ctx = {type:'edit-employe', id};
+  _ctx = {type:'add-employe'};
 }
 
 function openRenouvellerDirect(empId){
