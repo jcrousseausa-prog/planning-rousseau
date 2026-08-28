@@ -723,10 +723,14 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </div>
 <script>
-// ⚠️ À REMPLACER par l'URL /exec obtenue après le déploiement du nouveau
-// backend Achats (Code.gs) — voir DEPLOIEMENT_ACHATS.md. L'URL ci-dessous
-// est un espace réservé, aucun backend ne répond encore à cette adresse.
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec';
+// URL /exec du déploiement Apps Script actif du backend Achats (Code.gs).
+// IMPORTANT : à chaque "Nouveau déploiement" (et non "Nouvelle version" sur
+// le même déploiement), cette URL change et DOIT être remise à jour ici,
+// sinon la page continue silencieusement d'appeler l'ancien code figé (déjà
+// arrivé plusieurs fois : articles/emplacements manquants, stock à 0...).
+// Vérifier dans l'éditeur Apps Script du classeur Achats : Déployer → Gérer
+// les déploiements → URL du déploiement actif.
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby1jaBhdZE6dICs_8oYS4nZXZe_2lJg57IkhhEIxZFeCuBOnKWKR3AIA4JNnaBeNZU/exec';
 // ═══ STATE ════════════════════════════════════════════════════════════════
 let state = {
   commandes: [],
