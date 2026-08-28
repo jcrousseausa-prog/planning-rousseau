@@ -97,13 +97,20 @@ main{padding:14px;padding-bottom:88px;max-width:900px;margin:0 auto}
   background:var(--surface);display:grid;place-items:center;font-size:18px;color:#fff;
 }
 .ligne.charge .case{background:var(--green);border-color:var(--green)}
+/* Petit carré d'urgence (rouge/orange) plutôt qu'un fond de ligne complet,
+   plus lisible que teinter toute la ligne. */
+.urgence-dot{flex:0 0 auto;width:14px;height:14px;border-radius:4px;margin-right:-4px}
+.urgence-dot.urgent{background:var(--red)}
+.urgence-dot.a-venir{background:var(--orange)}
 .ligne-corps{flex:1 1 auto;min-width:0}
 .ligne-titre{font-weight:700;font-size:15.5px;font-family:'DM Mono',monospace}
-.ligne-titre .special{color:var(--orange);font-weight:700;font-family:'DM Sans',sans-serif}
 .ligne-meta{color:var(--text3);font-size:12.5px;margin-top:2px;font-family:'DM Sans',sans-serif}
-.emplacement{flex:0 0 auto;text-align:right;font-size:12px;font-weight:700;color:var(--purple);max-width:110px;font-family:'DM Mono',monospace}
+.emplacement{flex:0 0 auto;text-align:right;font-size:12px;font-weight:700;color:var(--purple);max-width:130px;font-family:'DM Mono',monospace}
 .emplacement .lab{display:block;font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;font-family:'DM Sans',sans-serif}
 .emplacement.manquant{color:var(--text3)}
+.emplacement .qte{color:var(--text3);font-weight:600}
+.empl-defaut{color:var(--orange);font-style:italic;font-weight:600}
+.empl-defaut .qte{color:var(--orange);font-style:normal;opacity:.8}
 
 footer.barre{
   position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);
@@ -117,11 +124,17 @@ footer.barre{
 .modal{background:var(--surface);width:100%;max-width:640px;max-height:85vh;overflow-y:auto;border-radius:18px 18px 0 0;padding:16px}
 .modal h2{margin:4px 0 12px;font-size:18px;font-weight:600}
 .modal p.aide{color:var(--text3);font-size:13px;margin-top:-6px;margin-bottom:14px}
-.empl-row{display:flex;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--surface2)}
-.empl-row .section{flex:0 0 110px;font-weight:700;font-family:'DM Mono',monospace;font-size:13.5px}
-.empl-row input{flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:15px;font-family:inherit;color:var(--text);background:var(--surface)}
+.empl-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--surface2);position:relative}
+.empl-row .section{flex:0 0 92px;font-weight:700;font-family:'DM Mono',monospace;font-size:13.5px}
+.empl-row .section .longueur{display:block;font-weight:500;color:var(--text3);font-size:11px}
+.empl-row .swatch{flex:0 0 22px;width:22px;height:22px;border-radius:6px;border:1px solid var(--border2)}
+.empl-row input{padding:10px;border-radius:8px;border:1px solid var(--border);font-size:15px;font-family:inherit;color:var(--text);background:var(--surface)}
 .empl-row input:focus{outline:none;border-color:var(--blue)}
+.empl-row .in-couleur{flex:0 0 110px;font-family:'DM Mono',monospace}
+.empl-row .in-article{flex:1 1 160px}
 .empl-row .ok{flex:0 0 auto;width:40px;height:40px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);font-size:16px}
+.empl-row .note{flex:1 0 100%;color:var(--orange);font-size:12px;margin-top:2px}
+.btn-auto{display:block;width:100%;padding:11px;margin-bottom:12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
 .modal-close{display:block;margin:14px auto 4px;background:none;border:none;color:var(--text2);font-size:14px;cursor:pointer}
 
 #toast{
@@ -167,6 +180,9 @@ footer.barre{
   let DONNEES = { jobs: [], machinesConnues: [] };
   let ONGLET_ACTIF = "Toutes";
 
+  function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function fmtQte(n) { return Number(n || 0).toLocaleString('fr-FR', { maximumFractionDigits: 3 }); }
+
   function classeMachine(nom) {
     const n = (nom || "").toLowerCase();
     if (n.indexOf("robot") > -1) return "robot-drive";
@@ -184,13 +200,6 @@ footer.barre{
     "deligneuse-sc": "badge-orange",
     "autre": "badge-gray",
   };
-
-  function estUrgent(dateStr) {
-    if (!dateStr) return true; // "pas de date" = considéré urgent, comme la mise en forme rouge du fichier source
-    const d = new Date(dateStr);
-    const dans3j = new Date(); dans3j.setDate(dans3j.getDate() + 3);
-    return d <= dans3j;
-  }
 
   function toast(msg) {
     const t = document.getElementById('toast');
@@ -238,14 +247,13 @@ footer.barre{
       const div = document.createElement('div');
       div.className = 'job' + (complet ? ' complet' : '');
 
-      const urgent = estUrgent(job.dateBesoin);
-      const dateTxt = job.dateBesoin ? job.dateBesoin : "pas de date";
       const badgeMachine = BADGE_MACHINE[classeMachine(job.machine)] || 'badge-gray';
+      const badgeDate = job.dateBesoin ? `<span class="badge badge-gray">${job.dateBesoin}</span>` : '';
 
       div.innerHTML = `
         <div class="job-head">
           <span class="badge ${badgeMachine}">${job.machine}</span>
-          <span class="badge ${urgent ? 'badge-red' : 'badge-gray'}">${dateTxt}</span>
+          ${badgeDate}
           <span class="badge badge-progress ${complet ? '' : 'badge-gray'}">${job.totalCharges}/${job.totalBesoins} chargé${job.totalBesoins > 1 ? 's' : ''}</span>
           <div class="job-titre">${job.fichier}</div>
           <div class="job-sous">${[job.chantier, job.phase].filter(Boolean).join(' · ') || '—'}${job.zoneExpedition ? ' · ' + job.zoneExpedition : ''}${job.classeCoupe ? ' · classe ' + job.classeCoupe : ''}</div>
@@ -256,15 +264,32 @@ footer.barre{
       const lignesWrap = div.querySelector('.lignes');
       job.besoins.forEach((b, idx) => {
         const l = document.createElement('div');
+        // priorité d'affichage de la ligne : chargé (vert, fond complet — état
+        // "terminé") > urgent/à venir (petit carré rouge/orange, plus lisible
+        // qu'un fond de ligne complet) > neutre — reflète la couleur réelle
+        // de la cellule dans le fichier source, pas une déduction sur la date.
+        const etat = b.charge ? 'charge' : (b.urgence === 'urgent' ? 'urgent' : (b.urgence === 'a_venir' ? 'a-venir' : ''));
         l.className = 'ligne' + (b.charge ? ' charge' : '');
+        const dotHtml = (etat === 'urgent' || etat === 'a-venir') ? `<div class="urgence-dot ${etat}"></div>` : '';
+        const emplacements = b.emplacements && b.emplacements.length ? b.emplacements : null;
+        // Repli "emplacement par défaut" : c'est un indicatif de rangement
+        // prévu (fiche article Achats), PAS un stock confirmé — on l'affiche
+        // seulement quand aucun stock réel n'a été trouvé, et toujours
+        // marqué "(par défaut, stock 0)" pour ne jamais le confondre avec
+        // une localisation réelle.
+        const parDefaut = !emplacements && b.emplacementParDefaut;
+        const emplacementHtml = emplacements
+          ? emplacements.map(e => `<div>${esc(e.emplacement)} <span class="qte">${fmtQte(e.quantite)}${e.unite ? ' ' + esc(e.unite) : ''}</span></div>`).join('')
+          : (parDefaut ? `<div class="empl-defaut">${esc(b.emplacementParDefaut)} <span class="qte">(par défaut, stock 0)</span></div>` : (b.article ? 'Non localisé' : '—'));
         l.innerHTML = `
           <div class="case">${b.charge ? '✓' : ''}</div>
+          ${dotHtml}
           <div class="ligne-corps">
-            <div class="ligne-titre">${b.section} — ${b.quantite} × ${b.longueur} mm${b.longueurStandard ? '' : ' <span class="special">(spécial)</span>'}</div>
+            <div class="ligne-titre">${b.section} — ${b.quantite} × ${b.longueur} mm</div>
             <div class="ligne-meta">Ligne ${b.ligne}</div>
           </div>
-          <div class="emplacement ${b.emplacement ? '' : 'manquant'}">
-            <span class="lab">Zone</span>${b.emplacement || '—'}
+          <div class="emplacement ${emplacements ? '' : 'manquant'}">
+            <span class="lab">Emplacement</span>${emplacementHtml}
           </div>
         `;
         l.onclick = () => basculerCharge(job, b, l);
@@ -295,10 +320,23 @@ footer.barre{
     };
 
     if (nouvelEtat) {
-      google.script.run.withSuccessHandler(() => toast('Chargé ✓')).withFailureHandler(surErreur)
-        .marquerCharge(besoin.ligne, besoin.colonne);
+      // Une cellule peut contenir plusieurs longueurs (ex. "5+1x2500") : on
+      // déduit du stock la longueur totale (en ml) de tous les besoins de
+      // cette même cellule, pas seulement celui cliqué — cocher une case
+      // marque toute la cellule chargée, comme le geste manuel d'aujourd'hui.
+      const memeCellule = job.besoins.filter(b => b.ligne === besoin.ligne && b.colonne === besoin.colonne);
+      const totalMl = memeCellule.reduce((s, b) => s + (Number(b.quantite) * Number(b.longueur) / 1000), 0);
+      const empPrincipal = (besoin.emplacements && besoin.emplacements[0]) || null;
+      google.script.run.withSuccessHandler(res => {
+        if (res.avertissement) toast('Chargé ✓ — ' + res.avertissement);
+        else if (res.stockAjuste) toast(`Chargé ✓ (stock -${fmtQte(totalMl)}${empPrincipal && empPrincipal.unite ? ' ' + empPrincipal.unite : ''})`);
+        else toast('Chargé ✓');
+      }).withFailureHandler(surErreur)
+        .marquerCharge(besoin.ligne, besoin.colonne, empPrincipal ? empPrincipal.stockId : '', totalMl);
     } else {
-      google.script.run.withSuccessHandler(() => toast('Annulé')).withFailureHandler(surErreur)
+      google.script.run.withSuccessHandler(res => {
+        toast(res.avertissement ? 'Annulé — ' + res.avertissement : (res.stockAjuste ? 'Annulé (stock restauré)' : 'Annulé'));
+      }).withFailureHandler(surErreur)
         .marquerNonCharge(besoin.ligne, besoin.colonne, couleurAvant);
     }
   }
@@ -327,13 +365,46 @@ footer.barre{
   document.getElementById('btnRefresh2').onclick = charger;
 
   /* ---------------- Panneau Emplacements ---------------- */
+  function chargerCorrespondances(fond) {
+    const wrap = fond.querySelector('#emplListe');
+    wrap.innerHTML = "Chargement…";
+    google.script.run.withSuccessHandler(lignes => {
+      wrap.innerHTML = "";
+      lignes.forEach(l => {
+        const row = document.createElement('div');
+        row.className = 'empl-row';
+        row.innerHTML = `
+          <div class="section">${esc(l.section)}<span class="longueur">${l.longueur ? (Number(l.longueur) / 1000) + ' m' : ''}</span></div>
+          <span class="swatch" style="background:${esc(l.couleur || '#ffffff')}" title="${esc(l.couleur || 'aucune couleur')}"></span>
+          <input type="text" class="in-couleur" value="${esc(l.couleur || '')}" placeholder="couleur (hex, auto)" />
+          <input type="text" class="in-article" value="${esc(l.article || '')}" placeholder="désignation exacte de l'article Achats" />
+          <button class="ok">💾</button>
+          ${l.note ? `<div class="note">${esc(l.note)}</div>` : ''}
+        `;
+        const inCouleur = row.querySelector('.in-couleur');
+        const inArticle = row.querySelector('.in-article');
+        const swatch = row.querySelector('.swatch');
+        inCouleur.addEventListener('input', () => { swatch.style.background = inCouleur.value || '#ffffff'; });
+        row.querySelector('.ok').onclick = () => {
+          google.script.run.withSuccessHandler(() => toast('Enregistré'))
+            .withFailureHandler(err => toast('Échec : ' + (err.message || err)))
+            .enregistrerCorrespondance(l.section, l.longueur, inCouleur.value, inArticle.value, l.note || '');
+        };
+        wrap.appendChild(row);
+      });
+    }).withFailureHandler(err => {
+      wrap.textContent = "Erreur : " + (err.message || err);
+    }).listerCorrespondances();
+  }
+
   document.getElementById('btnEmpl').onclick = () => {
     const fond = document.createElement('div');
     fond.className = 'modal-fond';
     fond.innerHTML = `
       <div class="modal">
-        <h2>Emplacements parc</h2>
-        <p class="aide">Une zone par référence bois, pour optimiser la tournée. Modifiable ici, ou directement dans l'onglet « Emplacements parc » du fichier.</p>
+        <h2>Correspondance articles Achats</h2>
+        <p class="aide">Cet écran n'est utile QUE pour les cas ambigus : la tablette retrouve normalement l'article Achats toute seule (par section + longueur), sans rien à remplir. Il ne reste à choisir ici que quand plusieurs articles ont les mêmes dimensions/longueur mais des couleurs différentes (ex. jaune = BMA, bleu = BMB) — une note liste alors les candidats. Modifiable ici, ou directement dans l'onglet « Emplacements parc » du fichier.</p>
+        <button class="btn-auto" id="btnAutoRemplir">🪄 Auto-remplir les désignations manquantes</button>
         <div id="emplListe">Chargement…</div>
         <button class="modal-close" id="fermerEmpl">Fermer</button>
       </div>
@@ -341,27 +412,15 @@ footer.barre{
     document.body.appendChild(fond);
     fond.onclick = (e) => { if (e.target === fond) document.body.removeChild(fond); };
     fond.querySelector('#fermerEmpl').onclick = () => document.body.removeChild(fond);
+    fond.querySelector('#btnAutoRemplir').onclick = () => {
+      toast('Recherche des correspondances…');
+      google.script.run.withSuccessHandler(resume => {
+        toast(`✅ ${resume.rempli} rempli(s), ${resume.ambigu} ambigu(s), ${resume.introuvable} introuvable(s)`);
+        chargerCorrespondances(fond);
+      }).withFailureHandler(err => toast('Échec : ' + (err.message || err))).remplirCorrespondancesAuto();
+    };
 
-    google.script.run.withSuccessHandler(lignes => {
-      const wrap = fond.querySelector('#emplListe');
-      wrap.innerHTML = "";
-      lignes.forEach(l => {
-        const row = document.createElement('div');
-        row.className = 'empl-row';
-        row.innerHTML = `
-          <div class="section">${l.section}</div>
-          <input type="text" value="${l.emplacement || ''}" placeholder="ex. Parc A / Allée 3" />
-          <button class="ok">💾</button>
-        `;
-        const input = row.querySelector('input');
-        row.querySelector('.ok').onclick = () => {
-          google.script.run.withSuccessHandler(() => toast('Enregistré')).enregistrerEmplacement(l.section, input.value);
-        };
-        wrap.appendChild(row);
-      });
-    }).withFailureHandler(err => {
-      fond.querySelector('#emplListe').textContent = "Erreur : " + (err.message || err);
-    }).listerEmplacements();
+    chargerCorrespondances(fond);
   };
 
   charger();
