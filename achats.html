@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head> 
+<head>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1923,7 +1923,15 @@ function buildPrintBL(r, fourn) {
   </div>`;
 }
 // ═══ STOCK ════════════════════════════════════════════════════════════════
-function openNewStock() {
+// Raccourci depuis la fiche article (bouton "+ Entrée stock") : on passe
+// par l'id (déjà sûr dans un attribut onclick) plutôt que par la
+// désignation en texte libre, qui pourrait contenir une apostrophe et
+// casser l'attribut inline.
+function openNewStockPourArticle(articleId) {
+  const a = state.articles.find(x=>x.id===articleId);
+  if (a) openNewStock(a.designation, a.unite);
+}
+function openNewStock(presetDesignation, presetUnite) {
   _ctx={type:'new-stock'};
   ['ms-designation','ms-qte','ms-unite'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';} );
   const cdeOpts=['<option value="">—</option>',...state.commandes.filter(c=>c.statut!=='Brouillon').map(c=>`<option value="${c.num}">${esc(c.num)} — ${esc(c.fourn_nom)}</option>`)].join('');
@@ -1931,6 +1939,18 @@ function openNewStock() {
   populateFournSelects();populateChantierSelects();
   populateEmplacementSelects(['ms-emplacement']);
   document.getElementById('ms-emplacement').value = '';
+  // Ouvert depuis la fiche article ("+ Entrée stock") : on pré-remplit la
+  // désignation (et l'unité) pour éviter une ressaisie et une désignation
+  // qui ne correspondrait pas exactement à celle de la fiche.
+  if (presetDesignation) document.getElementById('ms-designation').value = presetDesignation;
+  if (presetUnite) document.getElementById('ms-unite').value = presetUnite;
+  // Emplacement par défaut de la fiche, proposé comme pré-remplissage
+  // pratique (l'utilisateur reste libre de le changer) — pas automatique
+  // à l'aveugle : simple valeur de départ cohérente avec la fiche.
+  if (presetDesignation) {
+    const defautId = getEmplacementDefaut(presetDesignation);
+    if (defautId) document.getElementById('ms-emplacement').value = defautId;
+  }
   document.getElementById('modal-stock').classList.add('show');
 }
 function saveStock() {
@@ -2301,7 +2321,10 @@ function renderArticles() {
           <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Délai d'appro</div>${a.delai_appro_jours?a.delai_appro_jours+' j':'—'}</div>
           <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Qté de réappro</div>${a.qte_reappro?fmtQte(a.qte_reappro)+' '+esc(a.unite||''):'—'}</div>
         </div>
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Stock par emplacement</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2)">Stock par emplacement</div>
+          <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openNewStockPourArticle('${a.id}')">+ Entrée stock</button>
+        </div>
         ${Object.keys(stock.parEmplacement).length?`<div class="table-wrap" style="margin-bottom:12px">
           <table class="stock-table"><thead><tr><th>Emplacement</th><th style="text-align:right">Quantité</th><th></th></tr></thead>
           <tbody>${Object.entries(stock.parEmplacement).map(([empId,qte])=>`<tr>
