@@ -122,6 +122,8 @@ tr:last-child td{border-bottom:none}
 .stock-table th.sortable{cursor:pointer;user-select:none}
 .stock-table th.sortable:hover{color:var(--text)}
 .stock-table tr.clickable{cursor:pointer}
+.tri-icone{margin-left:4px;color:var(--text3);font-size:9px}
+.tri-icone.actif{color:var(--blue);font-size:10px}
 /* BL */
 .bl-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px}
 .bl-header{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer}
@@ -397,6 +399,9 @@ table.bl-lignes td.r{text-align:right}
       <span class="search-icon">🔍</span>
       <input type="text" id="article-search" placeholder="Rechercher un article…" oninput="renderArticles()"/>
     </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);white-space:nowrap;cursor:pointer">
+      <input type="checkbox" id="article-fil-rupture" onchange="renderArticles()"/> Stock à 0 / sous le seuil
+    </label>
     <button class="btn btn-primary" onclick="openNewArticle()">+ Nouvel article</button>
   </div>
   <p style="font-size:11px;color:var(--text3);margin:-4px 0 12px">Fiches de référence pour les articles suivis en stock : seuil de réappro, fournisseur habituel, historique. Un article hors gestion de stock n'a pas besoin de fiche ici.</p>
@@ -2202,13 +2207,17 @@ function trierArticlesPar(col) {
   else { triArticles.col = col; triArticles.sens = 1; }
   renderArticles();
 }
+// "⇅" sur toutes les colonnes triables (affordance visible même avant de
+// cliquer), remplacé par ▲/▼ sur la colonne active.
 function flecheTriArticles(col) {
-  return triArticles.col === col ? (triArticles.sens === 1 ? ' ▲' : ' ▼') : '';
+  if (triArticles.col !== col) return '<span class="tri-icone">⇅</span>';
+  return `<span class="tri-icone actif">${triArticles.sens === 1 ? '▲' : '▼'}</span>`;
 }
 
 function renderArticles() {
   renderArticleMetrics();
   const q=(document.getElementById('article-search')?.value||'').toLowerCase();
+  const filRupture = document.getElementById('article-fil-rupture')?.checked;
   const articles = state.articles.filter(a=>!q||a.designation.toLowerCase().includes(q));
   if (!articles.length) {
     document.getElementById('article-list').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune fiche article. Cliquez sur "+ Nouvel article".</div>';
@@ -2218,7 +2227,7 @@ function renderArticles() {
   // Données dérivées calculées une fois par article — utilisées à la fois
   // pour l'affichage et pour le tri (désignation, stock, emplacement,
   // fournisseur, PMP, seuil).
-  const lignes = articles.map(a => {
+  let lignes = articles.map(a => {
     const stock = stockActuelArticle(a.designation);
     const pmp = pmpArticle(a.designation);
     const sousSeuil = a.seuil_mini>0 && stock.total < a.seuil_mini;
@@ -2230,6 +2239,14 @@ function renderArticles() {
       : 'Non localisé';
     return { a, stock, pmp, sousSeuil, emplacementLabel };
   });
+
+  // Filtre "Stock à 0 / sous le seuil" : cases en rupture totale (0) ou en
+  // dessous du seuil mini défini sur la fiche article.
+  if (filRupture) lignes = lignes.filter(l => l.stock.total<=0.001 || l.sousSeuil);
+  if (!lignes.length) {
+    document.getElementById('article-list').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun article ne correspond à ce filtre.</div>';
+    return;
+  }
 
   const comparateurs = {
     designation: (x,y)=>x.a.designation.localeCompare(y.a.designation),
