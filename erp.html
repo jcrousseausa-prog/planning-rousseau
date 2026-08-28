@@ -3848,10 +3848,26 @@ function openAddEmploye(){
   _ctx._contratsEdit = [];
   renderContratsList();
   document.getElementById('me-cariste').checked = false;
-document.getElementById('me-cariste-atelier-wrap').style.display = 'none';
-_ctx._caristePeriodesEdit = [];
-renderCaristePeriodesList();
-document.getElementById('me-interim-fields').style.display = 'none';
+  document.getElementById('me-cariste-atelier-wrap').style.display = 'none';
+  _ctx._caristePeriodesEdit = [];
+  renderCaristePeriodesList();
+  document.getElementById('me-interim-fields').style.display = 'none';
+  document.getElementById('me-statut').onchange = function(){
+    document.getElementById('me-interim-fields').style.display = this.value==='interim'?'':'none';
+    // Auto-remplir l'ID si intérimaire
+    if(this.value==='interim' && !document.getElementById('me-matricule').value){
+      const nextId = getNextInterimId();
+      document.getElementById('me-matricule').value = nextId;
+      document.getElementById('me-matricule').style.background = 'var(--orange-bg)';
+      document.getElementById('me-matricule').title = 'ID suggéré automatiquement — modifiable';
+    } else if(this.value!=='interim'){
+      document.getElementById('me-matricule').style.background = '';
+      document.getElementById('me-matricule').title = '';
+    }
+  };
+  document.getElementById('modal-employe').classList.add('show');
+  _ctx = {type:'add-employe'};
+}
   
     // Auto-remplir l'ID si intérimaire
     if(this.value==='interim' && !document.getElementById('me-matricule').value){
