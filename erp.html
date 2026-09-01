@@ -8001,7 +8001,10 @@ async function renderSuiviProd(){
 
       let phases;
       if(phsReelles.length){
-        phases = phsReelles.map(ph=>({id:ph.id, num:ph.num||'', nom:ph.nom||'', fichier_taille: !!ph.fichier_taille, virtuelle:false}));
+        // Phases déjà terminées/livrées (statut du Tableau de pilotage) : plus besoin de suivre leur fichier de taille
+        phases = phsReelles
+          .filter(ph => ph.statut!=='termine' && ph.statut!=='livre')
+          .map(ph=>({id:ph.id, num:ph.num||'', nom:ph.nom||'', fichier_taille: !!ph.fichier_taille, virtuelle:false}));
       } else if(usinageSeul){
         ateliers = ['Usinage'];
         phases = [{id:'us_'+tr.id, num:'Taillage', nom:'Fichier de taille à préparer', fichier_taille: !!tr.fichier_taille_usinage, virtuelle:true}];
