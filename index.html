@@ -2466,17 +2466,23 @@ function refreshCtvxDepuisDATES(){
     .then(r=>r.json()).then(r=>{
       if(!r.ok) return 0;
       let updated=0;
+      const ateliersMaj = new Set();
       (r.tranches_erp||[]).forEach(d=>{
         const nom=d.tranche.trim().toLowerCase();
         for(const atId in state.tranches){
           state.tranches[atId].forEach(t=>{
             if((t.tranche||'').trim().toLowerCase()===nom && d.date_ctvx && t.besoin!==d.date_ctvx){
-              t.besoin=d.date_ctvx; updated++;
+              t.besoin=d.date_ctvx; updated++; ateliersMaj.add(atId);
             }
           });
         }
       });
-      if(updated>0) render();
+      if(updated>0){
+        render();
+        // Sauvegarder les ateliers modifiés — sinon syncDistant() (toutes les 30s)
+        // réécrase la valeur locale avec l'ancienne valeur distante non sauvegardée.
+        ateliersMaj.forEach(atId=>scheduleSave(atId));
+      }
       return updated;
     }).catch(()=>0);
 }
