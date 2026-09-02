@@ -2318,17 +2318,35 @@ function renderPlanning(){
   const tbody=document.getElementById('planning-tbody');
   let html='';
   const q=_search;
-  const chantiersTries = [...state.chantiers].sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
-
- for(const ch of chantiersTries){
-  let trs=state.tranches.filter(t=>t.cid===ch.id);
-
-  // Tri des tranches selon le sélecteur
   const triMode = document.getElementById('tri-tranches')?.value || 'ordre';
   const getCtvx = tr => {
     const src = (state.dates_erp||[]).filter(d=>(d.tranche||'').trim().toLowerCase()===(tr.nom||'').trim().toLowerCase());
     return src.length ? src.reduce((min,d)=>(!min||d.date_ctvx<min)?d.date_ctvx:min,'') : (tr.ctvx||'');
   };
+  let chantiersTries = [...state.chantiers].sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
+
+  // Si un tri par CTVX est actif, réordonner aussi les chantiers (pas seulement les tranches à l'intérieur)
+  // sinon un chantier alphabétiquement premier reste toujours affiché en premier même avec des CTVX tardives.
+  if(triMode==='ctvx_asc' || triMode==='ctvx_desc' || triMode==='ctvx_vide'){
+    const chCtvx = ch => {
+      const dates = state.tranches.filter(t=>t.cid===ch.id).map(getCtvx).filter(Boolean);
+      if(!dates.length) return '';
+      return triMode==='ctvx_desc' ? dates.reduce((max,d)=>d>max?d:max,'') : dates.reduce((min,d)=>(!min||d<min)?d:min,'');
+    };
+    chantiersTries = [...chantiersTries].sort((a,b)=>{
+      const ca=chCtvx(a), cb=chCtvx(b);
+      if(!ca && !cb) return 0;
+      if(triMode==='ctvx_vide'){ if(!ca) return -1; if(!cb) return 1; return ca.localeCompare(cb); }
+      if(!ca) return 1;
+      if(!cb) return -1;
+      return triMode==='ctvx_desc' ? cb.localeCompare(ca) : ca.localeCompare(cb);
+    });
+  }
+
+ for(const ch of chantiersTries){
+  let trs=state.tranches.filter(t=>t.cid===ch.id);
+
+  // Tri des tranches selon le sélecteur
   if(triMode==='nom_asc')   trs = [...trs].sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}));
   else if(triMode==='nom_desc')  trs = [...trs].sort((a,b)=>b.nom.localeCompare(a.nom,'fr',{sensitivity:'base'}));
   else if(triMode==='ctvx_asc')  trs = [...trs].sort((a,b)=>{ const ca=getCtvx(a),cb=getCtvx(b); if(!ca&&!cb)return 0; if(!ca)return 1; if(!cb)return -1; return ca.localeCompare(cb); });
