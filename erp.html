@@ -2197,10 +2197,17 @@ function hideLoginScreen(){
 
 function applyDroits(){
   if(!_currentUser) return;
-  const droits = _currentUser.droits || DEFAULT_DROITS[_currentUser.profil] || DEFAULT_DROITS.lecture;
+  // Droits explicitement configurés pour cet utilisateur (lus depuis Sheets, ex. ERP_Droits)
+  const droitsUser = _currentUser.droits || {};
+  // Droits par défaut du profil, utilisés pour tout onglet absent de la config Sheets
+  // (typiquement un onglet ajouté après coup, pas encore présent dans ERP_Droits) — évite
+  // qu'un nouvel onglet reste invisible pour tout le monde tant que personne n'a pensé à
+  // l'ajouter manuellement dans la feuille de droits.
+  const droitsDefaut = DEFAULT_DROITS[_currentUser.profil] || DEFAULT_DROITS.lecture;
   const onglets = ['planning','dashboard','achats','stock','bl','charge','heures','planning-global','retours','suivi-prod','pilotage-phases'];
+  const droitPour = id => (droitsUser[id] !== undefined ? droitsUser[id] : (droitsDefaut[id] || 'none'));
   onglets.forEach(id=>{
-    const d = droits[id] || 'none';
+    const d = droitPour(id);
     const tabEl = document.getElementById('tab-'+id);
     const screenEl = document.getElementById('screen-'+id);
     if(tabEl){
@@ -2213,7 +2220,7 @@ function applyDroits(){
 
   // Mode lecture : désactiver les boutons d'ajout/modification sur les onglets en read
   onglets.forEach(id=>{
-    const d = droits[id] || 'none';
+    const d = droitPour(id);
     if(d==='read'){
       const screenEl = document.getElementById('screen-'+id);
       if(screenEl) screenEl.dataset.readonly = 'true';
