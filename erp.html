@@ -329,6 +329,7 @@ table.bl-lignes td.r{text-align:right}
   <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global production</button>
   <button class="app-tab" id="tab-retours" onclick="showScreen('retours')">Retours équipes</button>
   <button class="app-tab" id="tab-suivi-prod" onclick="showScreen('suivi-prod')">📦 Suivi production</button>
+  <button class="app-tab" id="tab-pilotage-phases" onclick="showScreen('pilotage-phases')">🧭 Pilotage phases</button>
   <button class="app-tab" id="tab-renseignement" onclick="showScreen('renseignement')" style="display:none">📋 Renseignement</button>
 </div>
 
@@ -588,6 +589,11 @@ table.bl-lignes td.r{text-align:right}
 <!-- ══ SUIVI PRODUCTION ══ -->
 <div class="screen" id="screen-suivi-prod">
   <div id="suivi-prod-content" style="padding:16px 20px"></div>
+</div>
+
+<!-- ══ PILOTAGE PHASES (vue détaillée, triable, avec commentaire) ══ -->
+<div class="screen" id="screen-pilotage-phases">
+  <div id="pilotage-phases-content" style="padding:16px 20px"></div>
 </div>
 
 <!-- ══ RETOURS ÉQUIPES ══ -->
@@ -1502,7 +1508,7 @@ function quickStatutPhase(id, newStatut, e){
   p.statut = newStatut;
   if(newStatut==='termine') p.date_termine = today;
   if(newStatut==='livre')   { p.statut='livre'; p.date_livre = today; }
-  scheduleSave(); renderPlanning();
+  scheduleSave(); renderPlanning(); renderSuiviProd(); renderPilotagePhases();
   toast(newStatut==='livre'?'✅ Phase marquée Livrée':'✅ Phase marquée Terminée');
 }
 
@@ -2112,10 +2118,10 @@ async function syncOFTermines(){
 // Droits par défaut (fallback si ERP_Droits non configuré dans Sheets)
 // Format : { profil: { onglet: 'full'|'read'|'none' } }
 const DEFAULT_DROITS = {
-  admin:        { planning:'full', dashboard:'full', achats:'full', stock:'full', bl:'full', charge:'full', heures:'full', 'planning-global':'full', retours:'full', 'suivi-prod':'full' },
-  chef:         { planning:'full', dashboard:'read', achats:'read', stock:'full', bl:'full', charge:'full', heures:'read', 'planning-global':'full', retours:'full', 'suivi-prod':'full' },
-  collaborateur:{ planning:'full', dashboard:'none', achats:'read', stock:'none', bl:'none',  charge:'full', heures:'none', 'planning-global':'full', retours:'full', 'suivi-prod':'full' },
-  lecture:      { planning:'read', dashboard:'none', achats:'none', stock:'none', bl:'none',  charge:'read', heures:'none', 'planning-global':'read', retours:'none', 'suivi-prod':'read' },
+  admin:        { planning:'full', dashboard:'full', achats:'full', stock:'full', bl:'full', charge:'full', heures:'full', 'planning-global':'full', retours:'full', 'suivi-prod':'full', 'pilotage-phases':'full' },
+  chef:         { planning:'full', dashboard:'read', achats:'read', stock:'full', bl:'full', charge:'full', heures:'read', 'planning-global':'full', retours:'full', 'suivi-prod':'full', 'pilotage-phases':'full' },
+  collaborateur:{ planning:'full', dashboard:'none', achats:'read', stock:'none', bl:'none',  charge:'full', heures:'none', 'planning-global':'full', retours:'full', 'suivi-prod':'full', 'pilotage-phases':'full' },
+  lecture:      { planning:'read', dashboard:'none', achats:'none', stock:'none', bl:'none',  charge:'read', heures:'none', 'planning-global':'read', retours:'none', 'suivi-prod':'read', 'pilotage-phases':'read' },
 };
 
 let _currentUser = null;   // { login, nom, profil, droits:{} }
@@ -2192,7 +2198,7 @@ function hideLoginScreen(){
 function applyDroits(){
   if(!_currentUser) return;
   const droits = _currentUser.droits || DEFAULT_DROITS[_currentUser.profil] || DEFAULT_DROITS.lecture;
-  const onglets = ['planning','dashboard','achats','stock','bl','charge','heures','planning-global','retours','suivi-prod'];
+  const onglets = ['planning','dashboard','achats','stock','bl','charge','heures','planning-global','retours','suivi-prod','pilotage-phases'];
   onglets.forEach(id=>{
     const d = droits[id] || 'none';
     const tabEl = document.getElementById('tab-'+id);
@@ -3172,6 +3178,7 @@ function showScreen(id){
   if(id==='planning-global'){initPlanningGlobal();renderPlanningGlobal();}
   if(id==='dashboard'){ _prodB2Data = null; _usinageData = null; renderDashboard(); }
   if(id==='suivi-prod')renderSuiviProd();
+  if(id==='pilotage-phases')renderPilotagePhases();
   if(id==='retours')renderRetours();
   if(id==='qualite'||id==='aleas'){showQTab('aleas');}
   if(id==='renseignement')initRenseignement();
@@ -8135,12 +8142,306 @@ async function renderSuiviProd(){
   el.innerHTML = html;
 }
 
+function setPilotageTri(col){
+  const f = state._pilotagePhasesFiltres || (state._pilotagePhasesFiltres = {});
+  if(f.triCol===col) f.triDir = f.triDir==='desc' ? 'asc' : 'desc';
+  else { f.triCol = col; f.triDir = 'asc'; }
+  renderPilotagePhases();
+}
+
+async function renderPilotagePhases(){
+  const el = document.getElementById('pilotage-phases-content') || document.getElementById('screen-pilotage-phases');
+  if(!el) return;
+
+  if(!state._pilotagePhasesFiltres) state._pilotagePhasesFiltres = {search:'', atelier:'', taille:'', statut:'actifs', triCol:'ctvx', triDir:'asc'};
+  const f = state._pilotagePhasesFiltres;
+  if(!f.triCol){ f.triCol='ctvx'; f.triDir='asc'; }
+  const norm = s => String(s||'').trim().toLowerCase();
+  const today = new Date().toISOString().slice(0,10);
+
+  // Date CTVX au plus tôt pour une tranche (même logique que le Tableau de pilotage)
+  function ctvxTranche(tr){
+    const src = (state.dates_erp||[]).filter(d=>norm(d.tranche)===norm(tr.nom));
+    return src.length ? src.reduce((min,d)=>(!min||d.date_ctvx<min)?d.date_ctvx:min,'') : (tr.ctvx||'');
+  }
+  // OF de production liés à une tranche (dédoublonnés — même logique que le Tableau de pilotage)
+  function ofsPourTranche(tr){
+    const seen = new Set();
+    return (state.suivi_prod||[]).filter(o=>{
+      const matchById = o.erp_tranche_id && o.erp_tranche_id === tr.id;
+      const matchByName = !o.erp_tranche_id && norm(o.tranche) === norm(tr.nom);
+      if(!matchById && !matchByName) return false;
+      const key = o.of_id || o.id || (o.tranche+o.date_fin_prod);
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+  function debutProdTranche(tr){
+    const dates = ofsPourTranche(tr)
+      .filter(o=>!o.expire_le || o.expire_le>=today)
+      .map(o=>o.date_debut||'').filter(d=>d&&/^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+    return dates.length ? dates[0] : '';
+  }
+  function finProdTranche(tr){
+    const dates = ofsPourTranche(tr)
+      .filter(o=>!o.expire_le || o.expire_le>=today)
+      .map(o=>o.date_fin_prod||'').filter(d=>d&&/^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+    return dates.length ? dates[dates.length-1] : '';
+  }
+  function ateliersTranche(tr){
+    return [...new Set(ofsPourTranche(tr).map(o=>o.atelier).filter(Boolean))];
+  }
+  function trancheEstProduite(tr){
+    const ofs = ofsPourTranche(tr);
+    if(!ofs.length) return false;
+    return ofs.every(o=>o.statut==='termine' || o.statut==='produit');
+  }
+
+  // Construction de la liste à plat : une ligne par phase (vue pilotage détaillée, triable sur chaque colonne)
+  let lignes = [];
+  state.tranches.forEach(tr=>{
+    if(f.statut!=='tous' && (tr.statut_erp==='termine' || tr.statut_erp==='livre')) return;
+    if(trancheEstProduite(tr)) return;
+
+    const ch = state.chantiers.find(c=>c.id===tr.cid);
+    const phsReelles = state.phases.filter(p=>p.tid===tr.id);
+    const dSrc = (state.dates_erp||[]).find(d=>norm(d.tranche)===norm(tr.nom));
+    const usinageSeul = dSrc?.taillage && !dSrc.assemblage && !dSrc.equipement;
+    const ateliers = ateliersTranche(tr);
+    const ctvx = ctvxTranche(tr);
+    const debutProd = debutProdTranche(tr);
+    const finProd = finProdTranche(tr);
+    const assemblage = !!dSrc?.assemblage;
+    const taillage = !!dSrc?.taillage;
+
+    let phases;
+    if(phsReelles.length){
+      phases = phsReelles.map(ph=>({
+        id: ph.id, num: ph.num||'', nom: ph.nom||'', statut: ph.statut||'planifie',
+        fichier_taille: !!ph.fichier_taille, commentaire: ph.commentaire||'', virtuelle:false
+      }));
+      if(f.statut!=='tous') phases = phases.filter(p=>p.statut!=='termine' && p.statut!=='livre');
+    } else if(usinageSeul){
+      phases = [{
+        id:'us_'+tr.id, num:'Taillage', nom:'Fichier de taille à préparer', statut:'planifie',
+        fichier_taille: !!tr.fichier_taille_usinage, commentaire: tr.commentaire_usinage||'', virtuelle:true
+      }];
+    } else {
+      phases = []; // ni phase réelle, ni besoin usinage seul → rien à montrer
+    }
+
+    phases.forEach(ph=>{
+      lignes.push({ tr, ch, ph, ateliers: ph.virtuelle ? ['Usinage'] : ateliers, ctvx, debutProd, finProd, assemblage, taillage });
+    });
+  });
+
+  const q = norm(f.search);
+  const ateliersConnus = [...new Set(lignes.flatMap(l=>l.ateliers))].sort((a,b)=>{
+    if(a==='Usinage') return 1; if(b==='Usinage') return -1;
+    return a.localeCompare(b);
+  });
+
+  lignes = lignes.filter(l=>{
+    if(f.taille==='dispo' && !l.ph.fichier_taille) return false;
+    if(f.taille==='non_dispo' && l.ph.fichier_taille) return false;
+    if(f.atelier && !l.ateliers.includes(f.atelier)) return false;
+    if(q && !(norm(l.tr.nom).includes(q) || norm(l.ph.nom).includes(q) || norm(l.ph.num).includes(q) || norm(l.ch?.nom).includes(q))) return false;
+    return true;
+  });
+
+  // Tri — n'importe quelle colonne, cliquable dans l'en-tête (le tout triable à souhait)
+  // Les dates vides restent toujours en bas, qu'importe le sens (asc/desc) — géré dans le comparateur lui-même
+  const cmpDateDir = (a,b,dir) => {
+    const ea=!a, eb=!b;
+    if(ea&&eb) return 0;
+    if(ea) return 1;
+    if(eb) return -1;
+    const r = a<b?-1:a>b?1:0;
+    return dir==='desc' ? -r : r;
+  };
+  const cmpStr  = (a,b) => String(a||'').localeCompare(String(b||''),'fr',{sensitivity:'base'});
+  const cmpBool = (a,b) => (a?1:0)-(b?1:0);
+  const statutRang = {planifie:0, en_attente:0.5, en_cours:1, termine:2, livre:3};
+  const dateCols = new Set(['ctvx','debut','fin']);
+  const comparateurs = {
+    ctvx:       (a,b,dir)=>cmpDateDir(a.ctvx,b.ctvx,dir),
+    chantier:   (a,b)=>cmpStr(a.ch?.nom,b.ch?.nom),
+    tranche:    (a,b)=>cmpStr(a.tr.nom,b.tr.nom),
+    phase:      (a,b)=>cmpStr(a.ph.nom,b.ph.nom),
+    assemblage: (a,b)=>cmpBool(a.assemblage,b.assemblage),
+    taillage:   (a,b)=>cmpBool(a.taillage,b.taillage),
+    atelier:    (a,b)=>cmpStr(a.ateliers.join(','),b.ateliers.join(',')),
+    debut:      (a,b,dir)=>cmpDateDir(a.debutProd,b.debutProd,dir),
+    fin:        (a,b,dir)=>cmpDateDir(a.finProd,b.finProd,dir),
+    taille_dispo: (a,b)=>cmpBool(a.ph.fichier_taille,b.ph.fichier_taille),
+    statut:     (a,b)=>(statutRang[a.ph.statut]??0)-(statutRang[b.ph.statut]??0),
+  };
+  const cmp = comparateurs[f.triCol] || comparateurs.ctvx;
+  lignes.sort((a,b)=>{
+    if(dateCols.has(f.triCol)) return cmp(a,b,f.triDir);
+    const r = cmp(a,b);
+    return f.triDir==='desc' ? -r : r;
+  });
+
+  const trancheSet = new Set(lignes.map(l=>l.tr.id));
+  const totalPhases = lignes.length;
+  const dispoCount = lignes.filter(l=>l.ph.fichier_taille).length;
+
+  let html = `<div style="padding:16px 20px">`;
+
+  html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:var(--blue)">${trancheSet.size}</div>
+      <div style="font-size:11px;color:var(--text3)">Tranches concernées</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:var(--green)">${dispoCount}</div>
+      <div style="font-size:11px;color:var(--text3)">Phases fichier taille dispo</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:var(--orange)">${totalPhases-dispoCount}</div>
+      <div style="font-size:11px;color:var(--text3)">Phases fichier manquant</div>
+    </div>
+  </div>`;
+
+  html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+    <input type="text" value="${esc(f.search)}" placeholder="Rechercher chantier, tranche, phase…"
+      oninput="state._pilotagePhasesFiltres.search=this.value;renderPilotagePhases()"
+      style="flex:1;max-width:220px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"/>
+    <select onchange="state._pilotagePhasesFiltres.atelier=this.value;renderPilotagePhases()"
+      style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
+      <option value="">Tous ateliers</option>
+      ${ateliersConnus.map(a=>`<option value="${esc(a)}"${f.atelier===a?' selected':''}>${esc(a)}</option>`).join('')}
+    </select>
+    <select onchange="state._pilotagePhasesFiltres.taille=this.value;renderPilotagePhases()"
+      style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
+      <option value="">Fichier taille : tous</option>
+      <option value="dispo"${f.taille==='dispo'?' selected':''}>✅ Disponible</option>
+      <option value="non_dispo"${f.taille==='non_dispo'?' selected':''}>⚠ Non disponible</option>
+    </select>
+    <select onchange="state._pilotagePhasesFiltres.statut=this.value;renderPilotagePhases()"
+      style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
+      <option value="actifs"${f.statut==='actifs'?' selected':''}>Masquer terminés/livrés</option>
+      <option value="tous"${f.statut==='tous'?' selected':''}>Tous statuts</option>
+    </select>
+    <span style="font-size:11px;color:var(--text3)">↕ Cliquez sur un en-tête de colonne pour trier</span>
+  </div>`;
+
+  if(!lignes.length){
+    html += `<div style="text-align:center;padding:2rem;color:var(--text3)">Aucune phase à afficher pour ces critères.</div>`;
+  } else {
+    const th = (label, col) => {
+      const active = f.triCol===col;
+      const arrow = active ? (f.triDir==='desc' ? ' ▼' : ' ▲') : '';
+      return `<th style="padding:8px 10px;text-align:left;cursor:pointer;user-select:none;white-space:nowrap${active?';background:rgba(255,255,255,.15)':''}" onclick="setPilotageTri('${col}')" title="Trier par ${label}">${label}${arrow}</th>`;
+    };
+    html += `<div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:var(--blue);color:#fff">
+          ${th('CTVX','ctvx')}
+          ${th('Chantier','chantier')}
+          ${th('Tranche','tranche')}
+          ${th('Phase','phase')}
+          ${th('Assemb.','assemblage')}
+          ${th('Taillage','taillage')}
+          ${th('Atelier','atelier')}
+          ${th('Début prod','debut')}
+          ${th('Fin prod','fin')}
+          ${th('Fichier taille','taille_dispo')}
+          ${th('Statut','statut')}
+          <th style="padding:8px 10px;text-align:left">Commentaire</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lignes.map((l,i)=>{
+          const ph = l.ph;
+          const ctvxHtml = l.ctvx
+            ? `<span style="font-size:11px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(l.ctvx)}</span>`
+            : '<span style="color:var(--text3);font-size:11px">—</span>';
+
+          const debutHtml = l.debutProd
+            ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(l.debutProd)}</span>`
+            : '<span style="color:var(--text3);font-size:11px">—</span>';
+
+          let finProdHtml;
+          if(!l.finProd){
+            finProdHtml = '<span style="color:var(--text3);font-size:11px">—</span>';
+          } else {
+            let color='var(--blue)', bg='var(--blue-bg)', border='var(--blue-border)', icon='';
+            if(l.ctvx){
+              const jours = Math.round((new Date(l.ctvx) - new Date(l.finProd)) / 86400000);
+              if(l.finProd > l.ctvx){ color='var(--red)'; bg='var(--red-bg)'; border='var(--red-border)'; icon=`<span style="font-size:9px;margin-left:3px">⚠ +${Math.abs(jours)}j</span>`; }
+              else if(jours<=7){ color='var(--orange)'; bg='var(--orange-bg)'; border='var(--orange-border)'; icon=`<span style="font-size:9px;margin-left:3px">⏱ ${jours}j</span>`; }
+              else { color='var(--green)'; bg='var(--green-bg)'; border='var(--green-border)'; icon=`<span style="font-size:9px;margin-left:3px">✓ +${jours}j</span>`; }
+            }
+            finProdHtml = `<span style="font-size:11px;background:${bg};color:${color};border:1px solid ${border};border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(l.finProd)}${icon}</span>`;
+          }
+
+          const flag = v => v ? `<span style="color:var(--green);font-weight:700">✓</span>` : `<span style="color:var(--text3)">—</span>`;
+
+          const statutLabels={planifie:['Planifié','var(--text3)','var(--bg)','var(--border)'],en_cours:['En cours','var(--blue)','var(--blue-bg)','var(--blue-border)'],termine:['Terminé','var(--green)','var(--green-bg)','var(--green-border)'],livre:['Livré','var(--purple)','var(--purple-bg)','var(--purple-border)'],en_attente:['En attente','var(--orange)','var(--orange-bg)','var(--orange-border)']};
+          const sl = statutLabels[ph.statut||'planifie']||statutLabels['planifie'];
+          const statutBadge = ph.virtuelle
+            ? `<span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px">${sl[0]}</span>`
+            : `<button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut">
+                 <span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px">${sl[0]} ▾</span>
+               </button>`;
+
+          const tailleToggle = ph.virtuelle ? `toggleFichierTailleTranche('${l.tr.id}')` : `toggleFichierTaille('${ph.id}')`;
+          const tailleHtml = `<label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:${ph.fichier_taille?'var(--green)':'var(--text3)'};font-weight:600;white-space:nowrap">
+              <input type="checkbox" ${ph.fichier_taille?'checked':''} onchange="${tailleToggle}" style="width:13px;height:13px;cursor:pointer;accent-color:var(--green)"/>
+              ${ph.fichier_taille?'Dispo':'Non dispo'}
+            </label>`;
+
+          const commentId = ph.virtuelle ? l.tr.id : ph.id;
+          return `<tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
+            <td style="padding:7px 10px;vertical-align:top">${ctvxHtml}</td>
+            <td style="padding:7px 10px;color:var(--text2);vertical-align:top">${esc(l.ch?.nom||'—')}</td>
+            <td style="padding:7px 10px;font-weight:500;vertical-align:top">${esc(l.tr.nom)}</td>
+            <td style="padding:7px 10px;vertical-align:top">
+              ${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}${esc(ph.nom)}
+            </td>
+            <td style="padding:7px 10px;vertical-align:top;text-align:center">${flag(l.assemblage)}</td>
+            <td style="padding:7px 10px;vertical-align:top;text-align:center">${flag(l.taillage)}</td>
+            <td style="padding:7px 10px;color:var(--text2);vertical-align:top;white-space:nowrap">${esc(l.ateliers.join(', ')||'—')}</td>
+            <td style="padding:7px 10px;vertical-align:top">${debutHtml}</td>
+            <td style="padding:7px 10px;vertical-align:top">${finProdHtml}</td>
+            <td style="padding:7px 10px;vertical-align:top">${tailleHtml}</td>
+            <td style="padding:7px 10px;vertical-align:top">${statutBadge}</td>
+            <td style="padding:7px 10px;vertical-align:top;min-width:160px">
+              <input type="text" value="${esc(ph.commentaire)}" placeholder="Commentaire…"
+                oninput="updatePhaseCommentaire('${commentId}', this.value, ${ph.virtuelle})"
+                style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:11px"/>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>`;
+  }
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function updatePhaseCommentaire(id, value, virtuelle){
+  if(virtuelle){
+    const tr = state.tranches.find(t=>t.id===id);
+    if(tr){ tr.commentaire_usinage = value; scheduleSave(); }
+  } else {
+    const ph = state.phases.find(p=>p.id===id);
+    if(ph){ ph.commentaire = value; scheduleSave(); }
+  }
+}
+
 function toggleFichierTaille(phaseId){
   const ph = state.phases.find(p=>p.id===phaseId);
   if(!ph) return;
   ph.fichier_taille = !ph.fichier_taille;
   scheduleSave();
   renderSuiviProd();
+  renderPlanning();
+  renderPilotagePhases();
   toast(ph.fichier_taille ? '✅ Fichier de taille marqué disponible' : '⚠ Fichier de taille marqué non disponible');
 }
 
@@ -8150,6 +8451,8 @@ function toggleFichierTailleTranche(trId){
   tr.fichier_taille_usinage = !tr.fichier_taille_usinage;
   scheduleSave();
   renderSuiviProd();
+  renderPlanning();
+  renderPilotagePhases();
   toast(tr.fichier_taille_usinage ? '✅ Fichier de taille marqué disponible' : '⚠ Fichier de taille marqué non disponible');
 }
 async function syncInitialeOF() {
@@ -8188,6 +8491,7 @@ async function syncInitialeOF() {
       toast('✅ ' + (r2.added||0) + ' OF importés, ' + (r2.updated||0) + ' mis à jour');
       await loadSuiviProd();
       renderSuiviProd();
+      renderPilotagePhases();
     }
   } catch(e) {
     toast('Erreur: ' + e.message);
