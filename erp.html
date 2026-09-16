@@ -8160,6 +8160,14 @@ async function renderPilotagePhases(){
   const el = document.getElementById('pilotage-phases-content') || document.getElementById('screen-pilotage-phases');
   if(!el) return;
 
+  // Le tableau est entièrement reconstruit à chaque frappe dans le champ recherche (filtrage en direct) :
+  // ça recrée l'input DOM et faisait sauter le focus/curseur après chaque lettre. On mémorise l'état du
+  // focus avant reconstruction et on le restaure sur le nouvel input une fois le HTML remplacé.
+  const _activeEl = document.activeElement;
+  const _searchWasFocused = _activeEl && _activeEl.id === 'pilotage-phases-search';
+  const _searchSelStart = _searchWasFocused ? _activeEl.selectionStart : null;
+  const _searchSelEnd = _searchWasFocused ? _activeEl.selectionEnd : null;
+
   if(!state._pilotagePhasesFiltres) state._pilotagePhasesFiltres = {search:'', atelier:'', taille:'', statut:'actifs', triCol:'ctvx', triDir:'asc'};
   const f = state._pilotagePhasesFiltres;
   if(!f.triCol){ f.triCol='ctvx'; f.triDir='asc'; }
@@ -8313,7 +8321,7 @@ async function renderPilotagePhases(){
   </div>`;
 
   html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
-    <input type="text" value="${esc(f.search)}" placeholder="Rechercher chantier, tranche, phase…"
+    <input type="text" id="pilotage-phases-search" value="${esc(f.search)}" placeholder="Rechercher chantier, tranche, phase…"
       oninput="state._pilotagePhasesFiltres.search=this.value;renderPilotagePhases()"
       style="flex:1;max-width:220px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"/>
     <select onchange="state._pilotagePhasesFiltres.atelier=this.value;renderPilotagePhases()"
@@ -8416,10 +8424,12 @@ async function renderPilotagePhases(){
             <td style="padding:7px 10px;vertical-align:top">${finProdHtml}</td>
             <td style="padding:7px 10px;vertical-align:top">${tailleHtml}</td>
             <td style="padding:7px 10px;vertical-align:top">${statutBadge}</td>
-            <td style="padding:7px 10px;vertical-align:top;min-width:160px">
-              <input type="text" value="${esc(ph.commentaire)}" placeholder="Commentaire…"
-                oninput="updatePhaseCommentaire('${commentId}', this.value, ${ph.virtuelle})"
-                style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:11px"/>
+            <td style="padding:7px 10px;vertical-align:top;min-width:220px;position:relative">
+              <input type="text" value="${esc(ph.commentaire)}" placeholder="Commentaire…" title="${esc(ph.commentaire)}"
+                oninput="updatePhaseCommentaire('${commentId}', this.value, ${ph.virtuelle});this.title=this.value"
+                onfocus="this.style.width='380px';this.style.position='absolute';this.style.zIndex='20';this.style.top='4px';this.style.left='7px';this.style.boxShadow='0 4px 14px rgba(0,0,0,.2)'"
+                onblur="this.style.width='';this.style.position='';this.style.zIndex='';this.style.top='';this.style.left='';this.style.boxShadow=''"
+                style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:11px;background:var(--surface)"/>
             </td>
           </tr>`;
         }).join('')}
@@ -8429,6 +8439,14 @@ async function renderPilotagePhases(){
 
   html += '</div>';
   el.innerHTML = html;
+
+  if(_searchWasFocused){
+    const _newSearch = document.getElementById('pilotage-phases-search');
+    if(_newSearch){
+      _newSearch.focus();
+      try { _newSearch.setSelectionRange(_searchSelStart, _searchSelEnd); } catch(e){}
+    }
+  }
 }
 
 function updatePhaseCommentaire(id, value, virtuelle){
