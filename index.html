@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20260605-1244">
+<meta name="version" content="20260921-0930">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -401,8 +401,8 @@ transition:all .3s;
 <input type="date" id="f-debut"/>
 </div>
 <div class="form-group">
-<label>Durée (jours travaillés)</label>
-<input type="number" id="f-duree" min="1" value="5"/>
+<label>Durée (jours travaillés — dixièmes acceptés, ex. 0.3)</label>
+<input type="number" id="f-duree" min="0.1" step="0.1" value="5"/>
 </div>
 </div>
 <div class="form-group">
@@ -779,6 +779,7 @@ async function initApp() {
       } catch(e) {}
     }
 
+    rechainAll();
     setSyncPill('ok', 'Synchronisé');
     setOnlineIndex();
     render();
@@ -841,6 +842,7 @@ state.tranches[atId].sort((a,b) => (a.ordre||0) - (b.ordre||0));
 console.log('Aucune tranche en base, chargement localStorage');
 loadLS();
 }
+rechainAll();
 render();
 setSyncPill('ok', 'Synchronisé — ' + fmtDate(today()));
 } catch(e) {
@@ -1074,9 +1076,11 @@ t.lockFinDate = normalizeDate(t.lockFinDate) || null;
 if (t.lockDebut  === undefined) t.lockDebut  = false;
 if (t.lockFin    === undefined) t.lockFin    = false;
 if (t.parallel   === undefined) t.parallel   = false;
-if (!t.duree || t.duree < 1)   t.duree      = 1;
+if (!t.duree || t.duree <= 0)  t.duree      = 1;
+else                             t.duree      = roundTenth(t.duree);
 if (!t.tranche)                 t.tranche    = '(sans nom)';
 if (t.ordre === undefined)      t.ordre      = 0;
+if (t.debutFrac === undefined || isNaN(t.debutFrac)) t.debutFrac = 0;
 }
 
 function loadLS() {
@@ -1107,14 +1111,60 @@ let dt=new Date(d); let c=0;
 while(c<n){dt.setDate(dt.getDate()+1);const s=dt.toISOString().slice(0,10);if(!isOff(s,atId))c++;}
 return dt.toISOString().slice(0,10);
 }
+
+// ── Planification au dixième de journée ────────────────────────────────
+// Une journée travaillée = 10 "dixièmes". Une position = {date, frac}
+// où frac (0..10) est le nombre de dixièmes déjà consommés ce jour-là
+// (frac=10 signifie "fin de journée", jour entièrement occupé).
+function roundTenth(x){ return Math.round((+x||0)*10)/10; }
+function nextCalDay(d){ const dt=new Date(d); dt.setDate(dt.getDate()+1); return dt.toISOString().slice(0,10); }
+function prevCalDay(d){ const dt=new Date(d); dt.setDate(dt.getDate()-1); return dt.toISOString().slice(0,10); }
+function comparePos(a,b){ if(!a||!b) return 0; if(a.date!==b.date) return a.date<b.date?-1:1; return (a.frac||0)-(b.frac||0); }
+
+// Avance depuis (date, frac) de n dixièmes de travail (n entier >=0), en
+// sautant les jours non travaillés. Retourne la position d'arrivée.
+function advancePos(date, frac, n, atId){
+let d=date, f=frac||0;
+while(isOff(d,atId)){ d=nextCalDay(d); f=0; }
+let remaining=Math.round(n);
+while(remaining>0){
+const cap=10-f;
+const take=Math.min(remaining,cap);
+f+=take; remaining-=take;
+if(remaining>0){ d=nextCalDay(d); while(isOff(d,atId)) d=nextCalDay(d); f=0; }
+}
+return {date:d, frac:f};
+}
+// Recule depuis une position de FIN (date, frac où frac=nb de dixièmes
+// déjà occupés ce jour-là en partant du début) de n dixièmes en arrière.
+function retreatPos(date, frac, n, atId){
+let d=date, f=frac;
+while(isOff(d,atId)){ d=prevCalDay(d); f=10; }
+let remaining=Math.round(n);
+while(remaining>0){
+const avail=f;
+const take=Math.min(remaining,avail);
+f-=take; remaining-=take;
+if(remaining>0){ d=prevCalDay(d); while(isOff(d,atId)) d=prevCalDay(d); f=10; }
+}
+return {date:d, frac:f};
+}
+function dureeDixiemes(t){ return Math.max(1, Math.round((t.duree||1)*10)); }
+// Position de fin {date, frac} d'une tranche, en tenant compte de sa
+// fraction de départ (debutFrac) et de sa durée décimale.
+function finPos(t, atId){
+if(!t||!t.debut||t.debut==='') return {date:'', frac:0};
+return advancePos(t.debut, t.debutFrac||0, dureeDixiemes(t), atId);
+}
+// Position de début nécessaire pour que la tranche se termine exactement
+// à la position de fin donnée (utilisé par "Figer fin").
+function computeDebutPosForFin(finTarget, duree, atId){
+const dix = Math.max(1, Math.round((duree||1)*10));
+return retreatPos(finTarget.date, finTarget.frac, dix, atId);
+}
 function dateFin(t, atId) {
-if(!t.debut||t.debut==='') return '';
-const dt=new Date(t.debut);
-if(isNaN(dt.getTime())) return '';
-let d=new Date(dt); let c=1;
-if(isOff(t.debut,atId)){while(isOff(d.toISOString().slice(0,10),atId))d.setDate(d.getDate()+1);c=1;}
-while(c<(t.duree||1)){d.setDate(d.getDate()+1);const s=d.toISOString().slice(0,10);if(!isOff(s,atId))c++;}
-return d.toISOString().slice(0,10);
+const p = finPos(t, atId);
+return p.date;
 }
 function diffDays(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
 function fmtDate(s){if(!s)return'—';const[y,m,d]=s.split('-');return`${d}/${m}/${y}`;}
@@ -1135,18 +1185,30 @@ actives.forEach(normalizeTranche);
 
 const normals   = [...actives.filter(t=>!t.parallel)].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
 const parallels = actives.filter(t=>t.parallel);
+if (normals.length >= 1) {
+// La première tranche de la chaîne est l'ancre : elle démarre toujours
+// en début de journée (pas de prédécesseur pour calculer une fraction).
+normals[0].debutFrac = 0;
+}
 if (normals.length >= 2) {
 for (let i=1;i<normals.length;i++) {
 const prev=normals[i-1], cur=normals[i];
-if (cur.lockDebut) continue;
-const prevFin  = dateFin(prev, atId);
-const required = addWorkDays(prevFin, 1, atId);
+if (cur.lockDebut) { cur.debutFrac = 0; continue; }
+// Position où le prédécesseur termine (jour + fraction de journée).
+const prevEnd = finPos(prev, atId);
+// Position requise pour cur : on continue le même jour si de la
+// capacité reste (prevEnd.frac<10), sinon on passe au jour ouvré suivant.
+const requiredPos = prevEnd.frac >= 10
+  ? {date: addWorkDays(prevEnd.date, 1, atId), frac: 0}
+  : {date: prevEnd.date, frac: prevEnd.frac};
 if (cur.lockFin && cur.lockFinDate) {
-const neededDebut = computeDebutForFin(cur.lockFinDate, cur.duree, atId);
-cur.debut = required > neededDebut ? required : neededDebut;
-cur._lockFinOverrun = required > neededDebut;
+const neededPos = computeDebutPosForFin({date:cur.lockFinDate, frac:10}, cur.duree, atId);
+const overrun = comparePos(requiredPos, neededPos) > 0;
+const chosen = overrun ? requiredPos : neededPos;
+cur.debut = chosen.date; cur.debutFrac = chosen.frac;
+cur._lockFinOverrun = overrun;
 } else {
-cur.debut = required;
+cur.debut = requiredPos.date; cur.debutFrac = requiredPos.frac;
 }
 }
 }
@@ -1157,11 +1219,6 @@ activesSorted.forEach((t,i)=>{t.ordre=i+1;});
 // Les terminées gardent leurs ordres existants (négatifs pour les placer avant ou après, peu importe)
 // On les remet dans le state — elles seront filtrées à l'affichage par renderTable()
 state.tranches[atId] = [...activesSorted, ...terminees];
-}
-function computeDebutForFin(targetFin, duree, atId) {
-let dt=new Date(targetFin); let c=1;
-while(c<duree){dt.setDate(dt.getDate()-1);if(!isOff(dt.toISOString().slice(0,10),atId))c++;}
-return dt.toISOString().slice(0,10);
 }
 function rechainAll(){for(const at of ATELIERS)rechainAtelier(at.id);}
 
@@ -1271,7 +1328,10 @@ ${IS_READONLY?'':`<th style="width:24px;text-align:center;font-size:10px" title=
 if(!rows.length) html+=`<tr><td colspan="12" class="empty-state">${q?`Aucun résultat pour "${esc(q)}"`:IS_READONLY?'Aucune tranche planifiée.':'Aucune tranche — cliquez sur "+ OF".'}</td></tr>`;
 rows.forEach((realIdx)=>{
 const t = tr[realIdx];
-const fin=dateFin(t,atId);
+const finP=finPos(t,atId);
+const fin=finP.date;
+const debutFracLabel=(t.debutFrac||0)>0?` <span style="font-size:9px;color:var(--text3)">(déb. ${t.debutFrac}/10)</span>`:'';
+const finFracLabel=(finP.frac>0&&finP.frac<10)?` <span style="font-size:9px;opacity:.8">${finP.frac}/10</span>`:'';
 html+=`<tr draggable="${!q&&!IS_READONLY}" data-id="${t._dbId||t.id||realIdx}"
 ondragstart="_dragRow=this;this.classList.add('dragging')"
 ondragend="this.classList.remove('dragging')"
@@ -1289,15 +1349,15 @@ ondrop="dropRow(event,'${atId}',${realIdx});this.classList.remove('drag-over')">
   ${(t.phases&&t.phases.length&&t.phases.some(p=>p.trim()))?`<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:2px">${t.phases.filter(p=>p.trim()).map(p=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600">${esc(p.trim())}</span>`).join('')}</div>`:''}
   <input type="text" value="${esc(t.comment||'')}" onchange="updT('${atId}',${realIdx},'comment',this.value)" ${IS_READONLY?'readonly style="background:transparent;border-color:transparent"':''}/>
 </td>
-<td><input type="date" value="${t.debut}" onchange="updT('${atId}',${realIdx},'debut',this.value)" ${IS_READONLY?'readonly':''} style="width:110px;font-size:11px;color:var(--text3)"/></td>
+<td><input type="date" value="${t.debut}" onchange="updT('${atId}',${realIdx},'debut',this.value)" ${IS_READONLY?'readonly':''} style="width:110px;font-size:11px;color:var(--text3)"/>${debutFracLabel}</td>
 <td>
   <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block;
     background:${fin<today()&&!t.besoin?'var(--red-bg)':t.besoin&&fin>t.besoin?'var(--red-bg)':t.besoin&&diffDays(fin,t.besoin)<=3?'var(--orange-bg)':'var(--green-bg)'};
     color:${fin<today()&&!t.besoin?'var(--red)':t.besoin&&fin>t.besoin?'var(--red)':t.besoin&&diffDays(fin,t.besoin)<=3?'var(--orange)':'var(--green)'}">
     ${fmtDate(fin)}
-  </span>
+  </span>${finFracLabel}
 </td>
-<td><input type="number" value="${t.duree}" min="1" onchange="updT('${atId}',${realIdx},'duree',+this.value)" ${IS_READONLY?'readonly':''} style="width:48px;font-size:11px;color:var(--text3)"/></td>
+<td><input type="number" value="${t.duree}" min="0.1" step="0.1" onchange="updT('${atId}',${realIdx},'duree',roundTenth(+this.value||0.1))" ${IS_READONLY?'readonly':''} style="width:52px;font-size:11px;color:var(--text3)"/></td>
 <td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${realIdx},'besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:110px;font-size:11px"/></td>
 <td>${statusBadge(t,atId,{})}</td>
 <td style="text-align:center"><span style="font-size:16px;opacity:${t.termine?1:.15}" title="${t.termine?'OF terminé':'Non terminé'}">✅</span></td>
@@ -1456,7 +1516,11 @@ ${weekRow}${dayRow}
 
 function ganttRow(t,atId,days,color,simDates){
 const debutReal=simDates?.[t.id]?.debut||t.debut;
-const finReal=simDates?.[t.id]?.fin||dateFin(t,atId);
+const startFrac=simDates?.[t.id]?.debut?0:(t.debutFrac||0);
+const finPosCalc=finPos(t,atId);
+const finReal=simDates?.[t.id]?.fin||finPosCalc.date;
+const finFrac=simDates?.[t.id]?.fin?10:finPosCalc.frac;
+const cellPx=COL/10;
 const rowBg=t.parallel?'background:rgba(214,137,16,.04);':'';
 let cellsHtml='';
 days.forEach(d=>{
@@ -1477,8 +1541,12 @@ else{if(segStart>=0){segments.push({from:segStart,to:i-1});segStart=-1;}}
 if(segStart>=0)segments.push({from:segStart,to:endIdx});
 const barTop=t.parallel?4:5;const barHeight=t.parallel?27:29;
 segments.forEach((seg,si)=>{
-const left=seg.from*COL;const width=(seg.to-seg.from+1)*COL;
 const isFirst=si===0;const isLast=si===segments.length-1;
+let left=seg.from*COL;
+let right=(seg.to+1)*COL;
+if(isFirst) left += startFrac*cellPx;
+if(isLast && finFrac<10) right = seg.to*COL + Math.max(finFrac,1)*cellPx;
+const width=Math.max(cellPx,right-left);
 const radius=`border-radius:${isFirst?'6px':'2px'} ${isLast?'6px':'2px'} ${isLast?'6px':'2px'} ${isFirst?'6px':'2px'}`;
 const label=isFirst?esc(t.tranche):'';
 const phaseBadges = (isFirst && t.phases && t.phases.length)
@@ -1579,8 +1647,8 @@ return`<div class="gantt-nav">
 <button class="gantt-nav-btn today-btn" onmousedown="ganttScrollBtn(event,0,true)" tabindex="-1">📅 Aujourd'hui</button>
 <button class="gantt-nav-btn" onmousedown="ganttScrollBtn(event,${COL})" tabindex="-1">+1j ▶</button>
 <button class="gantt-nav-btn" onmousedown="ganttScrollBtn(event,7*${COL})" tabindex="-1">+1 sem ▶▶</button>
-<button class="gantt-nav-btn${_ganttCondense?' today-btn':''}" 
-onmousedown="event.preventDefault();_ganttCondense=!_ganttCondense;keepGanttPos();render();" 
+<button class="gantt-nav-btn${_ganttCondense?' today-btn':''}"
+onmousedown="event.preventDefault();_ganttCondense=!_ganttCondense;keepGanttPos();render();"
 tabindex="-1" id="btn-condense"
 style="${_ganttCondense?'background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border);font-weight:600':''}">
 ${_ganttCondense?'⊞ Tout afficher':'⊟ Vue condensée (3 lignes)'}
@@ -2188,7 +2256,7 @@ tranche:trancheNom,
 erp_tranche_id:erpId||null,
 phases:getPhaseArray(),
 comment:document.getElementById('f-comment').value,
-debut:debutVal,duree:Math.max(1,+document.getElementById('f-duree').value||1),
+debut:debutVal,duree:Math.max(0.1,roundTenth(+document.getElementById('f-duree').value||0.1)),
 besoin:document.getElementById('f-besoin').value||null,
 lockDebut:document.getElementById('f-lockDebut').checked,
 lockFin,lockFinDate:lockFin?document.getElementById('f-lockFinDate').value:null,
