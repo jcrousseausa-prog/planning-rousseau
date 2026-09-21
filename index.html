@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20260921-0930">
+<meta name="version" content="20260921-1400">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -612,7 +612,7 @@ try {
     const t = {
       _dbId: get(cols,'id'), id: get(cols,'id'),
       tranche: get(cols,'nom'), comment: get(cols,'commentaire'),
-      debut: get(cols,'date_debut')||'', duree: parseInt(get(cols,'duree_jours'))||1,
+      debut: get(cols,'date_debut')||'', duree: roundTenth(parseFloat(get(cols,'duree_jours')))||1,
       besoin: get(cols,'date_besoin')||null, ordre: parseInt(get(cols,'ordre'))||i,
       lockDebut: get(cols,'lock_debut')==='TRUE', lockFin: get(cols,'lock_fin')==='TRUE',
       lockFinDate: get(cols,'lock_fin_date')||null, parallel: get(cols,'parallel')==='TRUE',
@@ -670,7 +670,7 @@ async function initApp() {
         const normBool = v => { const s = String(v||'').toUpperCase().trim(); return s==='TRUE'||s==='OUI'||s==='1'; };
       tr[atId].push({
   _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
-  debut:normD(t.date_debut), duree:parseInt(t.duree_jours)||1,
+  debut:normD(t.date_debut), duree:roundTenth(parseFloat(t.duree_jours))||1,
   besoin:normD(t.date_besoin)||null, ordre:parseInt(t.ordre)||i,
   lockDebut:normBool(t.lock_debut),
   lockFin:normBool(t.lock_fin),
@@ -703,7 +703,7 @@ async function initApp() {
         if (!atId || !tr[atId]) continue;
         tr[atId].push({
           _dbId:get(cols,'id'), id:get(cols,'id'), tranche:get(cols,'nom'), comment:get(cols,'commentaire'),
-          debut:get(cols,'date_debut')||'', duree:parseInt(get(cols,'duree_jours'))||1,
+          debut:get(cols,'date_debut')||'', duree:roundTenth(parseFloat(get(cols,'duree_jours')))||1,
           besoin:get(cols,'date_besoin')||null, ordre:parseInt(get(cols,'ordre'))||i,
           lockDebut:get(cols,'lock_debut')==='TRUE', lockFin:get(cols,'lock_fin')==='TRUE',
           lockFinDate:get(cols,'lock_fin_date')||null, parallel:get(cols,'parallel')==='TRUE',
@@ -1117,8 +1117,13 @@ return dt.toISOString().slice(0,10);
 // où frac (0..10) est le nombre de dixièmes déjà consommés ce jour-là
 // (frac=10 signifie "fin de journée", jour entièrement occupé).
 function roundTenth(x){ return Math.round((+x||0)*10)/10; }
-function nextCalDay(d){ const dt=new Date(d); dt.setDate(dt.getDate()+1); return dt.toISOString().slice(0,10); }
-function prevCalDay(d){ const dt=new Date(d); dt.setDate(dt.getDate()-1); return dt.toISOString().slice(0,10); }
+// IMPORTANT : arithmétique en UTC pur (setUTCDate/getUTCDate), jamais en heure
+// locale. new Date('YYYY-MM-DD') est déjà interprété comme minuit UTC ; mélanger
+// ça avec setDate()/getDate() (heure locale) fait "caler" la date pile au
+// changement d'heure (dernier dimanche de mars / octobre en Europe/Paris) : le
+// jour n'avance plus du tout, ce qui bloquait la chaîne dans une boucle infinie.
+function nextCalDay(d){ const dt=new Date(d); dt.setUTCDate(dt.getUTCDate()+1); return dt.toISOString().slice(0,10); }
+function prevCalDay(d){ const dt=new Date(d); dt.setUTCDate(dt.getUTCDate()-1); return dt.toISOString().slice(0,10); }
 function comparePos(a,b){ if(!a||!b) return 0; if(a.date!==b.date) return a.date<b.date?-1:1; return (a.frac||0)-(b.frac||0); }
 
 // Avance depuis (date, frac) de n dixièmes de travail (n entier >=0), en
@@ -2495,7 +2500,7 @@ async function syncDistant() {
         };
         state.tranches[atId].push({
   _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
-  debut:normD(t.date_debut), duree:parseInt(t.duree_jours)||1,
+  debut:normD(t.date_debut), duree:roundTenth(parseFloat(t.duree_jours))||1,
   besoin:normD(t.date_besoin)||null, ordre:parseInt(t.ordre)||0,
   lockDebut:normBool(t.lock_debut), lockFin:normBool(t.lock_fin),
   lockFinDate:normD(t.lock_fin_date)||null, parallel:normBool(t.parallel),
