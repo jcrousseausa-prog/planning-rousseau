@@ -3480,7 +3480,25 @@ async function rensSave(){
       }
     });
   });
-  if(phasesMaj > 0) scheduleSave();
+  if(phasesMaj > 0){
+    // Sauvegarde IMMÉDIATE et synchrone des phases/articles nouvellement créés (plutôt que via
+    // scheduleSave(), qui diffère de 2s) — le journal Renseignement, lui, est déjà bien enregistré
+    // à ce stade (fetch awaited ci-dessus), donc si on affichait le succès sans attendre la vraie
+    // écriture des phases, un onglet fermé/changé juste après le clic pouvait perdre les phases en
+    // silence tout en laissant croire que tout était enregistré (c'est ce qui a fait disparaître les
+    // phases créées depuis Renseignement les jours précédents).
+    if(_saveTimeout) clearTimeout(_saveTimeout);
+    _pendingSave = true;
+    setSyncPill('saving', 'Création des phases dans l\'ERP...');
+    await saveToSheets();
+    if(_isOffline){
+      toast(`⚠ Ligne(s) enregistrée(s) dans l'historique, mais échec de la création de ${phasesMaj} phase(s) dans l'ERP — vérifiez la connexion puis modifiez une phase pour relancer la sauvegarde.`);
+      _rensRows = [];
+      renderRensRows();
+      rensLoadHistorique();
+      return;
+    }
+  }
 
   setSyncPill('ok','Enregistré');
   toast(`✅ ${lignes.length} ligne${lignes.length>1?'s':''} sur ${trancheIdsUniques.length} tranche${trancheIdsUniques.length>1?'s':''} enregistrée${lignes.length>1?'s':''}${phasesMaj>0?' · '+phasesMaj+' phase(s) ajoutée(s) dans l\'ERP':''}`);
@@ -7664,16 +7682,16 @@ function buildRecapB2(prodData, heures, employes){
   <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:700px">
     <thead>
       <tr style="background:var(--blue);color:#fff">
-        <th style="padding:8px 10px;text-align:left;font-size:11px">Semaine</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">M² Bardé</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">M² Std</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px;background:#1A5F8A">M² Total</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">H B2</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">H Log</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px;background:#1A5F8A">H Total</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">H Intérim</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">% Int.</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">h/m²</th>
+        <th style="padding:8px 10px;text-align:left;font-size:11px;color:#fff">Semaine</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">M² Bardé</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">M² Std</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;background:#1A5F8A;color:#fff">M² Total</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">H B2</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">H Log</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;background:#1A5F8A;color:#fff">H Total</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">H Intérim</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">% Int.</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">h/m²</th>
       </tr>
     </thead>
     <tbody>
@@ -7861,14 +7879,14 @@ function buildRecapUsinage(usinageData, heures, employes){
   <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:680px">
     <thead>
       <tr style="background:var(--orange);color:#fff">
-        <th style="padding:8px 10px;text-align:left;font-size:11px">Semaine</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px;background:#A0490A">M³ Total</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">H Machine</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">h/m³ (mach.)</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">H Humaines</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">H Intérim</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">% Int.</th>
-        <th style="padding:8px 10px;text-align:right;font-size:11px">h/m³ (hum.)</th>
+        <th style="padding:8px 10px;text-align:left;font-size:11px;color:#fff">Semaine</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;background:#A0490A;color:#fff">M³ Total</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">H Machine</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">h/m³ (mach.)</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">H Humaines</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">H Intérim</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">% Int.</th>
+        <th style="padding:8px 10px;text-align:right;font-size:11px;color:#fff">h/m³ (hum.)</th>
       </tr>
     </thead>
     <tbody>
