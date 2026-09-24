@@ -358,7 +358,7 @@ table.bl-lignes td.r{text-align:right}
     <button class="btn btn-primary" onclick="openAddChantier()">+ Chantier</button>
     <div style="width:1px;height:24px;background:var(--border);margin:0 2px"></div>
     <button class="btn" onclick="showScreen('renseignement')" title="Accéder au tableau de renseignement projet" style="background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)">📋 Renseignement</button>
-    <button class="btn" onclick="syncFinUsinageManuel()" title="Synchroniser la fin d'usinage depuis le fichier externe" style="background:var(--teal-bg);color:var(--teal);border-color:var(--teal-border)">🏭 Sync usinage</button>
+    <button class="btn" onclick="openRecapChantiers()" title="Récapitulatif des heures saisies par chantier" style="background:var(--teal-bg);color:var(--teal);border-color:var(--teal-border)">📊 Récap chantiers</button>
   </div>
   <div class="table-wrap" style="max-height:calc(100vh - 160px);overflow-y:auto">
     <table>
@@ -457,7 +457,6 @@ table.bl-lignes td.r{text-align:right}
     <button class="htab active" id="htab-employes" onclick="showHTab('employes')">👥 Employés</button>
     <button class="htab" id="htab-saisie" onclick="showHTab('saisie')">📝 Saisie semaine</button>
     <button class="htab" id="htab-planning" onclick="showHTab('planning')">📅 Planning ressources</button>
-    <button class="htab" id="htab-recap" onclick="showHTab('recap')">📊 Récap chantiers</button>
     <button class="htab" id="htab-macro" onclick="showHTab('macro')">🗓 Vue macro</button>
       <button class="htab" id="htab-affectation" onclick="showHTab('affectation')">...</button>
     <button class="htab" id="htab-validation" onclick="showHTab('validation')">✅ Validation pointages</button>
@@ -3579,9 +3578,15 @@ function showQTab(tab){
 }
 
 function showHTab(tab){
+  // Le sous-onglet "recap" n'a plus de bouton ici (déplacé sur le Tableau de pilotage) —
+  // on garde son écran dans la liste pour que showHTab('recap') continue de fonctionner
+  // (appelé depuis openRecapChantiers()), mais getElementById('htab-recap') renvoie null,
+  // d'où les gardes ci-dessous.
   ['employes','saisie','planning','recap','macro','affectation','validation'].forEach(t=>{
-    document.getElementById('hscreen-'+t).style.display = t===tab?'':'none';
-    document.getElementById('htab-'+t).classList.toggle('active', t===tab);
+    const scr = document.getElementById('hscreen-'+t);
+    if(scr) scr.style.display = t===tab?'':'none';
+    const btn = document.getElementById('htab-'+t);
+    if(btn) btn.classList.toggle('active', t===tab);
   });
   if(tab==='employes') renderEmployes();
   if(tab==='saisie') renderSaisieHebdo();
@@ -3594,6 +3599,13 @@ function showHTab(tab){
     state._macroStartSem = getWeekISO(new Date());
     renderVueMacro();
   }
+}
+
+// Accès au Récap chantiers depuis le Tableau de pilotage (à la place de l'ancien bouton
+// "Sync usinage") — bascule sur l'écran Heures puis affiche directement son sous-onglet Récap.
+function openRecapChantiers(){
+  showScreen('heures');
+  showHTab('recap');
 }
 
 // ── EMPLOYÉS ──
@@ -5734,7 +5746,10 @@ async function renderToursChantiers(){
   });
 
   const rows = Object.values(parChantier).sort((a,b)=>b.total-a.total);
-  const ateliersCols = ATELIERS_H.filter(a=>ateliersSeen.has(a));
+  // "Us" (Usinage) toujours affiché même sans heures saisies pour l'instant — colonne prête à
+  // recevoir les heures d'usinage une fois la source de saisie définie.
+  const ateliersCols = ATELIERS_H.filter(a=>ateliersSeen.has(a) || a==='Us');
+  const atelierLabel = a => a==='Us' ? 'Usinage' : a;
 
   const totParAtelier = {};
   ateliersCols.forEach(at=>{
@@ -5788,7 +5803,7 @@ async function renderToursChantiers(){
     <div style="width:1px;background:rgba(255,255,255,.3);align-self:stretch"></div>
     ${ateliersCols.map(at=>`
     <div>
-      <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">${at}</div>
+      <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">${atelierLabel(at)}</div>
       <div style="font-size:18px;font-weight:600;font-family:'DM Mono',monospace">${Math.round(totParAtelier[at].total)}h</div>
       <div style="font-size:10px;opacity:.8">${Math.round(totParAtelier[at].cdi)}h CDI · <span style="color:#F5C98A">${Math.round(totParAtelier[at].interim)}h Int.</span></div>
     </div>`).join('')}
@@ -5801,7 +5816,7 @@ async function renderToursChantiers(){
       <tr>
         <th rowspan="2" style="vertical-align:middle">Chantier</th>
         <th rowspan="2" style="text-align:right;vertical-align:middle">Total</th>
-        ${ateliersCols.map(at=>`<th colspan="2" style="text-align:center;background:#EAF1FB;color:var(--blue);border-bottom:1px solid var(--blue-border)">${at}</th>`).join('')}
+        ${ateliersCols.map(at=>`<th colspan="2" style="text-align:center;background:#EAF1FB;color:var(--blue);border-bottom:1px solid var(--blue-border)">${atelierLabel(at)}</th>`).join('')}
         <th rowspan="2" style="text-align:right;vertical-align:middle">% Int.</th>
       </tr>
       <tr>
