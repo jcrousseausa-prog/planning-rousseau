@@ -2791,7 +2791,7 @@ function deleteChantier(id){
 
 // ═══ TRANCHE CRUD ═════════════════════════════════════════════════════════
 function openAddTranche(cid){
-  _ctx={type:'add',cid};
+  _ctx={type:'add',cid,idDates:''};
   document.getElementById('mt-title').textContent='Nouvelle tranche';
   document.getElementById('mt-nom').value='';
   document.getElementById('mt-conduc').value='';
@@ -2828,12 +2828,16 @@ function openAddTranche(cid){
 
 function mtSelectDates(val){
   if(val) document.getElementById('mt-nom').value = val;
+  // Mémoriser l'ID stable DATES (colonne ID) de la tranche choisie, pour lier
+  // dès la création et rester synchronisé même si le nom change plus tard.
+  const d = (state.dates_erp||[]).find(x=>x.tranche===val);
+  _ctx.idDates = (d && d.id_dates) ? d.id_dates : '';
 }
 function openEditTranche(id){const t=state.tranches.find(x=>x.id===id);if(!t)return;_ctx={type:'edit',id};document.getElementById('mt-title').textContent='Modifier la tranche';document.getElementById('mt-nom').value=t.nom;document.getElementById('mt-conduc').value=t.conduc||'';document.getElementById('mt-dates-wrap').style.display='none';document.getElementById('modal-tr').classList.add('show');}
 function saveTranche(){
   const nom=document.getElementById('mt-nom').value.trim();if(!nom)return;
   const conduc=document.getElementById('mt-conduc').value.trim();
-  if(_ctx.type==='add')state.tranches.push({id:uid(),cid:_ctx.cid,nom,conduc,open:false,ctvx:''});
+  if(_ctx.type==='add')state.tranches.push({id:uid(),cid:_ctx.cid,nom,conduc,open:false,ctvx:'',id_dates:_ctx.idDates||''});
   else{const t=state.tranches.find(x=>x.id===_ctx.id);if(t){t.nom=nom;t.conduc=conduc;}}
   closeModal('modal-tr');scheduleSave();renderAll();toast('Tranche enregistrée');
 }
@@ -5669,31 +5673,33 @@ function renderRecapHeures(){
   const employes = state.employes||[];
   if(!heures.length){
     el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune heure saisie</div>';
-    renderToursChantiers();
     return;
   }
-async function renderToursChantiers(){
-  const el = document.getElementById('recap-tours-chantiers');
-  if(!el) return;
-  const semDeb = state._recapSemDeb || '';
-  const semFin = state._recapSemFin || '';
-  try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method:'POST', headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify({action:'getToursParChantier', semDeb, semFin})
-    });
-    const r = await res.json();
-    if(!r.ok || !r.tours.length){ el.innerHTML=''; return; }
-    el.innerHTML = `<div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px">
-      <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text2)">🚚 Nombre de tours par chantier</div>
-      <div style="display:flex;flex-wrap:wrap;gap:10px">
-        ${r.tours.map(t=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px">
-          <strong>${esc(t.chantier)}</strong> — ${t.tours} tour${t.tours>1?'s':''}
-        </div>`).join('')}
-      </div>
-    </div>`;
-  } catch(e){ console.warn(e); }
-}
+  // Nombre de tours chauffeur par chantier — chargé de façon asynchrone (source séparée :
+  // formulaire chauffeur "OF") et injecté dans la colonne Tours du tableau une fois reçu.
+  async function renderToursColumn(){
+    const semDeb = state._recapSemDeb || '';
+    const semFin = state._recapSemFin || '';
+    try {
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method:'POST', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'getToursParChantier', semDeb, semFin})
+      });
+      const r = await res.json();
+      if(!r.ok) return;
+      const norm = s => (s||'').trim().toLowerCase();
+      const toursMap = {};
+      (r.tours||[]).forEach(t=>{ toursMap[norm(t.chantier)] = (toursMap[norm(t.chantier)]||0) + (+t.tours||0); });
+      let totalTours = 0;
+      document.querySelectorAll('[data-tours-chantier]').forEach(td=>{
+        const n = toursMap[norm(td.getAttribute('data-tours-chantier'))];
+        if(n){ td.textContent = n; totalTours += n; }
+        else td.textContent = '—';
+      });
+      const totEl = document.getElementById('recap-tours-total');
+      if(totEl) totEl.textContent = totalTours || '—';
+    } catch(e){ console.warn('renderToursColumn:', e); }
+  }
   const semaines = getSemainesDisponibles().reverse(); // chrono
   const semDeb = state._recapSemDeb || '';
   const semFin = state._recapSemFin || '';
@@ -5814,6 +5820,11 @@ async function renderToursChantiers(){
       <div style="font-size:18px;font-weight:600;font-family:'DM Mono',monospace">${Math.round(totParAtelier[at].total)}h</div>
       <div style="font-size:10px;opacity:.8">${Math.round(totParAtelier[at].cdi)}h CDI · <span style="color:#F5C98A">${Math.round(totParAtelier[at].interim)}h Int.</span></div>
     </div>`).join('')}
+    <div style="width:1px;background:rgba(255,255,255,.3);align-self:stretch"></div>
+    <div>
+      <div style="font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.06em">🚚 Tours</div>
+      <div id="recap-tours-total" style="font-size:18px;font-weight:600;font-family:'DM Mono',monospace">…</div>
+    </div>
   </div>
 
   <!-- Tableau détaillé -->
@@ -5825,6 +5836,7 @@ async function renderToursChantiers(){
         <th rowspan="2" style="text-align:right;vertical-align:middle">Total</th>
         ${ateliersCols.map(at=>`<th colspan="2" style="text-align:center;background:#EAF1FB;color:var(--blue);border-bottom:1px solid var(--blue-border)">${atelierLabel(at)}</th>`).join('')}
         <th rowspan="2" style="text-align:right;vertical-align:middle">% Int.</th>
+        <th rowspan="2" style="text-align:right;vertical-align:middle" title="Tours chauffeur déclarés (formulaire chauffeur)">🚚 Tours</th>
       </tr>
       <tr>
         ${ateliersCols.map(()=>`
@@ -5848,12 +5860,14 @@ async function renderToursChantiers(){
           <td style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${v.interim>0?'var(--orange)':'var(--text3)'}">${v.interim>0?Math.round(v.interim)+'h':'—'}</td>`;
         }).join('')}
         <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${r.total>0?pct+'%':'—'}</td>
+        <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)" data-tours-chantier="${esc(r.nom)}">…</td>
       </tr>`;
-    }).join('') : `<tr><td colspan="${2+ateliersCols.length*2+1}" style="padding:2rem;text-align:center;color:var(--text3)">Aucune heure chantier pour cette période</td></tr>`}
+    }).join('') : `<tr><td colspan="${2+ateliersCols.length*2+2}" style="padding:2rem;text-align:center;color:var(--text3)">Aucune heure chantier pour cette période</td></tr>`}
     </tbody>
   </table></div>`;
 
   el.innerHTML = html;
+  renderToursColumn();
 }
 
 
@@ -7129,29 +7143,47 @@ async function loadDATESSource() {
     if(state.currentTab === 'pilotage') renderPlanning();
 
     // Appliquer les dates CTVX sur les tranches ERP existantes
+    // Liaison par ID stable (colonne ID du fichier DATES, ex: TR-0628) en priorité —
+    // si le nom de la tranche change côté DATES, l'ID reste le même et le nom ERP doit suivre.
+    // Fallback sur le nom uniquement pour une première liaison (tranche pas encore reliée à un ID).
     let updated = 0;
+    let needSave = false;
     state.dates_erp.forEach(d => {
-      const nom = d.tranche.trim().toLowerCase();
-      state.tranches.forEach(t => {
-        if((t.nom||'').trim().toLowerCase() === nom) {
-          if(d.date_ctvx && d.date_ctvx !== t.date_ctvx) {
-            t.date_ctvx = d.date_ctvx;
-            updated++;
-          }
-          // Vérifier chantier associé
-          if(d.dossier) {
-            const ch = state.chantiers.find(c => 
-              c.nom.trim().toLowerCase() === d.dossier.trim().toLowerCase()
-            );
-            if(!ch) {
-              if(!state.dates_chantiers_manquants) state.dates_chantiers_manquants = [];
-              const _entry = d.dossier + ' → ' + d.tranche;
-              if(!state.dates_chantiers_manquants.includes(_entry)) state.dates_chantiers_manquants.push(_entry);
-            }
-          }
+      const nom = (d.tranche||'').trim().toLowerCase();
+      const idDates = (d.id_dates||'').trim();
+
+      let t = idDates ? state.tranches.find(x => (x.id_dates||'').trim() === idDates) : null;
+      if(!t) t = state.tranches.find(x => (x.nom||'').trim().toLowerCase() === nom);
+      if(!t) return;
+
+      // Mémoriser l'ID stable dès qu'on l'a (première liaison)
+      if(idDates && t.id_dates !== idDates) {
+        t.id_dates = idDates;
+        needSave = true;
+      }
+      // Si le nom a changé côté DATES (tranche retrouvée via son ID), le nom ERP suit
+      if(d.tranche && (t.nom||'').trim() !== d.tranche.trim()) {
+        t.nom = d.tranche.trim();
+        needSave = true;
+      }
+
+      if(d.date_ctvx && d.date_ctvx !== t.date_ctvx) {
+        t.date_ctvx = d.date_ctvx;
+        updated++;
+      }
+      // Vérifier chantier associé
+      if(d.dossier) {
+        const ch = state.chantiers.find(c =>
+          c.nom.trim().toLowerCase() === d.dossier.trim().toLowerCase()
+        );
+        if(!ch) {
+          if(!state.dates_chantiers_manquants) state.dates_chantiers_manquants = [];
+          const _entry = d.dossier + ' → ' + d.tranche;
+          if(!state.dates_chantiers_manquants.includes(_entry)) state.dates_chantiers_manquants.push(_entry);
         }
-      });
+      }
     });
+    if(needSave) scheduleSave();
 
     console.log('DATES source chargé:', r.tranches_erp.length, 'tranches ERP,', r.tranches_atelier.length, 'tranches atelier');
     if(updated) console.log(updated, 'dates CTVX mises à jour');
