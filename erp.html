@@ -5730,7 +5730,12 @@ async function renderToursChantiers(){
   heuresFil.forEach(h=>{
     const emp = employes.find(e=>e.id===h.emp_id);
     const statut = emp?.statut||h.statut||'CDI';
-    const atelier = (h.atelier && h.atelier!=='?') ? h.atelier : (emp?.atelier||'?');
+    let atelier = (h.atelier && h.atelier!=='?') ? h.atelier : (emp?.atelier||'?');
+    // Usinage : distinguer Robot / Speed Cut selon le type de saisie
+    if(atelier==='Us'){
+      if(h.type_saisie==='usinage_robot') atelier='UsRobot';
+      else if(h.type_saisie==='usinage_speedcut') atelier='UsSpeedCut';
+    }
     const total = (+h.h_mat||0)+(+h.h_am||0);
     if(!total) return;
     [h.chantier1, h.chantier2].filter(Boolean).forEach(ch=>{
@@ -5746,10 +5751,12 @@ async function renderToursChantiers(){
   });
 
   const rows = Object.values(parChantier).sort((a,b)=>b.total-a.total);
-  // "Us" (Usinage) toujours affiché même sans heures saisies pour l'instant — colonne prête à
-  // recevoir les heures d'usinage une fois la source de saisie définie.
-  const ateliersCols = ATELIERS_H.filter(a=>ateliersSeen.has(a) || a==='Us');
-  const atelierLabel = a => a==='Us' ? 'Usinage' : a;
+  // Colonnes ateliers : les codes standards ne s'affichent que s'ils ont des heures ;
+  // Robot / Speed Cut (usinage) s'affichent dès qu'ils ont des heures saisies.
+  const ateliersCols = ATELIERS_H.filter(a=>a!=='Us' && ateliersSeen.has(a));
+  if(ateliersSeen.has('UsRobot')) ateliersCols.push('UsRobot');
+  if(ateliersSeen.has('UsSpeedCut')) ateliersCols.push('UsSpeedCut');
+  const atelierLabel = a => a==='Us' ? 'Usinage' : a==='UsRobot' ? 'Robot' : a==='UsSpeedCut' ? 'Speed Cut' : a;
 
   const totParAtelier = {};
   ateliersCols.forEach(at=>{
