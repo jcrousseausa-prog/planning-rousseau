@@ -340,10 +340,14 @@ table.bl-lignes td.r{text-align:right}
   <div class="toolbar">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" id="search-input" placeholder="Rechercher chantier, tranche…" oninput="onSearch(this.value)"/>
+      <input type="text" id="search-input" placeholder="Rechercher chantier, tranche, phase (ex: Ph04)…" oninput="onSearch(this.value)"/>
     </div>
-    <button class="btn" onclick="toggleAll(true)">Tout déplier</button>
-    <button class="btn" onclick="toggleAll(false)">Tout replier</button>
+    <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <button class="btn" id="btn-vue-chantier" onclick="setPlanningVue('chantier')" title="Organiser l'affichage par chantier" style="border:none;border-radius:0">🏗 Par chantier</button>
+      <button class="btn" id="btn-vue-phase" onclick="setPlanningVue('phase')" title="Liste à plat de toutes les phases, triée par numéro croissant, avec rappel de la tranche" style="border:none;border-radius:0;border-left:1px solid var(--border)">🔢 Par phase</button>
+    </div>
+    <button class="btn" id="btn-toggle-all" onclick="toggleAll(true)">Tout déplier</button>
+    <button class="btn" id="btn-toggle-none" onclick="toggleAll(false)">Tout replier</button>
     <select id="tri-tranches" onchange="renderPlanning()" style="padding:6px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px;color:var(--text2)" title="Tri des tranches">
       <option value="ordre">Tranches : ordre naturel</option>
       <option value="nom_asc">Tranches : A → Z</option>
@@ -352,15 +356,15 @@ table.bl-lignes td.r{text-align:right}
       <option value="ctvx_desc">Tranches : CTVX ↓ (plus tard d'abord)</option>
       <option value="ctvx_vide">Tranches : sans CTVX d'abord</option>
     </select>
-    
-    
-    
+
+
+
     <button class="btn btn-primary" onclick="openAddChantier()">+ Chantier</button>
     <div style="width:1px;height:24px;background:var(--border);margin:0 2px"></div>
     <button class="btn" onclick="showScreen('renseignement')" title="Accéder au tableau de renseignement projet" style="background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)">📋 Renseignement</button>
     <button class="btn" onclick="openRecapChantiers()" title="Récapitulatif des heures saisies par chantier" style="background:var(--teal-bg);color:var(--teal);border-color:var(--teal-border)">📊 Récap chantiers</button>
   </div>
-  <div class="table-wrap" style="max-height:calc(100vh - 160px);overflow-y:auto">
+  <div class="table-wrap" id="planning-view-chantier" style="max-height:calc(100vh - 160px);overflow-y:auto">
     <table>
       <thead style="position:sticky;top:0;z-index:10"><tr>
         <th style="width:20px"></th>
@@ -379,6 +383,19 @@ table.bl-lignes td.r{text-align:right}
         <th style="width:68px"></th>
       </tr></thead>
       <tbody id="planning-tbody"></tbody>
+    </table>
+  </div>
+  <div class="table-wrap" id="planning-view-phase" style="display:none;max-height:calc(100vh - 160px);overflow-y:auto">
+    <table>
+      <thead style="position:sticky;top:0;z-index:10"><tr>
+        <th style="width:80px">N° phase</th>
+        <th>Phase</th>
+        <th>Tranche</th>
+        <th style="width:110px">Statut</th>
+        <th style="width:110px">Fichier taille</th>
+        <th style="width:90px;text-align:right">Articles</th>
+      </tr></thead>
+      <tbody id="planning-phase-tbody"></tbody>
     </table>
   </div>
 </div>
@@ -1450,6 +1467,7 @@ let state = {
 };
 let _ctx = {};
 let _search = '';
+let _highlightPhId = null; // surlignage ponctuel d'une phase précise (clic depuis la Vue par phase)
 let _saveTimeout = null;
 let _pollInterval = null;
 let _sheetsLoaded = false;
@@ -2326,10 +2344,45 @@ function renderAll(){
 // ═══ PLANNING ═════════════════════════════════════════════════════════════
 function onSearch(q){_search=q.toLowerCase().trim();renderPlanning();}
 
+function setPlanningVue(v){
+  state._planningVue = v;
+  renderPlanning();
+}
+
 function renderPlanning(){
+  // Deux modes d'affichage du Tableau de pilotage : l'arbre chantier → tranche → phase (par
+  // défaut, pour raisonner par chantier), ou une liste à plat de toutes les phases triée par
+  // numéro croissant avec rappel de la tranche/chantier (pour retrouver vite une phase précise).
+  const vue = state._planningVue || 'chantier';
+  const elChantier = document.getElementById('planning-view-chantier');
+  const elPhase = document.getElementById('planning-view-phase');
+  if(elChantier) elChantier.style.display = vue==='phase' ? 'none' : '';
+  if(elPhase) elPhase.style.display = vue==='phase' ? '' : 'none';
+  const btnCh = document.getElementById('btn-vue-chantier'), btnPh = document.getElementById('btn-vue-phase');
+  if(btnCh) btnCh.style.cssText = 'border:none;border-radius:0;' + (vue==='phase'?'':'background:var(--blue);color:#fff');
+  if(btnPh) btnPh.style.cssText = 'border:none;border-radius:0;border-left:1px solid var(--border);' + (vue==='phase'?'background:var(--blue);color:#fff':'');
+  // Les boutons "Tout déplier/replier" et le tri des tranches n'ont de sens que dans la vue par chantier.
+  ['btn-toggle-all','btn-toggle-none','tri-tranches'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.style.display = vue==='phase' ? 'none' : '';
+  });
+  if(vue==='phase'){ renderPlanningParPhase(); return; }
+
   const tbody=document.getElementById('planning-tbody');
   let html='';
   const q=_search;
+  const qNoSpace = q.replace(/\s+/g,'');
+  // Une phase correspond si son nom contient la recherche, ou si son numéro (ex: "Ph04") correspond
+  // une fois les espaces ignorés des deux côtés (permet de taper "ph 04", "ph04" ou juste "04"),
+  // ou si elle a été désignée pour un surlignage ponctuel (clic depuis la Vue par phase).
+  const phaseMatches = ph => {
+    if(ph.id === _highlightPhId) return true;
+    if(!q) return false;
+    if((ph.nom||'').toLowerCase().includes(q)) return true;
+    const numNorm = (ph.num||'').toLowerCase().replace(/\s+/g,'');
+    return !!(numNorm && qNoSpace && numNorm.includes(qNoSpace));
+  };
+  const phasesOfTranche = trId => state.phases.filter(p=>p.tid===trId);
+  let _firstMatchId = null; // pour scroller automatiquement sur le 1er résultat de recherche par phase
   const triMode = document.getElementById('tri-tranches')?.value || 'ordre';
   const getCtvx = tr => {
     const src = (state.dates_erp||[]).filter(d=>(d.tranche||'').trim().toLowerCase()===(tr.nom||'').trim().toLowerCase());
@@ -2365,12 +2418,12 @@ function renderPlanning(){
   else if(triMode==='ctvx_desc') trs = [...trs].sort((a,b)=>{ const ca=getCtvx(a),cb=getCtvx(b); if(!ca&&!cb)return 0; if(!ca)return 1; if(!cb)return -1; return cb.localeCompare(ca); });
   else if(triMode==='ctvx_vide') trs = [...trs].sort((a,b)=>{ const ca=getCtvx(a),cb=getCtvx(b); if(!ca&&!cb)return 0; if(!ca)return -1; if(!cb)return 1; return ca.localeCompare(cb); });
   // 'ordre' = ordre naturel, pas de tri supplémentaire
-  if(q&&!ch.nom.toLowerCase().includes(q)&&!trs.some(t=>t.nom.toLowerCase().includes(q))) continue;
+  if(q&&!ch.nom.toLowerCase().includes(q)&&!trs.some(t=>t.nom.toLowerCase().includes(q))&&!trs.some(t=>phasesOfTranche(t.id).some(phaseMatches))) continue;
   html+=renderChRow(ch,trs.length);
   if(!ch.open&&!q)continue;
     for(const tr of trs){
-      if(q&&!ch.nom.toLowerCase().includes(q)&&!tr.nom.toLowerCase().includes(q))continue;
       const phs=state.phases.filter(p=>p.tid===tr.id);
+      if(q&&!ch.nom.toLowerCase().includes(q)&&!tr.nom.toLowerCase().includes(q)&&!phs.some(phaseMatches))continue;
       const arts=state.articles.filter(a=>phs.some(p=>p.id===a.pid));
       // Récupérer les OF du planning prod pour cette tranche
       // Dédoublonner par of_id pour éviter les doublons de ERP_Suivi_Production
@@ -2388,7 +2441,10 @@ function renderPlanning(){
       if(!tr.open&&!q)continue;
       for(const ph of phs){
         const phArts=state.articles.filter(a=>a.pid===ph.id);
-        html+=renderPhRow(ph,phArts.length,phArts);
+        const phIsMatch = phaseMatches(ph);
+        let phElId = '';
+        if(phIsMatch && !_firstMatchId){ phElId='ph-first-match'; _firstMatchId=ph.id; }
+        html+=renderPhRow(ph,phArts.length,phArts,phIsMatch,phElId);
         if(!ph.open)continue;
         for(const art of phArts) html+=renderArtRow(art);
         html+=`<tr class="row-add"><td colspan="13"><button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddArticle('${ph.id}')">+ Article</button></td></tr>`;
@@ -2398,6 +2454,108 @@ function renderPlanning(){
     html+=`<tr class="row-add-tr"><td colspan="13"><button style="font-size:11px;color:var(--text2);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddTranche('${ch.id}')">+ Tranche</button></td></tr>`;
   }
   tbody.innerHTML=html;
+  // Recherche par phase (ou clic depuis la Vue par phase) : amène automatiquement le résultat à
+  // l'écran (plus besoin de scroller manuellement dans l'arbre chantier → tranche → phase pour
+  // retrouver "PH 04 de Haute Gournière").
+  if((q || _highlightPhId) && _firstMatchId){
+    const elMatch = document.getElementById('ph-first-match');
+    if(elMatch) elMatch.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+}
+
+// Numéro de tri d'une phase : extrait la partie numérique de "Ph04" → 4, pour un tri
+// croissant naturel (Ph01, Ph02 … Ph10) plutôt qu'alphabétique (Ph01, Ph10, Ph02 …).
+// Les phases sans numéro exploitable passent en dernier.
+function numPhaseTri(ph){
+  const m = String(ph.num||'').match(/(\d+)/);
+  return m ? parseInt(m[1],10) : 9999;
+}
+
+// Vue par phase : liste à plat de toutes les phases de l'ERP, triée par numéro de phase
+// croissant (puis chantier, puis tranche pour un classement stable), avec la tranche et le
+// chantier rappelés sur chaque ligne — pour retrouver en un coup d'œil "la Ph04" quel que
+// soit le chantier dont on parle, sans avoir à déplier tout l'arbre chantier → tranche.
+function renderPlanningParPhase(){
+  const tbody = document.getElementById('planning-phase-tbody');
+  if(!tbody) return;
+  const q = _search;
+  const qNoSpace = q.replace(/\s+/g,'');
+
+  let rows = state.phases.map(ph=>{
+    const tr = state.tranches.find(t=>t.id===ph.tid);
+    if(!tr) return null;
+    const ch = state.chantiers.find(c=>c.id===tr.cid);
+    if(!ch) return null;
+    return {ph, tr, ch};
+  }).filter(Boolean);
+
+  if(q){
+    rows = rows.filter(r=>{
+      const numNorm = (r.ph.num||'').toLowerCase().replace(/\s+/g,'');
+      return (r.ph.nom||'').toLowerCase().includes(q)
+        || (numNorm && qNoSpace && numNorm.includes(qNoSpace))
+        || (r.tr.nom||'').toLowerCase().includes(q)
+        || (r.ch.nom||'').toLowerCase().includes(q);
+    });
+  }
+
+  // Chantiers non mélangés : regroupés par chantier (ordre alphabétique), et à l'intérieur
+  // d'un même chantier, phases de toutes ses tranches triées par numéro croissant.
+  rows.sort((a,b)=>{
+    const c1 = String(a.ch.nom||'').localeCompare(String(b.ch.nom||''),'fr',{sensitivity:'base'});
+    if(c1) return c1;
+    const na = numPhaseTri(a.ph), nb = numPhaseTri(b.ph);
+    if(na!==nb) return na-nb;
+    return String(a.tr.nom||'').localeCompare(String(b.tr.nom||''),'fr',{sensitivity:'base'});
+  });
+
+  if(!rows.length){
+    tbody.innerHTML = `<tr><td colspan="6" style="padding:2rem;text-align:center;color:var(--text3)">Aucune phase${q?' pour cette recherche':''}.</td></tr>`;
+    return;
+  }
+
+  const statutLabels={planifie:['Planifié','var(--text3)','var(--bg)','var(--border)'],en_cours:['En cours','var(--blue)','var(--blue-bg)','var(--blue-border)'],termine:['Terminé','var(--green)','var(--green-bg)','var(--green-border)'],livre:['Livré','var(--purple)','var(--purple-bg)','var(--purple-border)'],en_attente:['En attente','var(--orange)','var(--orange-bg)','var(--orange-border)']};
+
+  let html = '';
+  let chantierCourant = null;
+  rows.forEach(r=>{
+    const ph=r.ph, tr=r.tr, ch=r.ch;
+    if(ch.id !== chantierCourant){
+      chantierCourant = ch.id;
+      html += `<tr><td colspan="6" style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:8px 10px;border-top:2px solid var(--blue-border);border-bottom:1px solid var(--blue-border)">🏗 ${esc(ch.nom)}</td></tr>`;
+    }
+    const sl = statutLabels[ph.statut||'planifie']||statutLabels['planifie'];
+    const nbArt = state.articles.filter(a=>a.pid===ph.id).length;
+    const tailleBadge = ph.fichier_taille
+      ? `<span style="font-size:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 5px;white-space:nowrap">✅ Dispo</span>`
+      : `<span style="font-size:9px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;white-space:nowrap">⚠ Manquant</span>`;
+    html += `<tr style="cursor:pointer;border-bottom:1px solid var(--border)" onclick="jumperVersPhase('${ph.id}')" title="Cliquer pour voir cette phase dans la vue par chantier">
+      <td style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue);white-space:nowrap;padding-left:20px">${esc(ph.num||'—')}</td>
+      <td style="font-weight:500">${esc(ph.nom||'—')}</td>
+      <td style="color:var(--text2)">${esc(tr.nom||'')}</td>
+      <td><span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;white-space:nowrap">${sl[0]}</span></td>
+      <td>${tailleBadge}</td>
+      <td style="text-align:right;color:var(--text3);font-size:11px">${nbArt} article${nbArt!==1?'s':''}</td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+}
+
+// Depuis la Vue par phase, clic sur une ligne → bascule vers la vue par chantier, déplie
+// automatiquement le chantier et la tranche concernés, et surligne + scrolle jusqu'à la phase
+// (même mécanisme que la recherche par phase).
+function jumperVersPhase(phId){
+  const ph = state.phases.find(p=>p.id===phId); if(!ph) return;
+  const tr = state.tranches.find(t=>t.id===ph.tid);
+  if(tr){
+    tr.open = true;
+    const ch = state.chantiers.find(c=>c.id===tr.cid);
+    if(ch) ch.open = true;
+  }
+  state._planningVue = 'chantier';
+  _highlightPhId = phId;
+  renderPlanning();
+  _highlightPhId = null;
 }
 function toggleChantierActif(chId){
   const ch = state.chantiers.find(c=>c.id===chId);
@@ -2600,7 +2758,7 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
   </tr>${ofsHtml}`;
 }
 
-function renderPhRow(ph,nbArt,arts){
+function renderPhRow(ph,nbArt,arts,highlight,elId){
   const o=ph.open;
   const avMoyen=arts.length?Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length):0;
   const bh=arts.reduce((s,a)=>s+(+a.budget_heures||0),0);
@@ -2612,9 +2770,14 @@ function renderPhRow(ph,nbArt,arts){
   const tailleBadge = ph.fichier_taille
   ? `<span style="font-size:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 5px;margin-left:5px">✅ Taille</span>`
   : `<span style="font-size:9px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;margin-left:5px">⚠ Taille</span>`;
-return`<tr class="row-phase" onclick="toggleNode('ph','${ph.id}')">
+  // Résultat de recherche par phase (ex: "Ph04") : la ligne est surlignée pour être repérée d'un coup d'œil,
+  // sans avoir à parcourir tout l'arbre chantier → tranche → phase.
+  const idAttr = elId ? ` id="${elId}"` : '';
+  const rowStyle = highlight ? ' style="background:#FFF6D8;box-shadow:inset 3px 0 0 var(--orange)"' : '';
+  const matchBadge = highlight ? `<span style="font-size:9px;background:var(--orange);color:#fff;border-radius:4px;padding:1px 6px;margin-left:6px;font-weight:700">🔍 résultat</span>` : '';
+return`<tr class="row-phase"${idAttr}${rowStyle} onclick="toggleNode('ph','${ph.id}')">
   <td><span class="chevron${o?' open':''}">▶</span></td>
-  <td colspan="7">${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}<b>${esc(ph.nom)}</b> ${statutBadge}${tailleBadge}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}${bh?` · ${bh}h`:''}</span></td>
+  <td colspan="7">${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}<b>${esc(ph.nom)}</b> ${statutBadge}${tailleBadge}${matchBadge}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}${bh?` · ${bh}h`:''}</span></td>
   <td style="text-align:right;white-space:nowrap">
     <button class="btn btn-sm" onclick="event.stopPropagation();openEditPhase('${ph.id}')">✎</button>
     <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deletePhase('${ph.id}')">✕</button>
