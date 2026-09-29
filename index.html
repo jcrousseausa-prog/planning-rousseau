@@ -896,7 +896,7 @@ async function saveToSupabase(atId) {
   saveLS();
   setSyncPill('saving', 'Enregistrement...');
   const allTranches = [];
-  for (const aid of ['b1','b2','b3','men']) {
+  for (const aid of Object.keys(state.tranches)) {
    (state.tranches[aid]||[]).forEach(t => allTranches.push({
   id: t._dbId||t.id||'', atelier_id: aid,
   nom: t.tranche||'', commentaire: t.comment||'',
@@ -2516,6 +2516,19 @@ async function syncDistant() {
         const distBesoin = normD(t.date_besoin)||null;
         if (local.termine !== distTermine) { local.termine = distTermine; local._termineLe = normD(t._terminele||t._termineLe||''); changed = true; }
         if (local.besoin !== distBesoin && !_saveTimeout) { local.besoin = distBesoin; changed = true; }
+        // Phases : resynchroniser depuis le serveur pour éviter qu'un onglet resté ouvert
+        // avec un état obsolète n'écrase les phases (via saveToSupabase, envoi complet)
+        // à la prochaine sauvegarde déclenchée par une action anodine — cf. incident phases vidées sept. 2026.
+        const normPhasesDist = p => {
+          if(!p) return []; if(Array.isArray(p)) return p.map(x=>String(x).trim()).filter(Boolean);
+          const s=String(p).trim(); if(!s||s==='[]') return [];
+          if(s.startsWith('[')){ try{const r=JSON.parse(s); if(Array.isArray(r)) return r.map(x=>String(x).trim()).filter(Boolean);}catch(e){} }
+          return s.split(',').map(x=>x.trim()).filter(Boolean);
+        };
+        const distPhases = normPhasesDist(t.phases);
+        const localPhasesKey = (local.phases||[]).slice().sort().join(',');
+        const distPhasesKey = distPhases.slice().sort().join(',');
+        if (localPhasesKey !== distPhasesKey && !_saveTimeout) { local.phases = distPhases; changed = true; }
       }
     });
     // Supprimer les tranches supprimées à distance
