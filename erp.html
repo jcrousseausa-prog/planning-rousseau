@@ -469,8 +469,9 @@ table.bl-lignes td.r{text-align:right}
 
 <!-- ══ HEURES ══ -->
 <div class="screen" id="screen-heures">
-  <!-- Sous-onglets -->
-  <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px">
+  <!-- Sous-onglets (masqués sur "Récap chantiers" : cette vue est accessible depuis le Tableau
+       de pilotage et n'a pas de rapport avec les autres sous-écrans Heures ci-dessous) -->
+  <div id="htabs-bar" style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px">
     <button class="htab active" id="htab-employes" onclick="showHTab('employes')">👥 Employés</button>
     <button class="htab" id="htab-saisie" onclick="showHTab('saisie')">📝 Saisie semaine</button>
     <button class="htab" id="htab-planning" onclick="showHTab('planning')">📅 Planning ressources</button>
@@ -3755,6 +3756,11 @@ function showHTab(tab){
     const btn = document.getElementById('htab-'+t);
     if(btn) btn.classList.toggle('active', t===tab);
   });
+  // La barre de sous-onglets (Employés / Saisie semaine / Planning ressources / Vue macro /
+  // Validation pointages…) n'a de sens que pour le vrai écran "Heures" — pas pour "Récap
+  // chantiers", qui est un raccourci depuis le Tableau de pilotage.
+  const htabsBar = document.getElementById('htabs-bar');
+  if(htabsBar) htabsBar.style.display = tab==='recap' ? 'none' : '';
   if(tab==='employes') renderEmployes();
   if(tab==='saisie') renderSaisieHebdo();
   if(tab==='planning') renderPlanningRessources();
