@@ -823,6 +823,20 @@ table.bl-lignes td.r{text-align:right}
       <div class="field" style="margin:0"><label>Heures atelier (budget)</label><input type="number" id="mc-heures-atelier" placeholder="Ex: 1200" step="1" min="0"/></div>
     </div>
 
+    <!-- Charge Usinage (prévisionnel) -->
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--surface2,#F8F9FB)">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">🪚 Charge Usinage — prévisionnel</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field" style="margin:0"><label>M³ prévus — Murs (Speed Cut)</label><input type="number" id="mc-us-speedcut-m3" placeholder="Ex: 220" step="0.1" min="0"/></div>
+        <div class="field" style="margin:0"><label>M³ prévus — Charpente (Robot)</label><input type="number" id="mc-us-robot-m3" placeholder="Ex: 180" step="0.1" min="0"/></div>
+      </div>
+      <div class="field" style="margin:8px 0 0">
+        <label>Date de besoin (prévisionnelle)</label>
+        <input type="date" id="mc-us-date-besoin"/>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">Remplacée automatiquement par la date CTVX dès qu'elle est connue sur une tranche du chantier.</div>
+      </div>
+    </div>
+
     <!-- Image -->
     <div class="field">
       <label>URL image du projet</label>
@@ -2298,6 +2312,7 @@ async function init(){
     if(ok){
       renderAll();
       // Forcer le tableau de bord même si _prodB2Data était déjà chargé vide
+      // (les données Usinage restent en cache : chargées à la demande, voir ensureUsinageDataLoaded)
       _prodB2Data = null;
       if(_currentScreen === 'dashboard') renderDashboard();
       setSyncPill('ok','Synchronisé');
@@ -2831,7 +2846,7 @@ function toggleAll(v){
 function openAddChantier(){
   _ctx={type:'add'};
   document.getElementById('mc-title').textContent='Nouveau chantier';
-  ['mc-nom','mc-conduc','mc-code','mc-adresse','mc-moe','mc-moa','mc-m3','mc-heures-atelier','mc-image-url'].forEach(id=>document.getElementById(id).value='');
+  ['mc-nom','mc-conduc','mc-code','mc-adresse','mc-moe','mc-moa','mc-m3','mc-heures-atelier','mc-us-speedcut-m3','mc-us-robot-m3','mc-us-date-besoin','mc-image-url'].forEach(id=>document.getElementById(id).value='');
   ['mc-type-marche','mc-type-travaux','mc-type-batiment'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('mc-image-preview').style.display='none';
   document.getElementById('modal-ch').classList.add('show');
@@ -2852,11 +2867,32 @@ function openEditChantier(id){
   document.getElementById('mc-type-batiment').value=c.type_batiment||'';
   document.getElementById('mc-m3').value=c.m3||'';
   document.getElementById('mc-heures-atelier').value=c.heures_atelier||'';
+  document.getElementById('mc-us-speedcut-m3').value=c.usinage_speedcut_m3||'';
+  document.getElementById('mc-us-robot-m3').value=c.usinage_robot_m3||'';
+  document.getElementById('mc-us-date-besoin').value=c.date_besoin_usinage||'';
   document.getElementById('mc-image-url').value=c.image_url||'';
   mcPreviewImage();
   document.getElementById('modal-ch').classList.add('show');
   document.getElementById('mc-image-url').addEventListener('input', mcPreviewImage);
 }
+// Date CTVX au plus tôt pour une tranche (source DATES prioritaire, sinon tr.ctvx) — même logique
+// que le Tableau de pilotage / fiche projet.
+function ctvxDeTranche(tr){
+  const src = (state.dates_erp||[]).filter(d=>String(d.tranche||'').trim().toLowerCase()===String(tr.nom||'').trim().toLowerCase());
+  return src.length ? src.reduce((min,d)=>(!min||d.date_ctvx<min)?d.date_ctvx:min,'') : (tr.ctvx||'');
+}
+
+// Date de besoin Usinage retenue pour un chantier : la CTVX la plus proche parmi ses tranches
+// remplace automatiquement la date prévisionnelle saisie manuellement dès qu'elle est connue.
+// Retourne {date:'AAAA-MM-JJ'|'', source:'ctvx'|'previsionnel'|null}.
+function dateRetenueUsinage(ch){
+  const trs = state.tranches.filter(t=>t.cid===ch.id);
+  const ctvxs = trs.map(ctvxDeTranche).filter(d=>d && /^\d{4}-\d{2}-\d{2}$/.test(d));
+  if(ctvxs.length) return {date: ctvxs.reduce((min,d)=>d<min?d:min), source:'ctvx'};
+  if(ch.date_besoin_usinage) return {date: ch.date_besoin_usinage, source:'previsionnel'};
+  return {date:'', source:null};
+}
+
 function openFicheProjet(cid){
   const ch = state.chantiers.find(x=>x.id===cid); if(!ch) return;
   const trs = state.tranches.filter(t=>t.cid===cid);
@@ -2892,10 +2928,26 @@ function openFicheProjet(cid){
     ${sep('Métrés & budget')}
     ${row('📦','M³ quantité brute',ch.m3 ? ch.m3+' m³' : '')}
     ${row('⏱','Heures atelier',ch.heures_atelier ? ch.heures_atelier+' h' : '')}
+    ${sep('🪚 Charge Usinage — prévisionnel')}
+    ${row('🧱','M³ Murs (Speed Cut)',ch.usinage_speedcut_m3 ? ch.usinage_speedcut_m3+' m³' : '')}
+    ${row('🏗','M³ Charpente (Robot)',ch.usinage_robot_m3 ? ch.usinage_robot_m3+' m³' : '')}
     ${sep('Production ERP')}
     ${row('📁','Tranches',trs.length+' tranche'+(trs.length!==1?'s':''))}
     ${row('📌','Articles',nbArts+' article'+(nbArts!==1?'s':''))}
   </table>`;
+
+  // Date de besoin Usinage retenue (CTVX si connue, sinon prévisionnelle saisie)
+  if(ch.usinage_speedcut_m3 || ch.usinage_robot_m3 || ch.date_besoin_usinage){
+    const dr = dateRetenueUsinage(ch);
+    html += `<div style="margin-top:12px;background:var(--bg2);border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:12px;font-weight:600;color:var(--text2)">📅 Date de besoin Usinage retenue</span>
+      ${dr.date ? `<span style="display:flex;align-items:center;gap:6px">
+          <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--text)">${fmtDate(dr.date)}</span>
+          <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-radius:5px;padding:2px 7px;${dr.source==='ctvx'?'background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border)':'background:var(--bg);color:var(--text3);border:1px solid var(--border)'}">${dr.source==='ctvx'?'CTVX':'Prévisionnel'}</span>
+        </span>`
+        : '<span style="color:var(--text3);font-size:12px">— aucune date renseignée —</span>'}
+    </div>`;
+  }
 
   // Liste des tranches
   if(trs.length){
@@ -2936,6 +2988,9 @@ function saveChantier(){
     type_batiment: document.getElementById('mc-type-batiment').value,
     m3: document.getElementById('mc-m3').value,
     heures_atelier: document.getElementById('mc-heures-atelier').value,
+    usinage_speedcut_m3: document.getElementById('mc-us-speedcut-m3').value,
+    usinage_robot_m3: document.getElementById('mc-us-robot-m3').value,
+    date_besoin_usinage: document.getElementById('mc-us-date-besoin').value,
     image_url: document.getElementById('mc-image-url').value.trim(),
   };
   if(_ctx.type==='add') state.chantiers.push({id:uid(), open:false, ...fields});
@@ -3350,7 +3405,7 @@ function showScreen(id){
   const tab=document.getElementById('tab-'+tabId);if(tab)tab.classList.add('active');
   if(id==='heures'){showHTab('employes');}
   if(id==='planning-global'){initPlanningGlobal();renderPlanningGlobal();}
-  if(id==='dashboard'){ _prodB2Data = null; _usinageData = null; renderDashboard(); }
+  if(id==='dashboard'){ _prodB2Data = null; renderDashboard(); } // données Usinage laissées en cache (chargement à la demande)
   if(id==='suivi-prod')renderSuiviProd();
   if(id==='pilotage-phases')renderPilotagePhases();
   if(id==='retours')renderRetours();
@@ -4116,7 +4171,7 @@ function renderCaristePeriodesList(){
   el.innerHTML = periodes.map((p,i)=>`
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;background:#fff;border:1px solid #f0c040;border-radius:6px;padding:6px 8px">
       <select onchange="updateCaristePeriode(${i},'atelier',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px">
-        ${['B1','B2','B3','Men'].map(a=>`<option value="${a}"${p.atelier===a?' selected':''}>${a}</option>`).join('')}
+        ${['B1','B2','B3','Men','Us'].map(a=>`<option value="${a}"${p.atelier===a?' selected':''}>${a}</option>`).join('')}
       </select>
       <input type="date" value="${p.debut||''}" onchange="updateCaristePeriode(${i},'debut',this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:11px"/>
       <span style="font-size:11px;color:var(--text3)">→</span>
@@ -5622,8 +5677,9 @@ function renderAffectationLog(){
 
   // Caristes uniquement (marqués comme cariste dans leur fiche)
   const empsSupport = employes.filter(e=>e.cariste && !e.inactif);
-  // Ateliers "production" = B1, B2, B3, Men
-  const ateliersProd = ['B1','B2','B3','Men'];
+  // Ateliers "production" = B1, B2, B3, Men, Us (Usinage — Robot + Speed Cut confondus,
+  // basé sur les heures atelier='Us' déjà saisies dans l'ERP par chantier)
+  const ateliersProd = ['B1','B2','B3','Men','Us'];
 
   const semaines = getSemainesDisponibles();
   const semSel = state._affectSem || semaines[0]?.val || getWeekISO(new Date());
@@ -5688,7 +5744,7 @@ function renderAffectationLog(){
     <label style="font-size:12px;font-weight:600;color:var(--text2)">Atelier
       <select style="margin-left:6px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
         onchange="state._affectAtelier=this.value;renderAffectationLog()">
-        ${ateliersProd.map(a=>`<option value="${a}"${a===atelierCible?' selected':''}>${a}</option>`).join('')}
+        ${ateliersProd.map(a=>`<option value="${a}"${a===atelierCible?' selected':''}>${a==='Us'?'Us (Usinage)':a}</option>`).join('')}
       </select>
     </label>
         ${empsSupport.length ? `<span style="font-size:11px;color:var(--text3)">
@@ -7049,6 +7105,24 @@ function saveInterim(){
 // PROD_B2_CSV supprimé — lecture via Apps Script (getProdB2)
 let _prodB2Data = null; // cache des données production MOB B2
 let _usinageData = null; // cache des données usinage
+let _capaciteUsinageData = null; // cache capacité machine (Robot/Speed Cut) par semaine ISO
+let _heuresMachineData = null; // cache temps machine réel par chantier/semaine (onglet Sauvegarde)
+let _usinageDataLoaded = false; // true dès que les 3 caches ci-dessus ont été chargés (voir ensureUsinageDataLoaded)
+
+// Charge (une seule fois, à la demande) les données Usinage — utilisées uniquement par les
+// accordéons "Récap Usinage" et "Charge Usinage" du tableau de bord. Volontairement PAS chargées
+// au chargement du tableau de bord : ce sont 3 lectures d'un fichier Google Sheets externe assez
+// volumineux (l'onglet Sauvegarde fait ~2700 lignes), donc on ne les lit que si l'utilisateur
+// ouvre effectivement un de ces deux accordéons — ça évite de ralentir l'ouverture du tableau de
+// bord pour tout le monde alors que ces données ne sont pas toujours consultées.
+async function ensureUsinageDataLoaded(){
+  if(_usinageDataLoaded) return;
+  _usinageDataLoaded = true;
+  [_usinageData, _capaciteUsinageData, _heuresMachineData] = await Promise.all([
+    loadUsinage(), loadCapaciteUsinage(), loadHeuresMachineParChantier(12)
+  ]);
+  syncHeuresMachineAuto(); // automatique, silencieux — voir la fonction pour le détail
+}
 
 async function loadProdB2() {
   try {
@@ -7081,6 +7155,57 @@ async function loadUsinage() {
   } catch(e) {
     console.warn('Erreur lecture Usinage:', e.message);
     return [];
+  }
+}
+
+async function loadCapaciteUsinage() {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'getCapaciteUsinage'})
+    });
+    const r = await res.json();
+    if(r.ok && r.capacite) return r.capacite;
+    console.warn('getCapaciteUsinage:', r.error||'Erreur inconnue');
+    return {};
+  } catch(e) {
+    console.warn('Erreur lecture Capacité Usinage:', e.message);
+    return {};
+  }
+}
+
+async function loadRatiosReelsUsinage(nbSemaines) {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'getRatiosReelsUsinage', nbSemaines: nbSemaines||26})
+    });
+    const r = await res.json();
+    if(r.ok) return r;
+    console.warn('getRatiosReelsUsinage:', r.error||'Erreur inconnue');
+    return null;
+  } catch(e) {
+    console.warn('Erreur lecture Ratios réels Usinage:', e.message);
+    return null;
+  }
+}
+
+async function loadHeuresMachineParChantier(nbSemaines) {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'getHeuresMachineParChantier', nbSemaines: nbSemaines||12})
+    });
+    const r = await res.json();
+    if(r.ok && r.parSemaine) return r.parSemaine;
+    console.warn('getHeuresMachineParChantier:', r.error||'Erreur inconnue');
+    return {};
+  } catch(e) {
+    console.warn('Erreur lecture Heures Machine par Chantier:', e.message);
+    return {};
   }
 }
 
@@ -7516,7 +7641,10 @@ function renderAlertesSaisie(){
 async function renderDashboard(){
   if(!_prodB2Data) {
     document.getElementById('dashboard-content').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">⟳ Chargement…</div>';
-    [_prodB2Data, _usinageData] = await Promise.all([loadProdB2(), loadUsinage()]);
+    _prodB2Data = await loadProdB2();
+    // Les données Usinage (Récap Usinage / Charge Usinage) ne sont PAS chargées ici : elles se
+    // chargent à la demande, au premier clic sur l'un de ces deux accordéons (voir accordionLazy /
+    // ensureUsinageDataLoaded) pour ne pas ralentir l'ouverture du tableau de bord.
   }
   const prodData = _prodB2Data||[];
   const employes = state.employes||[];
@@ -7603,7 +7731,10 @@ async function renderDashboard(){
   html += accordion('🏭 Récap production MOB B2 — M² · Heures · Ratios', buildRecapB2(prodData, heures, employes), true);
 
   // ══ 3. SECTION USINAGE ══
-  html += accordion('⚙️ Récap Usinage — M³ · Heures · Ratios', buildRecapUsinage(_usinageData||[], heures, employes), false);
+  html += accordionLazy('⚙️ Récap Usinage — M³ · Heures · Ratios', 'acc-recap-usinage', 'recap-usinage-body', 'openRecapUsinageAccordion', false);
+
+  // ══ 3bis. CHARGE USINAGE PRÉVISIONNELLE ══
+  html += accordionLazy('📈 Charge Usinage — prévisionnel (Robot / Speed Cut)', 'acc-charge-usinage', 'charge-usinage-body', 'openChargeUsinageAccordion', false);
 
   // ══ 4. ALERTES SAISIES ══
   const alertesHtml = renderAlertesSaisie();
@@ -7641,6 +7772,60 @@ function accordion(title, body, openByDefault){
       ${body}
     </div>
   </div>`;
+}
+
+// Accordéon "paresseux" : le contenu ne se calcule qu'au premier clic (voir onclickFn), pas au
+// chargement du tableau de bord. Utilisé pour Récap Usinage / Charge Usinage, dont les données
+// viennent d'un gros fichier externe (onglet Sauvegarde, ~2700 lignes) qu'on ne veut lire que si
+// l'utilisateur ouvre effectivement la section.
+function accordionLazy(title, accId, bodyId, onclickFn, openByDefault){
+  return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:12px">
+    <div onclick="${onclickFn}(this)"
+      style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;user-select:none">
+      <span style="font-size:13px;font-weight:700;color:var(--text)">${title}</span>
+      <span class="acc-arrow" style="color:var(--text3);font-size:12px;transition:transform .2s;transform:${openByDefault?'rotate(90deg)':'rotate(0)'}"">▶</span>
+    </div>
+    <div id="${accId}" style="display:${openByDefault?'block':'none'};border-top:1px solid var(--border);padding:16px">
+      <div id="${bodyId}" style="text-align:center;padding:24px;color:var(--text3)">${openByDefault?'⟳ Chargement…':'Cliquez pour charger…'}</div>
+    </div>
+  </div>`;
+}
+
+async function openRecapUsinageAccordion(headerEl){
+  const b = document.getElementById('acc-recap-usinage');
+  const arrow = headerEl.querySelector('.acc-arrow');
+  const open = b.style.display !== 'none';
+  if(open){ b.style.display='none'; arrow.style.transform='rotate(0)'; return; }
+  b.style.display='block'; arrow.style.transform='rotate(90deg)';
+  if(!_usinageDataLoaded){
+    document.getElementById('recap-usinage-body').innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">⟳ Chargement…</div>';
+    await ensureUsinageDataLoaded();
+  }
+  refreshRecapUsinageBody();
+}
+
+async function openChargeUsinageAccordion(headerEl){
+  const b = document.getElementById('acc-charge-usinage');
+  const arrow = headerEl.querySelector('.acc-arrow');
+  const open = b.style.display !== 'none';
+  if(open){ b.style.display='none'; arrow.style.transform='rotate(0)'; return; }
+  b.style.display='block'; arrow.style.transform='rotate(90deg)';
+  if(!_usinageDataLoaded){
+    document.getElementById('charge-usinage-body').innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">⟳ Chargement…</div>';
+    await ensureUsinageDataLoaded();
+  }
+  refreshChargeUsinageBody();
+}
+
+// Re-render local, sans recharger tout le tableau de bord — utilisé après un changement de
+// filtre (plage de semaines, objectifs) ou un rafraîchissement explicite des données Usinage.
+function refreshRecapUsinageBody(){
+  const el = document.getElementById('recap-usinage-body');
+  if(el) el.innerHTML = buildRecapUsinage(_usinageData||[], state.heures||[], state.employes||[], _heuresMachineData||{});
+}
+function refreshChargeUsinageBody(){
+  const el = document.getElementById('charge-usinage-body');
+  if(el) el.innerHTML = buildChargeUsinageSection(_capaciteUsinageData||{});
 }
 
 function buildProdChart(prodData){
@@ -7964,18 +8149,24 @@ function openObjB2(){
 }
 
 // ═══ RÉCAP USINAGE ════════════════════════════════════════════════════════
-function buildRecapUsinage(usinageData, heures, employes){
+function buildRecapUsinage(usinageData, heures, employes, heuresMachineData){
+  heuresMachineData = heuresMachineData || {};
 
   // Heures atelier Usinage depuis ERP_Heures
+  // Exclut emp_id 'AUTO_MACHINE' : ce sont les lignes injectées automatiquement depuis le temps
+  // machine réel (Sauvegarde) — déjà comptées dans tempsMach ci-dessous, donc à ne pas compter
+  // une 2e fois ici comme "heures humaines".
   const hUsLignes = heures.filter(h=>
     h.chantier1 && h.type_saisie!=='presence' && h.type_saisie!=='affectation_log' &&
+    h.emp_id!=='AUTO_MACHINE' &&
     ['US','USINAGE'].includes((h.atelier||'').toUpperCase().trim())
   );
 
-  // Semaines connues = union usinage + heures Us
+  // Semaines connues = union usinage + heures Us + temps machine réel (Sauvegarde)
   const semsUsinage = usinageData.map(r=>r.semaine_key).filter(Boolean);
   const semsHeures  = hUsLignes.map(h=>h.semaine);
-  const toutesLeSems = [...new Set([...semsUsinage, ...semsHeures])].sort();
+  const semsMachine = Object.keys(heuresMachineData);
+  const toutesLeSems = [...new Set([...semsUsinage, ...semsHeures, ...semsMachine])].sort();
 
   if(!toutesLeSems.length) return `
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:24px;text-align:center;color:var(--text3)">
@@ -7996,9 +8187,18 @@ function buildRecapUsinage(usinageData, heures, employes){
     const prod = usinageData.find(r=>r.semaine_key===sem);
 
     const m3Total    = prod ? prod.m3_total    : 0;
-    const tempsMach  = prod ? prod.temps_total : 0; // temps machine (fichier)
-    const machines   = prod ? prod.machines    : {};
-    const chantiers  = prod ? prod.chantiers   : {};
+
+    // Temps machine réel (onglet Sauvegarde, par chantier) — source vérifiée en direct,
+    // préférée à celle de getUsinage() qui remontait 0h pour toutes les semaines.
+    const chReel = heuresMachineData[sem] || {};
+    const chReelNoms = Object.keys(chReel);
+    const robotReel = chReelNoms.reduce((s,ch)=>s+(chReel[ch].robot_h||0), 0);
+    const speedReel  = chReelNoms.reduce((s,ch)=>s+(chReel[ch].speedcut_h||0), 0);
+    const tempsMachReel = robotReel + speedReel;
+
+    const tempsMach  = tempsMachReel>0 ? tempsMachReel : (prod ? prod.temps_total : 0);
+    const machines   = tempsMachReel>0 ? {'Robot Drive':robotReel, 'Speed Cut':speedReel} : (prod ? prod.machines : {});
+    const chantiers  = chReelNoms.length ? chReel : (prod ? prod.chantiers : {});
 
     // Heures humaines atelier Us (ERP_Heures)
     const hUs = hUsLignes.filter(h=>h.semaine===sem)
@@ -8052,17 +8252,20 @@ function buildRecapUsinage(usinageData, heures, employes){
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
     <span style="font-size:12px;font-weight:600;color:var(--text2)">Plage :</span>
     <select style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
-      onchange="state._recapUsDeb=this.value;_usinageData=null;renderDashboard()">
+      onchange="state._recapUsDeb=this.value;refreshRecapUsinageBody()">
       ${toutesLeSems.map(s=>`<option value="${s}"${s===state._recapUsDeb?' selected':''}>${s}</option>`).join('')}
     </select>
     <span style="font-size:11px;color:var(--text3)">→</span>
     <select style="padding:5px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px"
-      onchange="state._recapUsFin=this.value;_usinageData=null;renderDashboard()">
+      onchange="state._recapUsFin=this.value;refreshRecapUsinageBody()">
       ${toutesLeSems.map(s=>`<option value="${s}"${s===state._recapUsFin?' selected':''}>${s}</option>`).join('')}
     </select>
     <span style="font-size:11px;color:var(--text3);margin-left:4px">${semsFiltrees.length} sem.</span>
-    <button class="btn btn-sm" onclick="_usinageData=null;renderDashboard()" title="Rafraîchir">↻</button>
+    <button class="btn btn-sm" onclick="_usinageData=null;_heuresMachineData=null;_usinageDataLoaded=false;ensureUsinageDataLoaded().then(refreshRecapUsinageBody)" title="Rafraîchir">↻</button>
     <button class="btn btn-sm" style="margin-left:auto" onclick="openObjUsinage()" title="Objectifs">⚙ Objectifs</button>
+  </div>
+  <div style="font-size:10px;color:var(--text3);margin:-8px 0 14px">
+    Les lignes heures Usinage sans salarié rattaché (temps machine réel — Robot / Speed Cut, source : onglet Sauvegarde) sont synchronisées automatiquement à chaque ouverture du tableau de bord. Ces heures s'ajoutent au total et au compartiment CDI faute de statut propre (pas de salarié associé).
   </div>
 
   <!-- Mini graphique M³ -->
@@ -8130,6 +8333,50 @@ function buildRecapUsinage(usinageData, heures, employes){
   </div>`;
 }
 
+// Synchronise automatiquement, sans action de l'utilisateur, le temps machine réel (onglet
+// Sauvegarde, via getHeuresMachineParChantier) comme lignes heures chantier dédiées, sans
+// salarié rattaché (emp_id sentinelle 'AUTO_MACHINE'), pour toutes les semaines actuellement
+// chargées dans _heuresMachineData. Appelée automatiquement à chaque ouverture du tableau de
+// bord (voir renderDashboard) — jamais besoin de bouton ni d'action manuelle.
+//
+// Ne sauvegarde QUE si le contenu a réellement changé depuis la dernière synchro (comparaison
+// par signature), pour ne pas déclencher un scheduleSave() à chaque simple ouverture de l'écran.
+// Les heures saisies manuellement par les salariés ne sont jamais touchées : seules les lignes
+// portant emp_id==='AUTO_MACHINE' sont retirées puis recréées.
+function syncHeuresMachineAuto(){
+  if(!_heuresMachineData || !Object.keys(_heuresMachineData).length) return;
+  if(!state.heures) state.heures = [];
+  const semaines = Object.keys(_heuresMachineData);
+
+  const anciennes = state.heures.filter(h => h.emp_id==='AUTO_MACHINE' && semaines.includes(h.semaine));
+
+  const nouvelles = [];
+  semaines.forEach(sem=>{
+    const parChantier = _heuresMachineData[sem] || {};
+    Object.entries(parChantier).forEach(([ch, hm])=>{
+      if(hm.robot_h > 0)    nouvelles.push({sem, ch, type:'usinage_robot',    h:hm.robot_h});
+      if(hm.speedcut_h > 0) nouvelles.push({sem, ch, type:'usinage_speedcut', h:hm.speedcut_h});
+    });
+  });
+
+  // Signature comparable pour détecter un changement réel avant de toucher à quoi que ce soit.
+  const sig = list => list.map(h=>`${h.semaine||h.sem}|${h.chantier1||h.ch}|${h.type_saisie||h.type}|${h.h_mat||h.h}`).sort().join(';');
+  if(sig(anciennes) === sig(nouvelles)) return; // rien à faire, on n'écrit pas inutilement
+
+  state.heures = state.heures.filter(h => !(h.emp_id==='AUTO_MACHINE' && semaines.includes(h.semaine)));
+  nouvelles.forEach(n=>{
+    state.heures.push({
+      id: uid(), emp_id:'AUTO_MACHINE', semaine:n.sem, jour:'Lundi', atelier:'Us',
+      chantier1:n.ch, chantier2:'', h_mat:n.h, h_am:0, total_hebdo:n.h,
+      absent:'', statut:'CDI', type_saisie:n.type,
+      comment:'Temps machine réel (Sauvegarde) — auto'
+    });
+  });
+
+  scheduleSave();
+  console.log(`Usinage (auto) : ${nouvelles.length} ligne(s) synchronisée(s) automatiquement sur ${semaines.length} semaine(s)`);
+}
+
 function openObjUsinage(){
   const obj = state._recapUsObj || {ratioOk:5, ratioWarn:8, pctIntMax:40};
   document.getElementById('modal-title').textContent = '⚙ Objectifs Usinage';
@@ -8152,11 +8399,255 @@ function openObjUsinage(){
       pctIntMax:parseFloat(document.getElementById('obj-us-pct').value)||40,
     };
     closeModal('modal');
-    _usinageData = null;
-    renderDashboard();
+    refreshRecapUsinageBody();
     toast('Objectifs enregistrés');
   };
   document.getElementById('modal').classList.add('show');
+}
+
+// ═══ CHARGE USINAGE — PRÉVISIONNEL (Robot / Speed Cut) ═════════════════════
+// Répartit le M³ prévisionnel de chaque chantier (saisi dans sa fiche) sur les
+// N dernières semaines ouvrées (calendrier machine précis, fériés/fermetures
+// déjà exclus car ces semaines n'apparaissent pas avec une capacité > 0 dans
+// le calendrier) qui précèdent sa date de besoin retenue (CTVX si connue,
+// sinon la date prévisionnelle saisie), puis compare cette charge (en heures,
+// via un ratio h/m³ par machine) à la capacité machine réelle.
+function openObjPlanifUsinage(){
+  const p = state._planifUsinage || {ratioRobot:3, ratioSpeedCut:3, nbSemainesFenetre:8};
+  document.getElementById('modal-title').textContent = '⚙ Réglages Charge Usinage';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label>Ratio Robot (h par m³ charpente)</label>
+        <input type="number" id="obj-pu-robot" value="${p.ratioRobot}" step="0.1" min="0"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit"/></div>
+      <div class="field"><label>Ratio Speed Cut (h par m³ murs)</label>
+        <input type="number" id="obj-pu-speedcut" value="${p.ratioSpeedCut}" step="0.1" min="0"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit"/></div>
+      <div class="field" style="grid-column:1/-1"><label>Fenêtre de charge (semaines ouvrées avant la date de besoin)</label>
+        <input type="number" id="obj-pu-fenetre" value="${p.nbSemainesFenetre}" step="1" min="1" max="26"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit"/>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">Par défaut 8 semaines ≈ 2 mois ouvrés. Seules les semaines où la machine a de la capacité connue au calendrier sont comptées (fériés/fermetures automatiquement exclus).</div>
+      </div>
+      <div style="grid-column:1/-1;border-top:1px solid var(--border);padding-top:12px;margin-top:2px">
+        <button class="btn btn-sm" id="obj-pu-calc-btn" onclick="calculerRatiosDepuisHistorique()">↻ Calculer les ratios depuis l'historique réel (onglet Archives)</button>
+        <div id="obj-pu-calc-result" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+      </div>
+    </div>`;
+  document.querySelector('#modal .btn-primary').onclick = ()=>{
+    state._planifUsinage = {
+      ratioRobot:        parseFloat(document.getElementById('obj-pu-robot').value)||3,
+      ratioSpeedCut:      parseFloat(document.getElementById('obj-pu-speedcut').value)||3,
+      nbSemainesFenetre: parseInt(document.getElementById('obj-pu-fenetre').value)||8,
+    };
+    closeModal('modal');
+    refreshChargeUsinageBody();
+    toast('Réglages Charge Usinage enregistrés');
+  };
+  document.getElementById('modal').classList.add('show');
+}
+
+async function calculerRatiosDepuisHistorique(){
+  const btn = document.getElementById('obj-pu-calc-btn');
+  const out = document.getElementById('obj-pu-calc-result');
+  if(!btn || !out) return;
+  btn.disabled = true; btn.textContent = '⟳ Calcul en cours…';
+  const r = await loadRatiosReelsUsinage(26);
+  btn.disabled = false; btn.textContent = "↻ Calculer les ratios depuis l'historique réel (onglet Archives)";
+  if(!r){
+    out.innerHTML = '<span style="color:var(--red)">⚠ Impossible de lire l\'onglet Archives (vérifiez que la fonction getRatiosReelsUsinage est bien présente dans Code.gs).</span>';
+    return;
+  }
+  if(r.ratioRobot===null && r.ratioSpeedCut===null){
+    out.innerHTML = '<span style="color:var(--orange)">Aucune donnée exploitable trouvée dans l\'onglet Archives.</span>';
+    return;
+  }
+  if(r.ratioRobot!==null) document.getElementById('obj-pu-robot').value = r.ratioRobot;
+  if(r.ratioSpeedCut!==null) document.getElementById('obj-pu-speedcut').value = r.ratioSpeedCut;
+  out.innerHTML = `<span style="color:var(--green)">✓ Calculé sur ${r.nbSemainesUtilisees} semaine(s) récente(s) (sur ${r.nbSemainesDisponibles} disponibles dans Archives) : `
+    + `Robot = ${r.ratioRobot!==null?r.ratioRobot+' h/m³':'—'} · Speed Cut = ${r.ratioSpeedCut!==null?r.ratioSpeedCut+' h/m³':'—'}. `
+    + `Valeurs pré-remplies ci-dessus — cliquez "Enregistrer" pour les appliquer.</span>`;
+}
+
+function calculerChargeUsinage(capacite){
+  if(!state._planifUsinage) state._planifUsinage = {ratioRobot:3, ratioSpeedCut:3, nbSemainesFenetre:8};
+  const planif = state._planifUsinage;
+  const parSemaine = {}; // "AAAA-Sxx" -> {robot_h, speedcut_h}
+  const detail = [];     // par chantier avec M³ prévisionnel
+  const sansDate = [];   // chantiers avec M³ prévisionnel mais sans date de besoin ni CTVX
+
+  // Remonte semaine par semaine depuis la date de besoin (incluse) et ne retient que les
+  // semaines où la machine a une capacité connue > 0 (= semaines ouvrées de son calendrier réel).
+  function semainesFenetre(dateRetenueStr, machineKey){
+    const semaines = [];
+    const cursor = new Date(dateRetenueStr);
+    if(isNaN(cursor.getTime())) return semaines;
+    let garde = 0; // garde-fou si le calendrier de capacité est incomplet
+    while(semaines.length < planif.nbSemainesFenetre && garde < 104){
+      const wk = getWeekISO(cursor);
+      const cap = capacite[wk];
+      const capH = cap ? (machineKey==='robot' ? (cap.robot_h||0) : (cap.speedcut_h||0)) : 0;
+      if(capH > 0) semaines.push(wk);
+      cursor.setDate(cursor.getDate()-7);
+      garde++;
+    }
+    return semaines;
+  }
+
+  (state.chantiers||[]).forEach(ch=>{
+    const m3Robot = parseFloat(ch.usinage_robot_m3)||0;
+    const m3SpeedCut = parseFloat(ch.usinage_speedcut_m3)||0;
+    if(!m3Robot && !m3SpeedCut) return;
+
+    const dr = dateRetenueUsinage(ch);
+    if(!dr.date){ sansDate.push(ch); return; }
+
+    const item = {ch, dateRetenue:dr.date, source:dr.source, robot:null, speedcut:null};
+
+    if(m3Robot > 0){
+      const sems = semainesFenetre(dr.date, 'robot');
+      const hParSem = sems.length ? (m3Robot*planif.ratioRobot)/sems.length : 0;
+      sems.forEach(wk=>{ if(!parSemaine[wk]) parSemaine[wk]={robot_h:0,speedcut_h:0}; parSemaine[wk].robot_h += hParSem; });
+      item.robot = {m3:m3Robot, semaines:sems, hParSem};
+    }
+    if(m3SpeedCut > 0){
+      const sems = semainesFenetre(dr.date, 'speedcut');
+      const hParSem = sems.length ? (m3SpeedCut*planif.ratioSpeedCut)/sems.length : 0;
+      sems.forEach(wk=>{ if(!parSemaine[wk]) parSemaine[wk]={robot_h:0,speedcut_h:0}; parSemaine[wk].speedcut_h += hParSem; });
+      item.speedcut = {m3:m3SpeedCut, semaines:sems, hParSem};
+    }
+    detail.push(item);
+  });
+
+  return {parSemaine, detail, sansDate, planif};
+}
+
+function svgChargeCapaciteChart(semaines, parSemaine, capacite, machine, colorBar){
+  const getCharge = wk => {
+    const c = parSemaine[wk]; if(!c) return 0;
+    if(machine==='robot') return c.robot_h||0;
+    if(machine==='speedcut') return c.speedcut_h||0;
+    return (c.robot_h||0)+(c.speedcut_h||0);
+  };
+  const getCap = wk => {
+    const c = capacite[wk]; if(!c) return 0;
+    if(machine==='robot') return c.robot_h||0;
+    if(machine==='speedcut') return c.speedcut_h||0;
+    return (c.robot_h||0)+(c.speedcut_h||0);
+  };
+  const maxV = Math.max(...semaines.map(getCharge), ...semaines.map(getCap), 1);
+  const H = 110, padBottom = 16;
+  const bw = Math.max(7, Math.floor(560/Math.max(semaines.length,1))-4);
+  const W = Math.max(semaines.length*(bw+4), 260);
+
+  const bars = semaines.map((wk,i)=>{
+    const x = i*(bw+4);
+    const charge = getCharge(wk);
+    const h = (charge/maxV)*(H-padBottom);
+    const cap = getCap(wk);
+    const surcharge = cap>0 && charge>cap;
+    return h>0 ? `<rect x="${x}" y="${H-padBottom-h}" width="${bw}" height="${h}" fill="${surcharge?'var(--red)':colorBar}" rx="1" opacity=".85"><title>${wk} — charge ${charge.toFixed(1)}h${cap?' / capacité '+cap.toFixed(1)+'h':''}</title></rect>` : '';
+  }).join('');
+
+  const pts = semaines.map((wk,i)=>{
+    const x = i*(bw+4)+bw/2;
+    const y = H-padBottom-(getCap(wk)/maxV)*(H-padBottom);
+    return `${x},${y}`;
+  }).join(' ');
+
+  const semCourante = getWeekISO(new Date());
+  const idxCourant = semaines.indexOf(semCourante);
+  const ligneAujourdhui = idxCourant>=0 ? `<line x1="${idxCourant*(bw+4)}" y1="0" x2="${idxCourant*(bw+4)}" y2="${H-padBottom}" stroke="var(--text3)" stroke-width="1" stroke-dasharray="2,2"/>` : '';
+
+  return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:${Math.min(W,260)}px;height:${H}px;display:block">
+    ${bars}
+    ${ligneAujourdhui}
+    <polyline points="${pts}" fill="none" stroke="var(--text)" stroke-width="1.5"/>
+  </svg></div>
+  <div style="font-size:10px;color:var(--text2);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap">
+    <span><span style="display:inline-block;width:10px;height:10px;background:${colorBar};border-radius:2px;margin-right:3px"></span>Charge prévisionnelle (h)</span>
+    <span><span style="display:inline-block;width:14px;height:2px;background:var(--text);margin-right:3px;vertical-align:middle"></span>Capacité machine (h)</span>
+    <span style="color:var(--red)">■ semaine en surcharge</span>
+  </div>`;
+}
+
+function buildChargeUsinageSection(capacite){
+  const {parSemaine, detail, sansDate, planif} = calculerChargeUsinage(capacite);
+
+  if(!detail.length && !sansDate.length){
+    return `<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:24px;text-align:center;color:var(--text3)">
+      <div style="font-size:32px;margin-bottom:10px">🪚</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:6px">Aucun M³ prévisionnel renseigné</div>
+      <div style="font-size:12px">Renseignez les M³ Murs (Speed Cut) / Charpente (Robot) et la date de besoin dans la fiche de chaque chantier.</div>
+    </div>`;
+  }
+
+  if(!Object.keys(capacite).length){
+    return `<div style="background:#fdecea;border:1px solid #f5b7b1;border-radius:8px;padding:14px;font-size:12px;color:#922b21">
+      ⚠ Calendrier de capacité machine indisponible (fichier "PLAN DE CHARGE USINAGE" injoignable ou vide). Les graphiques ne peuvent pas être calculés pour le moment.
+      <button class="btn btn-sm" style="margin-left:8px" onclick="_capaciteUsinageData=null;_usinageDataLoaded=false;ensureUsinageDataLoaded().then(refreshChargeUsinageBody)">↻ Réessayer</button>
+    </div>`;
+  }
+
+  // Fenêtre d'affichage : 6 semaines passées → 20 semaines à venir autour d'aujourd'hui
+  const semainesAff = [];
+  for(let i=-6;i<=20;i++){ const d=new Date(); d.setDate(d.getDate()+i*7); semainesAff.push(getWeekISO(d)); }
+  const semaines = [...new Set(semainesAff)].sort();
+
+  let html = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--text3)">Ratios : ${planif.ratioRobot} h/m³ (Robot) · ${planif.ratioSpeedCut} h/m³ (Speed Cut) · fenêtre ${planif.nbSemainesFenetre} sem. ouvrées avant la date de besoin</span>
+    <button class="btn btn-sm" onclick="_capaciteUsinageData=null;_usinageDataLoaded=false;ensureUsinageDataLoaded().then(refreshChargeUsinageBody)" title="Rafraîchir la capacité machine">↻</button>
+    <button class="btn btn-sm" style="margin-left:auto" onclick="openObjPlanifUsinage()" title="Réglages">⚙ Réglages</button>
+  </div>`;
+
+  if(sansDate.length){
+    html += `<div style="background:#fdecea;border:1px solid #f5b7b1;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#922b21">
+      ⚠ ${sansDate.length} chantier(s) avec M³ prévisionnel mais sans date de besoin ni CTVX — non inclus dans les graphiques : ${sansDate.map(c=>esc(c.nom)).join(', ')}
+    </div>`;
+  }
+
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:16px">
+    <div style="background:var(--bg);border-radius:8px;padding:10px">
+      <div style="font-size:12px;font-weight:700;color:var(--purple);margin-bottom:6px">🤖 Robot (Charpente)</div>
+      ${svgChargeCapaciteChart(semaines, parSemaine, capacite, 'robot', 'var(--purple)')}
+    </div>
+    <div style="background:var(--bg);border-radius:8px;padding:10px">
+      <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:6px">✂️ Speed Cut (Murs)</div>
+      ${svgChargeCapaciteChart(semaines, parSemaine, capacite, 'speedcut', 'var(--teal)')}
+    </div>
+    <div style="background:var(--bg);border-radius:8px;padding:10px">
+      <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:6px">📊 Général (Robot + Speed Cut)</div>
+      ${svgChargeCapaciteChart(semaines, parSemaine, capacite, 'general', 'var(--blue)')}
+    </div>
+  </div>`;
+
+  html += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:640px">
+    <thead><tr style="background:var(--purple);color:#fff">
+      <th style="padding:7px 10px;text-align:left;background:var(--purple);color:#fff">Chantier</th>
+      <th style="padding:7px 10px;text-align:right;background:var(--purple);color:#fff">M³ Robot</th>
+      <th style="padding:7px 10px;text-align:right;background:var(--purple);color:#fff">M³ Speed Cut</th>
+      <th style="padding:7px 10px;text-align:left;background:var(--purple);color:#fff">Date de besoin</th>
+      <th style="padding:7px 10px;text-align:left;background:var(--purple);color:#fff">Source</th>
+      <th style="padding:7px 10px;text-align:right;background:var(--purple);color:#fff">Sem. planifiées</th>
+    </tr></thead>
+    <tbody>
+    ${detail.sort((a,b)=>a.dateRetenue.localeCompare(b.dateRetenue)).map((it,i)=>{
+      const nbSem = Math.max(it.robot?it.robot.semaines.length:0, it.speedcut?it.speedcut.semaines.length:0);
+      return `<tr style="${i%2?'background:#FAFAF8;':''}border-bottom:1px solid var(--border)">
+        <td style="padding:6px 10px;font-weight:600">${esc(it.ch.nom)}</td>
+        <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace">${it.robot?it.robot.m3:'—'}</td>
+        <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace">${it.speedcut?it.speedcut.m3:'—'}</td>
+        <td style="padding:6px 10px;font-family:'DM Mono',monospace">${fmtDate(it.dateRetenue)}</td>
+        <td style="padding:6px 10px"><span style="font-size:10px;font-weight:700;text-transform:uppercase;border-radius:5px;padding:2px 7px;${it.source==='ctvx'?'background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border)':'background:var(--bg2);color:var(--text3);border:1px solid var(--border)'}">${it.source==='ctvx'?'CTVX':'Prévisionnel'}</span></td>
+        <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;color:${nbSem<planif.nbSemainesFenetre?'var(--orange)':'var(--text)'}">${nbSem}/${planif.nbSemainesFenetre}</td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div>
+  <div style="margin-top:8px;font-size:10px;color:var(--text3)">
+    La charge de chaque chantier est répartie également sur les ${planif.nbSemainesFenetre} dernières semaines ouvrées (calendrier machine précis) avant sa date de besoin retenue. "Sem. planifiées" &lt; fenêtre = calendrier de capacité incomplet sur la période couverte par le fichier source.
+  </div>`;
+
+  return html;
 }
 
 function buildAvancementTable(){
