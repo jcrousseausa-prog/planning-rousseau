@@ -391,6 +391,8 @@ table.bl-lignes td.r{text-align:right}
         <th style="width:80px">N° phase</th>
         <th>Phase</th>
         <th>Tranche</th>
+        <th style="width:100px">CTVX</th>
+        <th style="width:100px">Sortie prod</th>
         <th style="width:110px">Statut</th>
         <th style="width:110px">Fichier taille</th>
         <th style="width:90px;text-align:right">Articles</th>
@@ -2534,6 +2536,28 @@ function renderPlanningParPhase(){
   if(!tbody) return;
   const q = _search;
   const qNoSpace = q.replace(/\s+/g,'');
+  const today = new Date().toISOString().slice(0,10);
+
+  // Date de sortie prod : dernier OF terminé pour la tranche, tous ateliers confondus
+  // (B1/B2/B3/Usinage — même logique que l'onglet Pilotage phases), mémoïsée par tranche.
+  const finProdCache = new Map();
+  function finProdTrancheFlat(tr){
+    if(finProdCache.has(tr.id)) return finProdCache.get(tr.id);
+    const seen = new Set();
+    const dates = (state.suivi_prod||[]).filter(o=>{
+      const matchById = o.erp_tranche_id && o.erp_tranche_id === tr.id;
+      const matchByName = !o.erp_tranche_id && String(o.tranche||'').trim().toLowerCase() === String(tr.nom||'').trim().toLowerCase();
+      if(!matchById && !matchByName) return false;
+      if(o.expire_le && o.expire_le < today) return false;
+      const key = o.of_id || o.id || (o.tranche+o.date_fin_prod);
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).map(o=>o.date_fin_prod||'').filter(d=>d&&/^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+    const val = dates.length ? dates[dates.length-1] : '';
+    finProdCache.set(tr.id, val);
+    return val;
+  }
 
   let rows = state.phases.map(ph=>{
     const tr = state.tranches.find(t=>t.id===ph.tid);
@@ -2564,7 +2588,7 @@ function renderPlanningParPhase(){
   });
 
   if(!rows.length){
-    tbody.innerHTML = `<tr><td colspan="6" style="padding:2rem;text-align:center;color:var(--text3)">Aucune phase${q?' pour cette recherche':''}.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="padding:2rem;text-align:center;color:var(--text3)">Aucune phase${q?' pour cette recherche':''}.</td></tr>`;
     return;
   }
 
@@ -2576,17 +2600,35 @@ function renderPlanningParPhase(){
     const ph=r.ph, tr=r.tr, ch=r.ch;
     if(ch.id !== chantierCourant){
       chantierCourant = ch.id;
-      html += `<tr><td colspan="6" style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:8px 10px;border-top:2px solid var(--blue-border);border-bottom:1px solid var(--blue-border)">🏗 ${esc(ch.nom)}</td></tr>`;
+      html += `<tr><td colspan="8" style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:8px 10px;border-top:2px solid var(--blue-border);border-bottom:1px solid var(--blue-border)">🏗 ${esc(ch.nom)}</td></tr>`;
     }
     const sl = statutLabels[ph.statut||'planifie']||statutLabels['planifie'];
     const nbArt = state.articles.filter(a=>a.pid===ph.id).length;
     const tailleBadge = ph.fichier_taille
       ? `<span style="font-size:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 5px;white-space:nowrap">✅ Dispo</span>`
       : `<span style="font-size:9px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;white-space:nowrap">⚠ Manquant</span>`;
+    const ctvx = ctvxDeTranche(tr);
+    const ctvxHtml = ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)
+      ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(ctvx)}</span>`
+      : `<span style="color:var(--text3);font-size:11px">—</span>`;
+    const finProd = finProdTrancheFlat(tr);
+    let finProdHtml;
+    if(!finProd){
+      finProdHtml = `<span style="color:var(--text3);font-size:11px">—</span>`;
+    } else {
+      let color='var(--text2)', bg='transparent', border='var(--border)';
+      if(ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)){
+        if(finProd > ctvx){ color='var(--red)'; bg='var(--red-bg)'; border='var(--red-border)'; }
+        else { color='var(--green)'; bg='var(--green-bg)'; border='var(--green-border)'; }
+      }
+      finProdHtml = `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;background:${bg};color:${color};border:1px solid ${border};border-radius:4px;padding:1px 5px">${fmtDate(finProd)}</span>`;
+    }
     html += `<tr style="cursor:pointer;border-bottom:1px solid var(--border)" onclick="jumperVersPhase('${ph.id}')" title="Cliquer pour voir cette phase dans la vue par chantier">
       <td style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue);white-space:nowrap;padding-left:20px">${esc(ph.num||'—')}</td>
       <td style="font-weight:500">${esc(ph.nom||'—')}</td>
       <td style="color:var(--text2)">${esc(tr.nom||'')}</td>
+      <td>${ctvxHtml}</td>
+      <td>${finProdHtml}</td>
       <td><span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;white-space:nowrap">${sl[0]}</span></td>
       <td>${tailleBadge}</td>
       <td style="text-align:right;color:var(--text3);font-size:11px">${nbArt} article${nbArt!==1?'s':''}</td>
