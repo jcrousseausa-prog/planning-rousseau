@@ -1528,9 +1528,47 @@ function quickStatutTranche(id, newStatut, e){
   } else {
     t.statut_erp = newStatut;
   }
-  scheduleSave(); renderPlanning();
-  toast(newStatut==='livre'?'✅ Tranche marquée Livrée':'✅ Tranche marquée Terminée');
+
+  // Cascade : valider la tranche entraîne la validation de ses phases pas encore
+  // au même niveau (sinon elles restent "Planifié" indéfiniment malgré la tranche
+  // marquée Terminée/Livrée — cf. retour utilisateur sept. 2026).
+  let phasesMaj = 0;
+  if(newStatut==='termine' || newStatut==='livre'){
+    state.phases.filter(p=>p.tid===id).forEach(p=>{
+      if(newStatut==='livre'){
+        if(p.statut!=='livre'){ p.statut='livre'; p.date_livre=today; if(!p.date_termine) p.date_termine=today; phasesMaj++; }
+      } else { // termine
+        if(p.statut!=='termine' && p.statut!=='livre'){ p.statut='termine'; p.date_termine=today; phasesMaj++; }
+      }
+    });
+  }
+
+  scheduleSave(); renderPlanning(); renderSuiviProd(); renderPilotagePhases();
+  toast((newStatut==='livre'?'✅ Tranche marquée Livrée':'✅ Tranche marquée Terminée') + (phasesMaj?' — '+phasesMaj+' phase(s) mise(s) à jour':''));
 }
+
+// Rattrapage ponctuel : aligne les phases des tranches déjà marquées Terminé/Livré
+// AVANT l'ajout de la cascade ci-dessus (elles ne se remettent pas à jour toutes seules).
+// À lancer une fois depuis la console du navigateur (F12) : rattraperPhasesTerminees()
+function rattraperPhasesTerminees(){
+  const today = new Date().toISOString().slice(0,10);
+  let count = 0;
+  state.tranches.forEach(t=>{
+    if(t.statut_erp!=='termine' && t.statut_erp!=='livre') return;
+    state.phases.filter(p=>p.tid===t.id).forEach(p=>{
+      if(t.statut_erp==='livre'){
+        if(p.statut!=='livre'){ p.statut='livre'; p.date_livre=p.date_livre||today; if(!p.date_termine) p.date_termine=today; count++; }
+      } else {
+        if(p.statut!=='termine' && p.statut!=='livre'){ p.statut='termine'; p.date_termine=p.date_termine||today; count++; }
+      }
+    });
+  });
+  if(count>0){ scheduleSave(); renderPlanning(); renderSuiviProd(); renderPilotagePhases(); }
+  toast('✅ Rattrapage : '+count+' phase(s) mise(s) à jour');
+  console.log('Rattrapage phases terminées :', count);
+  return count;
+}
+window.rattraperPhasesTerminees = rattraperPhasesTerminees;
 
 function quickStatutPhase(id, newStatut, e){
   e.stopPropagation();
@@ -7243,8 +7281,25 @@ async function renderCoherenceTranches(){
     const datesNoms = new Set(datesMap.keys());
     if(!datesNoms.size) throw new Error('Onglet DATES vide ou introuvable');
 
-    // 2. Tranches ERP
-    const erpNoms = new Set((state.tranches||[]).map(t=>norm(t.nom||'')).filter(Boolean));
+    // 2. Tranches ERP (nom normalisé -> statut_erp, pour détecter les tranches déjà produites/livrées)
+    const erpStatutMap = new Map();
+    (state.tranches||[]).forEach(t=>{
+      const k = norm(t.nom||'');
+      if(k && !erpStatutMap.has(k)) erpStatutMap.set(k, t.statut_erp||'');
+    });
+    const erpNoms = new Set(erpStatutMap.keys());
+    const estDejaProduite = k => { const s = erpStatutMap.get(k); return s==='termine' || s==='livre'; };
+
+    // Besoin atelier — depuis state.dates_erp (détail onglet DATES, chargé via loadDATESSource/loadDATES)
+    const besoinAtelierMap = new Map();
+    (state.dates_erp||[]).forEach(d=>{
+      const k = norm(d.tranche||'');
+      if(k && !besoinAtelierMap.has(k)) besoinAtelierMap.set(k, !!d.besoin_atelier);
+    });
+    // Inconnu (pas encore chargé/pas de correspondance) → true, pour ne jamais masquer un vrai écart par erreur
+    const aBesoinAtelier = k => besoinAtelierMap.has(k) ? besoinAtelierMap.get(k) : true;
+    // Faux positif = déjà produite/livrée, OU pas de besoin atelier déclaré dans DATES
+    const fauxPositif = k => estDejaProduite(k) || !aBesoinAtelier(k);
 
     // 3. Tranches planning prod
     let prodNoms = new Set();
@@ -7264,8 +7319,9 @@ async function renderCoherenceTranches(){
     const dansERP   = [...datesNoms].filter(n=>erpNoms.has(n));
     const dansProd  = prodNoms.size ? [...datesNoms].filter(n=>prodNoms.has(n)) : null;
     const absERP    = [...datesNoms].filter(n=>!erpNoms.has(n)).map(k=>datesMap.get(k));
-    const absProd   = prodNoms.size ? [...datesNoms].filter(n=>!prodNoms.has(n)).map(k=>datesMap.get(k)) : null;
-    const erpPasProd= prodNoms.size ? dansERP.filter(n=>!prodNoms.has(n)).map(k=>datesMap.get(k)) : [];
+    const absProd   = prodNoms.size ? [...datesNoms].filter(n=>!prodNoms.has(n) && !fauxPositif(n)).map(k=>datesMap.get(k)) : null;
+    const erpPasProd= prodNoms.size ? dansERP.filter(n=>!prodNoms.has(n) && !fauxPositif(n)).map(k=>datesMap.get(k)) : [];
+    const nbFauxPositifs = prodNoms.size ? [...datesNoms].filter(n=>!prodNoms.has(n) && fauxPositif(n)).length : 0;
     const pctERP  = total ? Math.round(dansERP.length/total*100) : 0;
     const pctProd = dansProd ? Math.round(dansProd.length/total*100) : null;
 
@@ -7306,6 +7362,9 @@ async function renderCoherenceTranches(){
       html += '<button class="btn btn-sm" onclick="state._coherenceShowAbs='+(!showAbs)+';renderCoherenceTranches()" style="margin-bottom:10px">'+
         (showAbs?'▲ Masquer le détail':'▼ Voir le détail — '+nbEcarts+' écarts')+
         '</button>';
+      if(nbFauxPositifs>0){
+        html += '<div style="font-size:10px;color:var(--text3);margin:-6px 0 10px 2px">'+nbFauxPositifs+' tranche(s) déjà produites ou sans besoin atelier — exclues automatiquement</div>';
+      }
     } else {
       html += '<div style="text-align:center;padding:8px;color:var(--green);font-weight:600;font-size:12px">✅ Toutes les tranches sont cohérentes</div>';
     }
