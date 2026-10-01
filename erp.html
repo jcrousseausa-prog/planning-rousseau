@@ -2500,7 +2500,7 @@ function renderPlanning(){
         const phIsMatch = phaseMatches(ph);
         let phElId = '';
         if(phIsMatch && !_firstMatchId){ phElId='ph-first-match'; _firstMatchId=ph.id; }
-        html+=renderPhRow(ph,phArts.length,phArts,phIsMatch,phElId);
+        html+=renderPhRow(ph,phArts.length,phArts,phIsMatch,phElId,tr,ofs_prod);
         if(!ph.open)continue;
         for(const art of phArts) html+=renderArtRow(art);
         html+=`<tr class="row-add"><td colspan="13"><button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddArticle('${ph.id}')">+ Article</button></td></tr>`;
@@ -2844,7 +2844,6 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
     <td style="text-align:center">${finProdHtml}</td>
     <td></td>
     <td></td>
-    <td></td>
     <td>${statutERPHtml}</td>
     <td>${statutHtml}</td>
     <td style="text-align:right;white-space:nowrap">
@@ -2854,7 +2853,7 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
   </tr>${ofsHtml}`;
 }
 
-function renderPhRow(ph,nbArt,arts,highlight,elId){
+function renderPhRow(ph,nbArt,arts,highlight,elId,tr,ofsTranche){
   const o=ph.open;
   const avMoyen=arts.length?Math.round(arts.reduce((s,a)=>s+(+a.avancement||0),0)/arts.length):0;
   const bh=arts.reduce((s,a)=>s+(+a.budget_heures||0),0);
@@ -2871,9 +2870,53 @@ function renderPhRow(ph,nbArt,arts,highlight,elId){
   const idAttr = elId ? ` id="${elId}"` : '';
   const rowStyle = highlight ? ' style="background:#FFF6D8;box-shadow:inset 3px 0 0 var(--orange)"' : '';
   const matchBadge = highlight ? `<span style="font-size:9px;background:var(--orange);color:#fff;border-radius:4px;padding:1px 6px;margin-left:6px;font-weight:700">🔍 résultat</span>` : '';
+
+  // CTVX : le CTVX n'existe pas par phase dans les DATES/l'usinage, seulement par tranche —
+  // on réaffiche donc la même date que la tranche plutôt que de laisser la colonne vide.
+  const ctvx = tr ? ctvxDeTranche(tr) : '';
+  const ctvxHtml = ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)
+    ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(ctvx)}</span>`
+    : '<span style="color:var(--text3);font-size:11px">—</span>';
+
+  // Fin Prod : date de fin de l'OF spécifiquement rattaché à CETTE phase (champ "phases" de
+  // l'OF, ex: "PH19" ou "PH20,PH22" — envoyé depuis Planning Production), pas la date globale
+  // de la tranche qui mélangerait toutes ses phases.
+  let finProd = '';
+  if(ph.num && ofsTranche && ofsTranche.length){
+    const normTag = s => String(s||'').toUpperCase().replace(/\s+/g,'');
+    const target = normTag(ph.num);
+    const dates = ofsTranche
+      .filter(of => String(of.phases||'').split(',').map(normTag).includes(target))
+      .map(of => of.date_fin_prod||'')
+      .filter(d => d && /^\d{4}-\d{2}-\d{2}$/.test(d))
+      .sort();
+    if(dates.length) finProd = dates[dates.length-1];
+  }
+  let finProdHtml;
+  if(!finProd){
+    finProdHtml = '<span style="color:var(--text3);font-size:11px">—</span>';
+  } else {
+    let color='var(--text2)', bg='transparent', border='var(--border)';
+    if(ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)){
+      if(finProd > ctvx){ color='var(--red)'; bg='var(--red-bg)'; border='var(--red-border)'; }
+      else { color='var(--green)'; bg='var(--green-bg)'; border='var(--green-border)'; }
+    }
+    finProdHtml = `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;background:${bg};color:${color};border:1px solid ${border};border-radius:4px;padding:1px 5px">${fmtDate(finProd)}</span>`;
+  }
+
 return`<tr class="row-phase"${idAttr}${rowStyle} onclick="toggleNode('ph','${ph.id}')">
   <td><span class="chevron${o?' open':''}">▶</span></td>
-  <td colspan="7">${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}<b>${esc(ph.nom)}</b> ${statutBadge}${tailleBadge}${matchBadge}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}${bh?` · ${bh}h`:''}</span></td>
+  <td colspan="2">${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}<b>${esc(ph.nom)}</b>${tailleBadge}${matchBadge}<span style="font-size:10px;color:var(--text3);margin-left:6px">${nbArt} article${nbArt!==1?'s':''}</span></td>
+  <td></td>
+  <td></td>
+  <td style="text-align:center">${ctvxHtml}</td>
+  <td></td>
+  <td></td>
+  <td style="text-align:center">${finProdHtml}</td>
+  <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px">${bh||''}</td>
+  <td>${arts.length?progHtml(avMoyen,avMoyen>=100?'prog-green':avMoyen>0?'prog-blue':'prog-orange'):''}</td>
+  <td></td>
+  <td>${statutBadge}</td>
   <td style="text-align:right;white-space:nowrap">
     <button class="btn btn-sm" onclick="event.stopPropagation();openEditPhase('${ph.id}')">✎</button>
     <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deletePhase('${ph.id}')">✕</button>
@@ -5750,13 +5793,29 @@ function updValidationHeure(input){
   // Cette valeur corrigée sera prise en compte à l'étape "Valider" (à construire ensuite)
 }
 // ── AFFECTATION PROPORTIONNELLE LOG/CARISTES ──
+// Atelier de rattachement d'un cariste pour une semaine donnée (période active cette semaine-là,
+// sinon atelier par défaut de sa fiche). Fonction globale car utilisée à la fois par l'aperçu
+// (renderAffectationLog) et par l'application réelle (appliquerAffectationLog) — avant correction
+// du bug "heures LOG incohérentes" (oct. 2026), seul l'aperçu filtrait par atelier : l'application
+// répartissait les heures de TOUS les caristes sur l'atelier sélectionné, même ceux rattachés à un
+// autre atelier cette semaine-là, d'où des valeurs CDI/Intérim qui se retrouvaient quasi identiques.
+function atelierPourSemaine(emp, semaineVal){
+  const [y,w] = semaineVal.split('-W').map(Number);
+  const lundi = new Date(y,0,1+(w-1)*7);
+  lundi.setDate(lundi.getDate() - ((lundi.getDay()+6)%7));
+  const vendredi = new Date(lundi); vendredi.setDate(lundi.getDate()+4);
+  const dLundi = lundi.toISOString().slice(0,10), dVendredi = vendredi.toISOString().slice(0,10);
+  const periodes = emp.cariste_periodes||[];
+  const match = periodes.find(p=>p.debut && p.debut<=dVendredi && (!p.fin || p.fin>=dLundi));
+  return match ? match.atelier : (emp.cariste_atelier||null);
+}
 function renderAffectationLog(){
   const el = document.getElementById('hscreen-affectation');
   const employes = state.employes||[];
   const heures = state.heures||[];
 
   // Caristes uniquement (marqués comme cariste dans leur fiche)
-  const empsSupport = employes.filter(e=>e.cariste && !e.inactif);
+  const empsSupportTous = employes.filter(e=>e.cariste && !e.inactif);
   // Ateliers "production" = B1, B2, B3, Men, Us (Usinage — Robot + Speed Cut confondus,
   // basé sur les heures atelier='Us' déjà saisies dans l'ERP par chantier)
   const ateliersProd = ['B1','B2','B3','Men','Us'];
@@ -5767,18 +5826,12 @@ function renderAffectationLog(){
   // Chaque cariste a son propre atelier de rattachement
   // On affiche un tableau par cariste ou on calcule par atelier unique si tous pareil
   // Atelier cible = union des ateliers des caristes (ou sélecteur si différents)
-    function atelierPourSemaine(emp, semaineVal){
-    const [y,w] = semaineVal.split('-W').map(Number);
-    const lundi = new Date(y,0,1+(w-1)*7);
-    lundi.setDate(lundi.getDate() - ((lundi.getDay()+6)%7));
-    const vendredi = new Date(lundi); vendredi.setDate(lundi.getDate()+4);
-    const dLundi = lundi.toISOString().slice(0,10), dVendredi = vendredi.toISOString().slice(0,10);
-    const periodes = emp.cariste_periodes||[];
-    const match = periodes.find(p=>p.debut && p.debut<=dVendredi && (!p.fin || p.fin>=dLundi));
-    return match ? match.atelier : (emp.cariste_atelier||null);
-  }
-  const ateliersCaristes = [...new Set(empsSupport.map(e=>atelierPourSemaine(e, semSel)).filter(Boolean))];
+  const ateliersCaristes = [...new Set(empsSupportTous.map(e=>atelierPourSemaine(e, semSel)).filter(Boolean))];
   const atelierCible = state._affectAtelier || ateliersCaristes[0] || 'B1';
+  // Ne garder que les caristes réellement rattachés à l'atelier affiché/appliqué cette semaine
+  // (cf. commentaire sur atelierPourSemaine : sans ce filtre, un cariste rattaché à un autre
+  // atelier se voyait quand même affecter la répartition de l'atelier sélectionné).
+  const empsSupport = empsSupportTous.filter(e=>atelierPourSemaine(e, semSel)===atelierCible);
 
   // Calculer les heures production par chantier pour l'atelier cible cette semaine
   const hParChantier = {};
@@ -5827,13 +5880,13 @@ function renderAffectationLog(){
         ${ateliersProd.map(a=>`<option value="${a}"${a===atelierCible?' selected':''}>${a==='Us'?'Us (Usinage)':a}</option>`).join('')}
       </select>
     </label>
-        ${empsSupport.length ? `<span style="font-size:11px;color:var(--text3)">
-      Caristes rattachés cette semaine : ${empsSupport.map(e=>`<strong>${esc(e.nom)}</strong> → ${atelierPourSemaine(e, semSel)||'non affecté'}`).join(' · ')}
+        ${empsSupportTous.length ? `<span style="font-size:11px;color:var(--text3)">
+      Caristes rattachés cette semaine : ${empsSupportTous.map(e=>`<strong>${esc(e.nom)}</strong> → ${atelierPourSemaine(e, semSel)||'non affecté'}`).join(' · ')}
     </span>` : ''}
   </div>
 
   ${!totalProd ? `<div class="warn-box">Aucune heure de production saisie pour l'atelier ${atelierCible} en ${semSel}. Saisissez d'abord les heures chantier de cet atelier.</div>` : ''}
-  ${!empsSupport.length ? `<div class="warn-box">Aucun employé marqué "Cariste". Modifiez la fiche d'un employé et cochez <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4Ij4KICA8IS0tIENvcnBzIHByaW5jaXBhbCAtLT4KICA8cmVjdCB4PSIxMCIgeT0iMTQiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxMCIgcng9IjEuNSIgZmlsbD0iI0NDMjIwMCIvPgogIDwhLS0gQ2FiaW5lIC0tPgogIDxyZWN0IHg9IjE4IiB5PSI5IiB3aWR0aD0iOCIgaGVpZ2h0PSI4IiByeD0iMSIgZmlsbD0iI0REMzMxMSIvPgogIDwhLS0gVml0cmUgY2FiaW5lIC0tPgogIDxyZWN0IHg9IjE5LjUiIHk9IjEwLjUiIHdpZHRoPSI1IiBoZWlnaHQ9IjUiIHJ4PSIwLjUiIGZpbGw9IiM4OENDRUUiIG9wYWNpdHk9IjAuOCIvPgogIDwhLS0gTcOidCB2ZXJ0aWNhbCAtLT4KICA8cmVjdCB4PSI4IiB5PSI0IiB3aWR0aD0iMi41IiBoZWlnaHQ9IjE4IiByeD0iMSIgZmlsbD0iI0FBMTEwMCIvPgogIDwhLS0gRm91cmNoZXMgLS0+CiAgPHJlY3QgeD0iMiIgeT0iMjAiIHdpZHRoPSI4IiBoZWlnaHQ9IjEuOCIgcng9IjAuOCIgZmlsbD0iIzg4MTEwMCIvPgogIDxyZWN0IHg9IjIiIHk9IjIzIiB3aWR0aD0iOCIgaGVpZ2h0PSIxLjgiIHJ4PSIwLjgiIGZpbGw9IiM4ODExMDAiLz4KICA8IS0tIFJvdWUgYXZhbnQgLS0+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIFJvdWUgYXJyacOocmUgLS0+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIENvbnRyZXBvaWRzIGFycmnDqHJlIC0tPgogIDxyZWN0IHg9IjI0IiB5PSIxNyIgd2lkdGg9IjQiIGhlaWdodD0iNyIgcng9IjEiIGZpbGw9IiM5OTExMDAiLz4KICA8IS0tIEd5cm9waGFyZSAtLT4KICA8Y2lyY2xlIGN4PSIyMiIgY3k9IjguNSIgcj0iMS41IiBmaWxsPSIjRkY2NjAwIi8+CiAgPGNpcmNsZSBjeD0iMjIiIGN5PSI4LjUiIHI9IjAuNyIgZmlsbD0iI0ZGQUEwMCIvPgo8L3N2Zz4=" style="width:14px;height:14px;vertical-align:middle"> Cariste pour l'inclure ici.</div>` : ''}
+  ${!empsSupportTous.length ? `<div class="warn-box">Aucun employé marqué "Cariste". Modifiez la fiche d'un employé et cochez <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4Ij4KICA8IS0tIENvcnBzIHByaW5jaXBhbCAtLT4KICA8cmVjdCB4PSIxMCIgeT0iMTQiIHdpZHRoPSIxNiIgaGVpZ2h0PSIxMCIgcng9IjEuNSIgZmlsbD0iI0NDMjIwMCIvPgogIDwhLS0gQ2FiaW5lIC0tPgogIDxyZWN0IHg9IjE4IiB5PSI5IiB3aWR0aD0iOCIgaGVpZ2h0PSI4IiByeD0iMSIgZmlsbD0iI0REMzMxMSIvPgogIDwhLS0gVml0cmUgY2FiaW5lIC0tPgogIDxyZWN0IHg9IjE5LjUiIHk9IjEwLjUiIHdpZHRoPSI1IiBoZWlnaHQ9IjUiIHJ4PSIwLjUiIGZpbGw9IiM4OENDRUUiIG9wYWNpdHk9IjAuOCIvPgogIDwhLS0gTcOidCB2ZXJ0aWNhbCAtLT4KICA8cmVjdCB4PSI4IiB5PSI0IiB3aWR0aD0iMi41IiBoZWlnaHQ9IjE4IiByeD0iMSIgZmlsbD0iI0FBMTEwMCIvPgogIDwhLS0gRm91cmNoZXMgLS0+CiAgPHJlY3QgeD0iMiIgeT0iMjAiIHdpZHRoPSI4IiBoZWlnaHQ9IjEuOCIgcng9IjAuOCIgZmlsbD0iIzg4MTEwMCIvPgogIDxyZWN0IHg9IjIiIHk9IjIzIiB3aWR0aD0iOCIgaGVpZ2h0PSIxLjgiIHJ4PSIwLjgiIGZpbGw9IiM4ODExMDAiLz4KICA8IS0tIFJvdWUgYXZhbnQgLS0+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMTQiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIFJvdWUgYXJyacOocmUgLS0+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIzIiBmaWxsPSIjMjIyIi8+CiAgPGNpcmNsZSBjeD0iMjMiIGN5PSIyNS41IiByPSIxLjIiIGZpbGw9IiM1NTUiLz4KICA8IS0tIENvbnRyZXBvaWRzIGFycmnDqHJlIC0tPgogIDxyZWN0IHg9IjI0IiB5PSIxNyIgd2lkdGg9IjQiIGhlaWdodD0iNyIgcng9IjEiIGZpbGw9IiM5OTExMDAiLz4KICA8IS0tIEd5cm9waGFyZSAtLT4KICA8Y2lyY2xlIGN4PSIyMiIgY3k9IjguNSIgcj0iMS41IiBmaWxsPSIjRkY2NjAwIi8+CiAgPGNpcmNsZSBjeD0iMjIiIGN5PSI4LjUiIHI9IjAuNyIgZmlsbD0iI0ZGQUEwMCIvPgo8L3N2Zz4=" style="width:14px;height:14px;vertical-align:middle"> Cariste pour l'inclure ici.</div>` : (!empsSupport.length ? `<div class="warn-box">Aucun cariste rattaché à l'atelier ${atelierCible} pour la semaine ${semSel} (vérifiez les périodes de rattachement dans leur fiche, ou choisissez un autre atelier ci-dessus).</div>` : '')}
 
   ${totalProd && empsSupport.length ? `
   <!-- Résumé production -->
@@ -5906,7 +5959,11 @@ function renderAffectationLog(){
 function appliquerAffectationLog(semaine, atelierCible){
   const employes = state.employes||[];
   const heures = state.heures||[];
-  const empsSupport = employes.filter(e=>e.cariste && !e.inactif);
+  // Important : ne retenir QUE les caristes effectivement rattachés à l'atelier cible cette
+  // semaine (cf. atelierPourSemaine). Avant ce correctif, TOUS les caristes (quel que soit leur
+  // atelier réel) recevaient la répartition de l'atelier sélectionné ici, ce qui produisait des
+  // heures LOG CDI/Intérim quasi identiques pour chaque chantier (bug remonté oct. 2026).
+  const empsSupport = employes.filter(e=>e.cariste && !e.inactif && atelierPourSemaine(e, semaine)===atelierCible);
 
   // Recalculer la répartition
   const hParChantier = {};
@@ -5924,6 +5981,7 @@ function appliquerAffectationLog(semaine, atelierCible){
 
   const totalProd = Object.values(hParChantier).reduce((s,v)=>s+v, 0);
   if(!totalProd){ toast('Aucune heure production trouvée'); return; }
+  if(!empsSupport.length){ toast(`Aucun cariste rattaché à l'atelier ${atelierCible} pour cette semaine`); return; }
 
   if(!state.heures) state.heures = [];
   let count = 0;
@@ -7360,10 +7418,16 @@ async function renderCoherenceTranches(){
     const total     = datesNoms.size;
     const dansERP   = [...datesNoms].filter(n=>erpNoms.has(n));
     const dansProd  = prodNoms.size ? [...datesNoms].filter(n=>prodNoms.has(n)) : null;
-    const absERP    = [...datesNoms].filter(n=>!erpNoms.has(n)).map(k=>datesMap.get(k));
+    // "Absentes de l'ERP" ne doit compter que les lignes DATES qui ont réellement besoin d'un
+    // atelier (ou déjà produites) — sinon une ligne sans besoin atelier coché apparaît à tort
+    // comme un écart (cf. retour utilisateur oct. 2026 : "Baraterie Bat A bardage"), alors que
+    // absProd/erpPasProd appliquaient déjà ce même filtre fauxPositif.
+    const absERP    = [...datesNoms].filter(n=>!erpNoms.has(n) && !fauxPositif(n)).map(k=>datesMap.get(k));
     const absProd   = prodNoms.size ? [...datesNoms].filter(n=>!prodNoms.has(n) && !fauxPositif(n)).map(k=>datesMap.get(k)) : null;
     const erpPasProd= prodNoms.size ? dansERP.filter(n=>!prodNoms.has(n) && !fauxPositif(n)).map(k=>datesMap.get(k)) : [];
-    const nbFauxPositifs = prodNoms.size ? [...datesNoms].filter(n=>!prodNoms.has(n) && fauxPositif(n)).length : 0;
+    // Nombre de tranches masquées par le filtre fauxPositif (déjà produites/livrées, ou sans
+    // besoin atelier) parmi celles qui seraient sinon apparues comme écart ERP et/ou Prod.
+    const nbFauxPositifs = [...datesNoms].filter(n=>fauxPositif(n) && (!erpNoms.has(n) || (prodNoms.size && !prodNoms.has(n)))).length;
     const pctERP  = total ? Math.round(dansERP.length/total*100) : 0;
     const pctProd = dansProd ? Math.round(dansProd.length/total*100) : null;
 
