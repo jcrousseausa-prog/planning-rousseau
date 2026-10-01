@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20260930-0930">
+<meta name="version" content="20261001-1030">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -680,6 +680,7 @@ async function initApp() {
   _termineLe:normD(t._terminele||t._termineLe||''),
   phases:normP(t.phases),
   erp_tranche_id: t.erp_tranche_id||'',
+  tr_id: t.tr_id||'',
 });
       });
       for (const a in tr) tr[a].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
@@ -708,6 +709,7 @@ async function initApp() {
           lockDebut:get(cols,'lock_debut')==='TRUE', lockFin:get(cols,'lock_fin')==='TRUE',
           lockFinDate:get(cols,'lock_fin_date')||null, parallel:get(cols,'parallel')==='TRUE',
           termine:get(cols,'termine')==='TRUE', _termineLe:get(cols,'_termineLe')||'',
+          erp_tranche_id:get(cols,'erp_tranche_id')||'', tr_id:get(cols,'tr_id')||'',
         });
       }
       for (const a in tr) tr[a].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
@@ -908,6 +910,7 @@ async function saveToSupabase(atId) {
   _termineLe: t._termineLe||'',
   phases: Array.isArray(t.phases) ? t.phases.join(',') : (t.phases||''),
   erp_tranche_id: t.erp_tranche_id||'',
+  tr_id: t.tr_id||'',
 }));
   }
 
@@ -2507,6 +2510,7 @@ async function syncDistant() {
   termine:normBool(t.termine), _termineLe:normD(t._terminele||t._termineLe||''),
   phases:normP(t.phases),
   erp_tranche_id: t.erp_tranche_id||'',
+  tr_id: t.tr_id||'',
 });
         changed = true;
       } else {
@@ -2525,6 +2529,10 @@ async function syncDistant() {
         const localPhasesKey = JSON.stringify((local.phases||[]).filter(Boolean).slice().sort());
         const distPhasesKey  = JSON.stringify(distPhases.filter(Boolean).slice().sort());
         if (localPhasesKey !== distPhasesKey && !_saveTimeout) { local.phases = distPhases; changed = true; }
+        // tr_id (code ID stable ex: TR-0419) : même logique que phases/besoin — un autre
+        // onglet peut l'avoir verrouillé via refreshCtvxDepuisDATES() entre-temps.
+        const distTrId = t.tr_id||'';
+        if ((local.tr_id||'') !== distTrId && !_saveTimeout) { local.tr_id = distTrId; changed = true; }
       }
     });
     // Supprimer les tranches supprimées à distance
@@ -2550,17 +2558,36 @@ function refreshCtvxDepuisDATES(){
       let updated=0;
       const ateliersMaj = new Set();
       const normNom = s => String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+      // Index par code ID stable (ex: TR-0419, colonne R du fichier DATES) ET par nom
+      // (fallback historique). Le code ID est prioritaire : une fois une tranche liée
+      // via son nom, on mémorise son tr_id (ci-dessous) et on ne dépend plus jamais
+      // du nom pour elle — un renommage ultérieur dans Planning Production n'empêche
+      // donc plus la mise à jour de sa date CTVX.
+      const byId = new Map();
+      const byNom = new Map();
       (r.data||[]).forEach(d=>{
-        const nom=normNom(d.nom);
-        if(!nom) return;
-        for(const atId in state.tranches){
-          state.tranches[atId].forEach(t=>{
-            if(normNom(t.tranche)===nom && d.date_ctvx && t.besoin!==d.date_ctvx){
-              t.besoin=d.date_ctvx; updated++; ateliersMaj.add(atId);
-            }
-          });
-        }
+        const trId = String(d.tr_id||'').trim();
+        if(trId && !byId.has(trId)) byId.set(trId, d);
+        const nom = normNom(d.nom);
+        if(nom && !byNom.has(nom)) byNom.set(nom, d);
       });
+      for(const atId in state.tranches){
+        state.tranches[atId].forEach(t=>{
+          const localTrId = String(t.tr_id||'').trim();
+          let d = localTrId && byId.has(localTrId) ? byId.get(localTrId) : null;
+          if(!d){
+            const nom = normNom(t.tranche);
+            if(nom && byNom.has(nom)) d = byNom.get(nom);
+          }
+          if(!d) return;
+          let touched = false;
+          if(d.date_ctvx && t.besoin!==d.date_ctvx){ t.besoin=d.date_ctvx; touched=true; }
+          // Verrouillage auto du code ID dès qu'un match (par nom ou déjà par id) est trouvé.
+          const dTrId = String(d.tr_id||'').trim();
+          if(dTrId && t.tr_id!==dTrId){ t.tr_id=dTrId; touched=true; }
+          if(touched){ updated++; ateliersMaj.add(atId); }
+        });
+      }
       if(updated>0){
         render();
         // Sauvegarder les ateliers modifiés — sinon syncDistant() (toutes les 30s)
