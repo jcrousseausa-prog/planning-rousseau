@@ -1552,7 +1552,15 @@ function quickStatutTranche(id, newStatut, e){
 // Rattrapage ponctuel : aligne les phases des tranches déjà marquées Terminé/Livré
 // AVANT l'ajout de la cascade ci-dessus (elles ne se remettent pas à jour toutes seules).
 // À lancer une fois depuis la console du navigateur (F12) : rattraperPhasesTerminees()
-function rattraperPhasesTerminees(){
+// Cœur du rattrapage, sans toast ni re-render — réutilisé à la fois par le rattrapage manuel
+// (rattraperPhasesTerminees, console) ET automatiquement après chaque rechargement des données
+// serveur (loadFromSheetsfast). Nécessaire car un statut_erp peut passer à termine/livre sans
+// jamais passer par quickStatutTranche() — notamment via le sync auto "fin usinage"
+// (syncFinUsinageAuto/Manuel côté Apps Script, ex : tranche usinage seul sans assemblage déclarée
+// terminée automatiquement côté serveur) — un chemin que la cascade de quickStatutTranche() ne
+// voit jamais puisque les données arrivent déjà "terminé" depuis le serveur (cf. retour
+// utilisateur oct. 2026 : tranche usinage-seul "Terminé" mais sa phase restée "Planifié").
+function cascaderPhasesDepuisTranches(){
   const today = new Date().toISOString().slice(0,10);
   let count = 0;
   state.tranches.forEach(t=>{
@@ -1565,6 +1573,11 @@ function rattraperPhasesTerminees(){
       }
     });
   });
+  return count;
+}
+
+function rattraperPhasesTerminees(){
+  const count = cascaderPhasesDepuisTranches();
   if(count>0){ scheduleSave(); renderPlanning(); renderSuiviProd(); renderPilotagePhases(); }
   toast('✅ Rattrapage : '+count+' phase(s) mise(s) à jour');
   console.log('Rattrapage phases terminées :', count);
@@ -2376,6 +2389,11 @@ async function loadFromSheetsfast(){
       state.phases    = r.data.phases||[];
       state.articles  = r.data.articles||[];
       if(r.data.suivi_prod) state.suivi_prod = r.data.suivi_prod;
+      // Rattrapage silencieux : une tranche peut arriver du serveur déjà statut_erp=termine/livre
+      // (ex : auto-complétion "fin usinage" côté Apps Script) sans jamais passer par la cascade
+      // manuelle de quickStatutTranche() — on aligne donc systématiquement ses phases ici, à
+      // chaque rechargement, pour que l'écart ne puisse plus se reproduire ni s'accumuler.
+      if(cascaderPhasesDepuisTranches()>0) scheduleSave();
       setOnline();
       saveLS();
       return true;
