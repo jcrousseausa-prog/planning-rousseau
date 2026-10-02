@@ -7408,7 +7408,16 @@ async function renderCoherenceTranches(){
     const erpNoms = new Set(erpStatutMap.keys());
     const estDejaProduite = k => { const s = erpStatutMap.get(k); return s==='termine' || s==='livre'; };
 
-    // Besoin atelier — depuis state.dates_erp (détail onglet DATES, chargé via loadDATESSource/loadDATES)
+    // Besoin atelier — depuis state.dates_erp (détail onglet DATES, chargé via loadDATESSource/loadDATES).
+    // Important : on force ici un rechargement et on l'attend, plutôt que de compter sur le
+    // chargement en arrière-plan lancé ailleurs (loadDATESSource() est appelé en fire-and-forget
+    // après le login, cf. loadFromSheets) — sinon, si ce widget se rend avant que ce chargement de
+    // fond ait fini (setTimeout de 800ms côté dashboard, contre un appel Apps Script qui peut
+    // prendre plus longtemps), state.dates_erp est encore vide/périmé : toute tranche inconnue de
+    // cette map retombe alors sur le défaut "true" ci-dessous et échappe à tort au filtre
+    // fauxPositif, même quand la case "besoin atelier" est bien décochée dans le fichier DATES
+    // (cf. retour utilisateur oct. 2026 : "BARATERIE – BAT A – TN – TERRASSES").
+    await loadDATESSource();
     const besoinAtelierMap = new Map();
     (state.dates_erp||[]).forEach(d=>{
       const k = norm(d.tranche||'');
