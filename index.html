@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261005-1300">
+<meta name="version" content="20261005-1400">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -2677,7 +2677,13 @@ function synchroniserLiens(){
         // DATES est trouvée mais qu'elle n'a pas de code ID exploitable.
         t._datesNom = !!(d && !(t.tr_id && datIdx.byId.has(String(t.tr_id))) && !String(d.tr_id||'').trim());
         if(d){
-          if(d.date_ctvx && t.besoin !== d.date_ctvx){ t.besoin = d.date_ctvx; touched = true; }
+          // Date CTVX de référence : celle de la ligne "BESOIN ATELIER" cochée (action loadDATES,
+          // une seule ligne par tranche). getDATES renvoie la 1re ligne rencontrée pour ce nom,
+          // qui peut être une autre tâche de la même tranche avec une autre date (ex: POUSS'COOP -
+          // A - CHARPENTE : 10/11 au lieu de 24/11). On ne retombe sur getDATES que si la tranche
+          // n'a aucune ligne "besoin atelier".
+          const dateRef = (state._ctvxAtelier && state._ctvxAtelier.get(_normLien(d.nom))) || d.date_ctvx;
+          if(dateRef && t.besoin !== dateRef){ t.besoin = dateRef; touched = true; }
           const dTr = String(d.tr_id||'').trim();
           if(dTr && t.tr_id !== dTr){ t.tr_id = dTr; touched = true; }
         }
@@ -2720,9 +2726,21 @@ async function refreshErpTranches(){
 function refreshCtvxDepuisDATES(){
   return refreshErpTranches().then(()=>
     fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getDATES'})})
-  ).then(r=>r.json()).then(r=>{
+  ).then(r=>r.json()).then(async r=>{
     if(!r.ok) return 0;
     state._datesIdx = _indexDATES(r.data);
+    // Dates CTVX "besoin atelier" (loadDATES). En cas d'échec on garde la dernière version connue.
+    try{
+      const rl = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'loadDATES'})}).then(x=>x.json());
+      if(rl && rl.ok && Array.isArray(rl.tranches_erp)){
+        const m = new Map();
+        rl.tranches_erp.forEach(x=>{
+          const k = _normLien(x.tranche), dt = normalizeDate(x.date_ctvx);
+          if(k && dt && !m.has(k)) m.set(k, dt);
+        });
+        state._ctvxAtelier = m;
+      }
+    }catch(e){ /* silencieux */ }
     return synchroniserLiens();
   }).catch(()=>0);
 }
