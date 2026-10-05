@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261001-1030">
+<meta name="version" content="20261005-1200">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -742,6 +742,7 @@ async function initApp() {
         const dl = document.getElementById('phases-suggestions');
         if(dl) dl.innerHTML = allPhNums.map(p=>`<option value="${esc(p)}">`).join('');
         state.phases_erp = allPhNums;
+        state._erpFetchedAt = Date.now();
       }
     } catch(e) {
       try {
@@ -785,6 +786,10 @@ async function initApp() {
     setSyncPill('ok', 'Synchronisé');
     setOnlineIndex();
     render();
+    // Lier automatiquement les tranches à l'ERP / DATES dès que le tableau est affiché
+    // (le fichier DATES arrive via refreshCtvxDepuisDATES ; on relance donc aussi ce cycle).
+    try { synchroniserLiens(); } catch(eL) { console.warn('synchroniserLiens:', eL.message); }
+    try { refreshCtvxDepuisDATES(); } catch(eL2) {}
   } catch(e) {
     console.error('initApp ERREUR:', e.message);
     setOfflineIndex('Chargement impossible : ' + e.message);
@@ -1349,7 +1354,7 @@ ondrop="dropRow(event,'${atId}',${realIdx});this.classList.remove('drag-over')">
 <td><span class="drag-handle">${q||IS_READONLY?realIdx+1:'⠿'}</span></td>
 <td>
   <div style="font-size:11px;word-break:break-word;white-space:normal;line-height:1.3;padding:2px 0;user-select:text;cursor:text;display:flex;align-items:flex-start;gap:5px" ondragstart="event.stopPropagation()" onmousedown="event.stopPropagation()">
-    <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;background:${t.erp_tranche_id?'#1E8449':'#D68910'}" title="${t.erp_tranche_id?'Rattachée à l\'ERP — CTVX à jour':'Non rattachée à l\'ERP — CTVX potentiellement obsolète'}"></span>
+    ${lienDotHtml(t)}
     <span>${esc(t.tranche)}</span>
   </div>
 </td>
@@ -1587,7 +1592,7 @@ ${t.parallel?`<span class="flag-pill flag-parallel">⇉ parallèle</span>`:''}
 </div>`:'';
 return`<div class="gantt-row" style="${rowBg}">
 <div class="gantt-row-label">
-<div class="tranche-name">${esc(t.tranche)}${t.erp_tranche_id?'<span style="font-size:9px;margin-left:4px;color:var(--green);vertical-align:middle" title="Lié à l\'ERP">⬤</span>':'<span style="font-size:9px;margin-left:4px;color:var(--text3);vertical-align:middle" title="Non lié à l\'ERP">○</span>'}</div>
+<div class="tranche-name">${esc(t.tranche)}${lienGanttHtml(t)}</div>
 ${t.comment?`<div class="tranche-comment">${esc(t.comment)}</div>`:''}
 ${flagsHtml}
 </div>
@@ -2495,6 +2500,7 @@ async function syncDistant() {
       return s.split(',').map(x=>x.trim()).filter(Boolean);
     };
     let changed = false;
+    const lienPerduAt = new Set();
     r.tranches.forEach(t => {
       const atId = String(t.atelier_id||'').toLowerCase().trim();
       if (!atId || !state.tranches[atId]) return;
@@ -2529,12 +2535,25 @@ async function syncDistant() {
         const localPhasesKey = JSON.stringify((local.phases||[]).filter(Boolean).slice().sort());
         const distPhasesKey  = JSON.stringify(distPhases.filter(Boolean).slice().sort());
         if (localPhasesKey !== distPhasesKey && !_saveTimeout) { local.phases = distPhases; changed = true; }
-        // tr_id (code ID stable ex: TR-0419) : même logique que phases/besoin — un autre
-        // onglet peut l'avoir verrouillé via refreshCtvxDepuisDATES() entre-temps.
-        const distTrId = t.tr_id||'';
-        if ((local.tr_id||'') !== distTrId && !_saveTimeout) { local.tr_id = distTrId; changed = true; }
+        // Liens (erp_tranche_id = ERP, tr_id = DATES) : la valeur NON VIDE gagne.
+        //  • serveur renseigné, local vide/différent → on adopte le serveur (un autre onglet
+        //    a posé le lien) ;
+        //  • serveur vide alors que le local est renseigné → un enregistrement concurrent
+        //    (onglet périmé…) a effacé le lien : on le re-sauvegarde (au plus 1×/2 min).
+        if (!_saveTimeout) {
+          ['erp_tranche_id','tr_id'].forEach(champ => {
+            const dist = String(t[champ]||'').trim();
+            const loc  = String(local[champ]||'').trim();
+            if (dist && dist !== loc) { local[champ] = dist; changed = true; }
+            else if (!dist && loc) lienPerduAt.add(atId);
+          });
+        }
       }
     });
+    if (lienPerduAt.size && (!state._lienRestoreAt || Date.now() - state._lienRestoreAt > 2*60*1000)) {
+      state._lienRestoreAt = Date.now();
+      lienPerduAt.forEach(a => scheduleSave(a));
+    }
     // Supprimer les tranches supprimées à distance
     const distIds = new Set(r.tranches.map(t=>String(t.id)));
     for (const atId in state.tranches) {
@@ -2550,58 +2569,161 @@ async function syncDistant() {
 }
 setInterval(syncDistant, 30000);
 
-// Fonction de mise à jour CTVX depuis le fichier DATES source — réutilisable
+// ═══ LIEN TRANCHE ↔ SOURCE (ERP / DATES) ═══════════════════════════════════
+// Une tranche de Planning Production est "liée" quand on la retrouve :
+//   • dans l'ERP   → erp_tranche_id (ex: t1349), ou
+//   • dans DATES   → tr_id (code stable, ex: TR-0419, colonne R du fichier DATES).
+// Le lien est recalculé AUTOMATIQUEMENT (au chargement puis toutes les 10 min) :
+//   1) id déjà enregistré et toujours présent dans la source → on ne touche à rien ;
+//   2) sinon on cherche la tranche par son nom (insensible aux accents, tirets,
+//      espaces, majuscules) et, si le résultat est UNIQUE, on enregistre l'id
+//      → si un enregistrement concurrent (autre onglet, ancien état) efface le
+//      lien dans la feuille, il est reposé tout seul au cycle suivant ;
+//   3) introuvable → pastille ROUGE (jamais de lien deviné en cas d'ambiguïté).
+function _normLien(s){
+  return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+}
+function _normNomSimple(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+
+// {erp:'t1349'|null, dates:'TR-0419'|null}. Tant qu'une source n'est pas encore
+// chargée, un id déjà enregistré compte comme lié (évite un flash orange au démarrage).
+function lienTranche(t){
+  const erpPret = !!(state._erpIdx && state._erpIdx.ids.size);
+  const datPret = !!state._datesIdx;
+  const r = {erp:null, dates:null};
+  if(t.erp_tranche_id && (!erpPret || state._erpIdx.ids.has(String(t.erp_tranche_id)))) r.erp = String(t.erp_tranche_id);
+  if(t.tr_id && (!datPret || state._datesIdx.byId.has(String(t.tr_id)))) r.dates = String(t.tr_id);
+  return r;
+}
+// Trois états : VERT = lié à DATES (date CTVX mise à jour automatiquement),
+// JAUNE = lié à l'ERP uniquement (pas de ligne DATES → date à saisir à la main),
+// ROUGE = introuvable dans l'ERP et dans DATES.
+function lienEtat(l){
+  if(l.dates) return {k:'dates', couleur:'#1E8449', gantt:'var(--green)'};
+  if(l.erp)   return {k:'erp',   couleur:'#E0A800', gantt:'#E0A800'};
+  return {k:'aucun', couleur:'#C0392B', gantt:'#C0392B'};
+}
+function lienTitre(l){
+  if(l.dates) return 'Lié à DATES ('+l.dates+') — date CTVX mise à jour automatiquement'+(l.erp?' · lié aussi à l\'ERP ('+l.erp+')':'');
+  if(l.erp)   return "Lié à l'ERP ("+l.erp+") uniquement — pas de ligne dans DATES : date CTVX à saisir à la main";
+  return "Introuvable dans l'ERP et dans DATES — nom différent ou pas encore créé côté ERP";
+}
+function lienDotHtml(t){
+  const l = lienTranche(t), e = lienEtat(l);
+  return `<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;background:${e.couleur}" title="${esc(lienTitre(l))}"></span>`;
+}
+function lienGanttHtml(t){
+  const l = lienTranche(t), e = lienEtat(l);
+  return `<span style="font-size:9px;margin-left:4px;color:${e.gantt};vertical-align:middle" title="${esc(lienTitre(l))}">⬤</span>`;
+}
+
+function _indexDATES(data){
+  const byId = new Map(), byNom = new Map();
+  (data||[]).forEach(d=>{
+    const trId = String(d.tr_id||'').trim();
+    if(trId && !byId.has(trId)) byId.set(trId, d);
+    const k = _normLien(d.nom);
+    if(!k) return;
+    if(!byNom.has(k)) byNom.set(k, []);
+    byNom.get(k).push(d);
+  });
+  return {byId, byNom};
+}
+function _indexERP(list){
+  const ids = new Set(), byNom = new Map();
+  (list||[]).forEach(e=>{
+    ids.add(String(e.id));
+    const k = _normLien(e.nom);
+    if(!k) return;
+    if(!byNom.has(k)) byNom.set(k, []);
+    byNom.get(k).push(e);
+  });
+  return {ids, byNom};
+}
+// Candidat unique ; en cas d'homonymes après normalisation, on départage sur le nom exact.
+function _pickUnique(arr, nom){
+  if(!arr || !arr.length) return null;
+  if(arr.length === 1) return arr[0];
+  const w = _normNomSimple(nom);
+  const ex = arr.filter(x=>_normNomSimple(x.nom) === w);
+  return ex.length === 1 ? ex[0] : null;
+}
+
+// Recalcule les liens (ERP + DATES) et la date CTVX (besoin) de toutes les tranches.
+function synchroniserLiens(){
+  if(Array.isArray(state.tranches_erp) && state.tranches_erp.length) state._erpIdx = _indexERP(state.tranches_erp);
+  const erpIdx = state._erpIdx, datIdx = state._datesIdx;
+  if(!erpIdx && !datIdx) return 0;
+  let updated = 0;
+  const ateliersMaj = new Set();
+  for(const atId in state.tranches){
+    (state.tranches[atId]||[]).forEach(t=>{
+      const k = _normLien(t.tranche);
+      let touched = false;
+      // ── ERP : lien par id (déjà valide) sinon par nom unique ──
+      if(erpIdx && !(t.erp_tranche_id && erpIdx.ids.has(String(t.erp_tranche_id)))){
+        const e = k ? _pickUnique(erpIdx.byNom.get(k), t.tranche) : null;
+        if(e && String(t.erp_tranche_id||'') !== String(e.id)){ t.erp_tranche_id = e.id; touched = true; }
+      }
+      // ── DATES : lien par tr_id (prioritaire) sinon par nom unique, + date CTVX ──
+      if(datIdx){
+        let d = (t.tr_id && datIdx.byId.get(String(t.tr_id))) || (k ? _pickUnique(datIdx.byNom.get(k), t.tranche) : null);
+        if(d){
+          if(d.date_ctvx && t.besoin !== d.date_ctvx){ t.besoin = d.date_ctvx; touched = true; }
+          const dTr = String(d.tr_id||'').trim();
+          if(dTr && t.tr_id !== dTr){ t.tr_id = dTr; touched = true; }
+        }
+      }
+      if(touched){ updated++; ateliersMaj.add(atId); }
+    });
+  }
+  // Re-dessiner si des données ont changé OU si le nombre de tranches liées a bougé
+  // (ex: une source vient d'être chargée et un vieil id n'y est plus).
+  let nDates = 0, nErp = 0;
+  for(const atId in state.tranches) (state.tranches[atId]||[]).forEach(t=>{ const l=lienTranche(t); if(l.dates) nDates++; else if(l.erp) nErp++; });
+  const sig = nDates+':'+nErp;
+  const sigChange = state._lienSig !== sig;
+  state._lienSig = sig;
+  if(updated > 0 || sigChange) render();
+  // Sauvegarder les ateliers modifiés — sinon syncDistant() (toutes les 30s)
+  // réécrase la valeur locale avec l'ancienne valeur distante non sauvegardée.
+  if(updated > 0) ateliersMaj.forEach(atId=>scheduleSave(atId));
+  return updated;
+}
+
+// Recharge la liste des tranches ERP (au plus toutes les 5 min).
+async function refreshErpTranches(){
+  if(state._erpFetchedAt && Date.now() - state._erpFetchedAt < 5*60*1000) return;
+  try{
+    const res = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERPPlanning'})});
+    const r = await res.json();
+    if(r.ok){
+      const d = r.data || r;
+      if(Array.isArray(d.tranches) && d.tranches.length){
+        state.chantiers_erp = d.chantiers || state.chantiers_erp || [];
+        state.tranches_erp  = d.tranches;
+        state._erpFetchedAt = Date.now();
+      }
+    }
+  }catch(e){ /* silencieux : on garde la liste précédente */ }
+}
+
+// Fonction de mise à jour CTVX + liens depuis ERP / fichier DATES — réutilisable
 function refreshCtvxDepuisDATES(){
-  return fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getDATES'})})
-    .then(r=>r.json()).then(r=>{
-      if(!r.ok) return 0;
-      let updated=0;
-      const ateliersMaj = new Set();
-      const normNom = s => String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
-      // Index par code ID stable (ex: TR-0419, colonne R du fichier DATES) ET par nom
-      // (fallback historique). Le code ID est prioritaire : une fois une tranche liée
-      // via son nom, on mémorise son tr_id (ci-dessous) et on ne dépend plus jamais
-      // du nom pour elle — un renommage ultérieur dans Planning Production n'empêche
-      // donc plus la mise à jour de sa date CTVX.
-      const byId = new Map();
-      const byNom = new Map();
-      (r.data||[]).forEach(d=>{
-        const trId = String(d.tr_id||'').trim();
-        if(trId && !byId.has(trId)) byId.set(trId, d);
-        const nom = normNom(d.nom);
-        if(nom && !byNom.has(nom)) byNom.set(nom, d);
-      });
-      for(const atId in state.tranches){
-        state.tranches[atId].forEach(t=>{
-          const localTrId = String(t.tr_id||'').trim();
-          let d = localTrId && byId.has(localTrId) ? byId.get(localTrId) : null;
-          if(!d){
-            const nom = normNom(t.tranche);
-            if(nom && byNom.has(nom)) d = byNom.get(nom);
-          }
-          if(!d) return;
-          let touched = false;
-          if(d.date_ctvx && t.besoin!==d.date_ctvx){ t.besoin=d.date_ctvx; touched=true; }
-          // Verrouillage auto du code ID dès qu'un match (par nom ou déjà par id) est trouvé.
-          const dTrId = String(d.tr_id||'').trim();
-          if(dTrId && t.tr_id!==dTrId){ t.tr_id=dTrId; touched=true; }
-          if(touched){ updated++; ateliersMaj.add(atId); }
-        });
-      }
-      if(updated>0){
-        render();
-        // Sauvegarder les ateliers modifiés — sinon syncDistant() (toutes les 30s)
-        // réécrase la valeur locale avec l'ancienne valeur distante non sauvegardée.
-        ateliersMaj.forEach(atId=>scheduleSave(atId));
-      }
-      return updated;
-    }).catch(()=>0);
+  return refreshErpTranches().then(()=>
+    fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getDATES'})})
+  ).then(r=>r.json()).then(r=>{
+    if(!r.ok) return 0;
+    state._datesIdx = _indexDATES(r.data);
+    return synchroniserLiens();
+  }).catch(()=>0);
 }
 
 // Appel immédiat au chargement (pas seulement toutes les 10 min)
 setTimeout(refreshCtvxDepuisDATES, 1500);
 
-// Recharger les CTVX depuis fichier DATES toutes les 10 minutes
+// Recalculer liens + CTVX toutes les 10 minutes
 setInterval(refreshCtvxDepuisDATES, 10*60*1000);
 
 </script>
