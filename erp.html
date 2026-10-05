@@ -2394,6 +2394,7 @@ async function loadFromSheetsfast(){
       // manuelle de quickStatutTranche() — on aligne donc systématiquement ses phases ici, à
       // chaque rechargement, pour que l'écart ne puisse plus se reproduire ni s'accumuler.
       if(cascaderPhasesDepuisTranches()>0) scheduleSave();
+      autoTerminerTranchesUsinageSeul();
       setOnline();
       saveLS();
       return true;
@@ -2501,16 +2502,7 @@ function renderPlanning(){
       const arts=state.articles.filter(a=>phs.some(p=>p.id===a.pid));
       // Récupérer les OF du planning prod pour cette tranche
       // Dédoublonner par of_id pour éviter les doublons de ERP_Suivi_Production
-      const ofsSeen = new Set();
-      const ofs_prod = (state.suivi_prod||[]).filter(o=>{
-        const matchById = o.erp_tranche_id && o.erp_tranche_id === tr.id;
-        const matchByName = !o.erp_tranche_id && (o.tranche||'').trim().toLowerCase() === (tr.nom||'').trim().toLowerCase();
-        if(!matchById && !matchByName) return false;
-        const key = o.of_id || o.id || (o.tranche+o.date_fin_prod);
-        if(ofsSeen.has(key)) return false;
-        ofsSeen.add(key);
-        return true;
-      });
+      const ofs_prod = ofsProdDeTranche(tr);
       html+=renderTrRow(tr,phs.length,arts,ofs_prod);
       if(!tr.open&&!q)continue;
       for(const ph of phs){
@@ -2697,6 +2689,59 @@ function renderChRow(ch,nbTr){
       <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deleteChantier('${ch.id}')">✕</button>
     </td></tr>`;
 }
+
+// OF (Planning Production) rattachés à une tranche ERP, dédoublonnés par of_id.
+function ofsProdDeTranche(tr){
+  const ofsSeen = new Set();
+  return (state.suivi_prod||[]).filter(o=>{
+    const matchById = o.erp_tranche_id && o.erp_tranche_id === tr.id;
+    const matchByName = !o.erp_tranche_id && (o.tranche||'').trim().toLowerCase() === (tr.nom||'').trim().toLowerCase();
+    if(!matchById && !matchByName) return false;
+    const key = o.of_id || o.id || (o.tranche+o.date_fin_prod);
+    if(ofsSeen.has(key)) return false;
+    ofsSeen.add(key);
+    return true;
+  });
+}
+
+// Règle métier (oct. 2026) : une tranche d'usinage seul — besoin atelier coché dans DATES et
+// AUCUN assemblage — est terminée dès que tous ses OF de production sont terminés : il n'y a
+// plus d'étape derrière pour la garder « en cours ». On la déclare alors Terminé automatiquement
+// (statut_erp) et on aligne ses phases (même cascade que le clic manuel). Silencieux, idempotent.
+// Ne touche jamais une tranche déjà Terminé/Livré, ni une tranche avec assemblage.
+function autoTerminerTranchesUsinageSeul(){
+  if(!(state.dates_erp||[]).length || !(state.suivi_prod||[]).length) return 0;
+  const today = new Date().toISOString().slice(0,10);
+  const dMap = new Map();
+  state.dates_erp.forEach(d=>{
+    const k = (d.tranche||'').trim().toLowerCase();
+    if(!k) return;
+    if(!dMap.has(k)) dMap.set(k, []);
+    dMap.get(k).push(d);
+  });
+  let count = 0;
+  state.tranches.forEach(tr=>{
+    if(tr.statut_erp==='termine' || tr.statut_erp==='livre') return;
+    const rows = dMap.get((tr.nom||'').trim().toLowerCase());
+    if(!rows || !rows.length) return;
+    if(!rows.some(d=>d.besoin_atelier)) return;      // pas de besoin atelier
+    if(rows.some(d=>d.assemblage || d.equipement)) return; // assemblage/équipement prévu : on attend
+    const ofs = ofsProdDeTranche(tr);
+    if(!ofs.length || !ofs.every(o=>o.statut==='termine')) return;
+    tr.statut_erp = 'termine';
+    state.phases.filter(p=>p.tid===tr.id).forEach(p=>{
+      if(p.statut!=='termine' && p.statut!=='livre'){ p.statut='termine'; p.date_termine=p.date_termine||today; }
+    });
+    count++;
+  });
+  if(count>0){
+    console.log('Auto-terminé (usinage seul, sans assemblage) :', count, 'tranche(s)');
+    scheduleSave();
+    try{ renderPlanning(); renderSuiviProd(); renderPilotagePhases(); }catch(e){}
+  }
+  return count;
+}
+window.autoTerminerTranchesUsinageSeul = autoTerminerTranchesUsinageSeul;
 
 function renderTrRow(tr,nbPh,arts,ofs_prod){
   ofs_prod = ofs_prod||[];
@@ -7381,20 +7426,26 @@ async function renderCoherenceTranches(){
     if(!rD.ok) throw new Error(rD.error||'DATES inaccessible');
     // norm() sert UNIQUEMENT à comparer/dédoublonner — jamais à afficher.
     // Le nom brut (raw) est toujours conservé pour l'affichage.
-    const norm = s => s
-      .trim()
+    // Robuste aux variantes visuellement identiques : accents, tirets longs/insécables/« - » vs « – »,
+    // espaces autour des tirets ("S8-local" vs "S8 local"), caractères invisibles. Toute suite de
+    // caractères non alphanumériques devient UN séparateur ; '+' et '&' gardent leur sens.
+    const norm = s => String(s||'')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
-      .replace(/[\u00A0\u00AD\u200B\uFEFF\u200C\u200D\u2009\u2002\u2003\u2060]/g, ' ')
-      .replace(/[^a-z0-9\s\-\.\+&']/g, ' ')
-      .replace(/\s+/g, ' ')
+      .replace(/\+/g, ' plus ')
+      .replace(/&/g, ' et ')
+      .replace(/[^a-z0-9]+/g, ' ')
       .trim();
 
     // Map clé normalisée → nom brut d'origine (le premier rencontré fait foi)
     const datesMap = new Map();
+    const datesIdByKey = new Map(); // clé normalisée -> tr_id (code stable TR-xxxx de la colonne R de DATES)
     (rD.data||[]).forEach(t=>{
       const raw = String(t.nom||'').trim();
       const key = norm(raw);
       if(key && !datesMap.has(key)) datesMap.set(key, raw);
+      const tid = String(t.tr_id||'').trim();
+      if(key && tid && !datesIdByKey.has(key)) datesIdByKey.set(key, tid);
     });
     const datesNoms = new Set(datesMap.keys());
     if(!datesNoms.size) throw new Error('Onglet DATES vide ou introuvable');
@@ -7428,8 +7479,23 @@ async function renderCoherenceTranches(){
     // Faux positif = déjà produite/livrée, OU pas de besoin atelier déclaré dans DATES
     const fauxPositif = k => estDejaProduite(k) || !aBesoinAtelier(k);
 
+    // Planning de production : seules les tranches avec ASSEMBLAGE et/ou ÉQUIPEMENT cochés dans
+    // DATES ont à y être planifiées (l'usinage seul — taillage sans assemblage ni équipement —
+    // ne passe pas par B1/B2/B3/Men). Règle utilisateur oct. 2026. Inconnu → true (on ne masque
+    // jamais un écart par erreur).
+    const besoinProdMap = new Map();
+    (state.dates_erp||[]).forEach(d=>{
+      const k = norm(d.tranche||'');
+      if(!k) return;
+      besoinProdMap.set(k, (besoinProdMap.get(k)||false) || !!d.assemblage || !!d.equipement);
+    });
+    const aBesoinProd = k => besoinProdMap.has(k) ? besoinProdMap.get(k) : true;
+    const fauxPositifProd = k => estDejaProduite(k) || !aBesoinProd(k);
+
     // 3. Tranches planning prod
     let prodNoms = new Set();
+    const prodTrIds = new Set();   // tr_id présents dans Planning Production
+    const prodErpIds = new Set();  // erp_tranche_id présents dans Planning Production
     try {
       const resP = await fetch(APPS_SCRIPT_URL, {
         method:'POST', headers:{'Content-Type':'text/plain'},
@@ -7438,25 +7504,58 @@ async function renderCoherenceTranches(){
       const rP = await resP.json();
       console.log('getTranches réponse:', rP.ok, 'nb tranches:', (rP.tranches||[]).length, 'ex:', (rP.tranches||[]).slice(0,2).map(t=>t.nom));
       if(rP.ok && rP.tranches){
-        rP.tranches.forEach(t=>{ const n=norm(t.nom||''); if(n) prodNoms.add(n); });
+        rP.tranches.forEach(t=>{
+          const n=norm(t.nom||''); if(n) prodNoms.add(n);
+          const tid=String(t.tr_id||'').trim(); if(tid) prodTrIds.add(tid);
+          const eid=String(t.erp_tranche_id||'').trim(); if(eid) prodErpIds.add(eid);
+        });
       }
     } catch(e){ console.warn('getTranches ERREUR:', e.message); }
 
+    // Appariement multi-critères (le nom seul est fragile : renommage, tiret/espace différent…) :
+    //  - ERP  : par nom normalisé, OU par code stable id_dates (= tr_id de la ligne DATES)
+    //  - Prod : par nom normalisé, OU par tr_id, OU par erp_tranche_id (lien posé via le sélecteur ERP)
+    const erpKeyById = new Map();   // id_dates -> clé normalisée côté ERP
+    const erpIdByKey = new Map();   // clé normalisée -> id ERP de la tranche
+    (state.tranches||[]).forEach(t=>{
+      const k = norm(t.nom||'');
+      if(k && !erpIdByKey.has(k)) erpIdByKey.set(k, t.id);
+      const idd = String(t.id_dates||'').trim();
+      if(idd && !erpKeyById.has(idd)) erpKeyById.set(idd, t.id);
+    });
+    const erpIdDeCle = n => {
+      if(erpIdByKey.has(n)) return erpIdByKey.get(n);
+      const tid = datesIdByKey.get(n);
+      return tid && erpKeyById.has(tid) ? erpKeyById.get(tid) : null;
+    };
+    const inERP  = n => erpNoms.has(n) || !!erpIdDeCle(n);
+    const inProd = n => {
+      if(prodNoms.has(n)) return true;
+      const tid = datesIdByKey.get(n);
+      if(tid && prodTrIds.has(tid)) return true;
+      const eid = erpIdDeCle(n);
+      return !!(eid && prodErpIds.has(String(eid)));
+    };
+    const prodDispo = prodNoms.size>0 || prodTrIds.size>0 || prodErpIds.size>0;
+
     const total     = datesNoms.size;
-    const dansERP   = [...datesNoms].filter(n=>erpNoms.has(n));
-    const dansProd  = prodNoms.size ? [...datesNoms].filter(n=>prodNoms.has(n)) : null;
+    const dansERP   = [...datesNoms].filter(n=>inERP(n));
+    // Population « à planifier en prod » = lignes DATES avec assemblage et/ou équipement coché
+    const aPlanifier = [...datesNoms].filter(n=>aBesoinProd(n));
+    const totalProd  = aPlanifier.length;
+    const dansProd  = prodDispo ? aPlanifier.filter(n=>inProd(n)) : null;
     // "Absentes de l'ERP" ne doit compter que les lignes DATES qui ont réellement besoin d'un
-    // atelier (ou déjà produites) — sinon une ligne sans besoin atelier coché apparaît à tort
-    // comme un écart (cf. retour utilisateur oct. 2026 : "Baraterie Bat A bardage"), alors que
-    // absProd/erpPasProd appliquaient déjà ce même filtre fauxPositif.
-    const absERP    = [...datesNoms].filter(n=>!erpNoms.has(n) && !fauxPositif(n)).map(k=>datesMap.get(k));
-    const absProd   = prodNoms.size ? [...datesNoms].filter(n=>!prodNoms.has(n) && !fauxPositif(n)).map(k=>datesMap.get(k)) : null;
-    const erpPasProd= prodNoms.size ? dansERP.filter(n=>!prodNoms.has(n) && !fauxPositif(n)).map(k=>datesMap.get(k)) : [];
-    // Nombre de tranches masquées par le filtre fauxPositif (déjà produites/livrées, ou sans
-    // besoin atelier) parmi celles qui seraient sinon apparues comme écart ERP et/ou Prod.
-    const nbFauxPositifs = [...datesNoms].filter(n=>fauxPositif(n) && (!erpNoms.has(n) || (prodNoms.size && !prodNoms.has(n)))).length;
+    // atelier (ou déjà produites) — cf. retour utilisateur oct. 2026 : "Baraterie Bat A bardage".
+    const absERP    = [...datesNoms].filter(n=>!inERP(n) && !fauxPositif(n)).map(k=>datesMap.get(k));
+    // "Non planifiées en prod" : assemblage/équipement coché, absentes du planning prod, non terminées
+    const absProd   = prodDispo ? [...datesNoms].filter(n=>!inProd(n) && !fauxPositifProd(n)).map(k=>datesMap.get(k)) : null;
+    const erpPasProd= prodDispo ? dansERP.filter(n=>!inProd(n) && !fauxPositifProd(n)).map(k=>datesMap.get(k)) : [];
+    // Nombre de tranches masquées par ces filtres (déjà produites/livrées, sans besoin atelier,
+    // ou sans assemblage/équipement pour la partie planning prod).
+    const nbFauxPositifs = [...datesNoms].filter(n=>
+      (fauxPositif(n) && !inERP(n)) || (prodDispo && !inProd(n) && fauxPositifProd(n))).length;
     const pctERP  = total ? Math.round(dansERP.length/total*100) : 0;
-    const pctProd = dansProd ? Math.round(dansProd.length/total*100) : null;
+    const pctProd = dansProd ? (totalProd ? Math.round(dansProd.length/totalProd*100) : 100) : null;
 
     const colorBar = (pct) => pct===100?'var(--green)':pct>80?'var(--blue)':'var(--orange)';
 
@@ -7482,7 +7581,7 @@ async function renderCoherenceTranches(){
       '</div>' +
       '<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:5px">' +
       '<div style="width:'+pctProdDisp+'%;height:100%;background:'+(pctProd!==null?colorBar(pctProd):'var(--border)')+';border-radius:4px"></div></div>' +
-      '<div style="font-size:11px;color:var(--text3)">'+(dansProd?dansProd.length+' / '+total+' tranches planifiées':'Non disponible')+'</div>' +
+      '<div style="font-size:11px;color:var(--text3)">'+(dansProd?dansProd.length+' / '+totalProd+' tranches à planifier (assemblage/équipement)':'Non disponible')+'</div>' +
       '</div>';
 
     html += '</div>';
@@ -7494,7 +7593,8 @@ async function renderCoherenceTranches(){
     if(nbEcarts>0){
       html += '<button class="btn btn-sm" onclick="state._coherenceShowAbs='+(!showAbs)+';renderCoherenceTranches()" style="margin-bottom:10px">'+
         (showAbs?'▲ Masquer le détail':'▼ Voir le détail — '+nbEcarts+' écarts')+
-        '</button>';
+        '</button>' +
+        ' <button class="btn btn-sm" onclick="renderCoherenceTranches()" title="Relire DATES, ERP et Planning prod (utile si le planning prod a changé depuis l\'ouverture de cette page)" style="margin-bottom:10px">↻ Actualiser</button>';
       if(nbFauxPositifs>0){
         html += '<div style="font-size:10px;color:var(--text3);margin:-6px 0 10px 2px">'+nbFauxPositifs+' tranche(s) déjà produites ou sans besoin atelier — exclues automatiquement</div>';
       }
@@ -7542,6 +7642,7 @@ async function loadSuiviProd() {
     const r = await res.json();
     if(r.ok) {
       state.suivi_prod = r.articles||[];
+      autoTerminerTranchesUsinageSeul();
     }
   } catch(e) { console.warn('loadSuiviProd:', e.message); }
 }
@@ -7602,6 +7703,7 @@ async function loadDATESSource() {
       taillage:       d.taillage===true||String(d.taillage||'').toUpperCase()==='TRUE',
     }));
     state.dates_atelier = r.tranches_atelier || [];
+    autoTerminerTranchesUsinageSeul();
     // Re-render le planning avec les nouvelles données CTVX
     if(state.currentTab === 'pilotage') renderPlanning();
 
