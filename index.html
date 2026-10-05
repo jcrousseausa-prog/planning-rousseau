@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261005-1200">
+<meta name="version" content="20261005-1300">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -2594,6 +2594,9 @@ function lienTranche(t){
   const r = {erp:null, dates:null};
   if(t.erp_tranche_id && (!erpPret || state._erpIdx.ids.has(String(t.erp_tranche_id)))) r.erp = String(t.erp_tranche_id);
   if(t.tr_id && (!datPret || state._datesIdx.byId.has(String(t.tr_id)))) r.dates = String(t.tr_id);
+  // Ligne DATES retrouvée par le nom alors qu'elle n'a pas (encore) de code ID en colonne R :
+  // la date CTVX est bien synchronisée, seul le lien "à l'épreuve d'un renommage" manque.
+  else if(t._datesNom) r.dates = 'nom';
   return r;
 }
 // Trois états : VERT = lié à DATES (date CTVX mise à jour automatiquement),
@@ -2605,6 +2608,7 @@ function lienEtat(l){
   return {k:'aucun', couleur:'#C0392B', gantt:'#C0392B'};
 }
 function lienTitre(l){
+  if(l.dates === 'nom') return "Lié à DATES par le nom (pas encore de code ID en colonne R) — date CTVX mise à jour automatiquement ; un renommage casserait le lien"+(l.erp?' · lié aussi à l\'ERP ('+l.erp+')':'');
   if(l.dates) return 'Lié à DATES ('+l.dates+') — date CTVX mise à jour automatiquement'+(l.erp?' · lié aussi à l\'ERP ('+l.erp+')':'');
   if(l.erp)   return "Lié à l'ERP ("+l.erp+") uniquement — pas de ligne dans DATES : date CTVX à saisir à la main";
   return "Introuvable dans l'ERP et dans DATES — nom différent ou pas encore créé côté ERP";
@@ -2669,6 +2673,9 @@ function synchroniserLiens(){
       // ── DATES : lien par tr_id (prioritaire) sinon par nom unique, + date CTVX ──
       if(datIdx){
         let d = (t.tr_id && datIdx.byId.get(String(t.tr_id))) || (k ? _pickUnique(datIdx.byNom.get(k), t.tranche) : null);
+        // _datesNom : marqueur d'affichage uniquement (jamais sauvegardé) — vrai si la ligne
+        // DATES est trouvée mais qu'elle n'a pas de code ID exploitable.
+        t._datesNom = !!(d && !(t.tr_id && datIdx.byId.has(String(t.tr_id))) && !String(d.tr_id||'').trim());
         if(d){
           if(d.date_ctvx && t.besoin !== d.date_ctvx){ t.besoin = d.date_ctvx; touched = true; }
           const dTr = String(d.tr_id||'').trim();
