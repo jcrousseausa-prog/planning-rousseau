@@ -1565,6 +1565,15 @@ function cascaderPhasesDepuisTranches(){
   let count = 0;
   state.tranches.forEach(t=>{
     if(t.statut_erp!=='termine' && t.statut_erp!=='livre') return;
+    // Garde-fou (oct. 2026) : si la tranche est « Terminé » mais que sa production est encore en
+    // cours (au moins un OF non terminé dans le planning prod), on ne propage PAS automatiquement
+    // aux phases — sinon une phase en cours se retrouve déclarée terminée à tort. « Livré » reste
+    // propagé (une tranche livrée est forcément finie). Le clic manuel (quickStatutTranche) garde
+    // sa cascade explicite.
+    if(t.statut_erp==='termine'){
+      const ofs = ofsProdDeTranche(t);
+      if(ofs.length && ofs.some(o=>o.statut!=='termine')) return;
+    }
     state.phases.filter(p=>p.tid===t.id).forEach(p=>{
       if(t.statut_erp==='livre'){
         if(p.statut!=='livre'){ p.statut='livre'; p.date_livre=p.date_livre||today; if(!p.date_termine) p.date_termine=today; count++; }
@@ -2863,9 +2872,11 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
     livre:    {label:'📦 Livré',   bg:'var(--purple-bg)', color:'var(--purple)', border:'var(--purple-border)'},
   };
   const scERP = statutERPConfig[statutERP];
+  // Incohérence : déclarée Terminé alors que la production (OF) est encore planifiée / en cours
+  const incoherentProd = statutERP==='termine' && (statut==='en_cours' || statut==='planifie');
   const statutERPHtml = scERP
-    ? `<button class="statut-btn" onclick="openStatutMenu('tranche','${tr.id}','${statutERP}',event)" title="Changer le statut">
-        <span style="font-size:10px;background:${scERP.bg};color:${scERP.color};border:1px solid ${scERP.border};border-radius:5px;padding:2px 7px;font-weight:600;white-space:nowrap">${scERP.label} ▾</span>
+    ? `<button class="statut-btn" onclick="openStatutMenu('tranche','${tr.id}','${statutERP}',event)" title="${incoherentProd?'Déclarée terminée alors que la production est encore en cours / planifiée — à vérifier':'Changer le statut'}">
+        <span style="font-size:10px;background:${scERP.bg};color:${scERP.color};border:1px solid ${scERP.border};border-radius:5px;padding:2px 7px;font-weight:600;white-space:nowrap">${scERP.label} ▾${incoherentProd?' ⚠':''}</span>
       </button>`
     : `<button class="statut-btn" onclick="openStatutMenu('tranche','${tr.id}','',event)" title="Déclarer Terminé ou Livré" style="opacity:.5">
         <span style="font-size:10px;background:var(--bg);color:var(--text3);border:1px dashed var(--border2);border-radius:5px;padding:2px 7px;white-space:nowrap">— ▾</span>
