@@ -2639,7 +2639,7 @@ function renderPlanningParPhase(){
       <td style="color:var(--text2)">${esc(tr.nom||'')}</td>
       <td>${ctvxHtml}</td>
       <td>${finProdHtml}</td>
-      <td><span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;white-space:nowrap">${sl[0]}</span></td>
+      <td onclick="event.stopPropagation()"><button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut de la phase"><span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;white-space:nowrap">${sl[0]} ▾</span></button></td>
       <td>${tailleBadge}</td>
       <td style="text-align:right;color:var(--text3);font-size:11px">${nbArt} article${nbArt!==1?'s':''}</td>
     </tr>`;
