@@ -9382,12 +9382,17 @@ async function renderPilotagePhases(){
   if(!lignes.length){
     html += `<div style="text-align:center;padding:2rem;color:var(--text3)">Aucune phase à afficher pour ces critères.</div>`;
   } else {
+    // En-tête figé : reste visible sous le bandeau + les onglets pendant le défilement de la page.
+    // (le conteneur est en overflow:visible, sinon le sticky se rattacherait à lui et non à la page)
+    const _hdr = document.querySelector('header'), _tabs = document.querySelector('.app-tabs');
+    const stickyTop = (_hdr ? _hdr.offsetHeight : 49) + (_tabs ? _tabs.offsetHeight : 40);
+    const stickyCss = `position:sticky;top:${stickyTop}px;z-index:5;`;
     const th = (label, col) => {
       const active = f.triCol===col;
       const arrow = active ? (f.triDir==='desc' ? ' ▼' : ' ▲') : '';
-      return `<th style="padding:8px 10px;text-align:left;cursor:pointer;user-select:none;white-space:nowrap;color:#fff;background:${active?'#2C5F8A':'var(--blue)'}" onclick="setPilotageTri('${col}')" title="Trier par ${label}">${label}${arrow}</th>`;
+      return `<th style="${stickyCss}padding:8px 10px;text-align:left;cursor:pointer;user-select:none;white-space:nowrap;color:#fff;background:${active?'#2C5F8A':'var(--blue)'}" onclick="setPilotageTri('${col}')" title="Trier par ${label}">${label}${arrow}</th>`;
     };
-    html += `<div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    html += `<div class="table-wrap" style="overflow:visible"><table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead>
         <tr style="background:var(--blue);color:#fff">
           ${th('CTVX','ctvx')}
@@ -9401,7 +9406,7 @@ async function renderPilotagePhases(){
           ${th('Fin prod','fin')}
           ${th('Fichier taille','taille_dispo')}
           ${th('Statut','statut')}
-          <th style="padding:8px 10px;text-align:left">Commentaire</th>
+          <th style="${stickyCss}padding:8px 10px;text-align:left;color:#fff;background:var(--blue)">Commentaire</th>
         </tr>
       </thead>
       <tbody>
