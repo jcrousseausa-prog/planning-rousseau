@@ -7489,8 +7489,12 @@ async function renderCoherenceTranches(){
       if(!k) return;
       besoinProdMap.set(k, (besoinProdMap.get(k)||false) || !!d.assemblage || !!d.equipement);
     });
-    const aBesoinProd = k => besoinProdMap.has(k) ? besoinProdMap.get(k) : true;
+    // Le besoin atelier reste un prérequis pour TOUT le widget : sans lui, aucune ligne n'est comptée.
+    const aBesoinProd = k => aBesoinAtelier(k) && (besoinProdMap.has(k) ? besoinProdMap.get(k) : true);
     const fauxPositifProd = k => estDejaProduite(k) || !aBesoinProd(k);
+    // Population du widget : uniquement les lignes DATES dont « besoin atelier » est coché
+    // (inconnu → inclus, pour ne jamais masquer un écart par erreur).
+    const datesAtelier = [...datesNoms].filter(n=>aBesoinAtelier(n));
 
     // 3. Tranches planning prod
     let prodNoms = new Set();
@@ -7540,28 +7544,31 @@ async function renderCoherenceTranches(){
     };
     const prodDispo = prodNoms.size>0 || prodTrIds.size>0 || prodErpIds.size>0;
 
-    const total     = datesNoms.size;
-    const dansERP   = [...datesNoms].filter(n=>inERP(n));
+    const total     = datesAtelier.length;
+    const dansERP   = datesAtelier.filter(n=>inERP(n));
     // Population « à planifier en prod » = lignes DATES avec assemblage et/ou équipement coché
-    const aPlanifier = [...datesNoms].filter(n=>aBesoinProd(n));
+    const aPlanifier = datesAtelier.filter(n=>aBesoinProd(n));
     const totalProd  = aPlanifier.length;
     const dansProd  = prodDispo ? aPlanifier.filter(n=>inProd(n)) : null;
     // "Absentes de l'ERP" ne doit compter que les lignes DATES qui ont réellement besoin d'un
     // atelier (ou déjà produites) — cf. retour utilisateur oct. 2026 : "Baraterie Bat A bardage".
-    const absERP    = [...datesNoms].filter(n=>!inERP(n) && !fauxPositif(n)).map(k=>datesMap.get(k));
+    const absERP    = datesAtelier.filter(n=>!inERP(n) && !fauxPositif(n)).map(k=>datesMap.get(k));
     // "Non planifiées en prod" : assemblage/équipement coché, absentes du planning prod, non terminées
-    const absProd   = prodDispo ? [...datesNoms].filter(n=>!inProd(n) && !fauxPositifProd(n)).map(k=>datesMap.get(k)) : null;
+    const absProd   = prodDispo ? datesAtelier.filter(n=>!inProd(n) && !fauxPositifProd(n)).map(k=>datesMap.get(k)) : null;
     const erpPasProd= prodDispo ? dansERP.filter(n=>!inProd(n) && !fauxPositifProd(n)).map(k=>datesMap.get(k)) : [];
     // Nombre de tranches masquées par ces filtres (déjà produites/livrées, sans besoin atelier,
     // ou sans assemblage/équipement pour la partie planning prod).
-    const nbFauxPositifs = [...datesNoms].filter(n=>
+    const nbFauxPositifs = (datesNoms.size - datesAtelier.length) + datesAtelier.filter(n=>
       (fauxPositif(n) && !inERP(n)) || (prodDispo && !inProd(n) && fauxPositifProd(n))).length;
     const pctERP  = total ? Math.round(dansERP.length/total*100) : 0;
     const pctProd = dansProd ? (totalProd ? Math.round(dansProd.length/totalProd*100) : 100) : null;
 
     // Qualité des liaisons par ID (code TR) — le nom n'est qu'un secours.
-    const datesSansId = [...datesNoms].filter(n=>!datesIdByKey.has(n)).map(k=>datesMap.get(k));
-    const erpSansIdDates = (state.tranches||[]).filter(t=>datesNoms.has(norm(t.nom||'')) && !String(t.id_dates||'').trim()).length;
+    const datesSansId = datesAtelier.filter(n=>!datesIdByKey.has(n)).map(k=>datesMap.get(k));
+    const erpSansIdDates = (state.tranches||[]).filter(t=>datesAtelier.includes(norm(t.nom||'')) && !String(t.id_dates||'').trim()).length;
+
+    // Lignes dont l'état « besoin atelier » est introuvable côté loadDATES : comptées par précaution
+    const besoinInconnu = datesAtelier.filter(n=>!besoinAtelierMap.has(n)).length;
 
     const colorBar = (pct) => pct===100?'var(--green)':pct>80?'var(--blue)':'var(--orange)';
 
@@ -7597,6 +7604,7 @@ async function renderCoherenceTranches(){
       'DATES sans code : <b style="color:'+(datesSansId.length?'var(--orange)':'var(--green)')+'">'+datesSansId.length+'</b> · '+
       'tranches ERP sans id_dates : <b style="color:'+(erpSansIdDates?'var(--orange)':'var(--green)')+'">'+erpSansIdDates+'</b> · '+
       'lignes planning prod sans tr_id : <b style="color:'+(prodSansTrId?'var(--orange)':'var(--green)')+'">'+prodSansTrId+'</b>'+(prodTotal?' / '+prodTotal:'')+
+      (besoinInconnu?' · <span title="Ces lignes de getDATES n\'ont pas été retrouvées dans loadDATES : on ne sait pas si besoin atelier est coché, elles sont donc comptées">⚠ besoin atelier inconnu : <b style="color:var(--orange)">'+besoinInconnu+'</b></span>':'')+
       '</div>';
 
     // Bouton détail
