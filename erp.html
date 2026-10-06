@@ -7496,6 +7496,7 @@ async function renderCoherenceTranches(){
     let prodNoms = new Set();
     const prodTrIds = new Set();   // tr_id présents dans Planning Production
     const prodErpIds = new Set();  // erp_tranche_id présents dans Planning Production
+    let prodSansTrId = 0, prodTotal = 0; // lignes planning prod sans code TR (liaison par nom seulement)
     try {
       const resP = await fetch(APPS_SCRIPT_URL, {
         method:'POST', headers:{'Content-Type':'text/plain'},
@@ -7507,6 +7508,7 @@ async function renderCoherenceTranches(){
         rP.tranches.forEach(t=>{
           const n=norm(t.nom||''); if(n) prodNoms.add(n);
           const tid=String(t.tr_id||'').trim(); if(tid) prodTrIds.add(tid);
+          prodTotal++; if(!tid) prodSansTrId++;
           const eid=String(t.erp_tranche_id||'').trim(); if(eid) prodErpIds.add(eid);
         });
       }
@@ -7557,6 +7559,10 @@ async function renderCoherenceTranches(){
     const pctERP  = total ? Math.round(dansERP.length/total*100) : 0;
     const pctProd = dansProd ? (totalProd ? Math.round(dansProd.length/totalProd*100) : 100) : null;
 
+    // Qualité des liaisons par ID (code TR) — le nom n'est qu'un secours.
+    const datesSansId = [...datesNoms].filter(n=>!datesIdByKey.has(n)).map(k=>datesMap.get(k));
+    const erpSansIdDates = (state.tranches||[]).filter(t=>datesNoms.has(norm(t.nom||'')) && !String(t.id_dates||'').trim()).length;
+
     const colorBar = (pct) => pct===100?'var(--green)':pct>80?'var(--blue)':'var(--orange)';
 
     let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">';
@@ -7585,6 +7591,13 @@ async function renderCoherenceTranches(){
       '</div>';
 
     html += '</div>';
+
+    // Liaison par ID : où le code TR manque encore (liaison par nom seulement, donc fragile)
+    html += '<div style="font-size:11px;color:var(--text3);margin:-4px 0 10px 2px">🔑 Liaison par code TR — '+
+      'DATES sans code : <b style="color:'+(datesSansId.length?'var(--orange)':'var(--green)')+'">'+datesSansId.length+'</b> · '+
+      'tranches ERP sans id_dates : <b style="color:'+(erpSansIdDates?'var(--orange)':'var(--green)')+'">'+erpSansIdDates+'</b> · '+
+      'lignes planning prod sans tr_id : <b style="color:'+(prodSansTrId?'var(--orange)':'var(--green)')+'">'+prodSansTrId+'</b>'+(prodTotal?' / '+prodTotal:'')+
+      '</div>';
 
     // Bouton détail
     const showAbs = state._coherenceShowAbs||false;
@@ -7615,6 +7628,7 @@ async function renderCoherenceTranches(){
       html += renderList('⚠ Dans DATES, absentes de l\'ERP', absERP, 'var(--orange-bg)', 'var(--orange)');
       html += renderList('📅 Dans DATES, non planifiées en prod', absProd, 'var(--blue-bg)', 'var(--blue)');
       html += renderList('ℹ Dans ERP+DATES, pas encore en prod', erpPasProd, 'var(--bg)', 'var(--border)');
+      html += renderList('🔑 Lignes DATES sans code TR (liaison par nom seulement)', datesSansId, 'var(--bg)', 'var(--border2)');
     }
 
     el.innerHTML = html;
