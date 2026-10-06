@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261005-1400">
+<meta name="version" content="20261006-1000">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -321,11 +321,15 @@ transition:all .3s;
 <main>
 <div id="jours-panel-area"></div>
 <div id="search-area" style="display:none;margin-bottom:.75rem">
-  <div style="position:relative;max-width:360px">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+  <div style="position:relative;max-width:360px;flex:1 1 260px">
     <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px;pointer-events:none">🔍</span>
     <input type="text" id="table-search-input" placeholder="Rechercher une tranche…"
       oninput="onSearchInput(this)"
       style="width:100%;padding:7px 10px 7px 32px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)"/>
+  </div>
+  <button class="btn" data-edit-only id="btn-tri-ctvx" onclick="trierParCTVX()" title="Trie les tranches de cet atelier par date CTVX croissante. Les lignes avec 🔒D (figer début) gardent leur place.">↕ Trier par CTVX</button>
+  <button class="btn" data-edit-only id="btn-tri-undo" onclick="annulerTriCTVX()" style="display:none" title="Revenir à l'ordre d'avant le tri">↶ Annuler le tri</button>
   </div>
 </div>
 <div id="view-area"></div>
@@ -1331,6 +1335,8 @@ const rows=q
 const inSearch = !!q;
 const searchArea = document.getElementById('search-area');
 if(searchArea) searchArea.style.display = 'block';
+const _btnUndoTri = document.getElementById('btn-tri-undo');
+if(_btnUndoTri) _btnUndoTri.style.display = (_triUndo[atId] && !IS_READONLY) ? '' : 'none';
 let html=`
 <div class="table-wrap"><table><thead><tr>
 <th style="width:32px">⠿</th>
@@ -1434,9 +1440,71 @@ actives[i].debut=addWorkDays(prevFin,1,atId);
 actives.forEach((t,i)=>{t.ordre=i+1;});
 state.tranches[atId]=[...actives, ...terminees];
 _dragRow=null;
+delete _triUndo[atId];
 keepGanttPos();
 scheduleSave(atId);
 render();
+}
+
+// ═══ TRI PAR DATE CTVX ═════════════════════════════════════════════════════
+// Trie les tranches (non terminées) d'un atelier par CTVX croissant.
+//  • Les tranches avec « Figer début » (🔒D) gardent EXACTEMENT leur place dans la liste ;
+//  • les autres remplissent les places restantes, dans l'ordre des CTVX ;
+//  • sans CTVX → en fin de liste (ordre actuel conservé entre elles) ;
+//  • à CTVX égal, l'ordre actuel est conservé (tri stable) ;
+//  • la 1re tranche de la chaîne reprend la date de début de l'ancienne 1re.
+let _triUndo = {};   // atId → [{t, ordre, debut, debutFrac}]
+function _cleCTVX(t){ return /^\d{4}-\d{2}-\d{2}$/.test(t.besoin||'') ? t.besoin : '9999-99-99'; }
+function calcTriCTVX(atId){
+  const actives = [...(state.tranches[atId]||[]).filter(t=>!t.termine)].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
+  const pos = new Map(actives.map((t,i)=>[t,i]));
+  const libres = actives.filter(t=>!t.lockDebut)
+    .sort((a,b)=>{ const ka=_cleCTVX(a), kb=_cleCTVX(b); return ka<kb?-1:ka>kb?1:pos.get(a)-pos.get(b); });
+  let k = 0;
+  const resultat = actives.map(t=> t.lockDebut ? t : libres[k++]);
+  const deplacees = resultat.filter((t,i)=>t!==actives[i]).length;
+  return {actives, resultat, deplacees, figees: actives.filter(t=>t.lockDebut).length,
+          sansCTVX: libres.filter(t=>_cleCTVX(t)==='9999-99-99').length};
+}
+function trierParCTVX(atId, sansConfirmation){
+  if(IS_READONLY) return false;
+  atId = atId || state.atelier;
+  const c = calcTriCTVX(atId);
+  if(c.actives.length < 2){ toast('Rien à trier'); return false; }
+  if(!c.deplacees){ toast('✓ Déjà trié par CTVX'); return false; }
+  if(!sansConfirmation){
+    const msg = `Trier l'atelier par date CTVX ?\n\n`+
+      `• ${c.deplacees} tranche(s) vont changer de place\n`+
+      `• ${c.figees} tranche(s) « figer début » (🔒D) restent à leur place\n`+
+      (c.sansCTVX?`• ${c.sansCTVX} tranche(s) sans CTVX seront placées à la fin\n`:'')+
+      `\nVous pourrez annuler avec « Annuler le tri ».`;
+    if(!confirm(msg)) return false;
+  }
+  _triUndo[atId] = c.actives.map(t=>({t, ordre:t.ordre, debut:t.debut, debutFrac:t.debutFrac}));
+  const ancre = c.actives.find(t=>!t.parallel);
+  const ancreDebut = ancre ? ancre.debut : null;
+  c.resultat.forEach((t,i)=>{ t.ordre = i+1; });
+  const nouvelleAncre = c.resultat.find(t=>!t.parallel);
+  if(nouvelleAncre && ancre && nouvelleAncre!==ancre && !nouvelleAncre.lockDebut && ancreDebut){
+    nouvelleAncre.debut = ancreDebut; nouvelleAncre.debutFrac = 0;
+  }
+  state.tranches[atId] = [...c.resultat, ...state.tranches[atId].filter(t=>t.termine)];
+  rechainAtelier(atId);
+  keepGanttPos(); scheduleSave(atId); render();
+  toast(`↕ Trié par CTVX — ${c.deplacees} tranche(s) déplacée(s)`);
+  return true;
+}
+function annulerTriCTVX(atId){
+  if(IS_READONLY) return false;
+  atId = atId || state.atelier;
+  const snap = _triUndo[atId];
+  if(!snap) return false;
+  snap.forEach(s=>{ s.t.ordre=s.ordre; s.t.debut=s.debut; s.t.debutFrac=s.debutFrac; });
+  delete _triUndo[atId];
+  rechainAtelier(atId);
+  keepGanttPos(); scheduleSave(atId); render();
+  toast('↶ Tri annulé');
+  return true;
 }
 
 function renderGantt(){
@@ -1967,7 +2035,7 @@ const t=state.tranches[atId][idx];if(!t)return;
 if(flag==='lockDebut'){t.lockDebut=!t.lockDebut;if(t.lockDebut){t.lockFin=false;t.lockFinDate=null;}}
 else if(flag==='lockFin'){t.lockFin=!t.lockFin;if(t.lockFin){t.lockDebut=false;t.lockFinDate=t.lockFinDate||dateFin(t,atId);}else t.lockFinDate=null;}
 else if(flag==='parallel'){t.parallel=!t.parallel;if(t.parallel){t.lockDebut=false;t.lockFin=false;t.lockFinDate=null;}}
-rechainAtelier(atId);keepGanttPos();scheduleSave(atId);render();
+delete _triUndo[atId];rechainAtelier(atId);keepGanttPos();scheduleSave(atId);render();
 }
 
 function toggleLockDebutUI(){const c=document.getElementById('f-lockDebut').checked;if(c){document.getElementById('f-lockFin').checked=false;toggleLockFinUI();}}
