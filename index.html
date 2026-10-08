@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261007-1500">
+<meta name="version" content="20261008-1000">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -903,7 +903,22 @@ function subscribeRealtime() {
 if (!_sbConnected) return;
 }
 
+// Sauvegarde sérialisée : une seule requête saveTranches à la fois (Apps Script n'est pas
+// verrouillé : deux écritures simultanées pouvaient s'écraser dans le mauvais ordre et
+// effacer un ✅ terminé / un lien). Une demande reçue pendant une sauvegarde en cours
+// est rejouée juste après, avec l'état le plus récent.
+let _saveInFlight = false, _saveQueued = false, _localRev = 0;
 async function saveToSupabase(atId) {
+  _localRev++;
+  if (_saveInFlight) { _saveQueued = true; return; }
+  _saveInFlight = true;
+  try { await _saveToSupabaseOnce(atId); }
+  finally {
+    _saveInFlight = false;
+    if (_saveQueued) { _saveQueued = false; saveToSupabase(atId); }
+  }
+}
+async function _saveToSupabaseOnce(atId) {
   saveLS();
   setSyncPill('saving', 'Enregistrement...');
   const allTranches = [];
@@ -1011,8 +1026,12 @@ try { await sbDelete('tranches', dbId); } catch(e) { console.warn('Delete error:
 function scheduleSave(atId) {
   const total = Object.values(state.tranches||{}).reduce((s,a)=>s+(Array.isArray(a)?a.length:0),0);
   if(total === 0) { console.warn('scheduleSave bloqué — tranches vides, sauvegarde annulée'); return; }
+  _localRev++;
   if (_saveTimeout) clearTimeout(_saveTimeout);
-  _saveTimeout = setTimeout(() => saveToSheets(atId), 2000);
+  // _saveTimeout doit repasser à null dès que le minuteur a tiré : sinon syncDistant()
+  // se croit « sauvegarde en attente » pour toujours et l'onglet ne se resynchronise plus
+  // (→ onglet périmé, qui efface ensuite ✅ / liens / phases d'un autre onglet à sa prochaine sauvegarde).
+  _saveTimeout = setTimeout(() => { _saveTimeout = null; saveToSheets(atId); }, 2000);
 }
 
 async function importFromLocalStorage() {
@@ -1989,6 +2008,7 @@ function toast(msg){
   toast('✅ OF terminé — sauvegarde en cours…');
   // Sauvegarde immédiate (pas de délai) pour éviter que le statut termine soit perdu
   if (_saveTimeout) clearTimeout(_saveTimeout);
+  _saveTimeout = null;
   saveToSheets(atId);
 } else {
   if(!confirm('Réactiver "' + t.tranche + '" dans le planning ?')) return;
@@ -2017,6 +2037,7 @@ function toast(msg){
   toast('↩ OF réactivé');
   // Sauvegarde immédiate pour la réactivation aussi
   if (_saveTimeout) clearTimeout(_saveTimeout);
+  _saveTimeout = null;
   saveToSheets(atId);
 }
 }
@@ -2551,7 +2572,8 @@ setTimeout(initApp, 100);
 async function syncDistant() {
   if (_isOfflineIndex) return;
   // Ne pas syncer si une sauvegarde est en attente (éviter les conflits)
-  if (_saveTimeout) return;
+  if (_saveTimeout || _saveInFlight) return;
+  const revDepart = _localRev;
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
       method:'POST', headers:{'Content-Type':'text/plain'},
@@ -2559,6 +2581,9 @@ async function syncDistant() {
     });
     const r = await res.json();
     if (!r.ok || !r.tranches?.length) return;
+    // Une modification locale (clic ✅, saisie…) ou une sauvegarde a eu lieu PENDANT la lecture :
+    // la réponse du serveur est périmée → on ne fusionne rien (sinon elle écraserait la modif).
+    if (_saveTimeout || _saveInFlight || revDepart !== _localRev) return;
     const normD = s => { if(!s) return ''; const d=String(s).trim(); return d.length>10?d.slice(0,10):d; };
     const normBool = v => { const s=String(v||'').toUpperCase().trim(); return s==='TRUE'||s==='OUI'||s==='1'; };
     const normP = p => {
