@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261008-1000">
+<meta name="version" content="20261013-1700">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -329,6 +329,8 @@ transition:all .3s;
       style="width:100%;padding:7px 10px 7px 32px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)"/>
   </div>
   <button class="btn" data-edit-only id="btn-tri-ctvx" onclick="trierParCTVX()" title="Trie les tranches de cet atelier par date CTVX croissante. Les lignes avec 🔒D (figer début) gardent leur place.">↕ Trier par CTVX</button>
+  <button class="btn" data-edit-only id="btn-retirer-livrees" onclick="retirerLivreesTerminees()" style="display:none;background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)" title="Coche ✅ terminé sur les tranches de cet atelier déclarées livrées ou terminées dans l'ERP (elles disparaissent du planning)">✅ Retirer les livrées/terminées</button>
+  <button class="btn" data-edit-only id="btn-retirer-undo" onclick="annulerRetraitLivrees()" style="display:none" title="Remettre ces tranches dans le planning">↶ Annuler le retrait</button>
   <button class="btn" data-edit-only id="btn-tri-undo" onclick="annulerTriCTVX()" style="display:none" title="Revenir à l'ordre d'avant le tri">↶ Annuler le tri</button>
   </div>
 </div>
@@ -515,6 +517,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec';
 const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRoI_ySau7t8ZnVKYnTctBTGH49wQ2bIsKQ8_Y87QjpMfFdLcxiyLY_baKmSGtRRqhVau1wBrkIrNTP/pub?gid=2003335524&single=true&output=csv';
+const CLIENT_VERSION = (()=>{ try{ const m=document.querySelector('meta[name="version"]'); return m?m.content:''; }catch(e){ return ''; } })();
 const IS_READONLY = window.location.search.includes('readonly') ||
 document.body.dataset.readonly === 'true';
 
@@ -685,10 +688,13 @@ async function initApp() {
   phases:normP(t.phases),
   erp_tranche_id: t.erp_tranche_id||'',
   tr_id: t.tr_id||'',
+  _maj: Number(t.maj)||0, _majl: Number(t.majl)||0,
 });
       });
       for (const a in tr) tr[a].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
       state.tranches = tr;
+      state._baseTime = Number(rAS.serverTime)||0;
+      state._csvFallback = false;
       total = Object.values(tr).reduce((s,a)=>s+a.length,0);
       source = 'Sheets';
     } catch(asErr) {
@@ -718,6 +724,9 @@ async function initApp() {
       }
       for (const a in tr) tr[a].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
       state.tranches = tr;
+      // Le CSV publié peut dater de plusieurs minutes : enregistrer depuis cette copie écraserait la feuille.
+      // Écriture bloquée jusqu'à ce que la lecture normale (getTranches) fonctionne de nouveau.
+      state._csvFallback = true; state._baseTime = 0;
       total = Object.values(tr).reduce((s,a)=>s+a.length,0);
       source = 'CSV';
     }
@@ -774,6 +783,7 @@ async function initApp() {
         state.fermetures = fermApps;
         if (Object.keys(cal.data.joursOff||{}).length) state.joursOff = cal.data.joursOff;
         try { localStorage.setItem('fermetures_cache', JSON.stringify(fermApps)); } catch(e) {}
+        _sauverBackupFerm(fermApps);
       }
     } catch(ce) {
       console.warn('Calendrier non chargé:', ce.message);
@@ -908,14 +918,70 @@ if (!_sbConnected) return;
 // effacer un ✅ terminé / un lien). Une demande reçue pendant une sauvegarde en cours
 // est rejouée juste après, avec l'état le plus récent.
 let _saveInFlight = false, _saveQueued = false, _localRev = 0;
+
+// ═══ CALENDRIER : fermetures exceptionnelles + jours non travaillés ═══════════
+// saveTranches réécrit AUSSI le calendrier à partir de l'état local de l'onglet. Un onglet
+// qui n'a pas pu lire le calendrier au chargement (ou resté ouvert depuis longtemps) l'effaçait
+// donc à sa première sauvegarde. Règle désormais : le SERVEUR fait foi ; on n'envoie que
+//   (fermetures du serveur − celles que l'utilisateur vient de retirer) + celles qu'il vient d'ajouter,
+//   et les jours non travaillés d'un atelier uniquement si l'utilisateur les a modifiés.
+// Si le calendrier du serveur est illisible, on NE SAUVEGARDE PAS (report, nouvel essai plus tard).
+const _fermAjout = new Map();   // "date|atelier" → fermeture ajoutée localement, pas encore enregistrée
+const _fermRetire = new Set();  // "date|atelier" → fermeture retirée localement, pas encore enregistrée
+const _joursDirty = new Set();  // ateliers dont les jours non travaillés ont été modifiés localement
+const _fKey = f => f.date + '|' + f.atelier;
+function _parseCalendrier(cal){
+  if(!(cal && cal.ok && cal.data)) return null;
+  const ferm = (cal.data.fermetures||[])
+    .map(f => typeof f==='string' ? {date:f, atelier:'all'} : f)
+    .map(f => ({...f, date: normalizeDate(String(f.date))||'', atelier: f.atelier||'all'}))
+    .filter(f => f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date));
+  return {ferm, joursOff: cal.data.joursOff || {}};
+}
+async function _lireCalendrier(){
+  try{
+    const res = await fetch(APPS_SCRIPT_URL, {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'getCalendrier'})});
+    return _parseCalendrier(await res.json());
+  }catch(e){ return null; }
+}
+function _fusionCalendrier(srv){
+  const map = new Map();
+  srv.ferm.forEach(f => { if(!_fermRetire.has(_fKey(f))) map.set(_fKey(f), f); });
+  _fermAjout.forEach((f,k) => map.set(k, f));
+  const ferm = [...map.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  const joursOff = {...state.joursOff};
+  for(const a in srv.joursOff){ if(!_joursDirty.has(a) && Array.isArray(srv.joursOff[a])) joursOff[a] = srv.joursOff[a]; }
+  return {ferm, joursOff};
+}
+// Copie de secours locale (dernière liste NON vide vue/enregistrée) → restauration en 1 clic si le serveur est vidé.
+function _sauverBackupFerm(list){
+  try{ if(list && list.length) localStorage.setItem('fermetures_backup', JSON.stringify({at:new Date().toISOString(), list})); }catch(e){}
+}
+function _lireBackupFerm(){
+  try{ const b = JSON.parse(localStorage.getItem('fermetures_backup')||'null'); return (b && Array.isArray(b.list) && b.list.length) ? b : null; }catch(e){ return null; }
+}
+function restaurerFermetures(){
+  if(IS_READONLY) return;
+  const b = _lireBackupFerm(); if(!b) return;
+  b.list.forEach(f => { _fermRetire.delete(_fKey(f)); _fermAjout.set(_fKey(f), f); });
+  const map = new Map(state.fermetures.map(f=>[_fKey(f),f])); b.list.forEach(f=>map.set(_fKey(f),f));
+  state.fermetures = [...map.values()].sort((a,b2)=>a.date.localeCompare(b2.date));
+  rechainAll(); scheduleSave(state.atelier); render();
+  toast('↩ '+b.list.length+' fermeture(s) restaurée(s)');
+}
+
 async function saveToSupabase(atId) {
+  if (IS_READONLY) return;
+  if (state._csvFallback) { setSyncPill('error', 'Copie de secours (CSV) : enregistrement désactivé'); return; }   // une page en consultation ne doit JAMAIS écrire dans la feuille
   _localRev++;
   if (_saveInFlight) { _saveQueued = true; return; }
   _saveInFlight = true;
-  try { await _saveToSupabaseOnce(atId); }
+  let retry = false;
+  try { retry = (await _saveToSupabaseOnce(atId)) === 'retry'; }
   finally {
     _saveInFlight = false;
     if (_saveQueued) { _saveQueued = false; saveToSupabase(atId); }
+    else if (retry) setTimeout(() => scheduleSave(atId), 15000);
   }
 }
 async function _saveToSupabaseOnce(atId) {
@@ -935,6 +1001,7 @@ async function _saveToSupabaseOnce(atId) {
   phases: Array.isArray(t.phases) ? t.phases.join(',') : (t.phases||''),
   erp_tranche_id: t.erp_tranche_id||'',
   tr_id: t.tr_id||'',
+  maj: t._maj||'', majl: t._majl||'',
 }));
   }
 
@@ -944,13 +1011,42 @@ async function _saveToSupabaseOnce(atId) {
   }
 
   try {
+    const srvCal = await _lireCalendrier();
+    if (!srvCal) {
+      setSyncPill('error', 'Calendrier illisible — sauvegarde reportée');
+      console.warn('Sauvegarde reportée : calendrier serveur illisible (évite d\'effacer les fermetures)');
+      return 'retry';
+    }
+    const cal = _fusionCalendrier(srvCal);
+    state.fermetures = cal.ferm; state.joursOff = cal.joursOff;
+    const sentAjout = [..._fermAjout.keys()], sentRetire = [..._fermRetire], sentJours = [..._joursDirty];
+    // Opérations explicites de l'utilisateur : le serveur les applique sur SON calendrier, sous verrou.
+    const calOps = {
+      ajout: [..._fermAjout.values()].map(f=>({date:f.date, atelier:f.atelier})),
+      retire: sentRetire.map(k=>{ const i=k.indexOf('|'); return {date:k.slice(0,i), atelier:k.slice(i+1)}; }),
+      jours: Object.fromEntries(sentJours.map(a=>[a, state.joursOff[a]||[]]))
+    };
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({action: 'saveTranches', tranches: allTranches, fermetures: state.fermetures, joursOff: state.joursOff})
+      body: JSON.stringify({action: 'saveTranches', clientVersion: CLIENT_VERSION, baseTime: state._baseTime||0, calendrier: calOps, tranches: allTranches, fermetures: cal.ferm, joursOff: cal.joursOff})
     });
     const r = await res.json();
     if (r.ok) {
+      // Versions des lignes enregistrées (sert à détecter plus tard qu'un autre onglet les a modifiées)
+      if (r.majs) for (const aid in state.tranches) (state.tranches[aid]||[]).forEach(t=>{ const k=String(t._dbId||t.id||''); if (Object.prototype.hasOwnProperty.call(r.majs,k)) t._maj = Number(r.majs[k])||0; });
+      if (r.majls) for (const aid in state.tranches) (state.tranches[aid]||[]).forEach(t=>{ const k=String(t._dbId||t.id||''); if (Object.prototype.hasOwnProperty.call(r.majls,k)) t._majl = Number(r.majls[k])||0; });
+      if (r.calendrier) {
+        const fl = (r.calendrier.fermetures||[]).map(f=>({...f, date:normalizeDate(String(f.date))||''})).filter(f=>/^\d{4}-\d{2}-\d{2}$/.test(f.date));
+        const m = _fusionCalendrier({ferm: fl, joursOff: r.calendrier.joursOff||{}});
+        state.fermetures = m.ferm; state.joursOff = m.joursOff;
+      }
+      if (r.conflits && r.conflits.length) {
+        toast('⚠ '+r.conflits.length+' ligne(s) modifiée(s) au même moment par quelqu\'un d\'autre : sa version a été conservée');
+        setTimeout(syncDistant, 400);
+      }
+      sentAjout.forEach(k => _fermAjout.delete(k)); sentRetire.forEach(k => _fermRetire.delete(k)); sentJours.forEach(a => _joursDirty.delete(a));
+      _sauverBackupFerm(cal.ferm);
       setOnlineIndex();
       setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
     } else throw new Error(r.error);
@@ -1024,6 +1120,7 @@ try { await sbDelete('tranches', dbId); } catch(e) { console.warn('Delete error:
 }
 
 function scheduleSave(atId) {
+  if (IS_READONLY) return;
   const total = Object.values(state.tranches||{}).reduce((s,a)=>s+(Array.isArray(a)?a.length:0),0);
   if(total === 0) { console.warn('scheduleSave bloqué — tranches vides, sauvegarde annulée'); return; }
   _localRev++;
@@ -1336,6 +1433,7 @@ ${ATELIERS.map(a=>`<option value="${a.id}"${a.id===atId?' selected':''}>${a.labe
 <button class="btn btn-sm btn-warning" onclick="addFermetureSemaine()">+ Semaine</button>
 </div>
 <div style="display:flex;flex-wrap:wrap;gap:5px">${chips||'<span style="font-size:12px;color:var(--text3)">Aucune fermeture</span>'}</div>
+${(!state.fermetures.length && !IS_READONLY && _lireBackupFerm())?(()=>{const b=_lireBackupFerm();return `<div style="margin-top:8px"><button class="btn btn-sm btn-warning" onclick="restaurerFermetures()" title="Copie de secours enregistrée dans ce navigateur">↩ Restaurer ${b.list.length} fermeture(s) (copie du ${new Date(b.at).toLocaleDateString('fr-FR')})</button></div>`;})():''}
 </div>
 </div>
 </div>`:''}
@@ -1356,6 +1454,11 @@ const searchArea = document.getElementById('search-area');
 if(searchArea) searchArea.style.display = 'block';
 const _btnUndoTri = document.getElementById('btn-tri-undo');
 if(_btnUndoTri) _btnUndoTri.style.display = (_triUndo[atId] && !IS_READONLY) ? '' : 'none';
+const _nRetirables = IS_READONLY ? 0 : tr.filter(t=>!t.termine && statutErpTranche(t)).length;
+const _btnRet = document.getElementById('btn-retirer-livrees');
+if(_btnRet){ _btnRet.style.display = _nRetirables ? '' : 'none'; _btnRet.textContent = '✅ Retirer les livrées/terminées ('+_nRetirables+')'; }
+const _btnRetU = document.getElementById('btn-retirer-undo');
+if(_btnRetU) _btnRetU.style.display = (_retraitUndo[atId] && !IS_READONLY) ? '' : 'none';
 let html=`
 <div class="table-wrap"><table><thead><tr>
 <th style="width:32px">⠿</th>
@@ -1464,6 +1567,70 @@ keepGanttPos();
 scheduleSave(atId);
 render();
 }
+
+// ═══ RETRAIT EN UN CLIC des tranches livrées / terminées dans l'ERP ═══════════
+let _retraitUndo = {};
+function retirerLivreesTerminees(atId, sansConfirmation){
+  if(IS_READONLY) return 0;
+  atId = atId || state.atelier;
+  if(!(state._erpIdx && state._erpIdx.statut)){ toast('Statuts ERP pas encore chargés — réessayez dans quelques secondes'); return 0; }
+  const cibles = (state.tranches[atId]||[]).filter(t=>!t.termine && statutErpTranche(t));
+  if(!cibles.length){ toast('Aucune tranche livrée/terminée à retirer'); return 0; }
+  if(!sansConfirmation){
+    const noms = cibles.slice(0,10).map(t=>'• '+t.tranche+' ('+(statutErpTranche(t)==='livre'?'livré':'terminé')+')').join('\n');
+    const msg = 'Retirer du planning '+cibles.length+' tranche(s) déclarée(s) livrée(s)/terminée(s) dans l\'ERP ?\n\n'+noms+(cibles.length>10?'\n… et '+(cibles.length-10)+' autre(s)':'')+'\n\nVous pourrez annuler avec « Annuler le retrait ».';
+    if(!confirm(msg)) return 0;
+  }
+  const jour = new Date().toISOString().slice(0,10);
+  _retraitUndo[atId] = cibles.map(t=>({t, termineLe:t._termineLe||''}));
+  cibles.forEach(t=>{ t.termine = true; t._termineLe = jour; });
+  rechainAtelier(atId); keepGanttPos();
+  if(_saveTimeout){ clearTimeout(_saveTimeout); _saveTimeout = null; }
+  saveToSheets(atId); render();
+  toast('✅ '+cibles.length+' tranche(s) retirée(s) du planning');
+  return cibles.length;
+}
+function annulerRetraitLivrees(atId){
+  if(IS_READONLY) return false;
+  atId = atId || state.atelier;
+  const snap = _retraitUndo[atId]; if(!snap) return false;
+  snap.forEach(x=>{ x.t.termine = false; x.t._termineLe = x.termineLe; });
+  delete _retraitUndo[atId];
+  rechainAtelier(atId); keepGanttPos();
+  if(_saveTimeout){ clearTimeout(_saveTimeout); _saveTimeout = null; }
+  saveToSheets(atId); render();
+  toast('↶ Retrait annulé');
+  return true;
+}
+
+// ═══ VERSION PÉRIMÉE : un onglet resté ouvert sur une ancienne version est la 1re cause de
+// données écrasées (✅, liens, fermetures). Toutes les 5 min on compare avec la version publiée ;
+// si elle est plus récente : bandeau, et rechargement automatique dès que l'onglet est inactif
+// (immédiat sur une page en lecture seule, affichée par exemple sur un écran d'atelier).
+let _lastUserAct = Date.now(), _versionPerimee = false;
+['keydown','click','input','touchstart'].forEach(ev=>{ try{ document.addEventListener && document.addEventListener(ev, ()=>{ _lastUserAct = Date.now(); }, true); }catch(e){} });
+async function verifierVersion(){
+  if(!CLIENT_VERSION) return;
+  try{
+    const res = await fetch(location.pathname + '?v=' + Date.now(), {cache:'no-store'});
+    const m = (await res.text()).match(/<meta name="version" content="([^"]+)"/);
+    if(!(m && m[1] > CLIENT_VERSION)) return;
+    _versionPerimee = true;
+    if(IS_READONLY){ location.reload(); return; }
+    if(!document.getElementById('version-banner')){
+      const b = document.createElement('div'); b.id = 'version-banner';
+      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#B03A2E;color:#fff;padding:8px 14px;font-size:13px;text-align:center';
+      b.innerHTML = '⚠ Une nouvelle version du planning est disponible — <button onclick="location.reload()" style="margin-left:6px;padding:2px 10px;border-radius:6px;border:none;cursor:pointer;font-weight:600">Recharger maintenant</button> <span style="opacity:.85">(rechargement automatique après 2 min d\'inactivité)</span>';
+      document.body.appendChild(b);
+    }
+  }catch(e){}
+}
+function _autoReloadSiPerime(){
+  if(_versionPerimee && !_saveTimeout && !_saveInFlight && Date.now() - _lastUserAct > 120000) location.reload();
+}
+setInterval(verifierVersion, 5*60*1000);
+setInterval(_autoReloadSiPerime, 30*1000);
+setTimeout(verifierVersion, 45*1000);
 
 // ═══ TRI PAR DATE CTVX ═════════════════════════════════════════════════════
 // Trie les tranches (non terminées) d'un atelier par CTVX croissant.
@@ -1811,7 +1978,7 @@ scheduleSave(atId);render();
 function setView(v){state.view=v;document.getElementById('vbtn-table').classList.toggle('active',v==='table');document.getElementById('vbtn-gantt').classList.toggle('active',v==='gantt');const sa=document.getElementById('search-area');if(sa)sa.style.display=v==='table'?'block':'none';render();}
 function setAtelier(id){state.atelier=id;state.ganttShowAll=false;_tableSearch='';render();}
 function setGanttAll(b){state.ganttShowAll=b;render();}
-function toggleJour(atId,i){const off=state.joursOff[atId]||[];state.joursOff[atId]=off.includes(i)?off.filter(x=>x!==i):[...off,i];scheduleSave(atId);render();}
+function toggleJour(atId,i){const off=state.joursOff[atId]||[];state.joursOff[atId]=off.includes(i)?off.filter(x=>x!==i):[...off,i];_joursDirty.add(atId);scheduleSave(atId);render();}
 
 function addFermeture(){
   if(!state.joursOpen){state.joursOpen=true;renderJoursPanel();}
@@ -1823,6 +1990,7 @@ function addFermeture(){
   dEl.style.borderColor='';
   if(state.fermetures.some(f=>f.date===d&&f.atelier===at))return;
   state.fermetures=[...state.fermetures,{date:d,atelier:at}].sort((a,b)=>a.date.localeCompare(b.date));
+  _fermRetire.delete(d+'|'+at); _fermAjout.set(d+'|'+at,{date:d,atelier:at});
   dEl.value='';
   rechainAll();scheduleSave(state.atelier);render();
 }
@@ -1840,6 +2008,7 @@ function addFermetureSemaine(){
   for(let i=0;i<5;i++){
     const ds=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate()+i);
     const s=`${ds.getFullYear()}-${String(ds.getMonth()+1).padStart(2,'0')}-${String(ds.getDate()).padStart(2,'0')}`;
+    _fermRetire.delete(s+'|'+at); _fermAjout.set(s+'|'+at,{date:s,atelier:at});
     if(!state.fermetures.some(f=>f.date===s&&f.atelier===at))
       state.fermetures.push({date:s,atelier:at});
   }
@@ -1847,7 +2016,7 @@ function addFermetureSemaine(){
   dEl.value='';
   rechainAll();scheduleSave(state.atelier);render();
 }
-function removeFermeture(d,at){state.fermetures=state.fermetures.filter(f=>!(f.date===d&&f.atelier===at));rechainAll();scheduleSave(state.atelier);render();}
+function removeFermeture(d,at){_fermAjout.delete(d+'|'+at);_fermRetire.add(d+'|'+at);state.fermetures=state.fermetures.filter(f=>!(f.date===d&&f.atelier===at));rechainAll();scheduleSave(state.atelier);render();}
 
 function updT(atId,id,field,val){
 if(IS_READONLY)return;
@@ -1945,7 +2114,7 @@ async function syncAllOFToERP() {
     }
     await fetch(APPS_SCRIPT_URL, {
       method:'POST', headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify({action:'syncAllOF', ofs: allOF})
+      body: JSON.stringify({action:'syncAllOF', clientVersion: CLIENT_VERSION, ofs: allOF})
     });
   } catch(e) { console.warn('syncAllOFToERP:', e.message); }
 }
@@ -1987,7 +2156,7 @@ function toast(msg){
     fetch(APPS_SCRIPT_URL, {
       method:'POST', headers:{'Content-Type':'text/plain'},
       body: JSON.stringify({
-        action: 'syncAllOF',
+        action: 'syncAllOF', clientVersion: CLIENT_VERSION,
         ofs: [{
           of_id: String(t._dbId||t.id||''),
           tranche: t.tranche||'',
@@ -2018,7 +2187,7 @@ function toast(msg){
     fetch(APPS_SCRIPT_URL, {
       method:'POST', headers:{'Content-Type':'text/plain'},
       body: JSON.stringify({
-        action: 'syncAllOF',
+        action: 'syncAllOF', clientVersion: CLIENT_VERSION,
         ofs: [{
           of_id: String(t._dbId||t.id||''),
           tranche: t.tranche||'',
@@ -2584,6 +2753,18 @@ async function syncDistant() {
     // Une modification locale (clic ✅, saisie…) ou une sauvegarde a eu lieu PENDANT la lecture :
     // la réponse du serveur est périmée → on ne fusionne rien (sinon elle écraserait la modif).
     if (_saveTimeout || _saveInFlight || revDepart !== _localRev) return;
+    // Calendrier : adopter celui du serveur (sans écraser ce qui est en cours d'édition ici)
+    let calChanged = false;
+    try{
+      const srvCal = await _lireCalendrier();
+      if (srvCal && !_saveTimeout && !_saveInFlight && revDepart === _localRev) {
+        const m = _fusionCalendrier(srvCal);
+        if (JSON.stringify(m.ferm) !== JSON.stringify(state.fermetures) || JSON.stringify(m.joursOff) !== JSON.stringify(state.joursOff)) {
+          state.fermetures = m.ferm; state.joursOff = m.joursOff; calChanged = true;
+        }
+        _sauverBackupFerm(m.ferm);
+      } else if (_saveTimeout || _saveInFlight || revDepart !== _localRev) return;
+    }catch(eCal){}
     const normD = s => { if(!s) return ''; const d=String(s).trim(); return d.length>10?d.slice(0,10):d; };
     const normBool = v => { const s=String(v||'').toUpperCase().trim(); return s==='TRUE'||s==='OUI'||s==='1'; };
     const normP = p => {
@@ -2592,12 +2773,50 @@ async function syncDistant() {
       if(s.startsWith('[')){ try{const r2=JSON.parse(s);if(Array.isArray(r2))return r2.map(x=>String(x).trim()).filter(Boolean);}catch(e){} }
       return s.split(',').map(x=>x.trim()).filter(Boolean);
     };
-    let changed = false;
+    let changed = calChanged;
     const lienPerduAt = new Set();
+    const majSupport = Number(r.serverTime) > 0;   // le serveur gère les versions de lignes (« maj »)
     r.tranches.forEach(t => {
       const atId = String(t.atelier_id||'').toLowerCase().trim();
       if (!atId || !state.tranches[atId]) return;
-      const local = state.tranches[atId].find(x => String(x.id) === String(t.id) || String(x._dbId) === String(t.id));
+      // La ligne peut avoir changé d'atelier ailleurs : on la cherche partout
+      let local = state.tranches[atId].find(x => String(x.id) === String(t.id) || String(x._dbId) === String(t.id));
+      if (!local && majSupport) {
+        for (const other in state.tranches) {
+          if (other === atId) continue;
+          const j = (state.tranches[other]||[]).findIndex(x => String(x.id) === String(t.id) || String(x._dbId) === String(t.id));
+          if (j >= 0) { local = state.tranches[other].splice(j,1)[0]; state.tranches[atId].push(local); changed = true; break; }
+        }
+      }
+      if (local && majSupport) {
+        const sm = Number(t.maj)||0;
+        if (sm !== (Number(local._maj)||0)) {
+          // Quelqu'un a modifié cette ligne depuis notre dernière lecture/enregistrement (et nous n'avons
+          // rien d'en attente, cf. garde plus haut) : on adopte la ligne du serveur en entier.
+          local.tranche = String(t.nom||local.tranche||''); local.comment = t.commentaire||'';
+          local.duree = roundTenth(parseFloat(t.duree_jours))||1;
+          local.besoin = normD(t.date_besoin)||null;
+          local.lockDebut = normBool(t.lock_debut); local.lockFin = normBool(t.lock_fin);
+          local.lockFinDate = normD(t.lock_fin_date)||null; local.parallel = normBool(t.parallel);
+          local.termine = normBool(t.termine); local._termineLe = normD(t._terminele||t._termineLe||'');
+          local.phases = normP(t.phases);
+          ['erp_tranche_id','tr_id'].forEach(champ => { const d = String(t[champ]||'').trim(); if (d) local[champ] = d; });
+          local._maj = sm;
+          changed = true;
+        }
+        // Mise en page (ordre + début) modifiée ailleurs : version séparée, pour ne pas confondre
+        // un simple recalcul d'enchaînement avec une vraie modification de contenu
+        const sml = Number(t.majl)||0;
+        if (sml !== (Number(local._majl)||0)) {
+          local.debut = normD(t.date_debut)||local.debut;
+          local.ordre = parseInt(t.ordre)||local.ordre||0;
+          local._majl = sml;
+          changed = true;
+        }
+        // Lien présent ici mais absent de la feuille : on le ré-enregistre (au plus 1×/2 min)
+        ['erp_tranche_id','tr_id'].forEach(champ => { if (!String(t[champ]||'').trim() && String(local[champ]||'').trim()) lienPerduAt.add(atId); });
+        return;
+      }
       if (!local) {
         // Nouvelle tranche ajoutée par quelqu'un d'autre → l'ajouter localement
         state.tranches[atId].push({
@@ -2610,6 +2829,7 @@ async function syncDistant() {
   phases:normP(t.phases),
   erp_tranche_id: t.erp_tranche_id||'',
   tr_id: t.tr_id||'',
+  _maj: Number(t.maj)||0, _majl: Number(t.majl)||0,
 });
         changed = true;
       } else {
@@ -2657,6 +2877,8 @@ async function syncDistant() {
       });
       if (state.tranches[atId].length !== before) changed = true;
     }
+    // Notre état correspond maintenant à la feuille telle qu'elle était à serverTime
+    if (majSupport) { state._baseTime = Number(r.serverTime); state._csvFallback = false; }
     if (changed) { rechainAll(); render(); setSyncPill('ok', '↻ Synchronisé ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})); }
   } catch(e) { /* silencieux — ne pas alerter l'utilisateur si le poll échoue */ }
 }
@@ -2709,9 +2931,19 @@ function lienTitre(l){
 // Statut déclaré dans l'ERP (statut_erp) via le lien ERP : 'livre' | 'termine' | ''.
 function statutErpTranche(t){
   const idx = state._erpIdx;
-  if(!(idx && idx.statut && t.erp_tranche_id)) return '';
-  const v = idx.statut.get(String(t.erp_tranche_id));
-  return (v === 'livre' || v === 'termine') ? v : '';
+  if(!(idx && idx.statut)) return '';
+  if(t.erp_tranche_id && idx.statut.has(String(t.erp_tranche_id))){
+    const v = idx.statut.get(String(t.erp_tranche_id));
+    return (v === 'livre' || v === 'termine') ? v : '';
+  }
+  // Pas de lien unique : si plusieurs tranches ERP portent exactement ce nom et que TOUTES
+  // sont déclarées « livré » (ou toutes « terminé »), le statut est sans ambiguïté.
+  const cands = idx.byNom.get(_normLien(t.tranche));
+  if(cands && cands.length > 1){
+    const sts = new Set(cands.map(c=>String(c.statut_erp||'')));
+    if(sts.size === 1){ const v = [...sts][0]; if(v === 'livre' || v === 'termine') return v; }
+  }
+  return '';
 }
 function estLivre(t){ return statutErpTranche(t) === 'livre'; }
 function estTermineErp(t){ return statutErpTranche(t) === 'termine'; }
@@ -2720,7 +2952,7 @@ function livreBadgeHtml(t){
   if(!v) return '';
   const liv = v === 'livre';
   const col = liv ? ['var(--purple-bg)','var(--purple)','var(--purple-border)','📦 Livré','Déclarée « Livré » dans l\'ERP — à retirer du planning (cocher ✅ terminé)']
-                  : ['var(--green-bg)','var(--green)','var(--green-border)','✅ Terminé','Déclarée « Terminé » dans l\'ERP — à retirer du planning si plus à produire (cocher ✅ terminé)'];
+                  : ['var(--purple-bg)','var(--purple)','var(--purple-border)','✅ Terminé','Déclarée « Terminé » dans l\'ERP — à retirer du planning si plus à produire (cocher ✅ terminé)'];
   return `<span style="display:inline-block;margin-left:5px;padding:0 6px;border-radius:9px;font-size:9.5px;font-weight:700;line-height:15px;white-space:nowrap;background:${col[0]};color:${col[1]};border:1px solid ${col[2]};vertical-align:middle" title="${esc(col[4])}">${col[3]}</span>`;
 }
 function lienDotHtml(t){
