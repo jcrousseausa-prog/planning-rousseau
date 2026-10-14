@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261013-1700">
+<meta name="version" content="20261014-1000">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -517,6 +517,8 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec';
 const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRoI_ySau7t8ZnVKYnTctBTGH49wQ2bIsKQ8_Y87QjpMfFdLcxiyLY_baKmSGtRRqhVau1wBrkIrNTP/pub?gid=2003335524&single=true&output=csv';
+const _TAB_ID = Math.random().toString(36).slice(2,8);
+const _UA_COURT = (()=>{ try{ const u=navigator.userAgent||''; const nav=/Edg\//.test(u)?'Edge':/Chrome\//.test(u)?'Chrome':/Firefox\//.test(u)?'Firefox':/Safari\//.test(u)?'Safari':'?'; return nav+' / '+(navigator.platform||''); }catch(e){ return ''; } })();
 const CLIENT_VERSION = (()=>{ try{ const m=document.querySelector('meta[name="version"]'); return m?m.content:''; }catch(e){ return ''; } })();
 const IS_READONLY = window.location.search.includes('readonly') ||
 document.body.dataset.readonly === 'true';
@@ -1029,7 +1031,7 @@ async function _saveToSupabaseOnce(atId) {
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({action: 'saveTranches', clientVersion: CLIENT_VERSION, baseTime: state._baseTime||0, calendrier: calOps, tranches: allTranches, fermetures: cal.ferm, joursOff: cal.joursOff})
+      body: JSON.stringify({action: 'saveTranches', clientVersion: CLIENT_VERSION, tabId: _TAB_ID, ua: _UA_COURT, baseTime: state._baseTime||0, calendrier: calOps, tranches: allTranches, fermetures: cal.ferm, joursOff: cal.joursOff})
     });
     const r = await res.json();
     if (r.ok) {
