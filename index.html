@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261014-1000">
+<meta name="version" content="20261015-1000">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -919,7 +919,13 @@ if (!_sbConnected) return;
 // verrouillé : deux écritures simultanées pouvaient s'écraser dans le mauvais ordre et
 // effacer un ✅ terminé / un lien). Une demande reçue pendant une sauvegarde en cours
 // est rejouée juste après, avec l'état le plus récent.
-let _saveInFlight = false, _saveQueued = false, _localRev = 0;
+let _saveInFlight = false, _saveQueued = false, _localRev = 0, _lastSavedRev = 0;
+// Modification locale pas encore enregistrée (échec, report de 15 s, hors ligne…) : tant que c'est le cas,
+// syncDistant ne doit RIEN réécrire depuis le serveur, sinon il annule la modification (ex. ✅ qui « revient »).
+function _modifsEnAttente(){ return !state._csvFallback && !IS_READONLY && _localRev !== _lastSavedRev; }
+// Lignes supprimées volontairement ici (✕) : envoyées explicitement au serveur, qui sinon croirait
+// qu'elles ont été « ajoutées ailleurs » et les garderait.
+const _suppr = new Set();
 
 // ═══ CALENDRIER : fermetures exceptionnelles + jours non travaillés ═══════════
 // saveTranches réécrit AUSSI le calendrier à partir de l'état local de l'onglet. Un onglet
@@ -987,6 +993,7 @@ async function saveToSupabase(atId) {
   }
 }
 async function _saveToSupabaseOnce(atId) {
+  const revEnvoi = _localRev;
   saveLS();
   setSyncPill('saving', 'Enregistrement...');
   const allTranches = [];
@@ -1021,6 +1028,7 @@ async function _saveToSupabaseOnce(atId) {
     }
     const cal = _fusionCalendrier(srvCal);
     state.fermetures = cal.ferm; state.joursOff = cal.joursOff;
+    const sentSuppr = [..._suppr];
     const sentAjout = [..._fermAjout.keys()], sentRetire = [..._fermRetire], sentJours = [..._joursDirty];
     // Opérations explicites de l'utilisateur : le serveur les applique sur SON calendrier, sous verrou.
     const calOps = {
@@ -1031,7 +1039,7 @@ async function _saveToSupabaseOnce(atId) {
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({action: 'saveTranches', clientVersion: CLIENT_VERSION, tabId: _TAB_ID, ua: _UA_COURT, baseTime: state._baseTime||0, calendrier: calOps, tranches: allTranches, fermetures: cal.ferm, joursOff: cal.joursOff})
+      body: JSON.stringify({action: 'saveTranches', clientVersion: CLIENT_VERSION, tabId: _TAB_ID, ua: _UA_COURT, baseTime: state._baseTime||0, supprimer: sentSuppr, calendrier: calOps, tranches: allTranches, fermetures: cal.ferm, joursOff: cal.joursOff})
     });
     const r = await res.json();
     if (r.ok) {
@@ -1047,6 +1055,8 @@ async function _saveToSupabaseOnce(atId) {
         toast('⚠ '+r.conflits.length+' ligne(s) modifiée(s) au même moment par quelqu\'un d\'autre : sa version a été conservée');
         setTimeout(syncDistant, 400);
       }
+      _lastSavedRev = Math.max(_lastSavedRev, revEnvoi);
+      sentSuppr.forEach(k => _suppr.delete(k));
       sentAjout.forEach(k => _fermAjout.delete(k)); sentRetire.forEach(k => _fermRetire.delete(k)); sentJours.forEach(a => _joursDirty.delete(a));
       _sauverBackupFerm(cal.ferm);
       setOnlineIndex();
@@ -2036,6 +2046,7 @@ async function removeTranche(atId,idOrIdx){
   const t=state.tranches[atId][idx];
    if(!confirm(`Supprimer "${t.tranche}" ?`))return;
   if(t&&t._dbId)await deleteFromSupabase(t._dbId);
+  if(t&&(t._dbId||t.id)) _suppr.add(String(t._dbId||t.id));
   state.tranches[atId].splice(idx,1);
   keepGanttPos();scheduleSave(atId);render();
 }
@@ -2743,7 +2754,7 @@ setTimeout(initApp, 100);
 async function syncDistant() {
   if (_isOfflineIndex) return;
   // Ne pas syncer si une sauvegarde est en attente (éviter les conflits)
-  if (_saveTimeout || _saveInFlight) return;
+  if (_saveTimeout || _saveInFlight || _modifsEnAttente()) return;
   const revDepart = _localRev;
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
