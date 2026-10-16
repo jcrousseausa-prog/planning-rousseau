@@ -364,6 +364,7 @@ table.bl-lignes td.r{text-align:right}
     <button class="btn" onclick="showScreen('renseignement')" title="Accéder au tableau de renseignement projet" style="background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)">📋 Renseignement</button>
     <button class="btn" onclick="openRecapChantiers()" title="Récapitulatif des heures saisies par chantier" style="background:var(--teal-bg);color:var(--teal);border-color:var(--teal-border)">📊 Récap chantiers</button>
   </div>
+  <div id="doublons-tranches"></div>
   <div class="table-wrap" id="planning-view-chantier" style="max-height:calc(100vh - 160px);overflow-y:auto">
     <table>
       <thead style="position:sticky;top:0;z-index:10"><tr>
@@ -669,8 +670,7 @@ table.bl-lignes td.r{text-align:right}
   </div>
 
   <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.06)">
-    <div style="display:grid;grid-template-columns:96px 32px 1fr 120px 76px 76px 1fr 70px;background:var(--blue);color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em">
-      <div style="padding:10px 4px;text-align:center" title="Date de besoin CTVX au plus tôt de la tranche choisie">CTVX</div>
+    <div style="display:grid;grid-template-columns:32px 1fr 100px 80px 80px 1fr 36px;background:var(--blue);color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em">
       <div style="padding:10px 6px;text-align:center">#</div>
       <div style="padding:10px 14px">Tranche</div>
       <div style="padding:10px 8px;text-align:center">Phase</div>
@@ -684,8 +684,7 @@ table.bl-lignes td.r{text-align:right}
         Sélectionnez un chantier puis une tranche, puis <strong>+ Ligne</strong>
       </div>
     </div>
-    <div id="rens-tfoot" style="display:none;grid-template-columns:96px 32px 1fr 120px 76px 76px 1fr 70px;background:var(--bg);border-top:2px solid var(--border);font-weight:700;font-size:12px">
-      <div></div>
+    <div id="rens-tfoot" style="display:none;grid-template-columns:32px 1fr 100px 80px 80px 1fr 36px;background:var(--bg);border-top:2px solid var(--border);font-weight:700;font-size:12px">
       <div></div>
       <div style="padding:9px 14px;color:var(--text3);font-size:11px;text-transform:uppercase">Total</div>
       <div></div>
@@ -2428,14 +2427,36 @@ function renderAll(){
 
 
 // ═══ PLANNING ═════════════════════════════════════════════════════════════
-function onSearch(q){_search=q.toLowerCase().trim();renderPlanning();}
+function onSearch(q){
+  _search=q.toLowerCase().trim();
+  // À chaque changement de texte : on déplie UNE FOIS les chantiers/tranches qui contiennent un
+  // résultat, puis on laisse l'utilisateur replier/déplier librement (avant, la recherche forçait
+  // tout ouvert à chaque rendu et re-scrollait sur le résultat à chaque clic).
+  const qq=_search;
+  if(qq){
+    const qs=qq.replace(/\s+/g,'');
+    const phOk=ph=>(ph.nom||'').toLowerCase().includes(qq)||(((ph.num||'').toLowerCase().replace(/\s+/g,'')).includes(qs)&&qs);
+    state.chantiers.forEach(ch=>{
+      const chHit=(ch.nom||'').toLowerCase().includes(qq);
+      state.tranches.filter(t=>t.cid===ch.id).forEach(t=>{
+        const trHit=(t.nom||'').toLowerCase().includes(qq);
+        const phHit=state.phases.some(p=>p.tid===t.id&&phOk(p));
+        if(trHit||phHit){ t.open=true; ch.open=true; }
+        else if(chHit){ ch.open=true; }
+      });
+    });
+  }
+  renderPlanning({scroll:true});
+}
 
 function setPlanningVue(v){
   state._planningVue = v;
   renderPlanning();
 }
 
-function renderPlanning(){
+function renderPlanning(opts){
+  const doScroll = !!(opts && opts.scroll === true);
+  try{ renderDoublonsTranches(); }catch(e){ console.warn("doublons:",e.message); }
   // Deux modes d'affichage du Tableau de pilotage : l'arbre chantier → tranche → phase (par
   // défaut, pour raisonner par chantier), ou une liste à plat de toutes les phases triée par
   // numéro croissant avec rappel de la tranche/chantier (pour retrouver vite une phase précise).
@@ -2506,7 +2527,7 @@ function renderPlanning(){
   // 'ordre' = ordre naturel, pas de tri supplémentaire
   if(q&&!ch.nom.toLowerCase().includes(q)&&!trs.some(t=>t.nom.toLowerCase().includes(q))&&!trs.some(t=>phasesOfTranche(t.id).some(phaseMatches))) continue;
   html+=renderChRow(ch,trs.length);
-  if(!ch.open&&!q)continue;
+  if(!ch.open)continue;
     for(const tr of trs){
       const phs=state.phases.filter(p=>p.tid===tr.id);
       if(q&&!ch.nom.toLowerCase().includes(q)&&!tr.nom.toLowerCase().includes(q)&&!phs.some(phaseMatches))continue;
@@ -2515,7 +2536,7 @@ function renderPlanning(){
       // Dédoublonner par of_id pour éviter les doublons de ERP_Suivi_Production
       const ofs_prod = ofsProdDeTranche(tr);
       html+=renderTrRow(tr,phs.length,arts,ofs_prod);
-      if(!tr.open&&!q)continue;
+      if(!tr.open)continue;
       for(const ph of phs){
         const phArts=state.articles.filter(a=>a.pid===ph.id);
         const phIsMatch = phaseMatches(ph);
@@ -2530,11 +2551,14 @@ function renderPlanning(){
     }
     html+=`<tr class="row-add-tr"><td colspan="13"><button style="font-size:11px;color:var(--text2);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddTranche('${ch.id}')">+ Tranche</button></td></tr>`;
   }
+  const _scEl=document.getElementById('planning-view-chantier');
+  const _prevScroll=_scEl?_scEl.scrollTop:0;
   tbody.innerHTML=html;
+  if(_scEl && !doScroll) _scEl.scrollTop=_prevScroll;
   // Recherche par phase (ou clic depuis la Vue par phase) : amène automatiquement le résultat à
   // l'écran (plus besoin de scroller manuellement dans l'arbre chantier → tranche → phase pour
   // retrouver "PH 04 de Haute Gournière").
-  if((q || _highlightPhId) && _firstMatchId){
+  if(doScroll && (q || _highlightPhId) && _firstMatchId){
     const elMatch = document.getElementById('ph-first-match');
     if(elMatch) elMatch.scrollIntoView({behavior:'smooth', block:'center'});
   }
@@ -2671,7 +2695,7 @@ function jumperVersPhase(phId){
   }
   state._planningVue = 'chantier';
   _highlightPhId = phId;
-  renderPlanning();
+  renderPlanning({scroll:true});
   _highlightPhId = null;
 }
 function toggleChantierActif(chId){
@@ -3222,7 +3246,7 @@ function openAddTranche(cid){
 
   if(datesErp.length) {
     // Noms de tranches déjà dans l'ERP (normalisés)
-    const norm = s => (s||'').trim().toLowerCase();
+    const norm = _cleNomTranche;
     const existantes = new Set(state.tranches.map(t => norm(t.nom)));
 
     // Tranches DATES manquantes (pas encore dans l'ERP)
@@ -3252,12 +3276,77 @@ function mtSelectDates(val){
   _ctx.idDates = (d && d.id_dates) ? d.id_dates : '';
 }
 function openEditTranche(id){const t=state.tranches.find(x=>x.id===id);if(!t)return;_ctx={type:'edit',id};document.getElementById('mt-title').textContent='Modifier la tranche';document.getElementById('mt-nom').value=t.nom;document.getElementById('mt-conduc').value=t.conduc||'';document.getElementById('mt-dates-wrap').style.display='none';document.getElementById('modal-tr').classList.add('show');}
+// Clé de comparaison des noms de tranche : insensible à la casse, aux accents, aux espaces et aux tirets
+function _cleNomTranche(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+}
+// Empêche de créer / renommer une tranche avec un nom déjà utilisé (ce qui scindait les phases en deux tranches).
+function _trancheDoublon(nom, idExclu){
+  const k=_cleNomTranche(nom); if(!k) return null;
+  return state.tranches.find(t=>t.id!==idExclu && _cleNomTranche(t.nom)===k) || null;
+}
 function saveTranche(){
   const nom=document.getElementById('mt-nom').value.trim();if(!nom)return;
   const conduc=document.getElementById('mt-conduc').value.trim();
+  const dbl=_trancheDoublon(nom, _ctx.type==='edit'?_ctx.id:null);
+  if(dbl){
+    const ch=state.chantiers.find(c=>c.id===dbl.cid);
+    alert('Cette tranche existe déjà'+(ch?' dans le chantier « '+ch.nom+' »':'')+' :\n« '+dbl.nom+' »\n\nUtilisez la tranche existante (ajoutez-y une phase) plutôt que d\'en créer une deuxième : les phases seraient réparties sur deux tranches et le Planning Production n\'en verrait qu\'une partie.');
+    return;
+  }
   if(_ctx.type==='add')state.tranches.push({id:uid(),cid:_ctx.cid,nom,conduc,open:false,ctvx:'',id_dates:_ctx.idDates||''});
   else{const t=state.tranches.find(x=>x.id===_ctx.id);if(t){t.nom=nom;t.conduc=conduc;}}
   closeModal('modal-tr');scheduleSave();renderAll();toast('Tranche enregistrée');
+}
+// ═══ OUTIL TEMPORAIRE — FUSION DES TRANCHES EN DOUBLE ═════════════════════════
+// N'apparaît QUE s'il existe au moins deux tranches de même nom ; disparaît seul une fois fusionnées.
+// Quand il n'y a plus de doublon, ce bloc (renderDoublonsTranches / fusionnerTranches) peut être supprimé.
+function _groupesDoublonsTranches(){
+  const m=new Map();
+  state.tranches.forEach(t=>{ const k=_cleNomTranche(t.nom); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(t); });
+  return [...m.values()].filter(g=>g.length>1);
+}
+function _statsTranche(t){
+  const phs=state.phases.filter(p=>p.tid===t.id);
+  const arts=state.articles.filter(a=>phs.some(p=>p.id===a.pid));
+  return {phs:phs.length, arts:arts.length};
+}
+// Tranche à conserver : celle qui porte le plus de phases, puis celle qui a un id_dates, sinon la première.
+function _trancheAConserver(g){
+  return [...g].sort((a,b)=>{
+    const sa=_statsTranche(a), sb=_statsTranche(b);
+    if(sb.phs!==sa.phs) return sb.phs-sa.phs;
+    return (b.id_dates?1:0)-(a.id_dates?1:0);
+  })[0];
+}
+function renderDoublonsTranches(){
+  const el=document.getElementById('doublons-tranches'); if(!el) return;
+  const groupes=_groupesDoublonsTranches();
+  if(!groupes.length){ el.innerHTML=''; return; }
+  el.innerHTML='<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--orange)">'+
+    '<b>⚠ '+groupes.length+' tranche'+(groupes.length>1?'s':'')+' en double</b> — les phases sont réparties sur deux fiches (outil temporaire)'+
+    groupes.map(g=>{
+      const keep=_trancheAConserver(g);
+      return '<div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap"><span style="color:var(--text)">'+esc(keep.nom)+' <span style="color:var(--text3)">('+g.map(t=>_statsTranche(t).phs+' phase'+(_statsTranche(t).phs>1?'s':'')).join(' + ')+')</span></span>'+
+        '<button class="btn btn-sm" onclick="fusionnerTranches(\''+keep.id+'\')">Fusionner</button></div>';
+    }).join('')+'</div>';
+}
+function fusionnerTranches(keepId){
+  const keep=state.tranches.find(t=>t.id===keepId); if(!keep) return;
+  const autres=state.tranches.filter(t=>t.id!==keepId && _cleNomTranche(t.nom)===_cleNomTranche(keep.nom));
+  if(!autres.length) return;
+  const nbPh=autres.reduce((n,t)=>n+_statsTranche(t).phs,0);
+  if(!confirm('Fusionner « '+keep.nom+' » ?\n\n• '+nbPh+' phase(s) (avec leurs articles) seront déplacées vers la tranche conservée ('+_statsTranche(keep).phs+' phase(s) actuellement)\n• '+autres.length+' fiche(s) en double supprimée(s)\n\nLe Planning Production se relie tout seul à la tranche conservée à sa prochaine ouverture.')) return;
+  autres.forEach(o=>{
+    state.phases.forEach(p=>{ if(p.tid===o.id) p.tid=keep.id; });
+    if(!keep.ctvx && o.ctvx) keep.ctvx=o.ctvx;
+    if(!keep.id_dates && o.id_dates) keep.id_dates=o.id_dates;
+    if(!keep.conduc && o.conduc) keep.conduc=o.conduc;
+  });
+  state.tranches=state.tranches.filter(t=>!autres.includes(t));
+  keep.open=true;
+  scheduleSave(); renderAll();
+  toast('✅ Tranches fusionnées — '+nbPh+' phase(s) déplacée(s)');
 }
 function deleteTranche(id){
   const phasesLiees = state.phases.filter(p=>p.tid===id);
@@ -3618,37 +3707,6 @@ function showScreen(id){
 let _rensRows = [];
 let _rensTranchesChantier = []; // tranches du chantier sélectionné
 let _rensDessinateurs = [];
-let _rensHist = [];             // saisies enregistrées (historique), gardées pour pouvoir les corriger
-let _rensEditId = null;         // id de la saisie de l'historique en cours de correction
-let _rensChantierPrec = '';     // chantier précédemment sélectionné (pour annuler un changement)
-const RENS_GRID = '96px 32px 1fr 120px 76px 76px 1fr 70px';
-
-// ── Phase : le préfixe « Ph » est automatique ───────────────────────────────
-// On ne tape que le numéro (1, 05, 12b…). Que l'on tape « 5 », « ph5 », « PH 5 » ou « Ph05 »,
-// la phase enregistrée est toujours « Ph05 » : plus de variantes Ph / ph / PH.
-const rensPn = s => String(s||'').trim().toLowerCase();                       // comparaison insensible à la casse
-function rensPhaseSuffixe(p){ return String(p||'').trim().replace(/^ph[\s\-_.]*/i,''); }   // « Ph05 » -> « 05 »
-function rensNormPhase(v){
-  const s = rensPhaseSuffixe(String(v||'').replace(/\s+/g,''));
-  if(!s) return '';
-  return 'Ph' + (/^\d+$/.test(s) ? s.padStart(2,'0') : s);                 // « 5 » -> « Ph05 »
-}
-// frappe en cours : on garde le numéro tel quel (pas de remplissage tant que l'on tape)
-function rensPhaseInput(id, el){
-  const brut = el.value.replace(/\s+/g,'');
-  const s = rensPhaseSuffixe(brut);
-  if(s !== brut) el.value = s;                    // si « ph » a été tapé, on le retire (déjà affiché à gauche)
-  rensUpdateRow(id, 'phase', s ? 'Ph'+s : '');
-}
-// fin de saisie (quitter le champ / choisir dans la liste) : mise au format Ph05
-function rensPhaseCommit(id, el){
-  const n = rensNormPhase(el.value);
-  el.value = rensPhaseSuffixe(n);
-  rensUpdateRow(id, 'phase', n);
-}
-const RENS_PH_BOX = 'display:flex;align-items:center;border:1px solid var(--border);border-radius:6px;background:var(--surface);overflow:hidden';
-const RENS_PH_PRE = 'padding:0 2px 0 8px;font-size:12px;font-weight:700;color:var(--blue);font-family:\'DM Mono\',monospace';
-const RENS_PH_INP = 'flex:1;min-width:0;width:100%;border:none;outline:none;padding:4px 6px 4px 1px;font-family:\'DM Mono\',monospace;font-size:12px;background:transparent';
 
 async function initRenseignement(){
   if(!_rensDessinateurs.length) await rensLoadDessinateurs();
@@ -3659,8 +3717,6 @@ async function initRenseignement(){
     ).join('');
   _rensTranchesChantier = [];
   _rensRows = [];
-  _rensChantierPrec = '';
-  _rensEditId = null;
   renderRensRows();
 }
 
@@ -3680,22 +3736,8 @@ async function rensLoadDessinateurs(){
   }
 }
 
-// Une ligne contient-elle quelque chose que l'utilisateur a saisi ?
-function rensLigneRemplie(r){
-  return !!(r.tranche_id || r.phase || r.m2 || r.m3 || r.commentaire);
-}
-
 function rensOnChantierChange(){
-  const selCh = document.getElementById('rens-chantier');
-  const chId = selCh.value;
-  // Changer de chantier vide le tableau : on prévient plutôt que de perdre la saisie en silence.
-  if(chId !== _rensChantierPrec && _rensRows.some(rensLigneRemplie)){
-    if(!confirm('Des lignes saisies et non enregistrées seront perdues si vous changez de chantier. Continuer ?')){
-      selCh.value = _rensChantierPrec;
-      return;
-    }
-  }
-  _rensChantierPrec = chId;
+  const chId = document.getElementById('rens-chantier').value;
   if(!chId){
     _rensTranchesChantier = [];
     _rensRows = [];
@@ -3708,31 +3750,20 @@ function rensOnChantierChange(){
   renderRensRows();
 }
 
-// Phases déjà existantes dans l'ERP pour une tranche (proposées dans la liste de la ligne)
-function rensPhasesDispo(trancheId){
-  if(!trancheId) return [];
-  const vus = {};
-  return state.phases.filter(p=>p.tid===trancheId)
-    .map(p=>String(p.num||p.nom||'').trim()).filter(Boolean)
-    .filter(n=>{ const k=rensPn(n); if(vus[k]) return false; vus[k]=true; return true; });
-}
-
-function rensNewRow(extra){
-  return Object.assign({
+function rensAddRow(){
+  const chId = document.getElementById('rens-chantier').value;
+  if(!chId){ toast('⚠ Sélectionnez un chantier d\'abord'); return; }
+  _rensRows.push({
     id: Date.now()+'_'+Math.random().toString(36).slice(2,6),
     tranche_nom: '',
     tranche_id: '',
     phase: '',
     m2: '',
     m3: '',
-    commentaire: ''
-  }, extra||{});
-}
-
-function rensAddRow(){
-  const chId = document.getElementById('rens-chantier').value;
-  if(!chId){ toast('⚠ Sélectionnez un chantier d\'abord'); return; }
-  _rensRows.push(rensNewRow());
+    commentaire: '',
+    dessinateur: document.getElementById('rens-dessinateur').value||'',
+    phases_dispo: []
+  });
   renderRensRows();
   setTimeout(()=>{
     const sels = document.querySelectorAll('.rens-row-tranche-select');
@@ -3740,27 +3771,17 @@ function rensAddRow(){
   },50);
 }
 
-// Ajoute, juste sous la ligne, une nouvelle ligne pour la MÊME tranche (autre phase)
-function rensAddPhaseRow(id){
-  const i = _rensRows.findIndex(r=>r.id===id);
-  if(i<0) return;
-  const src = _rensRows[i];
-  if(!src.tranche_id){ toast('⚠ Choisissez d\'abord une tranche sur cette ligne'); return; }
-  const nr = rensNewRow({tranche_id:src.tranche_id, tranche_nom:src.tranche_nom});
-  _rensRows.splice(i+1, 0, nr);
-  renderRensRows();
-  setTimeout(()=>{ document.getElementById('rens-phase-'+nr.id)?.focus(); },50);
-}
-
 function rensRowTrancheChange(rowId, newTrancheId){
   const row = _rensRows.find(r=>r.id===rowId);
   if(!row) return;
   const tr = _rensTranchesChantier.find(t=>t.id===newTrancheId);
   if(!tr){
-    row.tranche_id=''; row.tranche_nom='';
-  } else if(row.tranche_id!==tr.id){
+    row.tranche_id=''; row.tranche_nom=''; row.phases_dispo=[]; row.phase='';
+  } else {
     row.tranche_id = tr.id;
     row.tranche_nom = tr.nom;
+    row.phases_dispo = state.phases.filter(p=>p.tid===tr.id).map(p=>p.num||p.nom).filter(Boolean);
+    row.phase = '';
   }
   renderRensRows();
 }
@@ -3808,34 +3829,27 @@ function renderRensRows(){
         ${trancheOptions}
       </select>`;
 
-    // Phase : « Ph » est affiché devant, on tape seulement le numéro (ou on le choisit dans la liste
-    // des phases déjà existantes de la tranche). La valeur saisie reste toujours visible.
-    const dispo = rensPhasesDispo(r.tranche_id);
-    const phaseHtml = `<div style="${RENS_PH_BOX}">
-        <span style="${RENS_PH_PRE}">Ph</span>
-        <input type="text" id="rens-phase-${r.id}" list="rens-dl-${r.id}" value="${esc(rensPhaseSuffixe(r.phase))}"
-          placeholder="${dispo.length?'01…':'01'}" autocomplete="off"
-          oninput="rensPhaseInput('${r.id}',this)" onchange="rensPhaseCommit('${r.id}',this)"
-          style="${RENS_PH_INP}"/>
-      </div>
-      <datalist id="rens-dl-${r.id}">${dispo.map(p=>`<option value="${esc(rensPhaseSuffixe(p))}"></option>`).join('')}</datalist>`;
+    const phaseOptions = r.phases_dispo?.length
+      ? r.phases_dispo.map(p=>`<option value="${esc(p)}"${r.phase===p?' selected':''}>${esc(p)}</option>`).join('')
+      : '';
+    const phaseSelectHtml = `<select onchange="rensPhaseSelect('${r.id}',this)"
+        style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;background:var(--surface)">
+        <option value="">—</option>
+        ${phaseOptions}
+        <option value="__NEW__">✏ Saisir manuellement…</option>
+      </select>
+      <input type="text" id="rens-phase-input-${r.id}" value="${r.phase&&!phaseOptions.includes('value="'+r.phase+'"')?esc(r.phase):''}"
+        placeholder="Ph01" class="rens-row-phase"
+        oninput="rensUpdateRow('${r.id}','phase',this.value)"
+        style="width:100%;padding:4px 6px;border:1px solid var(--orange-border);border-radius:6px;font-family:inherit;font-size:12px;text-align:center;margin-top:3px;display:${r.phase&&!phaseOptions.includes('value="'+r.phase+'"')&&r.phases_dispo?.length?'block':'none'}"/>`;
 
-    // Date de besoin CTVX (au plus tôt) de la tranche choisie — même source que le reste de l'ERP
-    const trSel = r.tranche_id ? state.tranches.find(t=>t.id===r.tranche_id) : null;
-    const ctvx = trSel ? ctvxDeTranche(trSel) : '';
-    const ctvxCell = !trSel ? ''
-      : (ctvx ? `<span title="Date de besoin CTVX au plus tôt" style="font-size:11px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace;white-space:nowrap;font-weight:600">${esc(fmtDate(ctvx))}</span>`
-                : `<span title="Aucune date CTVX connue pour cette tranche" style="font-size:11px;color:var(--text3)">pas de CTVX</span>`);
-
-    const suite = i>0 && r.tranche_id && _rensRows[i-1].tranche_id===r.tranche_id; // même tranche que la ligne du dessus
-    return `<div class="rens-row" style="display:grid;grid-template-columns:${RENS_GRID};border-bottom:1px solid var(--border);align-items:center;background:${i%2===0?'var(--surface)':'var(--bg)'}">
-      <div style="padding:6px 4px;text-align:center">${ctvxCell}</div>
-      <div style="padding:8px 6px;text-align:center;font-size:11px;color:var(--text3);font-weight:600">${suite?'↳':(i+1)}</div>
+    return `<div class="rens-row" style="display:grid;grid-template-columns:32px 1fr 100px 80px 80px 1fr 36px;border-bottom:1px solid var(--border);align-items:center;background:${i%2===0?'var(--surface)':'var(--bg)'}">
+      <div style="padding:8px 6px;text-align:center;font-size:11px;color:var(--text3);font-weight:600">${i+1}</div>
       <div style="padding:6px 8px">
         ${trancheSelectHtml}
       </div>
       <div style="padding:6px 6px">
-        ${phaseHtml}
+        ${phaseSelectHtml}
       </div>
       <div style="padding:6px 6px">
         <input type="number" value="${esc(r.m2)}" placeholder="0" min="0" step="0.01"
@@ -3852,120 +3866,27 @@ function renderRensRows(){
           oninput="rensUpdateRow('${r.id}','commentaire',this.value)"
           style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"/>
       </div>
-      <div style="padding:6px 4px;text-align:center;white-space:nowrap">
-        <button onclick="rensAddPhaseRow('${r.id}')" title="Ajouter une autre phase pour cette tranche" style="border:none;background:none;cursor:pointer;color:var(--blue);font-size:16px;line-height:1;font-weight:700">＋</button>
-        <button onclick="rensRemoveRow('${r.id}')" title="Supprimer cette ligne" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:15px;line-height:1">✕</button>
+      <div style="padding:6px 4px;text-align:center">
+        <button onclick="rensRemoveRow('${r.id}')" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:15px;line-height:1">✕</button>
       </div>
     </div>`;
   }).join('');
   rensMaj();
 }
 
-// ── ERP : phases / articles créés par une saisie ────────────────────────────
-
-// Retourne la phase (num) de la tranche, en la créant si elle n'existe pas encore.
-function rensAssurerPhase(tranche, num, libelleFallback){
-  const n = String(num||'').trim();
-  let ph = state.phases.find(p=>p.tid===tranche.id && rensPn(p.num||p.nom)===rensPn(n));
-  if(ph) return {phase:ph, creee:false};
-  ph = {
-    id: uid(),
-    tid: tranche.id,
-    num: n,
-    nom: libelleFallback || n,
-    open: false,
-    statut: 'planifie',
-    date_termine: '',
-    date_livre: ''
-  };
-  state.phases.push(ph);
-  return {phase:ph, creee:true};
-}
-
-function rensNouvelArticle(phase, tranche, l){
-  return {
-    id: uid(),
-    pid: phase.id,
-    libelle: l.commentaire || l.phase,
-    operation: '',
-    qte_m2: l.m2||'',
-    qte_m3: l.m3||'',
-    date_ctvx: tranche.ctvx||'',
-    date_sortie_be:'', date_sortie_prod:'',
-    budget_heures:'', avancement:0,
-    statut:'planifie', type_source:'renseignement'
-  };
-}
-
-// Applique des lignes enregistrées dans l'ERP (phases + articles). Retourne le nombre de créations.
-function rensCreerPhasesArticles(lignes){
-  let phasesMaj = 0;
-  const trancheIds = [...new Set(lignes.map(l=>l.tranche_id).filter(Boolean))];
-  trancheIds.forEach(trId=>{
-    const tranche = state.tranches.find(t=>t.id===trId);
-    if(!tranche) return;
-    lignes.filter(l=>l.tranche_id===trId).forEach(l=>{
-      if(!l.phase) return;
-      const a = rensAssurerPhase(tranche, l.phase, l.commentaire);
-      if(a.creee) phasesMaj++;
-      if(l.commentaire || l.m2 || l.m3){
-        if(a.creee){
-          state.articles.push(rensNouvelArticle(a.phase, tranche, l));
-        } else {
-          const artExiste = state.articles.find(x=>x.pid===a.phase.id && x.libelle===l.commentaire);
-          if(!artExiste){
-            state.articles.push(rensNouvelArticle(a.phase, tranche, l));
-            phasesMaj++;
-          }
-        }
-      }
-    });
-  });
-  return phasesMaj;
-}
-
-// Sauvegarde IMMÉDIATE de l'ERP (phases/articles). Retourne false si hors ligne.
-async function rensPersistErp(message){
-  if(_saveTimeout) clearTimeout(_saveTimeout);
-  _pendingSave = true;
-  setSyncPill('saving', message||'Mise à jour de l\'ERP...');
-  await saveToSheets();
-  return !_isOffline;
-}
-
-// Article de l'ERP créé à l'enregistrement d'une saisie de l'historique (si on le retrouve)
-function rensNum(v){ return parseFloat(v)||0; }
-function rensTrouverArticleLie(l){
-  const ph = String(l.phase||'').trim();
-  if(!ph) return null; // sans phase, l'enregistrement n'avait rien créé dans l'ERP
-  const tr = state.tranches.find(t=>t.id===l.tranche_id);
-  if(!tr) return null;
-  const p = state.phases.find(x=>x.tid===tr.id && rensPn(x.num||x.nom)===rensPn(ph));
-  if(!p) return null;
-  const lib = String(l.commentaire||l.phase||'').trim();
-  const art = state.articles.find(a=>a.pid===p.id && a.type_source==='renseignement'
-    && String(a.libelle||'').trim()===lib
-    && rensNum(a.qte_m2)===rensNum(l.m2) && rensNum(a.qte_m3)===rensNum(l.m3));
-  return art ? {art, phase:p, tranche:tr} : null;
-}
-// On ne touche à un article que s'il est encore « vierge » (rien n'a été fait dessus dans l'ERP)
-function rensArticleIntact(a){
-  return rensNum(a.avancement)===0 && String(a.statut||'planifie')==='planifie'
-    && !a.date_sortie_be && !a.date_sortie_prod && !a.budget_heures && !a.operation;
-}
-
-async function rensAppel(action, payload){
-  const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify(Object.assign({action}, payload))});
-  const r = await res.json();
-  if(!r.ok){
-    if(/Action inconnue/i.test(r.error||'')) throw new Error('le serveur (Apps Script) n\'est pas à jour — collez le nouveau Code.gs puis redéployez');
-    throw new Error(r.error||'Erreur Apps Script');
+function rensPhaseSelect(id, sel){
+  const val = sel.value;
+  const inp = document.getElementById('rens-phase-input-'+id);
+  if(val==='__NEW__'){
+    if(inp){ inp.style.display='block'; inp.focus(); inp.value=''; }
+    rensUpdateRow(id,'phase','');
+    sel.value='';
+  } else {
+    if(inp) inp.style.display='none';
+    rensUpdateRow(id,'phase',val);
   }
-  return r;
 }
 
-// ── Enregistrement d'une saisie ─────────────────────────────────────────────
 async function rensSave(){
   if(!_rensRows.length){ toast('⚠ Aucune ligne à enregistrer'); return; }
 
@@ -3988,7 +3909,7 @@ async function rensSave(){
   const lignes = _rensRows.map(r=>({
     tranche_id: r.tranche_id,
     tranche_nom: r.tranche_nom,
-    phase: rensNormPhase(r.phase),
+    phase: r.phase,
     m2: parseFloat(r.m2)||0,
     m3: parseFloat(r.m3)||0,
     commentaire: r.commentaire,
@@ -3998,15 +3919,77 @@ async function rensSave(){
 
   setSyncPill('saving','Enregistrement...');
   try{
-    await rensAppel('saveRenseignement', {lignes});
+    const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({action:'saveRenseignement', lignes})});
+    const r = await res.json();
+    if(!r.ok) throw new Error(r.error||'Erreur Apps Script');
   } catch(e){
     toast('❌ Erreur sauvegarde : '+e.message);
     setSyncPill('error','Erreur');
     return;
   }
 
+  let phasesMaj = 0;
   const trancheIdsUniques = [...new Set(lignes.map(l=>l.tranche_id).filter(Boolean))];
-  const phasesMaj = rensCreerPhasesArticles(lignes);
+  trancheIdsUniques.forEach(trId=>{
+    const tranche = state.tranches.find(t=>t.id===trId);
+    if(!tranche) return;
+    const phasesExistantes = state.phases.filter(p=>p.tid===tranche.id);
+    const lignesTranche = lignes.filter(l=>l.tranche_id===trId);
+    lignesTranche.forEach(l=>{
+      if(!l.phase) return;
+      const existe = phasesExistantes.find(p=>(p.num||p.nom||'').trim()===l.phase.trim());
+      if(!existe){
+        const newPh = {
+          id: uid(),
+          tid: tranche.id,
+          num: l.phase,
+          nom: l.commentaire || l.phase,
+          open: false,
+          statut: 'planifie',
+          date_termine: '',
+          date_livre: ''
+        };
+        state.phases.push(newPh);
+        phasesExistantes.push(newPh);
+        phasesMaj++;
+        if(l.commentaire || l.m2 || l.m3){
+          state.articles.push({
+            id: uid(),
+            pid: newPh.id,
+            libelle: l.commentaire || l.phase,
+            operation: '',
+            qte_m2: l.m2||'',
+            qte_m3: l.m3||'',
+            date_ctvx: tranche.ctvx||'',
+            date_sortie_be:'',
+            date_sortie_prod:'',
+            budget_heures:'',
+            avancement: 0,
+            statut: 'planifie',
+            type_source: 'renseignement'
+          });
+        }
+      } else if(l.commentaire || l.m2 || l.m3){
+        const artExiste = state.articles.find(a=>a.pid===existe.id&&a.libelle===l.commentaire);
+        if(!artExiste){
+          state.articles.push({
+            id: uid(),
+            pid: existe.id,
+            libelle: l.commentaire || l.phase,
+            operation: '',
+            qte_m2: l.m2||'',
+            qte_m3: l.m3||'',
+            date_ctvx: tranche.ctvx||'',
+            date_sortie_be:'', date_sortie_prod:'',
+            budget_heures:'', avancement:0,
+            statut:'planifie', type_source:'renseignement'
+          });
+          phasesMaj++;
+        }
+      }
+    });
+  });
   if(phasesMaj > 0){
     // Sauvegarde IMMÉDIATE et synchrone des phases/articles nouvellement créés (plutôt que via
     // scheduleSave(), qui diffère de 2s) — le journal Renseignement, lui, est déjà bien enregistré
@@ -4014,8 +3997,11 @@ async function rensSave(){
     // écriture des phases, un onglet fermé/changé juste après le clic pouvait perdre les phases en
     // silence tout en laissant croire que tout était enregistré (c'est ce qui a fait disparaître les
     // phases créées depuis Renseignement les jours précédents).
-    const ok = await rensPersistErp('Création des phases dans l\'ERP...');
-    if(!ok){
+    if(_saveTimeout) clearTimeout(_saveTimeout);
+    _pendingSave = true;
+    setSyncPill('saving', 'Création des phases dans l\'ERP...');
+    await saveToSheets();
+    if(_isOffline){
       toast(`⚠ Ligne(s) enregistrée(s) dans l'historique, mais échec de la création de ${phasesMaj} phase(s) dans l'ERP — vérifiez la connexion puis modifiez une phase pour relancer la sauvegarde.`);
       _rensRows = [];
       renderRensRows();
@@ -4031,165 +4017,45 @@ async function rensSave(){
   rensLoadHistorique();
 }
 
-// ── Historique : lecture, correction, annulation ────────────────────────────
 async function rensLoadHistorique(){
   const hist = document.getElementById('rens-historique');
   hist.innerHTML = '<div style="padding:1rem;text-align:center;color:var(--text3);font-size:12px">Chargement…</div>';
   try{
-    const r = await rensAppel('getRenseignement', {});
-    _rensHist = r.lignes||[];
-    _rensEditId = null;
-    renderRensHistorique();
+    const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({action:'getRenseignement'})});
+    const r = await res.json();
+    if(!r.ok) throw new Error(r.error);
+    const lignes = r.lignes||[];
+    document.getElementById('rens-hist-count').textContent = lignes.length+' ligne'+(lignes.length>1?'s':'');
+    if(!lignes.length){
+      hist.innerHTML='<div style="padding:1rem;text-align:center;color:var(--text3);font-size:12px">Aucune saisie enregistrée</div>';
+      return;
+    }
+    const grouped = {};
+    lignes.forEach(l=>{
+      const k = (l.date||'')+'__'+(l.dessinateur||'');
+      if(!grouped[k]) grouped[k]={date:l.date,dessinateur:l.dessinateur,lignes:[]};
+      grouped[k].lignes.push(l);
+    });
+    hist.innerHTML = Object.values(grouped).sort((a,b)=>b.date.localeCompare(a.date)).map(g=>`
+      <div style="border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--bg);font-size:12px">
+          <span style="font-weight:700;color:var(--text)">${g.date}</span>
+          <span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:5px;padding:1px 8px;font-weight:600;font-size:11px">${esc(g.dessinateur)}</span>
+          <span style="color:var(--text3)">${g.lignes.length} ligne${g.lignes.length>1?'s':''}</span>
+        </div>
+        ${g.lignes.map(l=>`
+        <div style="display:grid;grid-template-columns:1fr 80px 70px 70px 1fr;padding:6px 14px;font-size:12px;border-bottom:1px solid var(--border);align-items:center">
+          <div style="color:var(--text2);font-size:11px">${esc(l.tranche_nom||'')}</div>
+          <div style="text-align:center"><span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">${esc(l.phase||'—')}</span></div>
+          <div style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${l.m2||'—'}</div>
+          <div style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${l.m3||'—'}</div>
+          <div style="color:var(--text3);font-size:11px">${esc(l.commentaire||'')}</div>
+        </div>`).join('')}
+      </div>`).join('');
   } catch(e){
     hist.innerHTML=`<div style="padding:1rem;color:var(--red);font-size:12px">Erreur : ${esc(e.message)}</div>`;
   }
-}
-
-function renderRensHistorique(){
-  const hist = document.getElementById('rens-historique');
-  const lignes = _rensHist;
-  document.getElementById('rens-hist-count').textContent = lignes.length+' ligne'+(lignes.length>1?'s':'');
-  if(!lignes.length){
-    hist.innerHTML='<div style="padding:1rem;text-align:center;color:var(--text3);font-size:12px">Aucune saisie enregistrée</div>';
-    return;
-  }
-  const HG = '1fr 110px 70px 70px 1fr 74px';
-  const inp = 'padding:4px 6px;border:1px solid var(--blue-border);border-radius:6px;font-family:inherit;font-size:12px;width:100%;background:var(--surface)';
-  const grouped = {};
-  lignes.forEach(l=>{
-    const k = (l.date||'')+'__'+(l.dessinateur||'');
-    if(!grouped[k]) grouped[k]={date:l.date,dessinateur:l.dessinateur,lignes:[]};
-    grouped[k].lignes.push(l);
-  });
-  hist.innerHTML = Object.values(grouped).sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(g=>`
-    <div style="border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--bg);font-size:12px">
-        <span style="font-weight:700;color:var(--text)">${esc(g.date)}</span>
-        <span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:5px;padding:1px 8px;font-weight:600;font-size:11px">${esc(g.dessinateur)}</span>
-        <span style="color:var(--text3)">${g.lignes.length} ligne${g.lignes.length>1?'s':''}</span>
-      </div>
-      ${g.lignes.map(l=>{
-        if(l.id && l.id===_rensEditId){
-          return `<div style="display:grid;grid-template-columns:${HG};gap:6px;padding:8px 14px;font-size:12px;border-bottom:1px solid var(--border);align-items:center;background:var(--blue-bg)">
-            <div style="color:var(--text2);font-size:11px">${esc(l.tranche_nom||'')}</div>
-            ${(l.phase && !/^ph/i.test(l.phase))
-              ? `<input id="rens-e-phase-${esc(l.id)}" type="text" value="${esc(l.phase)}" style="${inp};text-align:center"/>`
-              : `<div style="${RENS_PH_BOX}"><span style="${RENS_PH_PRE}">Ph</span><input id="rens-e-phase-${esc(l.id)}" type="text" value="${esc(rensPhaseSuffixe(l.phase))}" placeholder="01" autocomplete="off" style="${RENS_PH_INP}"/></div>`}
-            <input id="rens-e-m2-${esc(l.id)}" type="number" min="0" step="0.01" value="${esc(parseFloat(l.m2)||'')}" placeholder="0" style="${inp};text-align:right"/>
-            <input id="rens-e-m3-${esc(l.id)}" type="number" min="0" step="0.01" value="${esc(parseFloat(l.m3)||'')}" placeholder="0" style="${inp};text-align:right"/>
-            <input id="rens-e-com-${esc(l.id)}" type="text" value="${esc(l.commentaire||'')}" placeholder="Commentaire…" style="${inp}"/>
-            <div style="white-space:nowrap;text-align:center">
-              <button onclick="rensSaveEdit('${esc(l.id)}')" title="Valider la correction" style="border:none;background:none;cursor:pointer;color:var(--green);font-size:16px;font-weight:700">✔</button>
-              <button onclick="rensCancelEdit()" title="Annuler" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:15px">✕</button>
-            </div>
-          </div>`;
-        }
-        const acts = l.id ? `<div style="white-space:nowrap;text-align:center">
-              <button onclick="rensStartEdit('${esc(l.id)}')" title="Corriger cette saisie" style="border:none;background:none;cursor:pointer;font-size:13px">✏️</button>
-              <button onclick="rensDelete('${esc(l.id)}')" title="Annuler cette saisie" style="border:none;background:none;cursor:pointer;font-size:13px">🗑</button>
-            </div>` : '<div></div>';
-        return `
-        <div style="display:grid;grid-template-columns:${HG};gap:6px;padding:6px 14px;font-size:12px;border-bottom:1px solid var(--border);align-items:center">
-          <div style="color:var(--text2);font-size:11px">${esc(l.tranche_nom||'')}</div>
-          <div style="text-align:center"><span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">${esc(l.phase||'—')}</span></div>
-          <div style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${esc(parseFloat(l.m2)||'—')}</div>
-          <div style="text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${esc(parseFloat(l.m3)||'—')}</div>
-          <div style="color:var(--text3);font-size:11px">${esc(l.commentaire||'')}${l.modifie_le?` <span title="Corrigé le ${esc(l.modifie_le)}${l.modifie_par?' par '+esc(l.modifie_par):''}" style="color:var(--orange);font-weight:600">· corrigé</span>`:''}</div>
-          ${acts}
-        </div>`;
-      }).join('')}
-    </div>`).join('');
-}
-
-function rensStartEdit(id){ _rensEditId = id; renderRensHistorique(); }
-function rensCancelEdit(){ _rensEditId = null; renderRensHistorique(); }
-
-async function rensSaveEdit(id){
-  const old = _rensHist.find(l=>l.id===id);
-  if(!old) return;
-  const val = n => document.getElementById('rens-e-'+n+'-'+id)?.value ?? '';
-  const phaseHorsFormat = !!(old.phase && !/^ph/i.test(old.phase)); // ancienne saisie sans « Ph » : laissée telle quelle
-  const nv = {
-    phase: phaseHorsFormat ? val('phase').trim() : rensNormPhase(val('phase')),
-    m2: parseFloat(val('m2'))||0,
-    m3: parseFloat(val('m3'))||0,
-    commentaire: val('com').trim()
-  };
-  const par = document.getElementById('rens-dessinateur').value || '';
-  const lie = rensTrouverArticleLie(old);   // à chercher AVANT de modifier l'historique (la correspondance se fait sur l'ancienne valeur)
-
-  setSyncPill('saving','Correction…');
-  try{
-    await rensAppel('updateRenseignement', Object.assign({id, modifie_par:par}, nv));
-  } catch(e){
-    toast('❌ Correction impossible : '+e.message);
-    setSyncPill('error','Erreur');
-    return;
-  }
-
-  let note = '', erpModifie = false;
-  if(lie){
-    if(!rensArticleIntact(lie.art)){
-      note = ' · ⚠ l\'article ERP lié a déjà de l\'avancement ou des dates : non modifié, à corriger à la main dans l\'ERP';
-    } else if(!nv.phase){
-      state.articles = state.articles.filter(x=>x!==lie.art);
-      note = ' · article ERP retiré (la phase est conservée)';
-      erpModifie = true;
-    } else {
-      const cible = (rensPn(nv.phase)!==rensPn(old.phase))
-        ? rensAssurerPhase(lie.tranche, nv.phase, nv.commentaire).phase : lie.phase;
-      lie.art.pid = cible.id;
-      lie.art.libelle = nv.commentaire || nv.phase;
-      lie.art.qte_m2 = nv.m2 || '';
-      lie.art.qte_m3 = nv.m3 || '';
-      note = ' · article ERP mis à jour';
-      erpModifie = true;
-    }
-  } else if(String(old.phase||'').trim()){
-    note = ' · aucun article ERP lié retrouvé : seul l\'historique est corrigé';
-  }
-  if(erpModifie){
-    const ok = await rensPersistErp('Mise à jour de l\'ERP…');
-    if(!ok){
-      toast('⚠ Historique corrigé, mais la mise à jour de l\'ERP a échoué — vérifiez la connexion puis modifiez une phase pour relancer la sauvegarde.');
-      await rensLoadHistorique();
-      return;
-    }
-  }
-  setSyncPill('ok','Enregistré');
-  toast('✅ Saisie corrigée'+note);
-  await rensLoadHistorique();
-}
-
-async function rensDelete(id){
-  const old = _rensHist.find(l=>l.id===id);
-  if(!old) return;
-  const lie = rensTrouverArticleLie(old);
-  const retirable = !!(lie && rensArticleIntact(lie.art));
-  const resume = `${old.tranche_nom||''} — ${old.phase||'sans phase'}${old.commentaire?' — '+old.commentaire:''}`;
-  if(!confirm(`Annuler cette saisie ?\n\n${resume}\n\n`+
-      (retirable ? 'L\'article créé dans l\'ERP par cette saisie sera aussi retiré (la phase est conservée).'
-                 : 'Seule la ligne d\'historique est annulée (elle reste récupérable dans la feuille Google).'))) return;
-  const par = document.getElementById('rens-dessinateur').value || '';
-  setSyncPill('saving','Annulation…');
-  try{
-    await rensAppel('deleteRenseignement', {id, modifie_par:par});
-  } catch(e){
-    toast('❌ Annulation impossible : '+e.message);
-    setSyncPill('error','Erreur');
-    return;
-  }
-  let note = '';
-  if(retirable){
-    state.articles = state.articles.filter(x=>x!==lie.art);
-    const ok = await rensPersistErp('Mise à jour de l\'ERP…');
-    note = ok ? ' · article ERP retiré' : ' · ⚠ historique annulé, mais mise à jour de l\'ERP échouée';
-  } else if(lie){
-    note = ' · ⚠ l\'article ERP lié a déjà de l\'avancement ou des dates : conservé';
-  }
-  setSyncPill('ok','Enregistré');
-  toast('✅ Saisie annulée'+note);
-  await rensLoadHistorique();
 }
 
 function toast(msg){
@@ -9351,7 +9217,7 @@ async function renderSuiviProd(){
   </div>`;
 
   html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
-    <input type="text" id="suivi-prod-search" value="${esc(f.search)}" placeholder="Rechercher tranche, phase…"
+    <input type="text" value="${esc(f.search)}" placeholder="Rechercher tranche, phase…"
       oninput="state._suiviProdFiltres.search=this.value;renderSuiviProd()"
       style="flex:1;max-width:280px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"/>
     <select onchange="state._suiviProdFiltres.atelier=this.value;renderSuiviProd()"
@@ -9407,20 +9273,7 @@ async function renderSuiviProd(){
   }
 
   html += '</div>';
-  // Le contenu est reconstruit à chaque lettre tapée dans la recherche : on mémorise le focus et la
-  // position du curseur avant, puis on les remet sur le nouveau champ (sinon le curseur sortait du champ).
-  const _ae = document.activeElement;
-  const _searchWasFocused = !!(_ae && _ae.id === 'suivi-prod-search');
-  const _selStart = _searchWasFocused ? _ae.selectionStart : null;
-  const _selEnd = _searchWasFocused ? _ae.selectionEnd : null;
   el.innerHTML = html;
-  if(_searchWasFocused){
-    const _ns = document.getElementById('suivi-prod-search');
-    if(_ns){
-      _ns.focus();
-      try { _ns.setSelectionRange(_selStart, _selEnd); } catch(e){}
-    }
-  }
 }
 
 function setPilotageTri(col){
