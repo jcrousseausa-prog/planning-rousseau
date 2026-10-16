@@ -669,7 +669,8 @@ table.bl-lignes td.r{text-align:right}
   </div>
 
   <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.06)">
-    <div style="display:grid;grid-template-columns:32px 1fr 120px 76px 76px 1fr 70px;background:var(--blue);color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em">
+    <div style="display:grid;grid-template-columns:96px 32px 1fr 120px 76px 76px 1fr 70px;background:var(--blue);color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em">
+      <div style="padding:10px 4px;text-align:center" title="Date de besoin CTVX au plus tôt de la tranche choisie">CTVX</div>
       <div style="padding:10px 6px;text-align:center">#</div>
       <div style="padding:10px 14px">Tranche</div>
       <div style="padding:10px 8px;text-align:center">Phase</div>
@@ -683,7 +684,8 @@ table.bl-lignes td.r{text-align:right}
         Sélectionnez un chantier puis une tranche, puis <strong>+ Ligne</strong>
       </div>
     </div>
-    <div id="rens-tfoot" style="display:none;grid-template-columns:32px 1fr 120px 76px 76px 1fr 70px;background:var(--bg);border-top:2px solid var(--border);font-weight:700;font-size:12px">
+    <div id="rens-tfoot" style="display:none;grid-template-columns:96px 32px 1fr 120px 76px 76px 1fr 70px;background:var(--bg);border-top:2px solid var(--border);font-weight:700;font-size:12px">
+      <div></div>
       <div></div>
       <div style="padding:9px 14px;color:var(--text3);font-size:11px;text-transform:uppercase">Total</div>
       <div></div>
@@ -3619,7 +3621,34 @@ let _rensDessinateurs = [];
 let _rensHist = [];             // saisies enregistrées (historique), gardées pour pouvoir les corriger
 let _rensEditId = null;         // id de la saisie de l'historique en cours de correction
 let _rensChantierPrec = '';     // chantier précédemment sélectionné (pour annuler un changement)
-const RENS_GRID = '32px 1fr 120px 76px 76px 1fr 70px';
+const RENS_GRID = '96px 32px 1fr 120px 76px 76px 1fr 70px';
+
+// ── Phase : le préfixe « Ph » est automatique ───────────────────────────────
+// On ne tape que le numéro (1, 05, 12b…). Que l'on tape « 5 », « ph5 », « PH 5 » ou « Ph05 »,
+// la phase enregistrée est toujours « Ph05 » : plus de variantes Ph / ph / PH.
+const rensPn = s => String(s||'').trim().toLowerCase();                       // comparaison insensible à la casse
+function rensPhaseSuffixe(p){ return String(p||'').trim().replace(/^ph[\s\-_.]*/i,''); }   // « Ph05 » -> « 05 »
+function rensNormPhase(v){
+  const s = rensPhaseSuffixe(String(v||'').replace(/\s+/g,''));
+  if(!s) return '';
+  return 'Ph' + (/^\d+$/.test(s) ? s.padStart(2,'0') : s);                 // « 5 » -> « Ph05 »
+}
+// frappe en cours : on garde le numéro tel quel (pas de remplissage tant que l'on tape)
+function rensPhaseInput(id, el){
+  const brut = el.value.replace(/\s+/g,'');
+  const s = rensPhaseSuffixe(brut);
+  if(s !== brut) el.value = s;                    // si « ph » a été tapé, on le retire (déjà affiché à gauche)
+  rensUpdateRow(id, 'phase', s ? 'Ph'+s : '');
+}
+// fin de saisie (quitter le champ / choisir dans la liste) : mise au format Ph05
+function rensPhaseCommit(id, el){
+  const n = rensNormPhase(el.value);
+  el.value = rensPhaseSuffixe(n);
+  rensUpdateRow(id, 'phase', n);
+}
+const RENS_PH_BOX = 'display:flex;align-items:center;border:1px solid var(--border);border-radius:6px;background:var(--surface);overflow:hidden';
+const RENS_PH_PRE = 'padding:0 2px 0 8px;font-size:12px;font-weight:700;color:var(--blue);font-family:\'DM Mono\',monospace';
+const RENS_PH_INP = 'flex:1;min-width:0;width:100%;border:none;outline:none;padding:4px 6px 4px 1px;font-family:\'DM Mono\',monospace;font-size:12px;background:transparent';
 
 async function initRenseignement(){
   if(!_rensDessinateurs.length) await rensLoadDessinateurs();
@@ -3682,8 +3711,10 @@ function rensOnChantierChange(){
 // Phases déjà existantes dans l'ERP pour une tranche (proposées dans la liste de la ligne)
 function rensPhasesDispo(trancheId){
   if(!trancheId) return [];
-  return [...new Set(state.phases.filter(p=>p.tid===trancheId)
-    .map(p=>String(p.num||p.nom||'').trim()).filter(Boolean))];
+  const vus = {};
+  return state.phases.filter(p=>p.tid===trancheId)
+    .map(p=>String(p.num||p.nom||'').trim()).filter(Boolean)
+    .filter(n=>{ const k=rensPn(n); if(vus[k]) return false; vus[k]=true; return true; });
 }
 
 function rensNewRow(extra){
@@ -3777,17 +3808,28 @@ function renderRensRows(){
         ${trancheOptions}
       </select>`;
 
-    // Phase : un seul champ toujours visible. On choisit une phase existante dans la liste
-    // OU on tape une nouvelle (Ph01…) — la valeur saisie ne disparaît plus au rafraîchissement.
+    // Phase : « Ph » est affiché devant, on tape seulement le numéro (ou on le choisit dans la liste
+    // des phases déjà existantes de la tranche). La valeur saisie reste toujours visible.
     const dispo = rensPhasesDispo(r.tranche_id);
-    const phaseHtml = `<input type="text" id="rens-phase-${r.id}" list="rens-dl-${r.id}" value="${esc(r.phase)}"
-        placeholder="${dispo.length?'Choisir / saisir':'Ph01'}" autocomplete="off"
-        oninput="rensUpdateRow('${r.id}','phase',this.value)"
-        style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;text-align:center;background:var(--surface)"/>
-      <datalist id="rens-dl-${r.id}">${dispo.map(p=>`<option value="${esc(p)}"></option>`).join('')}</datalist>`;
+    const phaseHtml = `<div style="${RENS_PH_BOX}">
+        <span style="${RENS_PH_PRE}">Ph</span>
+        <input type="text" id="rens-phase-${r.id}" list="rens-dl-${r.id}" value="${esc(rensPhaseSuffixe(r.phase))}"
+          placeholder="${dispo.length?'01…':'01'}" autocomplete="off"
+          oninput="rensPhaseInput('${r.id}',this)" onchange="rensPhaseCommit('${r.id}',this)"
+          style="${RENS_PH_INP}"/>
+      </div>
+      <datalist id="rens-dl-${r.id}">${dispo.map(p=>`<option value="${esc(rensPhaseSuffixe(p))}"></option>`).join('')}</datalist>`;
+
+    // Date de besoin CTVX (au plus tôt) de la tranche choisie — même source que le reste de l'ERP
+    const trSel = r.tranche_id ? state.tranches.find(t=>t.id===r.tranche_id) : null;
+    const ctvx = trSel ? ctvxDeTranche(trSel) : '';
+    const ctvxCell = !trSel ? ''
+      : (ctvx ? `<span title="Date de besoin CTVX au plus tôt" style="font-size:11px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace;white-space:nowrap;font-weight:600">${esc(fmtDate(ctvx))}</span>`
+                : `<span title="Aucune date CTVX connue pour cette tranche" style="font-size:11px;color:var(--text3)">pas de CTVX</span>`);
 
     const suite = i>0 && r.tranche_id && _rensRows[i-1].tranche_id===r.tranche_id; // même tranche que la ligne du dessus
     return `<div class="rens-row" style="display:grid;grid-template-columns:${RENS_GRID};border-bottom:1px solid var(--border);align-items:center;background:${i%2===0?'var(--surface)':'var(--bg)'}">
+      <div style="padding:6px 4px;text-align:center">${ctvxCell}</div>
       <div style="padding:8px 6px;text-align:center;font-size:11px;color:var(--text3);font-weight:600">${suite?'↳':(i+1)}</div>
       <div style="padding:6px 8px">
         ${trancheSelectHtml}
@@ -3824,7 +3866,7 @@ function renderRensRows(){
 // Retourne la phase (num) de la tranche, en la créant si elle n'existe pas encore.
 function rensAssurerPhase(tranche, num, libelleFallback){
   const n = String(num||'').trim();
-  let ph = state.phases.find(p=>p.tid===tranche.id && String(p.num||p.nom||'').trim()===n);
+  let ph = state.phases.find(p=>p.tid===tranche.id && rensPn(p.num||p.nom)===rensPn(n));
   if(ph) return {phase:ph, creee:false};
   ph = {
     id: uid(),
@@ -3898,7 +3940,7 @@ function rensTrouverArticleLie(l){
   if(!ph) return null; // sans phase, l'enregistrement n'avait rien créé dans l'ERP
   const tr = state.tranches.find(t=>t.id===l.tranche_id);
   if(!tr) return null;
-  const p = state.phases.find(x=>x.tid===tr.id && String(x.num||x.nom||'').trim()===ph);
+  const p = state.phases.find(x=>x.tid===tr.id && rensPn(x.num||x.nom)===rensPn(ph));
   if(!p) return null;
   const lib = String(l.commentaire||l.phase||'').trim();
   const art = state.articles.find(a=>a.pid===p.id && a.type_source==='renseignement'
@@ -3946,7 +3988,7 @@ async function rensSave(){
   const lignes = _rensRows.map(r=>({
     tranche_id: r.tranche_id,
     tranche_nom: r.tranche_nom,
-    phase: String(r.phase||'').trim(),
+    phase: rensNormPhase(r.phase),
     m2: parseFloat(r.m2)||0,
     m3: parseFloat(r.m3)||0,
     commentaire: r.commentaire,
@@ -4030,7 +4072,9 @@ function renderRensHistorique(){
         if(l.id && l.id===_rensEditId){
           return `<div style="display:grid;grid-template-columns:${HG};gap:6px;padding:8px 14px;font-size:12px;border-bottom:1px solid var(--border);align-items:center;background:var(--blue-bg)">
             <div style="color:var(--text2);font-size:11px">${esc(l.tranche_nom||'')}</div>
-            <input id="rens-e-phase-${esc(l.id)}" type="text" value="${esc(l.phase||'')}" placeholder="Ph01" style="${inp};text-align:center"/>
+            ${(l.phase && !/^ph/i.test(l.phase))
+              ? `<input id="rens-e-phase-${esc(l.id)}" type="text" value="${esc(l.phase)}" style="${inp};text-align:center"/>`
+              : `<div style="${RENS_PH_BOX}"><span style="${RENS_PH_PRE}">Ph</span><input id="rens-e-phase-${esc(l.id)}" type="text" value="${esc(rensPhaseSuffixe(l.phase))}" placeholder="01" autocomplete="off" style="${RENS_PH_INP}"/></div>`}
             <input id="rens-e-m2-${esc(l.id)}" type="number" min="0" step="0.01" value="${esc(parseFloat(l.m2)||'')}" placeholder="0" style="${inp};text-align:right"/>
             <input id="rens-e-m3-${esc(l.id)}" type="number" min="0" step="0.01" value="${esc(parseFloat(l.m3)||'')}" placeholder="0" style="${inp};text-align:right"/>
             <input id="rens-e-com-${esc(l.id)}" type="text" value="${esc(l.commentaire||'')}" placeholder="Commentaire…" style="${inp}"/>
@@ -4064,8 +4108,9 @@ async function rensSaveEdit(id){
   const old = _rensHist.find(l=>l.id===id);
   if(!old) return;
   const val = n => document.getElementById('rens-e-'+n+'-'+id)?.value ?? '';
+  const phaseHorsFormat = !!(old.phase && !/^ph/i.test(old.phase)); // ancienne saisie sans « Ph » : laissée telle quelle
   const nv = {
-    phase: val('phase').trim(),
+    phase: phaseHorsFormat ? val('phase').trim() : rensNormPhase(val('phase')),
     m2: parseFloat(val('m2'))||0,
     m3: parseFloat(val('m3'))||0,
     commentaire: val('com').trim()
@@ -4091,7 +4136,7 @@ async function rensSaveEdit(id){
       note = ' · article ERP retiré (la phase est conservée)';
       erpModifie = true;
     } else {
-      const cible = (nv.phase!==String(old.phase||'').trim())
+      const cible = (rensPn(nv.phase)!==rensPn(old.phase))
         ? rensAssurerPhase(lie.tranche, nv.phase, nv.commentaire).phase : lie.phase;
       lie.art.pid = cible.id;
       lie.art.libelle = nv.commentaire || nv.phase;
@@ -9306,7 +9351,7 @@ async function renderSuiviProd(){
   </div>`;
 
   html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
-    <input type="text" value="${esc(f.search)}" placeholder="Rechercher tranche, phase…"
+    <input type="text" id="suivi-prod-search" value="${esc(f.search)}" placeholder="Rechercher tranche, phase…"
       oninput="state._suiviProdFiltres.search=this.value;renderSuiviProd()"
       style="flex:1;max-width:280px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"/>
     <select onchange="state._suiviProdFiltres.atelier=this.value;renderSuiviProd()"
@@ -9362,7 +9407,20 @@ async function renderSuiviProd(){
   }
 
   html += '</div>';
+  // Le contenu est reconstruit à chaque lettre tapée dans la recherche : on mémorise le focus et la
+  // position du curseur avant, puis on les remet sur le nouveau champ (sinon le curseur sortait du champ).
+  const _ae = document.activeElement;
+  const _searchWasFocused = !!(_ae && _ae.id === 'suivi-prod-search');
+  const _selStart = _searchWasFocused ? _ae.selectionStart : null;
+  const _selEnd = _searchWasFocused ? _ae.selectionEnd : null;
   el.innerHTML = html;
+  if(_searchWasFocused){
+    const _ns = document.getElementById('suivi-prod-search');
+    if(_ns){
+      _ns.focus();
+      try { _ns.setSelectionRange(_selStart, _selEnd); } catch(e){}
+    }
+  }
 }
 
 function setPilotageTri(col){
