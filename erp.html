@@ -3138,29 +3138,32 @@ function ofsProdDeTranche(tr){
 function atelierDerniereOp(tr, ph){
   const today = new Date().toISOString().slice(0,10);
   const norm = s => String(s||'').trim().toLowerCase();
+  // 1) Réalité planifiée : atelier du ou des OF qui se terminent en dernier (prioritaire)
+  const ofs = ofsProdDeTranche(tr).filter(o=>!o.expire_le || o.expire_le>=today);
+  if(ofs.length){
+    let cand = ofs;
+    if(ph && ph.num){
+      const normTag = s => String(s||'').toUpperCase().replace(/\s+/g,'');
+      const target = normTag(ph.num);
+      const dePhase = ofs.filter(o=>String(o.phases||'').split(',').map(normTag).includes(target));
+      if(dePhase.length) cand = dePhase;
+    }
+    const dated = cand.filter(o=>/^\d{4}-\d{2}-\d{2}/.test(String(o.date_fin_prod||'')));
+    let last = cand, quand = '';
+    if(dated.length){
+      const maxD = dated.map(o=>String(o.date_fin_prod).slice(0,10)).sort().pop();
+      last = dated.filter(o=>String(o.date_fin_prod).slice(0,10)===maxD);
+      quand = maxD;
+    }
+    const ats = [...new Set(last.map(o=>String(o.atelier||'').trim()).filter(Boolean))];
+    if(ats.length) return {label: ats.join(' + '), title: 'Atelier de l’OF qui se termine en dernier'+(quand?' ('+fmtDate(quand)+')':'')};
+  }
+  // 2) Aucun OF planifié : tranche d'usinage seul (DATES : besoin atelier/taillage, sans assemblage ni équipement) → Usinage
   const rows = (state.dates_erp||[]).filter(d=> norm(d.tranche)===norm(tr.nom) || (d.tr_id && tr.id_dates && String(d.tr_id).trim()===String(tr.id_dates).trim()));
   if(rows.length && rows.some(d=>d.besoin_atelier||d.taillage) && !rows.some(d=>d.assemblage||d.equipement)){
-    return {label:'Usinage', title:'Pas d’assemblage ni d’équipement prévu : la dernière opération est l’usinage'};
+    return {label:'Usinage', title:'Aucun OF planifié et pas d’assemblage ni d’équipement prévu : la dernière opération est l’usinage'};
   }
-  const ofs = ofsProdDeTranche(tr).filter(o=>!o.expire_le || o.expire_le>=today);
-  if(!ofs.length) return {label:'', title:''};
-  let cand = ofs;
-  if(ph && ph.num){
-    const normTag = s => String(s||'').toUpperCase().replace(/\s+/g,'');
-    const target = normTag(ph.num);
-    const dePhase = ofs.filter(o=>String(o.phases||'').split(',').map(normTag).includes(target));
-    if(dePhase.length) cand = dePhase;
-  }
-  const dated = cand.filter(o=>/^\d{4}-\d{2}-\d{2}/.test(String(o.date_fin_prod||'')));
-  let last = cand, quand = '';
-  if(dated.length){
-    const maxD = dated.map(o=>String(o.date_fin_prod).slice(0,10)).sort().pop();
-    last = dated.filter(o=>String(o.date_fin_prod).slice(0,10)===maxD);
-    quand = maxD;
-  }
-  const ats = [...new Set(last.map(o=>String(o.atelier||'').trim()).filter(Boolean))];
-  if(!ats.length) return {label:'', title:''};
-  return {label: ats.join(' + '), title: 'Atelier de l’OF qui se termine en dernier'+(quand?' ('+fmtDate(quand)+')':'')};
+  return {label:'', title:''};
 }
 function atelierFinHtml(tr, ph){
   const r = atelierDerniereOp(tr, ph);
