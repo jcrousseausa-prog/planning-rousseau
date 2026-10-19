@@ -383,6 +383,7 @@ table.bl-lignes td.r{text-align:right}
         <th style="width:98px">Sortie BE</th>
         <th style="width:110px">Fin Usinage</th>
         <th style="width:110px">Fin Prod</th>
+        <th style="width:96px" title="Atelier qui réalise la dernière opération (OF qui se termine en dernier ; « Usinage » s'il n'y a pas d'assemblage)">Dernière op.</th>
         <th style="width:72px">Budget h</th>
         <th style="width:100px">Avancement</th>
         <th style="width:100px">Prod / Livré</th>
@@ -400,6 +401,7 @@ table.bl-lignes td.r{text-align:right}
         <th>Tranche</th>
         <th style="width:100px">CTVX</th>
         <th style="width:100px">Sortie prod</th>
+        <th style="width:96px" title="Atelier qui réalise la dernière opération (OF qui se termine en dernier ; « Usinage » s'il n'y a pas d'assemblage)">Dernière op.</th>
         <th style="width:110px">Statut</th>
         <th style="width:110px">Fichier taille</th>
         <th style="width:90px;text-align:right">Articles</th>
@@ -1692,6 +1694,7 @@ function loadLS(){try{const s=localStorage.getItem('erp_v3');if(s){const d=JSON.
 function scheduleSave() {
   saveLS();
   _pendingSave = true;
+  _editSeq++;
   if (_saveTimeout) clearTimeout(_saveTimeout);
   setSyncPill('saving', 'Enregistrement...');
   _saveTimeout = setTimeout(saveToSheets, 2000);
@@ -1756,14 +1759,298 @@ async function retryConnection() {
   }
 }
 
+// ═══ ANTI-ÉCRASEMENT MULTI-ONGLETS / MULTI-UTILISATEURS ═══════════════════
+// Principe : l'ERP envoie l'état complet à chaque enregistrement. Pour ne jamais écraser le travail
+// d'une autre session (autre onglet, autre poste), on garde en mémoire une « photo de base » (état
+// tel que chargé / dernièrement enregistré) et on compare avec le serveur AVANT d'écrire :
+//  - rien n'a bougé côté serveur → enregistrement normal ;
+//  - le serveur a changé, lignes différentes → fusion automatique ligne par ligne (rien n'est perdu) ;
+//  - même ligne modifiée des deux côtés → l'utilisateur choisit (garder la mienne / la leur / recharger).
+const TABLES_SYNC = ['chantiers','tranches','phases','articles','cdes','stock','bls','retours','interim','heures','employes','aleas'];
+const CLE_TABLE = { interim:'key' };
+let _baseSnap = null;
+let _savePromise = null;
+let _editSeq = 0;
+let _remoteChanged = false;
+let _conflitDiffere = false;
+let _conflitOuvert = false;
+let _derniereSaisie = 0;
+let _dernierCheck = 0;
+let _checkEnCours = false;
+
+function _canon(v){
+  if(v===null || v===undefined || v==='') return undefined;
+  if(Array.isArray(v)) return '['+v.map(x=>{const c=_canon(x);return c===undefined?'':c;}).join(',')+']';
+  if(typeof v==='object'){
+    const parts=[]; Object.keys(v).sort().forEach(k=>{const c=_canon(v[k]); if(c!==undefined) parts.push(k+':'+c);});
+    return '{'+parts.join(',')+'}';
+  }
+  return String(v).toLowerCase();
+}
+function _fieldCanon(r){
+  const f={}; if(r && typeof r==='object') Object.keys(r).forEach(k=>{ const c=_canon(r[k]); if(c!==undefined) f[k]=c; });
+  return f;
+}
+function _canonF(f){ return Object.keys(f).sort().map(k=>k+':'+f[k]).join('\u0001'); }
+function _indexTable(rows, keyF){
+  const o={ok:true, ids:[], rows:new Map(), canon:new Map(), f:new Map()};
+  (Array.isArray(rows)?rows:[]).forEach(r=>{
+    const id = r && r[keyF];
+    if(id===undefined || id===null || id==='' || o.rows.has(String(id))){ o.ok=false; return; }
+    const k=String(id); o.ids.push(k); o.rows.set(k,r);
+    const f=_fieldCanon(r); o.f.set(k,f); o.canon.set(k,_canonF(f));
+  });
+  return o;
+}
+function _snapTables(src){
+  const snap={};
+  TABLES_SYNC.forEach(t=>{
+    const keyF=CLE_TABLE[t]||'id';
+    const ix=_indexTable(src[t],keyF);
+    snap[t]={ok:ix.ok, canon:ix.canon, f:ix.f, all:(_canon(src[t]||[])||'')};
+  });
+  return snap;
+}
+function _majBase(){ try{ _baseSnap=_snapTables(state); }catch(e){ _baseSnap=null; } }
+
+// mode : null = simple détection · 'mine' / 'theirs' = qui l'emporte sur les lignes en conflit
+function _fusionnerTables(remote, mode){
+  const res={tables:{}, conflits:[], nbMiennes:0, nbLeurs:0};
+  TABLES_SYNC.forEach(t=>{
+    const keyF=CLE_TABLE[t]||'id';
+    const mine=Array.isArray(state[t])?state[t]:[];
+    const theirs=Array.isArray(remote[t])?remote[t]:[];
+    const B=_baseSnap[t];
+    const mM=_indexTable(mine,keyF), mR=_indexTable(theirs,keyF);
+    const lab=(row,id)=>String((row&&(row.nom||row.designation||row.ref||row.libelle||row.id||row.key))||id);
+    if(!mM.ok || !mR.ok || !B.ok){
+      // table sans identifiant fiable → comparaison de la table entière
+      const cm=_canon(mine)||'', cr=_canon(theirs)||'';
+      if(cm===cr){ res.tables[t]=mine; return; }
+      const b=B.all;
+      if(b!==undefined && cm===b){ res.tables[t]=theirs; res.nbLeurs++; return; }
+      if(b!==undefined && cr===b){ res.tables[t]=mine; res.nbMiennes++; return; }
+      res.conflits.push({table:t,id:'*',label:'table « '+t+' » entière'});
+      res.tables[t]= mode==='theirs'?theirs:mine; return;
+    }
+    const ids=[]; const seen=new Set();
+    mR.ids.forEach(i=>{ids.push(i);seen.add(i);});
+    mM.ids.forEach(i=>{if(!seen.has(i)){ids.push(i);seen.add(i);}});
+    const out=[];
+    ids.forEach(id=>{
+      const inB=B.canon.has(id), cb=B.canon.get(id);
+      const inM=mM.rows.has(id), inR=mR.rows.has(id);
+      const cm=inM?mM.canon.get(id):null, cr=inR?mR.canon.get(id):null;
+      const conf=()=>res.conflits.push({table:t,id,label:lab(mM.rows.get(id)||mR.rows.get(id),id)});
+      let pick, merged=null;
+      if(!inB){
+        if(inM&&inR){ if(cm===cr) pick='r'; else { conf(); pick = mode==='theirs'?'r':'m'; } }
+        else { pick = inM?'m':'r'; if(inM) res.nbMiennes++; else res.nbLeurs++; }
+      } else {
+        const mCh = inM ? cm!==cb : true;
+        const rCh = inR ? cr!==cb : true;
+        if(!mCh && !rCh) pick='r';
+        else if(mCh && !rCh){ pick=inM?'m':null; res.nbMiennes++; }
+        else if(!mCh && rCh){ pick=inR?'r':null; res.nbLeurs++; }
+        else if(inM && inR && cm===cr) pick='r';
+        else if(!inM && !inR) pick=null;
+        else if(inM && inR){
+          // même ligne modifiée des deux côtés → fusion champ par champ ; conflit seulement si le MÊME champ diffère
+          const bf=B.f.get(id)||{}, mf=mM.f.get(id), rf=mR.f.get(id), mrow=mM.rows.get(id);
+          const keys=new Set([...Object.keys(bf),...Object.keys(mf),...Object.keys(rf)]);
+          merged=Object.assign({},mR.rows.get(id)); let fc=false;
+          keys.forEach(k=>{
+            const vb=bf[k], vm=mf[k], vr=rf[k];
+            const mc=vm!==vb, rc=vr!==vb;
+            let useMine=false;
+            if(mc && rc && vm!==vr){ fc=true; useMine = mode!=='theirs'; }
+            else if(mc && !rc) useMine=true;
+            if(useMine){ if(k in mrow) merged[k]=mrow[k]; else delete merged[k]; }
+          });
+          if(fc) conf();
+          pick='x'; res.nbMiennes++; res.nbLeurs++;
+        }
+        else { conf(); pick = mode==='theirs' ? (inR?'r':null) : (inM?'m':null); }
+      }
+      if(pick==='m') out.push(mM.rows.get(id));
+      else if(pick==='r') out.push(mR.rows.get(id));
+      else if(pick==='x') out.push(merged);
+    });
+    res.tables[t]=out;
+  });
+  return res;
+}
+function _appliquerFusion(remote, mode, hash){
+  const f=_fusionnerTables(remote, mode);
+  TABLES_SYNC.forEach(t=>{ state[t]=f.tables[t]; });
+  state.chantiers.sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
+  if(hash) _lastSaveHash=hash;
+  try{ saveLS(); renderAll(); }catch(e){ console.warn('renderAll après fusion:',e); }
+  return f;
+}
+
+async function _getHash(){
+  const res=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERPHash'})});
+  return await res.json();
+}
+async function _getRemoteERP(){
+  const res=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERP'})});
+  const r=await res.json();
+  if(!(r.ok && r.data && r.data.chantiers && r.data.chantiers.length>=5)) throw new Error('lecture serveur invalide');
+  return r.data;
+}
+
+// ── Barre d'information (flottante, bas d'écran) ──
+function _barreDistante(mode){
+  let b=document.getElementById('remote-bar');
+  if(!mode){ if(b) b.remove(); return; }
+  if(!b){
+    b=document.createElement('div'); b.id='remote-bar';
+    b.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;max-width:92vw;display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:0 4px 18px rgba(0,0,0,.25);';
+    document.body.appendChild(b);
+  }
+  if(mode==='diff'){
+    b.style.background='var(--orange-bg)'; b.style.color='var(--orange)'; b.style.border='1px solid var(--orange-border)';
+    b.innerHTML='<span>🔄 Une autre session a modifié des données. Mise à jour automatique dès que vous aurez terminé la saisie en cours.</span><button onclick="actualiserMaintenant()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--orange);background:var(--surface);color:var(--orange);cursor:pointer;font-family:inherit;font-weight:600">Actualiser maintenant</button>';
+  } else {
+    b.style.background='var(--red-bg)'; b.style.color='var(--red)'; b.style.border='1px solid var(--red-border)';
+    b.innerHTML='<span>⚠ Vos modifications ne sont PAS enregistrées : conflit avec une autre session.</span><button onclick="resoudreConflit()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--red);background:var(--surface);color:var(--red);cursor:pointer;font-family:inherit;font-weight:600">Résoudre</button>';
+  }
+}
+function resoudreConflit(){ _conflitDiffere=false; saveToSheets(); }
+async function actualiserMaintenant(){
+  if(_pendingSave && !confirm('Des modifications ne sont pas encore enregistrées. Les abandonner et recharger les données du serveur ?')) return;
+  _pendingSave=false; if(_saveTimeout) clearTimeout(_saveTimeout);
+  await _rechargerDistant();
+}
+
+// ── Dialogue de conflit : renvoie 'mine' | 'theirs' | 'recharger' | 'ecraser' | 'plus_tard' ──
+function _demanderConflit(conflits, fusionPossible){
+  return new Promise(resolve=>{
+    _conflitOuvert=true;
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+    const liste = conflits.slice(0,8).map(c=>'<li>'+esc(c.label)+' <span style="color:var(--text3)">('+esc(c.table)+')</span></li>').join('') + (conflits.length>8?'<li>… et '+(conflits.length-8)+' autre(s)</li>':'');
+    const btn=(id,txt,sub,col)=>'<button data-ch="'+id+'" style="text-align:left;width:100%;padding:10px 14px;margin-top:8px;border-radius:9px;border:1px solid '+col+';background:var(--surface);cursor:pointer;font-family:inherit;color:var(--text)"><b style="color:'+col+'">'+txt+'</b><br><span style="font-size:12px;color:var(--text2)">'+sub+'</span></button>';
+    ov.innerHTML='<div style="background:var(--surface);border-radius:14px;max-width:560px;width:100%;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,.35);max-height:90vh;overflow:auto">'
+      +'<div style="font-size:16px;font-weight:700;margin-bottom:6px">⚠ Une autre session a modifié l\'ERP</div>'
+      +'<div style="font-size:13px;color:var(--text2);line-height:1.5">Un autre onglet ou un autre utilisateur a enregistré des modifications depuis votre dernier chargement. '
+      +(fusionPossible
+        ? (conflits.length ? 'Vos modifications sur d\'autres lignes sont conservées automatiquement ; <b>'+conflits.length+' ligne(s)</b> ont été modifiées des deux côtés :<ul style="margin:6px 0 0 18px">'+liste+'</ul>'
+                           : 'Aucune ligne en conflit.')
+        : 'La fusion automatique n\'est pas possible (données de référence indisponibles).')
+      +'</div>'
+      +(fusionPossible ? btn('mine','Garder mes versions','Vos modifications l\'emportent sur les lignes en conflit ; tout le reste de l\'autre session est conservé.','var(--green)')
+                         + btn('theirs','Prendre leurs versions','Les modifications de l\'autre session l\'emportent sur les lignes en conflit ; vos autres modifications sont conservées.','var(--text2)') : '')
+      +btn('recharger','Abandonner mes modifications et recharger','Recharge les données du serveur (vos changements non enregistrés sont perdus).','var(--orange)')
+      +btn('ecraser','Écraser avec ma version complète','⚠ Remplace tout le contenu du serveur par votre écran : les modifications de l\'autre session sont perdues.','var(--red)')
+      +btn('plus_tard','Décider plus tard','Rien n\'est enregistré pour l\'instant ; un bandeau rouge reste affiché.','var(--text3)')
+      +'</div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click',e=>{
+      const b=e.target.closest('[data-ch]'); if(!b) return;
+      const ch=b.getAttribute('data-ch');
+      if(ch==='ecraser' && !confirm('Confirmer : remplacer le contenu du serveur par votre version ? Les modifications de l\'autre session seront définitivement perdues.')) return;
+      ov.remove(); _conflitOuvert=false; resolve(ch);
+    });
+  });
+}
+
+// ── Vérification juste avant l'écriture : renvoie 'ok' | 'stop' | 'garder' ──
+async function _verifierAvantSauvegarde(){
+  let hash=null;
+  try{ const r=await _getHash(); if(r && r.ok && r.hash) hash=r.hash; }
+  catch(e){ return 'ok'; }          // réseau KO → laisser le POST gérer l'erreur / le mode hors ligne
+  if(!hash || !_lastSaveHash || hash===_lastSaveHash) return 'ok';
+  setSyncPill('error','Modifié par une autre session…');
+  let remote=null;
+  try{ remote=await _getRemoteERP(); }catch(e){ remote=null; }
+  const fusionPossible = !!(remote && _baseSnap && _sheetsLoaded);
+  if(fusionPossible){
+    const f=_fusionnerTables(remote,null);
+    if(f.conflits.length===0){
+      const g=_appliquerFusion(remote,null,hash);
+      if(g.nbLeurs>0) toast('🔀 Modifications fusionnées avec celles d\'une autre session ('+g.nbLeurs+' ligne(s) reçue(s), '+g.nbMiennes+' des vôtres conservée(s))');
+      return 'ok';
+    }
+    const choix=await _demanderConflit(f.conflits,true);
+    if(choix==='mine'||choix==='theirs'){ _appliquerFusion(remote,choix,hash); toast('🔀 Fusion effectuée'); return 'ok'; }
+    return await _suiteConflit(choix,hash);
+  }
+  const choix=await _demanderConflit([],false);
+  return await _suiteConflit(choix,hash);
+}
+async function _suiteConflit(choix,hash){
+  if(choix==='ecraser'){ _lastSaveHash=hash; return 'ok'; }
+  if(choix==='recharger'){ _pendingSave=false; await _rechargerDistant(); return 'stop'; }
+  _conflitDiffere=true; _barreDistante('conflit'); setSyncPill('error','Conflit — non enregistré');
+  return 'garder';
+}
+
+async function _rechargerDistant(){
+  const screenAvant=_currentScreen;
+  const ok=await loadFromSheets();
+  if(ok){
+    _remoteChanged=false; _barreDistante(null);
+    renderAll();
+    if(screenAvant && screenAvant!==_currentScreen) showScreen(screenAvant);
+    setSyncPill('ok','Mis à jour '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+    toast('🔄 Données mises à jour (modifiées par une autre session)');
+  }
+  return ok;
+}
+function _champEnSaisie(){
+  const a=document.activeElement;
+  return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && (Date.now()-_derniereSaisie)<8000);
+}
+function _peutRecharger(){
+  return !document.querySelector('.modal-bg.show') && !_pendingSave && !_savePromise && !_conflitOuvert && !_conflitDiffere && !_champEnSaisie();
+}
+async function verifierModifsDistantes(){
+  if(_checkEnCours || !_pollInterval || !_sheetsLoaded || _pendingSave || _savePromise || _conflitOuvert || _conflitDiffere) return;
+  if(Date.now()-_dernierCheck<4000) return;
+  _dernierCheck=Date.now(); _checkEnCours=true;
+  try{
+    const r=await _getHash();
+    if(r.ok && r.hash && r.hash!==_lastSaveHash){
+      _remoteChanged=true;
+      if(_peutRecharger()) await _rechargerDistant(); else _barreDistante('diff');
+    } else if(r.ok){ _remoteChanged=false; _barreDistante(null); setOnline(); }
+  }catch(e){ setOffline('Polling : '+(e.message||'erreur réseau')); }
+  finally{ _checkEnCours=false; }
+}
+document.addEventListener('input',()=>{ _derniereSaisie=Date.now(); },true);
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') verifierModifsDistantes(); });
+window.addEventListener('focus',()=>{ verifierModifsDistantes(); });
+// Si une mise à jour distante attend (fenêtre ouverte / saisie en cours), l'appliquer dès que c'est possible
+setInterval(()=>{ if(_remoteChanged && !_isOffline && _peutRecharger()) _rechargerDistant(); },3000);
+
 async function saveToSheets() {
+  // Un seul enregistrement à la fois (sérialisé) — les suivants attendent puis envoient l'état le plus récent
+  while(_savePromise){ try{ await _savePromise; }catch(e){} }
+  let _res; _savePromise=new Promise(r=>{_res=r;});
+  try{ return await _saveToSheetsImpl(); }
+  finally{ _savePromise=null; _res(); }
+}
+async function _saveToSheetsImpl() {
   // Bloquer si hors ligne
   if (_isOffline) {
     setSyncPill('error', 'Hors ligne — sauvegarde bloquée');
-    return;
+    return false;
   }
+  if (_conflitDiffere) {
+    setSyncPill('error', 'Conflit — non enregistré');
+    _barreDistante('conflit');
+    return false;
+  }
+  const seq=_editSeq;
+  let garderEnAttente=false;
   saveLS();
   try {
+    // Garde-fou multi-sessions : le serveur a-t-il changé depuis mon dernier chargement ?
+    const v = await _verifierAvantSauvegarde();
+    if (v==='stop') { return false; }
+    if (v==='garder') { garderEnAttente=true; return false; }
     // Protection : ne jamais envoyer heures/interim/employes vides si état non chargé
     const payload = Object.assign({}, state);
     if (!_sheetsLoaded) {
@@ -1779,16 +2066,21 @@ async function saveToSheets() {
       body: JSON.stringify({action: 'saveERP', data: payload})
     });
     const r = await res.json();
-       if (r.ok) {
+    if (r.ok) {
       setOnline();
       if (r.hash) _lastSaveHash = r.hash;
+      _majBase();
+      _remoteChanged=false; _barreDistante(null);
       setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+      return true;
     } else throw new Error(r.error);
   } catch(e) {
     setOffline('Erreur sauvegarde : ' + e.message);
     console.warn('saveERP error:', e);
+    return false;
   } finally {
-    _pendingSave = false;
+    // Ne pas effacer le drapeau si l'utilisateur a modifié autre chose pendant l'envoi (un nouvel enregistrement est déjà planifié)
+    if (!garderEnAttente && _editSeq===seq) _pendingSave = false;
   }
 }
 window.addEventListener('beforeunload', function(e){
@@ -1806,6 +2098,10 @@ window.addEventListener('beforeunload', function(e){
 });
 async function loadFromSheets() {
   try {
+    // Hash de référence lu AVANT les données : si quelqu'un enregistre pendant le chargement,
+    // le prochain contrôle le détectera (au lieu de le marquer « déjà vu » sans l'avoir chargé).
+    let hashAvant = '';
+    try { const rh0 = await _getHash(); if (rh0 && rh0.ok && rh0.hash) hashAvant = rh0.hash; } catch(e) { /* non bloquant */ }
     // Un seul appel qui retourne tout
     const [resERP, resSuivi] = await Promise.all([
       fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERP'})}),
@@ -1834,13 +2130,15 @@ async function loadFromSheets() {
       saveLS();
       _sheetsLoaded = true;
       setOnline();
-      // Initialiser le hash de référence pour ne pas déclencher un rechargement
-      // inutile au premier poll (évite de recharger ses propres données juste sauvegardées)
-      try {
-        const rh = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERPHash'})});
-        const rHash = await rh.json();
-        if (rHash.ok && rHash.hash) _lastSaveHash = rHash.hash;
-      } catch(e) { /* non bloquant */ }
+      // Hash de référence (lu avant les données) + photo de base pour la fusion multi-sessions
+      if (hashAvant) _lastSaveHash = hashAvant;
+      else {
+        try {
+          const rh = await _getHash();
+          if (rh.ok && rh.hash) _lastSaveHash = rh.hash;
+        } catch(e) { /* non bloquant */ }
+      }
+      _majBase();
       return true;
     }
   } catch(e) {
@@ -1872,34 +2170,10 @@ function startPolling() {
   setInterval(() => { loadDATESSource(); }, 10 * 60 * 1000);
   // Recharger la fin d'usinage toutes les 15 minutes
   setInterval(() => { syncFinUsinageAuto(); }, 15 * 60 * 1000);
-  _pollInterval = setInterval(async () => {
-    if (_pendingSave) return;
-    try {
-      const res = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: {'Content-Type': 'text/plain'},
-        body: JSON.stringify({action: 'getERPHash'})
-      });
-      const r = await res.json();
-     if (r.ok && r.hash && r.hash !== _lastSaveHash) {
-  _lastSaveHash = r.hash;
-  // Ne recharger que si aucune modal ouverte et pas d'édition en cours
-  const modalOuverte = document.querySelector('.modal-bg.show');
-  if (!modalOuverte) {
-    const screenAvant = _currentScreen; // sauvegarder l'onglet courant
-    const ok = await loadFromSheets();
-    if (ok) {
-      renderAll();
-      // Restaurer l'onglet sur lequel l'utilisateur travaillait
-      if(screenAvant && screenAvant !== _currentScreen) showScreen(screenAvant);
-    }
-  }
-} else if (r.ok) {
-  setOnline(); // hash inchangé mais serveur répond → online
-}
-    } catch(e) {
-      setOffline('Polling : ' + (e.message || 'erreur réseau'));
-    }
+  _pollInterval = setInterval(() => {
+    if (document.hidden) return;   // onglet masqué : le contrôle se fait au retour sur l'onglet
+    _dernierCheck = 0;
+    verifierModifsDistantes();
   }, 20000);
 
   // Sync OF automatique toutes les 5 minutes (silencieuse)
@@ -2492,6 +2766,69 @@ function ajusterHauteurPlanning(){
 }
 window.addEventListener('resize',()=>{ try{ ajusterHauteurPlanning(); }catch(e){} });
 
+// ═══ EN-TÊTES DE TABLEAUX FIGÉS — TOUS LES ÉCRANS ═════════════════════════════
+// Pour chaque tableau de l'écran affiché, la ligne de titres des colonnes reste visible pendant le défilement :
+//  • tableau dans un conteneur qui défile (.table-wrap…) → la hauteur du conteneur est calée sur la fenêtre,
+//    seul son contenu défile et les titres restent en haut ;
+//  • tableau posé directement dans la page → les titres se collent sous le bandeau et les onglets.
+// Rejoué automatiquement à chaque réaffichage (MutationObserver) : aucune modification n'est à faire écran par écran.
+function figerEntetesTableaux(){
+  const screen=document.querySelector('.screen.active'); if(!screen) return;
+  const hdr=document.querySelector('header'), tabs=document.querySelector('.app-tabs');
+  const stickyTop=(hdr?hdr.offsetHeight:49)+(tabs?tabs.offsetHeight:40);
+  screen.querySelectorAll('table').forEach(tbl=>{
+    if(tbl.closest('.modal,.modal-bg,#planning-view-chantier,#planning-view-phase')) return;
+    if(tbl.classList.contains('lignes-table')||tbl.classList.contains('bl-lignes')) return;
+    let rows=[...tbl.querySelectorAll(':scope > thead > tr')];
+    if(!rows.length){
+      for(const r of tbl.querySelectorAll(':scope > tbody > tr, :scope > tr')){
+        if(r.children.length && [...r.children].every(c=>c.tagName==='TH')) rows.push(r); else break;
+      }
+    }
+    if(!rows.length) return;
+    let scroller=null, el=tbl.parentElement;
+    while(el && el!==screen){
+      const cs=getComputedStyle(el);
+      if(/(auto|scroll|hidden)/.test(cs.overflowX+' '+cs.overflowY)){ scroller=el; break; }
+      el=el.parentElement;
+    }
+    let base=stickyTop;
+    if(scroller){
+      base=0;
+      const top=scroller.getBoundingClientRect().top;
+      if(top>0){ scroller.style.overflowY='auto'; scroller.style.maxHeight=Math.max(240, window.innerHeight-top-12)+'px'; }
+    }
+    let off=0;
+    rows.forEach(tr=>{
+      [...tr.children].forEach(c=>{
+        if(c.tagName!=='TH' && c.tagName!=='TD') return;
+        const bg=getComputedStyle(c).backgroundColor;
+        if(!bg || bg==='rgba(0, 0, 0, 0)' || bg==='transparent'){
+          const rbg=getComputedStyle(tr).backgroundColor;
+          c.style.background = (rbg && rbg!=='rgba(0, 0, 0, 0)' && rbg!=='transparent') ? rbg : 'var(--bg)';
+        }
+        c.style.position='sticky';
+        c.style.top=(base+off)+'px';
+        const z=parseInt(c.style.zIndex)||0;
+        c.style.zIndex=String(c.style.left ? Math.max(z,7) : Math.max(z,5));
+      });
+      off+=tr.offsetHeight;
+    });
+  });
+}
+let _figerTimer=null;
+function _planifierFigerEntetes(delai){ clearTimeout(_figerTimer); _figerTimer=setTimeout(()=>{ try{ figerEntetesTableaux(); }catch(e){ console.warn('figerEntetes:',e.message); } }, delai||60); }
+(function(){
+  const demarrer=()=>{
+    const main=document.querySelector('main');
+    if(main) new MutationObserver(()=>_planifierFigerEntetes(60)).observe(main,{childList:true,subtree:true});
+    window.addEventListener('resize',()=>_planifierFigerEntetes(120));
+    document.addEventListener('click',()=>_planifierFigerEntetes(200),true);
+    _planifierFigerEntetes(300);
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',demarrer); else demarrer();
+})();
+
 function setPlanningVue(v){
   state._planningVue = v;
   renderPlanning();
@@ -2593,11 +2930,11 @@ function renderPlanning(opts){
         html+=renderPhRow(ph,phArts.length,phArts,phIsMatch,phElId,tr,ofs_prod);
         if(!ph.open)continue;
         for(const art of phArts) html+=renderArtRow(art);
-        html+=`<tr class="row-add"><td colspan="13"><button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddArticle('${ph.id}')">+ Article</button></td></tr>`;
+        html+=`<tr class="row-add"><td colspan="15"><button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddArticle('${ph.id}')">+ Article</button></td></tr>`;
       }
-      html+=`<tr class="row-add-ph"><td colspan="13"><button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddPhase('${tr.id}')">+ Phase</button></td></tr>`;
+      html+=`<tr class="row-add-ph"><td colspan="15"><button style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddPhase('${tr.id}')">+ Phase</button></td></tr>`;
     }
-    html+=`<tr class="row-add-tr"><td colspan="13"><button style="font-size:11px;color:var(--text2);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddTranche('${ch.id}')">+ Tranche</button></td></tr>`;
+    html+=`<tr class="row-add-tr"><td colspan="15"><button style="font-size:11px;color:var(--text2);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="openAddTranche('${ch.id}')">+ Tranche</button></td></tr>`;
   }
   const _scEl=document.getElementById('planning-view-chantier');
   const _prevScroll=_scEl?_scEl.scrollTop:0;
@@ -2684,7 +3021,7 @@ function renderPlanningParPhase(){
   });
 
   if(!rows.length){
-    tbody.innerHTML = `<tr><td colspan="8" style="padding:2rem;text-align:center;color:var(--text3)">Aucune phase${q?' pour cette recherche':''}.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="padding:2rem;text-align:center;color:var(--text3)">Aucune phase${q?' pour cette recherche':''}.</td></tr>`;
     return;
   }
 
@@ -2696,13 +3033,14 @@ function renderPlanningParPhase(){
     const ph=r.ph, tr=r.tr, ch=r.ch;
     if(ch.id !== chantierCourant){
       chantierCourant = ch.id;
-      html += `<tr><td colspan="8" style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:8px 10px;border-top:2px solid var(--blue-border);border-bottom:1px solid var(--blue-border)">🏗 ${esc(ch.nom)}</td></tr>`;
+      html += `<tr><td colspan="9" style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:8px 10px;border-top:2px solid var(--blue-border);border-bottom:1px solid var(--blue-border)">🏗 ${esc(ch.nom)}</td></tr>`;
     }
     const sl = statutLabels[ph.statut||'planifie']||statutLabels['planifie'];
     const nbArt = state.articles.filter(a=>a.pid===ph.id).length;
-    const tailleBadge = ph.fichier_taille
-      ? `<span style="font-size:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 5px;white-space:nowrap">✅ Dispo</span>`
-      : `<span style="font-size:9px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;white-space:nowrap">⚠ Manquant</span>`;
+    const tailleBadge = `<button class="statut-btn" onclick="toggleFichierTaille('${ph.id}')" title="Cliquer pour basculer Dispo / Manquant" style="cursor:pointer">`
+      + (ph.fichier_taille
+      ? `<span style="font-size:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 5px;white-space:nowrap">✅ Dispo ▾</span>`
+      : `<span style="font-size:9px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;white-space:nowrap">⚠ Manquant ▾</span>`) + `</button>`;
     const ctvx = ctvxDeTranche(tr);
     const ctvxHtml = ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)
       ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(ctvx)}</span>`
@@ -2725,8 +3063,9 @@ function renderPlanningParPhase(){
       <td style="color:var(--text2)">${esc(tr.nom||'')}</td>
       <td>${ctvxHtml}</td>
       <td>${finProdHtml}</td>
+      <td>${atelierFinHtml(tr, ph)}</td>
       <td onclick="event.stopPropagation()"><button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut de la phase"><span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;white-space:nowrap">${sl[0]} ▾</span></button></td>
-      <td>${tailleBadge}</td>
+      <td onclick="event.stopPropagation()">${tailleBadge}</td>
       <td style="text-align:right;color:var(--text3);font-size:11px">${nbArt} article${nbArt!==1?'s':''}</td>
     </tr>`;
   });
@@ -2762,7 +3101,7 @@ function renderChRow(ch,nbTr){
   const actif = ch.actif !== false; // par défaut actif si non défini
   return`<tr class="row-chantier" onclick="toggleNode('ch','${ch.id}')">
     <td><span class="chevron${o?' open':''}">▶</span></td>
-    <td colspan="11">${ch.conduc?`<span style="background:#E8E5FF;color:#534AB7;font-size:10px;padding:2px 7px;border-radius:5px;font-weight:700;margin-right:6px">${esc(ch.conduc)}</span>`:''}${esc(ch.nom)}<span style="font-size:11px;color:var(--text2);font-weight:400;margin-left:8px">${nbTr} tranche${nbTr!==1?'s':''}</span></td>
+    <td colspan="12">${ch.conduc?`<span style="background:#E8E5FF;color:#534AB7;font-size:10px;padding:2px 7px;border-radius:5px;font-weight:700;margin-right:6px">${esc(ch.conduc)}</span>`:''}${esc(ch.nom)}<span style="font-size:11px;color:var(--text2);font-weight:400;margin-left:8px">${nbTr} tranche${nbTr!==1?'s':''}</span></td>
     <td style="text-align:center" onclick="event.stopPropagation()">
       <label style="display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;font-size:11px;color:${actif?'var(--green)':'var(--text3)'};font-weight:600">
         <input type="checkbox" ${actif?'checked':''} onchange="toggleChantierActif('${ch.id}')" style="width:14px;height:14px;cursor:pointer;accent-color:var(--green)"/>
@@ -2788,6 +3127,47 @@ function ofsProdDeTranche(tr){
     ofsSeen.add(key);
     return true;
   });
+}
+
+
+// Atelier qui réalise la DERNIÈRE opération d'une tranche (ou d'une phase si des OF lui sont rattachés) :
+//  - tranche sans assemblage ni équipement (DATES : besoin atelier/taillage coché) → « Usinage » ;
+//  - sinon : atelier du ou des OF de production qui se terminent en dernier (B1, B2, B3…), le même OF que celui qui
+//    donne la date « Sortie prod / Fin Prod » ; plusieurs OF finissant le même jour → ateliers cumulés (« B1 + B2 »).
+// Retourne {label, title} (label vide si inconnu).
+function atelierDerniereOp(tr, ph){
+  const today = new Date().toISOString().slice(0,10);
+  const norm = s => String(s||'').trim().toLowerCase();
+  const rows = (state.dates_erp||[]).filter(d=> norm(d.tranche)===norm(tr.nom) || (d.tr_id && tr.id_dates && String(d.tr_id).trim()===String(tr.id_dates).trim()));
+  if(rows.length && rows.some(d=>d.besoin_atelier||d.taillage) && !rows.some(d=>d.assemblage||d.equipement)){
+    return {label:'Usinage', title:'Pas d’assemblage ni d’équipement prévu : la dernière opération est l’usinage'};
+  }
+  const ofs = ofsProdDeTranche(tr).filter(o=>!o.expire_le || o.expire_le>=today);
+  if(!ofs.length) return {label:'', title:''};
+  let cand = ofs;
+  if(ph && ph.num){
+    const normTag = s => String(s||'').toUpperCase().replace(/\s+/g,'');
+    const target = normTag(ph.num);
+    const dePhase = ofs.filter(o=>String(o.phases||'').split(',').map(normTag).includes(target));
+    if(dePhase.length) cand = dePhase;
+  }
+  const dated = cand.filter(o=>/^\d{4}-\d{2}-\d{2}/.test(String(o.date_fin_prod||'')));
+  let last = cand, quand = '';
+  if(dated.length){
+    const maxD = dated.map(o=>String(o.date_fin_prod).slice(0,10)).sort().pop();
+    last = dated.filter(o=>String(o.date_fin_prod).slice(0,10)===maxD);
+    quand = maxD;
+  }
+  const ats = [...new Set(last.map(o=>String(o.atelier||'').trim()).filter(Boolean))];
+  if(!ats.length) return {label:'', title:''};
+  return {label: ats.join(' + '), title: 'Atelier de l’OF qui se termine en dernier'+(quand?' ('+fmtDate(quand)+')':'')};
+}
+function atelierFinHtml(tr, ph){
+  const r = atelierDerniereOp(tr, ph);
+  if(!r.label) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  const us = r.label==='Usinage';
+  const c = us ? ['var(--blue)','var(--blue-bg)','var(--blue-border)'] : ['var(--purple)','var(--purple-bg)','var(--purple-border)'];
+  return `<span title="${esc(r.title)}" style="font-size:11px;font-weight:600;font-family:'DM Mono',monospace;white-space:nowrap;background:${c[1]};color:${c[0]};border:1px solid ${c[2]};border-radius:4px;padding:1px 6px">${esc(r.label)}</span>`;
 }
 
 // Règle métier (oct. 2026) : une tranche d'usinage seul — besoin atelier coché dans DATES et
@@ -2926,6 +3306,7 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
         <td style="font-size:11px;font-family:'DM Mono',monospace">
           ${ofDate ? `<span style="color:var(--blue)">${fmtDate(ofDate)}</span>` : '—'}
         </td>
+        <td style="text-align:center;font-size:11px;font-family:'DM Mono',monospace;color:var(--purple)">${esc(of.atelier||'')}</td>
         <td></td>
         <td></td>
         <td style="font-size:11px">
@@ -2993,6 +3374,7 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
     <td style="text-align:center"><!-- Sortie BE : vide sur la tranche, portée par les articles --></td>
     <td style="text-align:center">${finUsinageHtml}</td>
     <td style="text-align:center">${finProdHtml}</td>
+    <td style="text-align:center">${atelierFinHtml(tr)}</td>
     <td></td>
     <td></td>
     <td>${statutERPHtml}</td>
@@ -3013,9 +3395,10 @@ function renderPhRow(ph,nbArt,arts,highlight,elId,tr,ofsTranche){
   const statutBadge=`<button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut">
     <span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px">${sl[0]} ▾</span>
   </button>`;
-  const tailleBadge = ph.fichier_taille
-  ? `<span style="font-size:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 5px;margin-left:5px">✅ Taille</span>`
-  : `<span style="font-size:9px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;margin-left:5px">⚠ Taille</span>`;
+  const tailleBadge = `<button class="statut-btn" onclick="event.stopPropagation();toggleFichierTaille('${ph.id}')" title="Cliquer pour basculer fichier de taille Dispo / Manquant" style="cursor:pointer;margin-left:5px">`
+  + (ph.fichier_taille
+  ? `<span style="font-size:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 5px">✅ Taille</span>`
+  : `<span style="font-size:9px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px">⚠ Taille</span>`) + `</button>`;
   // Résultat de recherche par phase (ex: "Ph04") : la ligne est surlignée pour être repérée d'un coup d'œil,
   // sans avoir à parcourir tout l'arbre chantier → tranche → phase.
   const idAttr = elId ? ` id="${elId}"` : '';
@@ -3064,6 +3447,7 @@ return`<tr class="row-phase"${idAttr}${rowStyle} onclick="toggleNode('ph','${ph.
   <td></td>
   <td></td>
   <td style="text-align:center">${finProdHtml}</td>
+  <td style="text-align:center">${tr?atelierFinHtml(tr, ph):''}</td>
   <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px">${bh||''}</td>
   <td>${arts.length?progHtml(avMoyen,avMoyen>=100?'prog-green':avMoyen>0?'prog-blue':'prog-orange'):''}</td>
   <td></td>
@@ -3089,6 +3473,7 @@ function renderArtRow(a){
     <td>${a.date_sortie_be?`<span class="dp dp-blue">${fmtDate(a.date_sortie_be)}</span>`:''}</td>
     <td>${a.date_sortie_prod?`<span class="dp dp-teal">${fmtDate(a.date_sortie_prod)}</span>`:''}</td>
     <td><!-- Fin Prod sur la tranche, pas l'article --></td>
+    <td></td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${a.budget_heures||''}</td>
     <td>${progHtml(av,avCls)}</td>
     <td></td>
@@ -3745,6 +4130,7 @@ function showScreen(id){
   if(id==='heures'){showHTab('employes');}
   if(id==='planning-global'){initPlanningGlobal();renderPlanningGlobal();}
   if(id==='dashboard'){ _prodB2Data = null; renderDashboard(); } // données Usinage laissées en cache (chargement à la demande)
+  _planifierFigerEntetes(80);   // en-têtes de tableaux figés sur l'écran affiché
   if(id==='planning')renderPlanning();   // recale la hauteur du tableau (en-têtes figés) et réapplique le filtre
   if(id==='suivi-prod')renderSuiviProd();
   if(id==='pilotage-phases')renderPilotagePhases();
@@ -4052,9 +4438,9 @@ async function rensSave(){
     if(_saveTimeout) clearTimeout(_saveTimeout);
     _pendingSave = true;
     setSyncPill('saving', 'Création des phases dans l\'ERP...');
-    await saveToSheets();
-    if(_isOffline){
-      toast(`⚠ Ligne(s) enregistrée(s) dans l'historique, mais échec de la création de ${phasesMaj} phase(s) dans l'ERP — vérifiez la connexion puis modifiez une phase pour relancer la sauvegarde.`);
+    const okSavePh = await saveToSheets();
+    if(_isOffline || okSavePh===false){
+      toast(`⚠ Ligne(s) enregistrée(s) dans l'historique, mais la création de ${phasesMaj} phase(s) dans l'ERP n'a pas été enregistrée (connexion perdue ou conflit avec une autre session) — résolvez-le puis modifiez une phase pour relancer la sauvegarde.`);
       _rensRows = [];
       renderRensRows();
       rensLoadHistorique();
