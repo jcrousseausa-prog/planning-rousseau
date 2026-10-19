@@ -251,6 +251,7 @@ table.bl-lignes td.r{text-align:right}
 .login-btn{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:9px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;margin-top:6px;transition:background .15s}
 .login-btn:hover{background:#153f6e}
 .login-error{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:7px;padding:8px 12px;font-size:12px;margin-top:10px;display:none}
+#planning-view-chantier thead th,#planning-view-phase thead th{position:sticky;top:0;z-index:10;background:var(--bg);box-shadow:0 1px 0 var(--border)}
 </style>
 </head>
 <body>
@@ -355,6 +356,11 @@ table.bl-lignes td.r{text-align:right}
       <option value="ctvx_asc">Tranches : CTVX ↑ (plus tôt d'abord)</option>
       <option value="ctvx_desc">Tranches : CTVX ↓ (plus tard d'abord)</option>
       <option value="ctvx_vide">Tranches : sans CTVX d'abord</option>
+    </select>
+    <select id="filtre-livres" onchange="setFiltreLivres(this.value)" style="padding:6px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px;color:var(--text2)" title="Masquer les éléments livrés pour une meilleure lecture">
+      <option value="tout">Statuts : tout afficher</option>
+      <option value="livres">Masquer les livrés</option>
+      <option value="livres_termines">Masquer livrés et terminés</option>
     </select>
 
 
@@ -2351,6 +2357,7 @@ async function init(){
 
   // 1. Afficher immédiatement depuis le cache local
   const hasLocal = loadLS();
+  state._planningVue = 'phase';   // le Tableau de pilotage s'ouvre en vue « Par phase »
   if(!state.retours) state.retours=[];
   if(!hasLocal || !state.chantiers.length){
     INIT_DATA.forEach(item=>{
@@ -2449,6 +2456,42 @@ function onSearch(q){
   renderPlanning({scroll:true});
 }
 
+// ── Filtre « masquer les livrés / terminés » (mémorisé dans ce navigateur) ──
+function _lireFiltreLivres(){
+  if(state._filtreLivres===undefined){
+    try{ state._filtreLivres = localStorage.getItem('erp_filtre_livres') || 'tout'; }catch(e){ state._filtreLivres='tout'; }
+  }
+  return state._filtreLivres;
+}
+function setFiltreLivres(v){
+  state._filtreLivres = v;
+  try{ localStorage.setItem('erp_filtre_livres', v); }catch(e){}
+  renderPlanning();
+}
+function _statutMasque(st){
+  const f=_lireFiltreLivres();
+  return (f==='livres' && st==='livre') || (f==='livres_termines' && (st==='livre'||st==='termine'));
+}
+// Une tranche est masquée si elle est livrée, ou si toutes ses phases le sont (ou, sans phase, si son propre statut l'est).
+function _trancheMasquee(tr){
+  if(_lireFiltreLivres()==='tout') return false;
+  if(tr.statut_erp==='livre') return true;
+  const phs=state.phases.filter(p=>p.tid===tr.id);
+  if(phs.length) return phs.every(p=>_statutMasque(p.statut||'planifie'));
+  return _statutMasque(tr.statut_erp||'');
+}
+// Le tableau occupe exactement la hauteur visible de la fenêtre : seul son contenu défile, donc
+// la ligne de titres des colonnes reste toujours visible.
+function ajusterHauteurPlanning(){
+  ['planning-view-chantier','planning-view-phase'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el || el.style.display==='none') return;
+    const top=el.getBoundingClientRect().top;
+    if(top>0) el.style.maxHeight=Math.max(240, window.innerHeight-top-12)+'px';
+  });
+}
+window.addEventListener('resize',()=>{ try{ ajusterHauteurPlanning(); }catch(e){} });
+
 function setPlanningVue(v){
   state._planningVue = v;
   renderPlanning();
@@ -2460,7 +2503,7 @@ function renderPlanning(opts){
   // Deux modes d'affichage du Tableau de pilotage : l'arbre chantier → tranche → phase (par
   // défaut, pour raisonner par chantier), ou une liste à plat de toutes les phases triée par
   // numéro croissant avec rappel de la tranche/chantier (pour retrouver vite une phase précise).
-  const vue = state._planningVue || 'chantier';
+  const vue = state._planningVue || 'phase';
   const elChantier = document.getElementById('planning-view-chantier');
   const elPhase = document.getElementById('planning-view-phase');
   if(elChantier) elChantier.style.display = vue==='phase' ? 'none' : '';
@@ -2472,6 +2515,8 @@ function renderPlanning(opts){
   ['btn-toggle-all','btn-toggle-none','tri-tranches'].forEach(id=>{
     const el = document.getElementById(id); if(el) el.style.display = vue==='phase' ? 'none' : '';
   });
+  const selLiv = document.getElementById('filtre-livres'); if(selLiv) selLiv.value = _lireFiltreLivres();
+  ajusterHauteurPlanning();
   if(vue==='phase'){ renderPlanningParPhase(); return; }
 
   const tbody=document.getElementById('planning-tbody');
@@ -2525,6 +2570,8 @@ function renderPlanning(opts){
   else if(triMode==='ctvx_desc') trs = [...trs].sort((a,b)=>{ const ca=getCtvx(a),cb=getCtvx(b); if(!ca&&!cb)return 0; if(!ca)return 1; if(!cb)return -1; return cb.localeCompare(ca); });
   else if(triMode==='ctvx_vide') trs = [...trs].sort((a,b)=>{ const ca=getCtvx(a),cb=getCtvx(b); if(!ca&&!cb)return 0; if(!ca)return -1; if(!cb)return 1; return ca.localeCompare(cb); });
   // 'ordre' = ordre naturel, pas de tri supplémentaire
+  const _nbTrTotal = trs.length;
+  if(_lireFiltreLivres()!=='tout'){ trs = trs.filter(t=>!_trancheMasquee(t)); if(!trs.length && _nbTrTotal) continue; }
   if(q&&!ch.nom.toLowerCase().includes(q)&&!trs.some(t=>t.nom.toLowerCase().includes(q))&&!trs.some(t=>phasesOfTranche(t.id).some(phaseMatches))) continue;
   html+=renderChRow(ch,trs.length);
   if(!ch.open)continue;
@@ -2538,6 +2585,7 @@ function renderPlanning(opts){
       html+=renderTrRow(tr,phs.length,arts,ofs_prod);
       if(!tr.open)continue;
       for(const ph of phs){
+        if(_statutMasque(ph.statut||'planifie')) continue;
         const phArts=state.articles.filter(a=>a.pid===ph.id);
         const phIsMatch = phaseMatches(ph);
         let phElId = '';
@@ -2612,6 +2660,9 @@ function renderPlanningParPhase(){
     return {ph, tr, ch};
   }).filter(Boolean);
 
+  if(_lireFiltreLivres()!=='tout'){
+    rows = rows.filter(r=>!_statutMasque(r.ph.statut||'planifie') && r.tr.statut_erp!=='livre');
+  }
   if(q){
     rows = rows.filter(r=>{
       const numNorm = (r.ph.num||'').toLowerCase().replace(/\s+/g,'');
@@ -3694,6 +3745,7 @@ function showScreen(id){
   if(id==='heures'){showHTab('employes');}
   if(id==='planning-global'){initPlanningGlobal();renderPlanningGlobal();}
   if(id==='dashboard'){ _prodB2Data = null; renderDashboard(); } // données Usinage laissées en cache (chargement à la demande)
+  if(id==='planning')renderPlanning();   // recale la hauteur du tableau (en-têtes figés) et réapplique le filtre
   if(id==='suivi-prod')renderSuiviProd();
   if(id==='pilotage-phases')renderPilotagePhases();
   if(id==='retours')renderRetours();
