@@ -2060,6 +2060,11 @@ async function _saveToSheetsImpl() {
       delete payload.employes;
       console.warn('saveToSheets: heures/interim/employes non envoyés (sheets pas encore chargé)');
     }
+    // Photo de ce qui part RÉELLEMENT vers le serveur (prise au même instant que l'envoi) : si l'utilisateur modifie
+    // autre chose pendant que l'enregistrement est en vol, cette modification ne doit PAS entrer dans la base,
+    // sinon elle serait prise pour « déjà enregistrée » et écrasée par la version du serveur à la fusion suivante.
+    let snapEnvoi = null;
+    try { snapEnvoi = _snapTables(payload); } catch(e) { snapEnvoi = null; }
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain'},
@@ -2069,7 +2074,7 @@ async function _saveToSheetsImpl() {
     if (r.ok) {
       setOnline();
       if (r.hash) _lastSaveHash = r.hash;
-      _majBase();
+      _baseSnap = snapEnvoi;
       _remoteChanged=false; _barreDistante(null);
       setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
       return true;
@@ -2129,6 +2134,7 @@ async function loadFromSheets() {
       syncFinUsinageAuto();
       saveLS();
       _sheetsLoaded = true;
+      _majBase();   // photo de base prise tout de suite, avant tout await
       setOnline();
       // Hash de référence (lu avant les données) + photo de base pour la fusion multi-sessions
       if (hashAvant) _lastSaveHash = hashAvant;
@@ -2138,7 +2144,6 @@ async function loadFromSheets() {
           if (rh.ok && rh.hash) _lastSaveHash = rh.hash;
         } catch(e) { /* non bloquant */ }
       }
-      _majBase();
       return true;
     }
   } catch(e) {
