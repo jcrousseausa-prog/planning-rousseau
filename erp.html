@@ -3810,7 +3810,7 @@ function openAddPhase(tid){const ex=state.phases.filter(p=>p.tid===tid);_ctx={ty
 function openEditPhase(id){const p=state.phases.find(x=>x.id===id);if(!p)return;_ctx={type:'edit',id};document.getElementById('mph-title').textContent='Modifier la phase';document.getElementById('mph-num').value=p.num||'';document.getElementById('mph-nom').value=p.nom;document.getElementById('mph-statut').value=p.statut||'planifie';document.getElementById('modal-ph').classList.add('show');}
 function savePhase(){
   const nom=document.getElementById('mph-nom').value.trim();if(!nom)return;
-  const num=document.getElementById('mph-num').value.trim();
+  const num=normPhaseNum(document.getElementById('mph-num').value.trim());
   const statut=document.getElementById('mph-statut').value||'planifie';
   if(_ctx.type==='add'){const p={id:uid(),tid:_ctx.tid,num,nom,statut,open:false};state.phases.push(p);}
   else{const p=state.phases.find(x=>x.id===_ctx.id);if(p){p.num=num;p.nom=nom;p.statut=statut;}}
@@ -4151,6 +4151,52 @@ function showScreen(id){
 //  MODULE RENSEIGNEMENT PROJET
 // ══════════════════════════════════════════════════════════════════════════
 let _rensRows = [];
+// Numéro de phase au format unique « Ph05 » : "5", "ph5", "PH 05", "phase 5" → "Ph05" ; "101" → "Ph101".
+// Les libellés libres (ex : "Taillage") sont laissés tels quels.
+function normPhaseNum(v){
+  const s = String(v||'').trim();
+  if(!s) return '';
+  const m = s.match(/^(?:ph(?:ase)?\.?\s*)?0*(\d+)\s*([a-z]?)$/i);
+  if(!m) return s;
+  return 'Ph'+m[1].padStart(2,'0')+(m[2]||'').toLowerCase();
+}
+// Clé de comparaison de phases (insensible à la casse, aux espaces et aux zéros) : "PH05" = "Ph5" = "ph 05"
+function clePhaseNum(v){ return normPhaseNum(v).toUpperCase().replace(/\s+/g,''); }
+
+// Brouillon du formulaire (survit à un rechargement d'écran / retour sur l'onglet) — effacé après enregistrement
+function rensSaveDraft(){
+  try{
+    sessionStorage.setItem('erp_rens_draft', JSON.stringify({
+      chId: (document.getElementById('rens-chantier')||{}).value||'',
+      dess: (document.getElementById('rens-dessinateur')||{}).value||'',
+      rows: _rensRows
+    }));
+  }catch(e){}
+}
+function rensClearDraft(){ try{ sessionStorage.removeItem('erp_rens_draft'); }catch(e){} }
+function rensReadDraft(){ try{ const d=JSON.parse(sessionStorage.getItem('erp_rens_draft')||'null'); return d&&d.rows&&d.rows.length?d:null; }catch(e){ return null; } }
+
+// Relit les valeurs réellement affichées dans le formulaire (filet de sécurité : rien ne se perd si un événement de saisie a été manqué)
+function rensSyncFromDom(){
+  document.querySelectorAll('#rens-tbody .rens-row').forEach(el=>{
+    const row = _rensRows.find(r=>r.id===el.getAttribute('data-rid'));
+    if(!row) return;
+    const selT = el.querySelector('.rens-row-tranche-select');
+    const selP = el.querySelector('.rens-row-phase-select');
+    const inpP = el.querySelector('input.rens-row-phase');
+    const nums = el.querySelectorAll('input[type=number]');
+    const com  = el.querySelector('input.rens-row-com');
+    if(selT && selT.value===row.tranche_id){
+      let ph = '';
+      if(selP && selP.value && selP.value!=='__NEW__') ph = selP.value;
+      else if(inpP) ph = inpP.value.trim();
+      row.phase = ph;
+    }
+    if(nums[0]) row.m2 = nums[0].value;
+    if(nums[1]) row.m3 = nums[1].value;
+    if(com) row.commentaire = com.value;
+  });
+}
 let _rensTranchesChantier = []; // tranches du chantier sélectionné
 let _rensDessinateurs = [];
 
@@ -4163,7 +4209,15 @@ async function initRenseignement(){
     ).join('');
   _rensTranchesChantier = [];
   _rensRows = [];
-  renderRensRows();
+  const dr = rensReadDraft();
+  if(dr && dr.chId && state.chantiers.some(c=>c.id===dr.chId)){
+    selCh.value = dr.chId;
+    _rensTranchesChantier = state.tranches.filter(t=>t.cid===dr.chId).sort((a,b)=>a.nom.localeCompare(b.nom,'fr'));
+    _rensRows = dr.rows;
+    const selD = document.getElementById('rens-dessinateur');
+    if(selD && dr.dess) selD.value = dr.dess;
+  }
+  renderRensRows(true);
 }
 
 async function rensLoadDessinateurs(){
@@ -4183,6 +4237,7 @@ async function rensLoadDessinateurs(){
 }
 
 function rensOnChantierChange(){
+  rensClearDraft();
   const chId = document.getElementById('rens-chantier').value;
   if(!chId){
     _rensTranchesChantier = [];
@@ -4199,6 +4254,7 @@ function rensOnChantierChange(){
 function rensAddRow(){
   const chId = document.getElementById('rens-chantier').value;
   if(!chId){ toast('⚠ Sélectionnez un chantier d\'abord'); return; }
+  rensSyncFromDom();   // récupère d'abord tout ce qui est affiché, avant de redessiner
   _rensRows.push({
     id: Date.now()+'_'+Math.random().toString(36).slice(2,6),
     tranche_nom: '',
@@ -4210,7 +4266,7 @@ function rensAddRow(){
     dessinateur: document.getElementById('rens-dessinateur').value||'',
     phases_dispo: []
   });
-  renderRensRows();
+  renderRensRows(true);
   setTimeout(()=>{
     const sels = document.querySelectorAll('.rens-row-tranche-select');
     if(sels.length) sels[sels.length-1].focus();
@@ -4218,6 +4274,7 @@ function rensAddRow(){
 }
 
 function rensRowTrancheChange(rowId, newTrancheId){
+  rensSyncFromDom();
   const row = _rensRows.find(r=>r.id===rowId);
   if(!row) return;
   const tr = _rensTranchesChantier.find(t=>t.id===newTrancheId);
@@ -4229,17 +4286,23 @@ function rensRowTrancheChange(rowId, newTrancheId){
     row.phases_dispo = state.phases.filter(p=>p.tid===tr.id).map(p=>p.num||p.nom).filter(Boolean);
     row.phase = '';
   }
-  renderRensRows();
+  renderRensRows(true);
 }
 
 function rensRemoveRow(id){
+  rensSyncFromDom();
   _rensRows = _rensRows.filter(r=>r.id!==id);
-  renderRensRows();
+  renderRensRows(true);
 }
 
 function rensUpdateRow(id, field, value){
   const row = _rensRows.find(r=>r.id===id);
-  if(row){ row[field]=value; rensMaj(); }
+  if(row){ row[field]=value; rensMaj(); rensSaveDraft(); }
+}
+// Sortie du champ « phase » saisi à la main : mise au format unique (Ph05)
+function rensPhaseBlur(id, inp){
+  inp.value = normPhaseNum(inp.value);
+  rensUpdateRow(id,'phase',inp.value);
 }
 
 function rensMaj(){
@@ -4255,7 +4318,8 @@ function rensMaj(){
   }
 }
 
-function renderRensRows(){
+function renderRensRows(skipSync){
+  if(!skipSync) rensSyncFromDom();
   const tbody = document.getElementById('rens-tbody');
   if(!_rensRows.length){
     const chId = document.getElementById('rens-chantier')?.value;
@@ -4263,6 +4327,7 @@ function renderRensRows(){
       ${chId?'Cliquez sur <strong>+ Ligne</strong> pour ajouter une ligne, puis choisissez la tranche sur chaque ligne':'Sélectionnez un chantier, puis <strong>+ Ligne</strong>'}
     </div>`;
     document.getElementById('rens-tfoot').style.display='none';
+    rensClearDraft();
     return;
   }
   tbody.innerHTML = _rensRows.map((r,i)=>{
@@ -4278,7 +4343,7 @@ function renderRensRows(){
     const phaseOptions = r.phases_dispo?.length
       ? r.phases_dispo.map(p=>`<option value="${esc(p)}"${r.phase===p?' selected':''}>${esc(p)}</option>`).join('')
       : '';
-    const phaseSelectHtml = `<select onchange="rensPhaseSelect('${r.id}',this)"
+    const phaseSelectHtml = `<select class="rens-row-phase-select" onchange="rensPhaseSelect('${r.id}',this)"
         style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;background:var(--surface)">
         <option value="">—</option>
         ${phaseOptions}
@@ -4286,10 +4351,10 @@ function renderRensRows(){
       </select>
       <input type="text" id="rens-phase-input-${r.id}" value="${r.phase&&!phaseOptions.includes('value="'+r.phase+'"')?esc(r.phase):''}"
         placeholder="Ph01" class="rens-row-phase"
-        oninput="rensUpdateRow('${r.id}','phase',this.value)"
+        oninput="rensUpdateRow('${r.id}','phase',this.value)" onchange="rensPhaseBlur('${r.id}',this)"
         style="width:100%;padding:4px 6px;border:1px solid var(--orange-border);border-radius:6px;font-family:inherit;font-size:12px;text-align:center;margin-top:3px;display:${r.phase&&!phaseOptions.includes('value="'+r.phase+'"')&&r.phases_dispo?.length?'block':'none'}"/>`;
 
-    return `<div class="rens-row" style="display:grid;grid-template-columns:32px 1fr 100px 80px 80px 1fr 36px;border-bottom:1px solid var(--border);align-items:center;background:${i%2===0?'var(--surface)':'var(--bg)'}">
+    return `<div class="rens-row" data-rid="${r.id}" style="display:grid;grid-template-columns:32px 1fr 100px 80px 80px 1fr 36px;border-bottom:1px solid var(--border);align-items:center;background:${i%2===0?'var(--surface)':'var(--bg)'}">
       <div style="padding:8px 6px;text-align:center;font-size:11px;color:var(--text3);font-weight:600">${i+1}</div>
       <div style="padding:6px 8px">
         ${trancheSelectHtml}
@@ -4299,17 +4364,17 @@ function renderRensRows(){
       </div>
       <div style="padding:6px 6px">
         <input type="number" value="${esc(r.m2)}" placeholder="0" min="0" step="0.01"
-          oninput="rensUpdateRow('${r.id}','m2',this.value);rensMaj()"
+          oninput="rensUpdateRow('${r.id}','m2',this.value);rensMaj()" onchange="rensUpdateRow('${r.id}','m2',this.value)"
           style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;text-align:right"/>
       </div>
       <div style="padding:6px 6px">
         <input type="number" value="${esc(r.m3)}" placeholder="0" min="0" step="0.01"
-          oninput="rensUpdateRow('${r.id}','m3',this.value);rensMaj()"
+          oninput="rensUpdateRow('${r.id}','m3',this.value);rensMaj()" onchange="rensUpdateRow('${r.id}','m3',this.value)"
           style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;text-align:right"/>
       </div>
       <div style="padding:6px 8px">
-        <input type="text" value="${esc(r.commentaire)}" placeholder="Commentaire…"
-          oninput="rensUpdateRow('${r.id}','commentaire',this.value)"
+        <input type="text" class="rens-row-com" value="${esc(r.commentaire)}" placeholder="Commentaire…"
+          oninput="rensUpdateRow('${r.id}','commentaire',this.value)" onchange="rensUpdateRow('${r.id}','commentaire',this.value)"
           style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px"/>
       </div>
       <div style="padding:6px 4px;text-align:center">
@@ -4318,6 +4383,7 @@ function renderRensRows(){
     </div>`;
   }).join('');
   rensMaj();
+  rensSaveDraft();
 }
 
 function rensPhaseSelect(id, sel){
@@ -4334,6 +4400,8 @@ function rensPhaseSelect(id, sel){
 }
 
 async function rensSave(){
+  rensSyncFromDom();   // reprend exactement ce qui est affiché
+  _rensRows.forEach(r=>{ r.phase = normPhaseNum(r.phase); });   // numéros de phase au format unique « Ph05 »
   if(!_rensRows.length){ toast('⚠ Aucune ligne à enregistrer'); return; }
 
   const dessinateur = document.getElementById('rens-dessinateur').value;
@@ -4384,7 +4452,7 @@ async function rensSave(){
     const lignesTranche = lignes.filter(l=>l.tranche_id===trId);
     lignesTranche.forEach(l=>{
       if(!l.phase) return;
-      const existe = phasesExistantes.find(p=>(p.num||p.nom||'').trim()===l.phase.trim());
+      const existe = phasesExistantes.find(p=>clePhaseNum(p.num||p.nom)===clePhaseNum(l.phase));
       if(!existe){
         const newPh = {
           id: uid(),
