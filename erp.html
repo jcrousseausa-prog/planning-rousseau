@@ -1778,7 +1778,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='20/10/2026-e';
+const ERP_BUILD='20/10/2026-i';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -1787,13 +1787,13 @@ function _canon(v){
   if(v===null || v===undefined || v==='') return undefined;
   if(Array.isArray(v)) return '['+v.map(x=>{const c=_canon(x);return c===undefined?'':c;}).join(',')+']';
   if(typeof v==='object'){
-    const parts=[]; Object.keys(v).sort().forEach(k=>{const c=_canon(v[k]); if(c!==undefined) parts.push(k+':'+c);});
+    const parts=[]; Object.keys(v).sort().forEach(k=>{ if(k==='open') return; const c=_canon(v[k]); if(c!==undefined) parts.push(k+':'+c);});
     return '{'+parts.join(',')+'}';
   }
   return String(v).toLowerCase();
 }
 function _fieldCanon(r){
-  const f={}; if(r && typeof r==='object') Object.keys(r).forEach(k=>{ const c=_canon(r[k]); if(c!==undefined) f[k]=c; });
+  const f={}; if(r && typeof r==='object') Object.keys(r).forEach(k=>{ if(k==='open') return; const c=_canon(r[k]); if(c!==undefined) f[k]=c; });
   return f;
 }
 function _canonF(f){ return Object.keys(f).sort().map(k=>k+':'+f[k]).join('\u0001'); }
@@ -1888,7 +1888,9 @@ function _fusionnerTables(remote, mode){
 function _appliquerFusion(remote, mode, hash){
   const f=_fusionnerTables(remote, mode);
   _evt('FUSION appliquée mode='+mode);
+  const _ui=_uiOpenMemo();
   TABLES_SYNC.forEach(t=>{ state[t]=f.tables[t]; });
+  _uiOpenRestore(_ui);
   state.chantiers.sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
   if(hash) _lastSaveHash=hash;
   try{ saveLS(); renderAll(); }catch(e){ console.warn('renderAll après fusion:',e); }
@@ -2027,7 +2029,8 @@ async function _rechargerDistant(){
   const memo=_scrollsMemo();
   let avant=null, avantX=null; try{ avant=_snapTables(state); avantX=_canon([state.suivi_prod||[],state.dates_erp||[]]); }catch(e){}
   try{
-  const ok=await loadFromSheets();
+  const ok=await loadFromSheets({proteger:true});
+  if(ok==='ignore') return false;   // une modification locale est en cours : on réessaiera après l'enregistrement (la fusion protège ta saisie)
   if(ok){
     _remoteChanged=false; _barreDistante(null);
     // Qu'est-ce qui a vraiment changé ? Si rien d'affiché n'a bougé, on ne redessine pas (pas de saut, pas de message)
@@ -2036,12 +2039,21 @@ async function _rechargerDistant(){
       const apres=_snapTables(state); diff=[];
       TABLES_SYNC.forEach(t=>{
         if(!avant||!avant[t]||avant[t].all===apres[t].all) return;
-        let n=0;
+        let n=0; const champs={};
         if(avant[t].ok && apres[t].ok){
           const ids=new Set([...avant[t].canon.keys(),...apres[t].canon.keys()]);
-          ids.forEach(id=>{ if(avant[t].canon.get(id)!==apres[t].canon.get(id)) n++; });
+          ids.forEach(id=>{
+            if(avant[t].canon.get(id)!==apres[t].canon.get(id)){
+              n++;
+              const fa=avant[t].f.get(id)||{}, fb=apres[t].f.get(id)||{};
+              if(!avant[t].f.has(id)) champs['(nouvelle ligne)']=(champs['(nouvelle ligne)']||0)+1;
+              else if(!apres[t].f.has(id)) champs['(ligne supprimée)']=(champs['(ligne supprimée)']||0)+1;
+              else new Set([...Object.keys(fa),...Object.keys(fb)]).forEach(k=>{ if(fa[k]!==fb[k]) champs[k]=(champs[k]||0)+1; });
+            }
+          });
         } else n=1;
-        diff.push(t+' ('+n+')');
+        const det=Object.keys(champs).sort((a,b)=>champs[b]-champs[a]).slice(0,3).map(k=>k+(champs[k]>1?'×'+champs[k]:'')).join(', ');
+        diff.push(t+' ('+n+(det?' : '+det:'')+')');
       });
     }catch(e){ diff=null; }
     try{ if(diff && avantX!==_canon([state.suivi_prod||[],state.dates_erp||[]])) diff.push('suivi/dates'); }catch(e){}
@@ -2164,7 +2176,23 @@ window.addEventListener('beforeunload', function(e){
     saveToSheets();
   }
 });
-async function loadFromSheets() {
+// Fusion « partielle » : les champs que le serveur ne renvoie pas (getERPPlanning est une lecture allégée) sont conservés
+// depuis la ligne locale au lieu d'être effacés — sinon la sauvegarde suivante les réécrirait vides dans les feuilles.
+function _fusionnerPartiel(localRows, remoteRows){
+  const m=new Map((localRows||[]).map(r=>[String(r&&r.id),r]));
+  return (remoteRows||[]).map(r=>{ const l=m.get(String(r&&r.id)); return l?Object.assign({},l,r):r; });
+}
+// Dépliage des chantiers / tranches / phases : simple état d'affichage. Un rechargement depuis le serveur ne doit jamais tout replier.
+function _uiOpenMemo(){
+  const m={};
+  ['chantiers','tranches','phases','articles'].forEach(t=>{ m[t]=new Map(); (state[t]||[]).forEach(r=>{ if(r && r.id!==undefined && r.open!==undefined) m[t].set(String(r.id), r.open); }); });
+  return m;
+}
+function _uiOpenRestore(m){
+  try{ ['chantiers','tranches','phases','articles'].forEach(t=>{ (state[t]||[]).forEach(r=>{ if(r && m[t] && m[t].has(String(r.id))) r.open=m[t].get(String(r.id)); }); }); }catch(e){}
+}
+async function loadFromSheets(opts) {
+  const seq0=_editSeq;
   try {
     // Hash de référence lu AVANT les données : si quelqu'un enregistre pendant le chargement,
     // le prochain contrôle le détectera (au lieu de le marquer « déjà vu » sans l'avoir chargé).
@@ -2176,9 +2204,13 @@ async function loadFromSheets() {
       fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getSuiviProd'})})
     ]);
     const [r, rSuivi] = await Promise.all([resERP.json(), resSuivi.json()]);
+    // Une modification locale a eu lieu PENDANT le chargement (≈1-2 s) : on n'écrase surtout pas l'état affiché par la version du serveur,
+    // elle serait lue comme « ancienne valeur » et la case cochée / la saisie reviendrait en arrière. La fusion à l'enregistrement s'en charge.
+    if(opts && opts.proteger && (_editSeq!==seq0 || _pendingSave || _savePromise)){ _evt('chargement abandonné : modification locale en cours'); return 'ignore'; }
 
     if (r.ok && r.data && r.data.chantiers?.length >= 5) {
-      state.chantiers = (r.data.chantiers||[]).sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
+      const _ui=_uiOpenMemo();
+      state.chantiers = _fusionnerPartiel(state.chantiers, r.data.chantiers||[]).sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
       state.tranches  = r.data.tranches||[];
       state.phases    = r.data.phases||[];
       state.articles  = r.data.articles||[];
@@ -2191,10 +2223,11 @@ async function loadFromSheets() {
       state.employes  = r.data.employes||[];
       state.aleas     = r.data.aleas||[];
       if(rSuivi.ok) state.suivi_prod = rSuivi.articles||[];
+      _uiOpenRestore(_ui);
       // DATES et fermetures en arrière-plan (non bloquants)
       loadDATESSource();
       loadFermetures();
-      syncFinUsinageAuto();
+      if(!_finUsinageLance){ _finUsinageLance=true; syncFinUsinageAuto(); }   // une seule fois au démarrage (ensuite : toutes les 15 min), pas à chaque rechargement
       saveLS();
       _sheetsLoaded = true;
       _majBase();   // photo de base prise tout de suite, avant tout await
@@ -2229,6 +2262,7 @@ async function loadFermetures() {
 }
 
 // ─── POLLING — rechargement toutes les 45s ────────────────────────────────
+let _finUsinageLance = false;
 let _ofSyncInterval = null;
 let _lastOFCheck = 0;
 
@@ -2744,6 +2778,7 @@ async function init(){
 
 // ── Chargement rapide : uniquement planning + suivi prod ──────────────────
 async function loadFromSheetsfast(){
+  const seq0=_editSeq;
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
       method:'POST', headers:{'Content-Type':'text/plain'},
@@ -2751,11 +2786,15 @@ async function loadFromSheetsfast(){
     });
     const r = await res.json();
     if(r.ok && r.data && r.data.chantiers?.length >= 5){
-      state.chantiers = (r.data.chantiers||[]).sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
-      state.tranches  = r.data.tranches||[];
-      state.phases    = r.data.phases||[];
-      state.articles  = r.data.articles||[];
+      // Modification locale pendant la lecture : on ne remplace pas l'affichage (voir loadFromSheets)
+      if(_sheetsLoaded && (_editSeq!==seq0 || _pendingSave || _savePromise)){ _evt('lecture rapide abandonnée : modification locale en cours'); return false; }
+      const _ui=_uiOpenMemo();
+      state.chantiers = _fusionnerPartiel(state.chantiers, r.data.chantiers||[]).sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
+      state.tranches  = _fusionnerPartiel(state.tranches,  r.data.tranches||[]);
+      state.phases    = _fusionnerPartiel(state.phases,    r.data.phases||[]);
+      state.articles  = _fusionnerPartiel(state.articles,  r.data.articles||[]);
       if(r.data.suivi_prod) state.suivi_prod = r.data.suivi_prod;
+      _uiOpenRestore(_ui);
       // Rattrapage silencieux : une tranche peut arriver du serveur déjà statut_erp=termine/livre
       // (ex : auto-complétion "fin usinage" côté Apps Script) sans jamais passer par la cascade
       // manuelle de quickStatutTranche() — on aligne donc systématiquement ses phases ici, à
@@ -4272,9 +4311,7 @@ function rensSyncFromDom(){
     const inpP = el.querySelector('input.rens-row-phase');
     const nums = el.querySelectorAll('input[type=number]');
     const com  = el.querySelector('input.rens-row-com');
-    if(selT && selT.value===row.tranche_id){
-      if(inpP) row.phase = phaseDepuisSaisie(inpP.value);
-    }
+    if(inpP) row.phase = phaseDepuisSaisie(inpP.value);   // la phase saisie est conservée, quel que soit l'ordre de saisie (phase puis tranche, ou l'inverse)
     if(nums[0]) row.m2 = nums[0].value;
     if(nums[1]) row.m3 = nums[1].value;
     if(com) row.commentaire = com.value;
@@ -4301,6 +4338,7 @@ async function initRenseignement(){
     if(selD && dr.dess) selD.value = dr.dess;
   }
   renderRensRows(true);
+  rensLoadHistorique();   // l'historique se met à jour à chaque ouverture de l'écran
 }
 
 async function rensLoadDessinateurs(){
@@ -4362,12 +4400,12 @@ function rensRowTrancheChange(rowId, newTrancheId){
   if(!row) return;
   const tr = _rensTranchesChantier.find(t=>t.id===newTrancheId);
   if(!tr){
-    row.tranche_id=''; row.tranche_nom=''; row.phases_dispo=[]; row.phase='';
+    row.tranche_id=''; row.tranche_nom=''; row.phases_dispo=[];   // la phase saisie est conservée
   } else {
     row.tranche_id = tr.id;
     row.tranche_nom = tr.nom;
     row.phases_dispo = state.phases.filter(p=>p.tid===tr.id).map(p=>p.num||p.nom).filter(Boolean);
-    row.phase = '';
+    // la phase déjà saisie est conservée
   }
   renderRensRows(true);
 }
@@ -4617,13 +4655,27 @@ async function rensLoadHistorique(){
       hist.innerHTML='<div style="padding:1rem;text-align:center;color:var(--text3);font-size:12px">Aucune saisie enregistrée</div>';
       return;
     }
+    // Les dates arrivent sous plusieurs formes (« Wed Sep 30 2026 00:00:00 GMT+0200… », ISO, jj/mm/aaaa) : on les ramène à une
+    // vraie date, sinon le tri se fait sur le texte (jour de la semaine…) et les saisies récentes se perdent dans la liste.
+    const MOIS={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+    const cleJour = v=>{
+      const t=String(v||'').trim(); if(!t) return '';
+      let m;
+      if((m=t.match(/^(\d{4})-(\d{2})-(\d{2})/))) return m[1]+'-'+m[2]+'-'+m[3];
+      if((m=t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/))) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+      if((m=t.match(/([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})/)) && MOIS[m[1].toLowerCase()]) return m[3]+'-'+String(MOIS[m[1].toLowerCase()]).padStart(2,'0')+'-'+m[2].padStart(2,'0');
+      const d=new Date(t); if(!isNaN(d)) return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      return t;
+    };
+    const libJour = k=>{ const m=String(k).match(/^(\d{4})-(\d{2})-(\d{2})$/); if(!m) return k; const d=new Date(+m[1],+m[2]-1,+m[3]); return d.toLocaleDateString('fr-FR',{weekday:'short'})+' '+m[3]+'/'+m[2]+'/'+m[1]; };
     const grouped = {};
     lignes.forEach(l=>{
-      const k = (l.date||'')+'__'+(l.dessinateur||'');
-      if(!grouped[k]) grouped[k]={date:l.date,dessinateur:l.dessinateur,lignes:[]};
+      const jour = cleJour(l.date);
+      const k = jour+'__'+(l.dessinateur||'');
+      if(!grouped[k]) grouped[k]={date:libJour(jour),jour,dessinateur:l.dessinateur,lignes:[]};
       grouped[k].lignes.push(l);
     });
-    hist.innerHTML = Object.values(grouped).sort((a,b)=>b.date.localeCompare(a.date)).map(g=>`
+    hist.innerHTML = Object.values(grouped).sort((a,b)=>String(b.jour).localeCompare(String(a.jour))).map(g=>`
       <div style="border-bottom:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--bg);font-size:12px">
           <span style="font-weight:700;color:var(--text)">${g.date}</span>
