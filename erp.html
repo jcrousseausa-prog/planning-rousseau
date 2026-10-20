@@ -1674,6 +1674,14 @@ function openStatutMenu(type, id, currentStatut, e){
   });
 
   document.body.appendChild(menu);
+  // Le menu ne doit jamais être coupé par le bas (ou le côté) de l'écran : on le remonte au-dessus du bouton si besoin
+  try{
+    const mh = menu.offsetHeight, mw = menu.offsetWidth, vh = window.innerHeight, vw = window.innerWidth;
+    let top = rect.bottom + 4, left = rect.left;
+    if(top + mh > vh - 8) top = (rect.top - mh - 4 >= 8) ? rect.top - mh - 4 : Math.max(8, vh - mh - 8);
+    if(left + mw > vw - 8) left = Math.max(8, vw - mw - 8);
+    menu.style.top = top + 'px'; menu.style.left = left + 'px';
+  }catch(_e){}
   // Fermer si clic ailleurs
   setTimeout(()=>{
     const close = (ev)=>{ if(!menu.contains(ev.target)){ menu.remove(); document.removeEventListener('click',close); } };
@@ -1778,7 +1786,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='20/10/2026-i';
+const ERP_BUILD='20/10/2026-j';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -9881,6 +9889,7 @@ async function renderSuiviProd(){
           <th style="padding:8px 10px;text-align:left;background:var(--blue);color:#fff">Tranche</th>
           <th style="padding:8px 10px;text-align:left;background:var(--blue);color:#fff">Atelier</th>
           <th style="padding:8px 10px;text-align:left;background:var(--blue);color:#fff">Phases / Fichier de taille</th>
+          <th style="padding:8px 10px;text-align:left;background:var(--blue);color:#fff;white-space:nowrap">Statut tranche</th>
         </tr>
       </thead>
       <tbody>
@@ -9904,6 +9913,9 @@ async function renderSuiviProd(){
             <td style="padding:7px 10px;font-weight:500;vertical-align:top">${esc(l.tr.nom)}</td>
             <td style="padding:7px 10px;color:var(--text2);vertical-align:top;white-space:nowrap">${esc(atelierAff)}</td>
             <td style="padding:7px 10px">${phasesHtml}</td>
+            <td style="padding:7px 10px;vertical-align:top;white-space:nowrap">
+              <button class="btn" title="Passer la tranche en Terminé / Livré (elle disparaît alors du Suivi production)" onclick="openStatutMenu('tranche','${l.tr.id}','${l.tr.statut_erp||''}',event)" style="font-size:11px;padding:3px 9px">${l.tr.statut_erp==='en_cours'?'🔧 En cours':'📋 À valider'} ▾</button>
+            </td>
           </tr>`;
         }).join('')}
       </tbody>
