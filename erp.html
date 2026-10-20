@@ -1778,6 +1778,11 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
+const ERP_BUILD='20/10/2026-c';
+let _evtLog=[];
+function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
+// À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
+window.diagERP=function(){ return {build:ERP_BUILD, ecran:_currentScreen, enAttente:_pendingSave, enVol:!!_savePromise, hash:_lastSaveHash, hors_ligne:_isOffline, navigation:_navLog.slice(-8), evenements:_evtLog.slice(-25)}; };
 function _canon(v){
   if(v===null || v===undefined || v==='') return undefined;
   if(Array.isArray(v)) return '['+v.map(x=>{const c=_canon(x);return c===undefined?'':c;}).join(',')+']';
@@ -1882,6 +1887,7 @@ function _fusionnerTables(remote, mode){
 }
 function _appliquerFusion(remote, mode, hash){
   const f=_fusionnerTables(remote, mode);
+  _evt('FUSION appliquée mode='+mode);
   TABLES_SYNC.forEach(t=>{ state[t]=f.tables[t]; });
   state.chantiers.sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
   if(hash) _lastSaveHash=hash;
@@ -1989,15 +1995,18 @@ async function _suiteConflit(choix,hash){
 
 async function _rechargerDistant(){
   const screenAvant=_currentScreen;
+  _navLock=screenAvant; _evt('RECHARGEMENT depuis le serveur');
+  try{
   const ok=await loadFromSheets();
   if(ok){
     _remoteChanged=false; _barreDistante(null);
     renderAll();
-    if(screenAvant && screenAvant!==_currentScreen) showScreen(screenAvant);
+    if(screenAvant && screenAvant!==_currentScreen){ _navLock=null; showScreen(screenAvant); }
     setSyncPill('ok','Mis à jour '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
     toast('🔄 Données mises à jour (modifiées par une autre session)');
   }
   return ok;
+  } finally { setTimeout(()=>{ _navLock=null; },800); }
 }
 function _champEnSaisie(){
   const a=document.activeElement;
@@ -2013,6 +2022,7 @@ async function verifierModifsDistantes(){
   try{
     const r=await _getHash();
     if(r.ok && r.hash && r.hash!==_lastSaveHash){
+      _evt('DISTANT modifié (hash '+_lastSaveHash+' → '+r.hash+')');
       _remoteChanged=true;
       if(_peutRecharger()) await _rechargerDistant(); else _barreDistante('diff');
     } else if(r.ok){ _remoteChanged=false; _barreDistante(null); setOnline(); }
@@ -2071,6 +2081,7 @@ async function _saveToSheetsImpl() {
       body: JSON.stringify({action: 'saveERP', data: payload})
     });
     const r = await res.json();
+    _evt('SAVE ok='+r.ok+' hash='+r.hash+(r.error?' err='+r.error:''));
     if (r.ok) {
       setOnline();
       if (r.hash) _lastSaveHash = r.hash;
@@ -2557,7 +2568,7 @@ async function doLogin(){
 
 function doLogout(){
   if(!confirm('Se déconnecter ?')) return;
-  sessionStorage.removeItem('erp_user');
+  sessionStorage.removeItem('erp_user'); try{sessionStorage.removeItem('erp_screen');}catch(e){}
   _currentUser = null;
   document.getElementById('user-pill').style.display = 'none';
   // Recharger la page pour repartir proprement
@@ -2647,6 +2658,14 @@ async function init(){
   // Afficher tout de suite avec les données en cache
   renderPlanning();
   setSyncPill('saving','Chargement…');
+  // Rechargement du navigateur (onglet remis en mémoire, F5…) : on revient sur la page où l'on travaillait
+  try{
+    const sc=sessionStorage.getItem('erp_screen');
+    if(sc && sc!==_currentScreen && document.getElementById('screen-'+sc)){
+      const tabEl=document.getElementById('tab-'+sc);
+      if(sc==='renseignement' || (tabEl && tabEl.style.display!=='none')) showScreen(sc);
+    }
+  }catch(e){}
 
   // 2. Charger uniquement chantiers/tranches/phases/articles en priorité (rapide)
   const okFast = await loadFromSheetsfast();
@@ -4126,7 +4145,17 @@ function saveGenericModal(){
 
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 
+// Dernière action de l'utilisateur (clic / clavier) : sert à distinguer un vrai changement de page d'un saut automatique
+let _derniereAction = 0, _navLock = null, _navLog = [];
+['pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ _derniereAction=Date.now(); },true));
 function showScreen(id){
+  // Pendant un rechargement automatique des données, aucun saut de page non voulu par l'utilisateur
+  if(_navLock && id!==_navLock && Date.now()-_derniereAction>1500){
+    try{ _navLog.push(new Date().toLocaleTimeString('fr-FR')+' BLOQUÉ → '+id+' | '+((new Error().stack||'').split('\n').slice(2,5).join(' <- '))); _navLog=_navLog.slice(-20); }catch(e){}
+    console.warn('showScreen bloqué (saut automatique)', id);
+    return;
+  }
+  try{ _navLog.push(new Date().toLocaleTimeString('fr-FR')+' → '+id+' | '+((new Error().stack||'').split('\n').slice(2,4).join(' <- '))); _navLog=_navLog.slice(-20); sessionStorage.setItem('erp_screen', id); }catch(e){}
   _currentScreen = id;
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.app-tab').forEach(t=>t.classList.remove('active'));
@@ -10772,5 +10801,7 @@ async function updPauseConfig(minutes, heure){
 }
 </script>
 
+<div id="erp-build" style="position:fixed;right:6px;bottom:3px;font-size:9px;color:var(--text3);opacity:.6;pointer-events:none;z-index:5"></div>
+<script>try{document.getElementById("erp-build").textContent="v"+ERP_BUILD;}catch(e){}</script>
 </body>
 </html>
