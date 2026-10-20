@@ -1778,7 +1778,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='20/10/2026-c';
+const ERP_BUILD='20/10/2026-d';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -4381,7 +4381,7 @@ function renderRensRows(skipSync){
     const phaseSelectHtml = `<div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:6px;background:var(--surface);overflow:hidden">
         <span style="padding:5px 0 5px 8px;font-size:12px;font-weight:700;color:var(--text3);user-select:none">Ph</span>
         <input type="text" class="rens-row-phase" id="rens-phase-input-${r.id}" value="${esc(phaseVersSaisie(r.phase))}"
-          placeholder="05" autocomplete="off" inputmode="numeric" list="rens-dl-${r.id}"
+          placeholder="" autocomplete="off" inputmode="numeric" list="rens-dl-${r.id}"
           onfocus="this.select()" oninput="rensUpdateRow('${r.id}','phase',phaseDepuisSaisie(this.value))" onchange="rensPhaseBlur('${r.id}',this)"
           style="flex:1;min-width:0;width:100%;box-sizing:border-box;padding:5px 6px 5px 2px;border:none;outline:none;font-family:inherit;font-size:12px;background:transparent"/>
       </div>
