@@ -1778,7 +1778,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='20/10/2026-d';
+const ERP_BUILD='20/10/2026-e';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -1993,17 +1993,69 @@ async function _suiteConflit(choix,hash){
   return 'garder';
 }
 
+// Mémorise / restitue les positions de défilement (fenêtre + tableaux) pour qu'un rechargement automatique ne fasse pas « sauter » la page
+function _scrollsMemo(){
+  const m={y:window.scrollY, x:window.scrollX, els:[]};
+  try{
+    const cnt={};
+    document.querySelectorAll('.screen.active *').forEach(el=>{
+      if(el.scrollTop>0||el.scrollLeft>0){
+        const k=el.id?('#'+el.id):(el.tagName+'.'+(el.className||'')); cnt[k]=(cnt[k]||0)+1;
+        m.els.push({k, n:cnt[k], t:el.scrollTop, l:el.scrollLeft});
+      }
+    });
+  }catch(e){}
+  return m;
+}
+function _scrollsRestituer(m){
+  const go=()=>{
+    try{
+      const cnt={};
+      const map={};
+      document.querySelectorAll('.screen.active *').forEach(el=>{
+        const k=el.id?('#'+el.id):(el.tagName+'.'+(el.className||'')); cnt[k]=(cnt[k]||0)+1; map[k+'|'+cnt[k]]=el;
+      });
+      m.els.forEach(e=>{ const el=map[e.k+'|'+e.n]; if(el){ el.scrollTop=e.t; el.scrollLeft=e.l; } });
+      window.scrollTo(m.x,m.y);
+    }catch(e){}
+  };
+  go(); setTimeout(go,120); setTimeout(go,400);
+}
 async function _rechargerDistant(){
   const screenAvant=_currentScreen;
   _navLock=screenAvant; _evt('RECHARGEMENT depuis le serveur');
+  const memo=_scrollsMemo();
+  let avant=null, avantX=null; try{ avant=_snapTables(state); avantX=_canon([state.suivi_prod||[],state.dates_erp||[]]); }catch(e){}
   try{
   const ok=await loadFromSheets();
   if(ok){
     _remoteChanged=false; _barreDistante(null);
+    // Qu'est-ce qui a vraiment changé ? Si rien d'affiché n'a bougé, on ne redessine pas (pas de saut, pas de message)
+    let diff=null;
+    try{
+      const apres=_snapTables(state); diff=[];
+      TABLES_SYNC.forEach(t=>{
+        if(!avant||!avant[t]||avant[t].all===apres[t].all) return;
+        let n=0;
+        if(avant[t].ok && apres[t].ok){
+          const ids=new Set([...avant[t].canon.keys(),...apres[t].canon.keys()]);
+          ids.forEach(id=>{ if(avant[t].canon.get(id)!==apres[t].canon.get(id)) n++; });
+        } else n=1;
+        diff.push(t+' ('+n+')');
+      });
+    }catch(e){ diff=null; }
+    try{ if(diff && avantX!==_canon([state.suivi_prod||[],state.dates_erp||[]])) diff.push('suivi/dates'); }catch(e){}
+    if(diff && !diff.length){
+      _evt('rechargement : aucune donnée affichée n\'a changé → pas de redessin');
+      setSyncPill('ok','Synchronisé '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+      return ok;
+    }
+    _evt('rechargement : '+(diff?diff.join(', '):'?'));
     renderAll();
     if(screenAvant && screenAvant!==_currentScreen){ _navLock=null; showScreen(screenAvant); }
+    _scrollsRestituer(memo);
     setSyncPill('ok','Mis à jour '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-    toast('🔄 Données mises à jour (modifiées par une autre session)');
+    toast('🔄 Mis à jour par une autre session'+(diff&&diff.length?' : '+diff.join(', '):''));
   }
   return ok;
   } finally { setTimeout(()=>{ _navLock=null; },800); }
