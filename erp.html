@@ -4162,6 +4162,12 @@ function normPhaseNum(v){
 }
 // Clé de comparaison de phases (insensible à la casse, aux espaces et aux zéros) : "PH05" = "Ph5" = "ph 05"
 function clePhaseNum(v){ return normPhaseNum(v).toUpperCase().replace(/\s+/g,''); }
+// Champ phase avec « Ph » affiché devant : on saisit seulement le numéro
+function phaseVersSaisie(p){ const v=String(p||'').trim(); return /^ph(ase)?\.?\s*\d/i.test(v) ? v.replace(/^ph(ase)?\.?\s*/i,'') : v; }
+function phaseDepuisSaisie(v){
+  const t=String(v||'').trim(); if(!t) return '';
+  return /^\d+\s*[a-z]?$/i.test(t) || /^ph(ase)?\.?\s*\d/i.test(t) ? normPhaseNum(t) : t;
+}
 
 // Brouillon du formulaire (survit à un rechargement d'écran / retour sur l'onglet) — effacé après enregistrement
 function rensSaveDraft(){
@@ -4186,7 +4192,7 @@ function rensSyncFromDom(){
     const nums = el.querySelectorAll('input[type=number]');
     const com  = el.querySelector('input.rens-row-com');
     if(selT && selT.value===row.tranche_id){
-      if(inpP) row.phase = inpP.value.trim();
+      if(inpP) row.phase = phaseDepuisSaisie(inpP.value);
     }
     if(nums[0]) row.m2 = nums[0].value;
     if(nums[1]) row.m3 = nums[1].value;
@@ -4297,13 +4303,13 @@ function rensUpdateRow(id, field, value){
 }
 // Sortie du champ « phase » saisi à la main : mise au format unique (Ph05)
 function rensPhaseBlur(id, inp){
-  let v = normPhaseNum(inp.value);
+  let v = phaseDepuisSaisie(inp.value);
   const row = _rensRows.find(r=>r.id===id);
   if(row && v){
     const ex = (row.phases_dispo||[]).find(p=>clePhaseNum(p)===clePhaseNum(v));
     if(ex) v = ex;   // phase déjà existante (PH05 = Ph5) : on garde son libellé
   }
-  inp.value = v;
+  inp.value = phaseVersSaisie(v);
   rensUpdateRow(id,'phase',v);
 }
 
@@ -4342,11 +4348,14 @@ function renderRensRows(skipSync){
         ${trancheOptions}
       </select>`;
 
-    const phaseOptions = (r.phases_dispo||[]).map(p=>`<option value="${esc(p)}"></option>`).join('');
-    const phaseSelectHtml = `<input type="text" class="rens-row-phase" id="rens-phase-input-${r.id}" value="${esc(r.phase||'')}"
-        placeholder="${r.tranche_id?'N° (ex : 5)':'—'}" autocomplete="off" list="rens-dl-${r.id}"
-        onfocus="this.select()" oninput="rensUpdateRow('${r.id}','phase',this.value)" onchange="rensPhaseBlur('${r.id}',this)"
-        style="width:100%;box-sizing:border-box;padding:5px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;text-align:center;background:var(--surface)"/>
+    const phaseOptions = (r.phases_dispo||[]).map(p=>`<option value="${esc(phaseVersSaisie(p))}"></option>`).join('');
+    const phaseSelectHtml = `<div style="display:flex;align-items:center;border:1px solid var(--border);border-radius:6px;background:var(--surface);overflow:hidden">
+        <span style="padding:5px 0 5px 8px;font-size:12px;font-weight:700;color:var(--text3);user-select:none">Ph</span>
+        <input type="text" class="rens-row-phase" id="rens-phase-input-${r.id}" value="${esc(phaseVersSaisie(r.phase))}"
+          placeholder="05" autocomplete="off" inputmode="numeric" list="rens-dl-${r.id}"
+          onfocus="this.select()" oninput="rensUpdateRow('${r.id}','phase',phaseDepuisSaisie(this.value))" onchange="rensPhaseBlur('${r.id}',this)"
+          style="flex:1;min-width:0;width:100%;box-sizing:border-box;padding:5px 6px 5px 2px;border:none;outline:none;font-family:inherit;font-size:12px;background:transparent"/>
+      </div>
       <datalist id="rens-dl-${r.id}">${phaseOptions}</datalist>`;
 
     return `<div class="rens-row" data-rid="${r.id}" style="display:grid;grid-template-columns:32px 1fr 100px 80px 80px 1fr 36px;border-bottom:1px solid var(--border);align-items:center;background:${i%2===0?'var(--surface)':'var(--bg)'}">
