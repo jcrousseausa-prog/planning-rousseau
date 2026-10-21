@@ -344,7 +344,7 @@ table.bl-lignes td.r{text-align:right}
       <input type="text" id="search-input" placeholder="Rechercher chantier, tranche, phase (ex: Ph04)…" oninput="onSearch(this.value)"/>
     </div>
     <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
-      <button class="btn" id="btn-vue-chantier" onclick="setPlanningVue('chantier')" title="Organiser l'affichage par chantier" style="border:none;border-radius:0">🏗 Par chantier</button>
+      <button class="btn" id="btn-vue-chantier" onclick="setPlanningVue('chantier')" title="Arbre chantier → tranche → phase" style="border:none;border-radius:0">🏗 Par tranches</button>
       <button class="btn" id="btn-vue-phase" onclick="setPlanningVue('phase')" title="Liste à plat de toutes les phases, triée par numéro croissant, avec rappel de la tranche" style="border:none;border-radius:0;border-left:1px solid var(--border)">🔢 Par phase</button>
     </div>
     <button class="btn" id="btn-toggle-all" onclick="toggleAll(true)">Tout déplier</button>
@@ -403,7 +403,7 @@ table.bl-lignes td.r{text-align:right}
         <th style="width:100px">Sortie prod</th>
         <th style="width:96px" title="Atelier qui réalise la dernière opération (OF qui se termine en dernier ; « Usinage » s'il n'y a pas d'assemblage)">Dernière op.</th>
         <th style="width:110px">Statut</th>
-        <th style="width:110px">Fichier taille</th>
+        <th style="width:110px" title="Fichier de taille : Manquant → Dispo BE → En cours (plan de charge usinage) → Terminé">Fichier taille</th>
         <th style="width:90px;text-align:right">Articles</th>
       </tr></thead>
       <tbody id="planning-phase-tbody"></tbody>
@@ -1786,7 +1786,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='20/10/2026-j';
+const ERP_BUILD='21/10/2026-l';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -3160,10 +3160,7 @@ function renderPlanningParPhase(){
     }
     const sl = statutLabels[ph.statut||'planifie']||statutLabels['planifie'];
     const nbArt = state.articles.filter(a=>a.pid===ph.id).length;
-    const tailleBadge = `<button class="statut-btn" onclick="toggleFichierTaille('${ph.id}')" title="Cliquer pour basculer Dispo / Manquant" style="cursor:pointer">`
-      + (ph.fichier_taille
-      ? `<span style="font-size:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 5px;white-space:nowrap">✅ Dispo ▾</span>`
-      : `<span style="font-size:9px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;white-space:nowrap">⚠ Manquant ▾</span>`) + `</button>`;
+    const tailleBadge = `<button class="statut-btn" onclick="openTailleMenu('phase','${ph.id}',event)" title="Fichier de taille : Manquant → Dispo BE → En cours (usinage) → Terminé" style="cursor:pointer">${tailleBadgeHtml(tailleEtatPhase(ph,tr),{fleche:true})}</button>`;
     const ctvx = ctvxDeTranche(tr);
     const ctvxHtml = ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)
       ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(ctvx)}</span>`
@@ -3180,14 +3177,14 @@ function renderPlanningParPhase(){
       }
       finProdHtml = `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;background:${bg};color:${color};border:1px solid ${border};border-radius:4px;padding:1px 5px">${fmtDate(finProd)}</span>`;
     }
-    html += `<tr style="cursor:pointer;border-bottom:1px solid var(--border)" onclick="jumperVersPhase('${ph.id}')" title="Cliquer pour voir cette phase dans la vue par chantier">
+    html += `<tr style="cursor:pointer;border-bottom:1px solid var(--border)" onclick="jumperVersPhase('${ph.id}')" title="Cliquer pour voir cette phase dans la vue par tranches">
       <td style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue);white-space:nowrap;padding-left:20px">${esc(ph.num||'—')}</td>
       <td style="font-weight:500">${esc(ph.nom||'—')}</td>
       <td style="color:var(--text2)">${esc(tr.nom||'')}</td>
       <td>${ctvxHtml}</td>
       <td>${finProdHtml}</td>
       <td>${atelierFinHtml(tr, ph)}</td>
-      <td onclick="event.stopPropagation()"><button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut de la phase"><span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;white-space:nowrap">${sl[0]} ▾</span></button></td>
+      <td onclick="event.stopPropagation()"><button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut de la phase"><span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;white-space:nowrap">${sl[0]} ▾</span></button>${tailleRestanteHtml(ph,tr)}</td>
       <td onclick="event.stopPropagation()">${tailleBadge}</td>
       <td style="text-align:right;color:var(--text3);font-size:11px">${nbArt} article${nbArt!==1?'s':''}</td>
     </tr>`;
@@ -3521,10 +3518,7 @@ function renderPhRow(ph,nbArt,arts,highlight,elId,tr,ofsTranche){
   const statutBadge=`<button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut">
     <span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px">${sl[0]} ▾</span>
   </button>`;
-  const tailleBadge = `<button class="statut-btn" onclick="event.stopPropagation();toggleFichierTaille('${ph.id}')" title="Cliquer pour basculer fichier de taille Dispo / Manquant" style="cursor:pointer;margin-left:5px">`
-  + (ph.fichier_taille
-  ? `<span style="font-size:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:4px;padding:1px 5px">✅ Taille</span>`
-  : `<span style="font-size:9px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px">⚠ Taille</span>`) + `</button>`;
+  const tailleBadge = `<button class="statut-btn" onclick="openTailleMenu('phase','${ph.id}',event)" title="Fichier de taille : Manquant → Dispo BE → En cours (usinage) → Terminé" style="cursor:pointer;margin-left:5px">${tailleBadgeHtml(tailleEtatPhase(ph,tr),{court:true})}</button>`;
   // Résultat de recherche par phase (ex: "Ph04") : la ligne est surlignée pour être repérée d'un coup d'œil,
   // sans avoir à parcourir tout l'arbre chantier → tranche → phase.
   const idAttr = elId ? ` id="${elId}"` : '';
@@ -3577,7 +3571,7 @@ return`<tr class="row-phase"${idAttr}${rowStyle} onclick="toggleNode('ph','${ph.
   <td style="text-align:right;font-family:'DM Mono',monospace;font-size:11px">${bh||''}</td>
   <td>${arts.length?progHtml(avMoyen,avMoyen>=100?'prog-green':avMoyen>0?'prog-blue':'prog-orange'):''}</td>
   <td></td>
-  <td>${statutBadge}</td>
+  <td>${statutBadge}${tailleRestanteHtml(ph,tr)}</td>
   <td style="text-align:right;white-space:nowrap">
     <button class="btn btn-sm" onclick="event.stopPropagation();openEditPhase('${ph.id}')">✎</button>
     <button class="btn btn-sm btn-red" onclick="event.stopPropagation();deletePhase('${ph.id}')">✕</button>
@@ -9809,10 +9803,10 @@ async function renderSuiviProd(){
         // Phases déjà terminées/livrées (statut du Tableau de pilotage) : plus besoin de suivre leur fichier de taille
         phases = phsReelles
           .filter(ph => ph.statut!=='termine' && ph.statut!=='livre')
-          .map(ph=>({id:ph.id, num:ph.num||'', nom:ph.nom||'', fichier_taille: !!ph.fichier_taille, virtuelle:false}));
+          .map(ph=>({id:ph.id, num:ph.num||'', nom:ph.nom||'', fichier_taille: !!tailleManuelPhase(ph), etat: tailleEtatPhase(ph,tr), virtuelle:false}));
       } else if(usinageSeul){
         ateliers = ['Usinage'];
-        phases = [{id:'us_'+tr.id, num:'Taillage', nom:'Fichier de taille à préparer', fichier_taille: !!tr.fichier_taille_usinage, virtuelle:true}];
+        phases = [{id:'us_'+tr.id, num:'Taillage', nom:'Fichier de taille à préparer', fichier_taille: !!tr.fichier_taille_usinage, etat: tailleEtatTranche(tr), virtuelle:true}];
       } else {
         return null; // ni phase réelle, ni besoin usinage seul → rien à montrer
       }
@@ -9854,7 +9848,7 @@ async function renderSuiviProd(){
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
       <div style="font-size:22px;font-weight:700;color:var(--green)">${dispoCount}</div>
-      <div style="font-size:11px;color:var(--text3)">Phases fichier taille dispo</div>
+      <div style="font-size:11px;color:var(--text3)">Phases fichier taille dispo BE</div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
       <div style="font-size:22px;font-weight:700;color:var(--orange)">${totalPhases-dispoCount}</div>
@@ -9874,8 +9868,8 @@ async function renderSuiviProd(){
     <select onchange="state._suiviProdFiltres.taille=this.value;renderSuiviProd()"
       style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
       <option value="">Fichier taille : tous</option>
-      <option value="dispo"${f.taille==='dispo'?' selected':''}>✅ Disponible</option>
-      <option value="non_dispo"${f.taille==='non_dispo'?' selected':''}>⚠ Non disponible</option>
+      <option value="dispo"${f.taille==='dispo'?' selected':''}>✅ Dispo BE</option>
+      <option value="non_dispo"${f.taille==='non_dispo'?' selected':''}>⚠ Pas encore dispo</option>
     </select>
   </div>`;
 
@@ -9903,8 +9897,9 @@ async function renderSuiviProd(){
               <span style="flex:1;font-size:11px${p.virtuelle?';font-style:italic;color:var(--text3)':''}">${esc(p.nom||'')}</span>
               <label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:${p.fichier_taille?'var(--green)':'var(--text3)'};font-weight:600;white-space:nowrap">
                 <input type="checkbox" ${p.fichier_taille?'checked':''} onchange="${p.virtuelle?`toggleFichierTailleTranche('${l.tr.id}')`:`toggleFichierTaille('${p.id}')`}" style="width:14px;height:14px;cursor:pointer;accent-color:var(--green)"/>
-                Fichier de taille dispo
+                Fichier de taille dispo BE
               </label>
+              ${(p.etat==='en_cours'||p.etat==='termine')?`<span title="${esc(TAILLE_ETATS[p.etat].desc)}">${tailleBadgeHtml(p.etat)}</span>`:''}
             </div>`).join('');
           return `<tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
             <td style="padding:7px 10px;font-family:'DM Mono',monospace;white-space:nowrap;vertical-align:top">
@@ -10011,13 +10006,13 @@ async function renderPilotagePhases(){
     if(phsReelles.length){
       phases = phsReelles.map(ph=>({
         id: ph.id, num: ph.num||'', nom: ph.nom||'', statut: ph.statut||'planifie',
-        fichier_taille: !!ph.fichier_taille, commentaire: ph.commentaire||'', virtuelle:false
+        fichier_taille: !!tailleManuelPhase(ph), etat: tailleEtatPhase(ph,tr), commentaire: ph.commentaire||'', virtuelle:false
       }));
       if(f.statut!=='tous') phases = phases.filter(p=>p.statut!=='termine' && p.statut!=='livre');
     } else if(usinageSeul){
       phases = [{
         id:'us_'+tr.id, num:'Taillage', nom:'Fichier de taille à préparer', statut:'planifie',
-        fichier_taille: !!tr.fichier_taille_usinage, commentaire: tr.commentaire_usinage||'', virtuelle:true
+        fichier_taille: !!tr.fichier_taille_usinage, etat: tailleEtatTranche(tr), commentaire: tr.commentaire_usinage||'', virtuelle:true
       }];
     } else {
       phases = []; // ni phase réelle, ni besoin usinage seul → rien à montrer
@@ -10035,8 +10030,8 @@ async function renderPilotagePhases(){
   });
 
   lignes = lignes.filter(l=>{
-    if(f.taille==='dispo' && !l.ph.fichier_taille) return false;
-    if(f.taille==='non_dispo' && l.ph.fichier_taille) return false;
+    if(f.taille==='non_dispo'){ if(l.ph.etat!=='manquant') return false; }
+    else if(f.taille && l.ph.etat!==f.taille) return false;
     if(f.atelier && !l.ateliers.includes(f.atelier)) return false;
     if(q && !(norm(l.tr.nom).includes(q) || norm(l.ph.nom).includes(q) || norm(l.ph.num).includes(q) || norm(l.ch?.nom).includes(q))) return false;
     return true;
@@ -10066,7 +10061,7 @@ async function renderPilotagePhases(){
     atelier:    (a,b)=>cmpStr(a.ateliers.join(','),b.ateliers.join(',')),
     debut:      (a,b,dir)=>cmpDateDir(a.debutProd,b.debutProd,dir),
     fin:        (a,b,dir)=>cmpDateDir(a.finProd,b.finProd,dir),
-    taille_dispo: (a,b)=>cmpBool(a.ph.fichier_taille,b.ph.fichier_taille),
+    taille_dispo: (a,b)=>(TAILLE_RANG[a.ph.etat]??0)-(TAILLE_RANG[b.ph.etat]??0),
     statut:     (a,b)=>(statutRang[a.ph.statut]??0)-(statutRang[b.ph.statut]??0),
   };
   const cmp = comparateurs[f.triCol] || comparateurs.ctvx;
@@ -10078,7 +10073,7 @@ async function renderPilotagePhases(){
 
   const trancheSet = new Set(lignes.map(l=>l.tr.id));
   const totalPhases = lignes.length;
-  const dispoCount = lignes.filter(l=>l.ph.fichier_taille).length;
+  const dispoCount = lignes.filter(l=>l.ph.etat!=='manquant').length;
 
   let html = `<div style="padding:16px 20px">`;
 
@@ -10089,7 +10084,7 @@ async function renderPilotagePhases(){
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
       <div style="font-size:22px;font-weight:700;color:var(--green)">${dispoCount}</div>
-      <div style="font-size:11px;color:var(--text3)">Phases fichier taille dispo</div>
+      <div style="font-size:11px;color:var(--text3)">Phases fichier taille dispo BE</div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
       <div style="font-size:22px;font-weight:700;color:var(--orange)">${totalPhases-dispoCount}</div>
@@ -10109,8 +10104,10 @@ async function renderPilotagePhases(){
     <select onchange="state._pilotagePhasesFiltres.taille=this.value;renderPilotagePhases()"
       style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
       <option value="">Fichier taille : tous</option>
-      <option value="dispo"${f.taille==='dispo'?' selected':''}>✅ Disponible</option>
-      <option value="non_dispo"${f.taille==='non_dispo'?' selected':''}>⚠ Non disponible</option>
+      <option value="manquant"${(f.taille==='manquant'||f.taille==='non_dispo')?' selected':''}>⚠ Manquant</option>
+      <option value="dispo"${f.taille==='dispo'?' selected':''}>✅ Dispo BE</option>
+      <option value="en_cours"${f.taille==='en_cours'?' selected':''}>🔧 En cours (usinage)</option>
+      <option value="termine"${f.taille==='termine'?' selected':''}>✔ Terminé</option>
     </select>
     <select onchange="state._pilotagePhasesFiltres.statut=this.value;renderPilotagePhases()"
       style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
@@ -10185,11 +10182,7 @@ async function renderPilotagePhases(){
                  <span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px">${sl[0]} ▾</span>
                </button>`;
 
-          const tailleToggle = ph.virtuelle ? `toggleFichierTailleTranche('${l.tr.id}')` : `toggleFichierTaille('${ph.id}')`;
-          const tailleHtml = `<label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:${ph.fichier_taille?'var(--green)':'var(--text3)'};font-weight:600;white-space:nowrap">
-              <input type="checkbox" ${ph.fichier_taille?'checked':''} onchange="${tailleToggle}" style="width:13px;height:13px;cursor:pointer;accent-color:var(--green)"/>
-              ${ph.fichier_taille?'Dispo':'Non dispo'}
-            </label>`;
+          const tailleHtml = `<button class="statut-btn" onclick="openTailleMenu('${ph.virtuelle?'tranche':'phase'}','${ph.virtuelle?l.tr.id:ph.id}',event)" title="Fichier de taille : Manquant → Dispo BE → En cours (usinage) → Terminé" style="cursor:pointer">${tailleBadgeHtml(ph.etat,{fleche:true})}</button>`;
 
           const commentId = ph.virtuelle ? l.tr.id : ph.id;
           return `<tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
@@ -10241,26 +10234,121 @@ function updatePhaseCommentaire(id, value, virtuelle){
   }
 }
 
+// ═══ FICHIER DE TAILLE : 4 états ═════════════════════════════════════════
+//  ⚠ Manquant  → le BE n'a pas encore fourni le fichier
+//  ✅ Dispo BE → fichier fourni par le BE (c'est l'ancien « Fichier de taille dispo »)
+//  🔧 En cours → la tranche est planifiée dans le plan de charge usinage (automatique, ou posé à la main)
+//  ✔ Terminé   → tout est taillé (automatique quand la tranche sort du plan de charge usinage, ou posé à la main)
+// Stockage : phase.taille_statut ('' | 'dispo' | 'en_cours' | 'termine') ; phase.fichier_taille reste vrai dès que
+// le fichier est dispo (compatibilité). Côté tranche : taille_usinage ('' | 'planifie' | 'termine') posé par le serveur
+// d'après le fichier d'usinage (Source / Sauvegarde).
+const TAILLE_ETATS = {
+  manquant:{court:'Manquant', label:'⚠ Manquant', desc:'Fichier de taille pas encore fourni par le BE', c:'var(--orange)', bg:'var(--orange-bg)', bd:'var(--orange-border)'},
+  dispo:   {court:'Dispo BE', label:'✅ Dispo BE', desc:'Fichier fourni par le BE, pas encore planifié en usinage', c:'var(--green)', bg:'var(--green-bg)', bd:'var(--green-border)'},
+  en_cours:{court:'En cours', label:'🔧 En cours', desc:'Planifié dans le plan de charge usinage', c:'var(--blue)', bg:'var(--blue-bg)', bd:'var(--blue-border)'},
+  termine: {court:'Terminé', label:'✔ Terminé', desc:'Tout est taillé', c:'#fff', bg:'#1E8449', bd:'#1E8449'}
+};
+const TAILLE_RANG = {manquant:0, dispo:1, en_cours:2, termine:3};
+function tailleManuelPhase(ph){
+  const v = ph && ph.taille_statut;
+  if(v==='dispo' || v==='en_cours' || v==='termine') return v;
+  return (ph && ph.fichier_taille) ? 'dispo' : '';
+}
+function tailleEtatCalc(manuel, tr){
+  if(manuel==='termine') return 'termine';
+  if(!manuel) return 'manquant';
+  const u = tr && tr.taille_usinage;
+  if(u==='termine') return 'termine';
+  if(u==='planifie') return 'en_cours';
+  return manuel==='en_cours' ? 'en_cours' : 'dispo';
+}
+function tailleEtatPhase(ph, tr){ return tailleEtatCalc(tailleManuelPhase(ph), tr || state.tranches.find(t=>t.id===(ph&&ph.tid))); }
+function tailleEtatTranche(tr){ return tailleEtatCalc(tr && tr.fichier_taille_usinage ? 'dispo' : '', tr); }
+function tailleBadgeHtml(etat, opts){
+  opts = opts||{};
+  const e = TAILLE_ETATS[etat] || TAILLE_ETATS.manquant;
+  const txt = opts.court ? e.label.split(' ')[0] + ' Taille' + (etat==='dispo'?' BE':'') : e.label;
+  return `<span title="${esc('Fichier de taille — '+e.court+' : '+e.desc)}" style="font-size:9px;background:${e.bg};color:${e.c};border:1px solid ${e.bd};border-radius:4px;padding:1px 5px;white-space:nowrap">${txt}${opts.fleche?' ▾':''}</span>`;
+}
+// Phase assemblée / terminée alors qu'il reste du fichier de taille à produire (fichier fourni mais pas encore taillé)
+function tailleRestante(ph, tr){
+  if(!ph || (ph.statut!=='termine' && ph.statut!=='livre')) return false;
+  const e = tailleEtatPhase(ph, tr);
+  return e==='dispo' || e==='en_cours';
+}
+function tailleRestanteHtml(ph, tr){
+  return tailleRestante(ph, tr)
+    ? `<span title="Statut Terminé/Livré, mais le fichier de taille n'est pas encore taillé (usinage à produire)" style="font-size:9px;margin-left:4px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;white-space:nowrap">⚠ taille à produire</span>`
+    : '';
+}
+function openTailleMenu(kind, id, e){
+  if(e && e.stopPropagation) e.stopPropagation();
+  document.querySelectorAll('.statut-menu').forEach(m=>m.remove());
+  const ph = kind==='phase' ? state.phases.find(p=>p.id===id) : null;
+  const tr = kind==='phase' ? (ph && state.tranches.find(t=>t.id===ph.tid)) : state.tranches.find(t=>t.id===id);
+  if(!tr) return;
+  const courant = kind==='phase' ? tailleEtatPhase(ph, tr) : tailleEtatTranche(tr);
+  const choix = kind==='phase' ? ['manquant','dispo','en_cours','termine'] : ['manquant','dispo'];
+  const rect = e.currentTarget.getBoundingClientRect();
+  const menu = document.createElement('div');
+  menu.className = 'statut-menu';
+  menu.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.bottom+4}px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.15);z-index:500;overflow:hidden;min-width:260px`;
+  choix.forEach(k=>{
+    const t = TAILLE_ETATS[k], cur = courant===k;
+    const btn = document.createElement('button');
+    btn.style.cssText = `display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:${cur?'var(--blue-bg)':'var(--surface)'};color:var(--text);cursor:pointer;font-family:inherit;font-size:13px`;
+    btn.innerHTML = `<span style="display:inline-block;min-width:92px;font-weight:600;color:${k==='termine'?'#1E8449':t.c}">${cur?'✓ ':''}${esc(t.label)}</span><span style="font-size:11px;color:var(--text3)">${esc(t.desc)}</span>`;
+    btn.onmouseenter = ()=>{ if(!cur) btn.style.background='var(--bg)'; };
+    btn.onmouseleave = ()=>{ if(!cur) btn.style.background='var(--surface)'; };
+    btn.onclick = ev=>{ ev.stopPropagation(); menu.remove(); if(kind==='phase') setTailleStatut(id, k); else setTailleStatutTranche(id, k); };
+    menu.appendChild(btn);
+  });
+  const note = document.createElement('div');
+  note.style.cssText = 'padding:7px 14px;font-size:10.5px;color:var(--text3);background:var(--bg);border-top:1px solid var(--border);line-height:1.35';
+  note.textContent = kind==='phase'
+    ? "Automatique : « En cours » dès que la tranche est dans le plan de charge usinage, « Terminé » quand elle en sort (si le fichier est Dispo BE)."
+    : "« En cours » / « Terminé » se mettent tout seuls d'après le plan de charge usinage.";
+  menu.appendChild(note);
+  document.body.appendChild(menu);
+  try{
+    const mh = menu.offsetHeight, mw = menu.offsetWidth, vh = window.innerHeight, vw = window.innerWidth;
+    let top = rect.bottom + 4, left = rect.left;
+    if(top + mh > vh - 8) top = (rect.top - mh - 4 >= 8) ? rect.top - mh - 4 : Math.max(8, vh - mh - 8);
+    if(left + mw > vw - 8) left = Math.max(8, vw - mw - 8);
+    menu.style.top = top + 'px'; menu.style.left = left + 'px';
+  }catch(_e){}
+  setTimeout(()=>{
+    const close = ev=>{ if(!menu.contains(ev.target)){ menu.remove(); document.removeEventListener('click',close); } };
+    document.addEventListener('click', close);
+  }, 0);
+}
+function _rafraichirTaille(){ scheduleSave(); renderSuiviProd(); renderPlanning(); renderPilotagePhases(); }
+function setTailleStatut(phaseId, etat){
+  const ph = state.phases.find(p=>p.id===phaseId);
+  if(!ph) return;
+  ph.taille_statut = etat==='manquant' ? '' : etat;
+  ph.fichier_taille = etat!=='manquant';
+  _rafraichirTaille();
+  toast('Fichier de taille : ' + (TAILLE_ETATS[etat]||TAILLE_ETATS.manquant).court);
+}
+function setTailleStatutTranche(trId, etat){
+  const tr = state.tranches.find(t=>t.id===trId);
+  if(!tr) return;
+  tr.fichier_taille_usinage = etat!=='manquant';
+  _rafraichirTaille();
+  toast('Fichier de taille : ' + (TAILLE_ETATS[etat]||TAILLE_ETATS.manquant).court);
+}
+// Cases « Dispo BE » du Suivi production
 function toggleFichierTaille(phaseId){
   const ph = state.phases.find(p=>p.id===phaseId);
   if(!ph) return;
-  ph.fichier_taille = !ph.fichier_taille;
-  scheduleSave();
-  renderSuiviProd();
-  renderPlanning();
-  renderPilotagePhases();
-  toast(ph.fichier_taille ? '✅ Fichier de taille marqué disponible' : '⚠ Fichier de taille marqué non disponible');
+  const dispo = !!tailleManuelPhase(ph);
+  setTailleStatut(phaseId, dispo ? 'manquant' : 'dispo');
 }
-
 function toggleFichierTailleTranche(trId){
   const tr = state.tranches.find(t=>t.id===trId);
   if(!tr) return;
-  tr.fichier_taille_usinage = !tr.fichier_taille_usinage;
-  scheduleSave();
-  renderSuiviProd();
-  renderPlanning();
-  renderPilotagePhases();
-  toast(tr.fichier_taille_usinage ? '✅ Fichier de taille marqué disponible' : '⚠ Fichier de taille marqué non disponible');
+  setTailleStatutTranche(trId, tr.fichier_taille_usinage ? 'manquant' : 'dispo');
 }
 async function syncInitialeOF() {
   if(!confirm('Importer tous les OF du planning prod vers le suivi production ?\nCela créera les articles manquants.')) return;
