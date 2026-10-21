@@ -1786,7 +1786,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='21/10/2026-l';
+const ERP_BUILD='21/10/2026-m';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -10270,15 +10270,18 @@ function tailleBadgeHtml(etat, opts){
   const txt = opts.court ? e.label.split(' ')[0] + ' Taille' + (etat==='dispo'?' BE':'') : e.label;
   return `<span title="${esc('Fichier de taille — '+e.court+' : '+e.desc)}" style="font-size:9px;background:${e.bg};color:${e.c};border:1px solid ${e.bd};border-radius:4px;padding:1px 5px;white-space:nowrap">${txt}${opts.fleche?' ▾':''}</span>`;
 }
-// Phase assemblée / terminée alors qu'il reste du fichier de taille à produire (fichier fourni mais pas encore taillé)
+// Phase assemblée / terminée alors que sa tranche est encore dans le plan de charge usinage (taille à produire)
 function tailleRestante(ph, tr){
   if(!ph || (ph.statut!=='termine' && ph.statut!=='livre')) return false;
+  tr = tr || state.tranches.find(t=>t.id===ph.tid);
+  // Alerte uniquement si la tranche figure dans le plan de charge usinage (taille réellement à produire)
+  if(!tr || tr.taille_usinage!=='planifie') return false;
   const e = tailleEtatPhase(ph, tr);
   return e==='dispo' || e==='en_cours';
 }
 function tailleRestanteHtml(ph, tr){
   return tailleRestante(ph, tr)
-    ? `<span title="Statut Terminé/Livré, mais le fichier de taille n'est pas encore taillé (usinage à produire)" style="font-size:9px;margin-left:4px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;white-space:nowrap">⚠ taille à produire</span>`
+    ? `<span title="Statut Terminé/Livré, mais le fichier de taille est encore dans le plan de charge usinage (taille à produire)" style="font-size:9px;margin-left:4px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:4px;padding:1px 5px;white-space:nowrap">⚠ taille à produire</span>`
     : '';
 }
 function openTailleMenu(kind, id, e){
