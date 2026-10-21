@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261015-1000">
+<meta name="version" content="20261021-1000">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -262,15 +262,56 @@ transition:all .3s;
 .modal-bg-charge { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:100; padding:1rem; }
 
 @media (max-width:700px) { main { padding:.85rem; } .gantt-label-col-hd, .gantt-row-label, .gantt-atelier-title { min-width:130px; width:130px; } }
+
+/* ── ÉCRAN DE CONNEXION (identique à l'ERP) ── */
+#login-screen{position:fixed;inset:0;background:var(--bg);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 40px;width:380px;max-width:100%;box-shadow:0 8px 40px rgba(0,0,0,.12)}
+.login-logo{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.login-logo .logo-text{font-size:18px;font-weight:700;letter-spacing:-.02em}
+.login-logo .logo-sub{font-size:12px;color:var(--text3);font-weight:400;display:block;margin-top:1px}
+.login-field{margin-bottom:14px}
+.login-field label{display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.login-field input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-family:inherit;font-size:14px;background:var(--surface);color:var(--text);transition:border-color .15s}
+.login-field input:focus{outline:none;border-color:var(--blue)}
+.login-btn{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:9px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;margin-top:6px;transition:background .15s}
+.login-btn:hover{background:#153f6e}
+.login-btn:disabled{opacity:.6;cursor:wait}
+.login-error{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:7px;padding:8px 12px;font-size:12px;margin-top:10px;display:none}
+#user-pill{display:none;align-items:center;gap:6px;font-size:12px;color:var(--text2);border:1px solid var(--border2);padding:6px 11px;border-radius:8px;background:var(--surface)}
+@media print { #login-screen{display:none!important} }
 </style>
 </head>
 <body>
+
+<!-- ══ ÉCRAN LOGIN (mêmes comptes que l'ERP) ══ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div>
+        <div class="logo-text">Planning Production <span style="color:var(--text3);font-weight:400">Rousseau Construction</span></div>
+        <span class="logo-sub">Connexion requise pour accéder</span>
+      </div>
+    </div>
+    <div class="login-field">
+      <label>Identifiant</label>
+      <input type="text" id="login-user" placeholder="Votre identifiant" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()"/>
+    </div>
+    <div class="login-field">
+      <label>Mot de passe</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
+    </div>
+    <button class="login-btn" onclick="doLogin()" id="login-btn-submit">Se connecter</button>
+    <div class="login-error" id="login-error">Identifiant ou mot de passe incorrect.</div>
+    <div id="login-loading" style="text-align:center;font-size:12px;color:var(--text3);margin-top:10px;display:none">⟳ Vérification en cours…</div>
+  </div>
+</div>
 
 <div class="conn-bar connected" id="conn-bar">
 <div class="conn-dot"></div>
 <span id="conn-text">Google Sheets</span>
 <span id="conn-error-detail" style="font-size:11px;margin-left:6px;opacity:.85;display:none"></span>
 <div class="conn-right">
+<span id="build-tag" style="font-size:10px;opacity:.6"></span>
 <span class="conn-users" id="conn-users"></span>
 <span class="mode-badge" id="mode-badge"></span>
 <span class="sync-pill" id="sync-pill" style="display:none">
@@ -295,6 +336,8 @@ transition:all .3s;
 <header>
 <div class="logo">Planning Production <span>/ Ateliers</span></div>
 <div class="header-actions">
+<span id="user-pill"><span id="user-pill-name"></span></span>
+<button class="btn" id="btn-logout" onclick="doLogout()" style="display:none" title="Se déconnecter">⎋ Déconnexion</button>
 <a href="erp.html" style="font-size:12px;color:var(--text2);text-decoration:none;border:1px solid var(--border2);padding:7px 13px;border-radius:8px;background:var(--surface)">📊 ERP</a>
 <div class="view-toggle">
 <button class="vbtn active" id="vbtn-table" onclick="setView('table')">Tableau</button>
@@ -520,8 +563,88 @@ const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRoI_ySa
 const _TAB_ID = Math.random().toString(36).slice(2,8);
 const _UA_COURT = (()=>{ try{ const u=navigator.userAgent||''; const nav=/Edg\//.test(u)?'Edge':/Chrome\//.test(u)?'Chrome':/Firefox\//.test(u)?'Firefox':/Safari\//.test(u)?'Safari':'?'; return nav+' / '+(navigator.platform||''); }catch(e){ return ''; } })();
 const CLIENT_VERSION = (()=>{ try{ const m=document.querySelector('meta[name="version"]'); return m?m.content:''; }catch(e){ return ''; } })();
-const IS_READONLY = window.location.search.includes('readonly') ||
+setTimeout(()=>{ try{ const e=document.getElementById('build-tag'); if(e) e.textContent='v'+CLIENT_VERSION; }catch(_e){} },0);
+let IS_READONLY = window.location.search.includes('readonly') ||
 document.body.dataset.readonly === 'true';
+
+// ═══ PROTECTION D'ACCÈS — mêmes comptes et même contrôle (action checkLogin) que l'ERP ═══
+// La session est mémorisée dans sessionStorage ('erp_user', même clé que l'ERP) : une connexion
+// dans l'ERP ouvre aussi le planning dans le même onglet, et inversement. Fermer l'onglet = déconnexion.
+// Profil « lecture » = consultation seule (aucune modification possible).
+let _authUser = null, _appDemarree = false;
+function checkExistingSession(){
+  try{
+    const stored = sessionStorage.getItem('erp_user');
+    if(stored){ const u = JSON.parse(stored); if(u && (u.login || u.nom)){ _authUser = u; return true; } }
+  }catch(e){}
+  return false;
+}
+async function doLogin(){
+  const login = document.getElementById('login-user').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  const loadEl= document.getElementById('login-loading');
+  const btnEl = document.getElementById('login-btn-submit');
+  errEl.style.display = 'none';
+  if(!login||!pass){ errEl.textContent='Veuillez remplir les deux champs.'; errEl.style.display='block'; return; }
+  loadEl.style.display = 'block';
+  btnEl.disabled = true;
+  try{
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({ action:'checkLogin', login, pass })
+    });
+    const r = await res.json();
+    if(r.ok && r.user){
+      _authUser = r.user;
+      try{ sessionStorage.setItem('erp_user', JSON.stringify(_authUser)); }catch(e){}
+      hideLoginScreen();
+    } else {
+      errEl.textContent = r.error || 'Identifiant ou mot de passe incorrect.';
+      errEl.style.display = 'block';
+      document.getElementById('login-pass').value = '';
+    }
+  }catch(e){
+    // Serveur inaccessible : même compte de secours que l'ERP, mais en CONSULTATION SEULE
+    // (sans serveur, de toute façon, rien ne peut être enregistré).
+    console.warn('Apps Script inaccessible, fallback local:', e.message);
+    if(login.toLowerCase()==='admin' && pass==='rousseau2026'){
+      _authUser = { login:'admin', nom:'Administrateur', profil:'admin', droits:{}, _horsLigne:true };
+      try{ sessionStorage.setItem('erp_user', JSON.stringify(_authUser)); }catch(e2){}
+      hideLoginScreen();
+    } else {
+      errEl.textContent = 'Erreur de connexion au serveur. Identifiant/mot de passe incorrect ou réseau indisponible.';
+      errEl.style.display = 'block';
+    }
+  }finally{
+    loadEl.style.display = 'none';
+    btnEl.disabled = false;
+  }
+}
+function doLogout(){
+  if(!confirm('Se déconnecter ?')) return;
+  try{ sessionStorage.removeItem('erp_user'); sessionStorage.removeItem('erp_screen'); }catch(e){}
+  _authUser = null;
+  window.location.reload();
+}
+function hideLoginScreen(){
+  document.getElementById('login-screen').style.display = 'none';
+  const pill = document.getElementById('user-pill');
+  if(pill){
+    pill.style.display = 'inline-flex';
+    document.getElementById('user-pill-name').textContent = '👤 ' + (_authUser.nom || _authUser.login) + ' · ' + (_authUser.profil||'?');
+  }
+  const lo = document.getElementById('btn-logout'); if(lo) lo.style.display = '';
+  // Profil « lecture » (ou session de secours hors ligne) → consultation seule
+  if(_authUser.profil === 'lecture' || _authUser._horsLigne) IS_READONLY = true;
+  demarrerApp();
+}
+function demarrerApp(){
+  if(_appDemarree) return;
+  _appDemarree = true;
+  setTimeout(initApp, 100);
+  setTimeout(refreshCtvxDepuisDATES, 1500);
+}
 
 const ATELIERS = [
 {id:'b1', label:'Charpente B1', color:'#2471A3'},
@@ -800,6 +923,7 @@ async function initApp() {
 
     rechainAll();
     setSyncPill('ok', 'Synchronisé');
+    _offlineSince = 0; state._initOk = true;
     setOnlineIndex();
     render();
     // Lier automatiquement les tranches à l'ERP / DATES dès que le tableau est affiché
@@ -1059,24 +1183,38 @@ async function _saveToSupabaseOnce(atId) {
       sentSuppr.forEach(k => _suppr.delete(k));
       sentAjout.forEach(k => _fermAjout.delete(k)); sentRetire.forEach(k => _fermRetire.delete(k)); sentJours.forEach(a => _joursDirty.delete(a));
       _sauverBackupFerm(cal.ferm);
+      _offlineSince = 0; _busyCount = 0;
       setOnlineIndex();
       setSyncPill('ok', 'Enregistré ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
     } else throw new Error(r.error);
   } catch(e) {
-    setOfflineIndex('Erreur sauvegarde : ' + e.message);
-    console.warn('Save error:', e.message);
+    const msg = String((e && e.message) || e);
+    // « Serveur occupé » (verrou Apps Script pris par une autre écriture) = passager : on réessaie tout seul,
+    // sans basculer toute la page en « connexion perdue ».
+    if (/occup|busy|timed? ?out|lock/i.test(msg) && ++_busyCount <= 6) {
+      setSyncPill('saving', 'Serveur occupé — nouvel essai automatique…');
+      console.warn('Save busy (' + _busyCount + '):', msg);
+      return 'retry';
+    }
+    _busyCount = 0;
+    setOfflineIndex('Erreur sauvegarde : ' + msg);
+    console.warn('Save error:', msg);
   }
 }
 function saveToSheets(atId) { return saveToSupabase(atId); }
 
 let _isOfflineIndex = false;
+let _offlineSince = 0, _derniereErreur = '', _reconnexionEnCours = false, _busyCount = 0;
 let _offlineErrorsIndex = 0;
 let _tabBlinkIndex = null;
 
 function setOfflineIndex(errorMsg) {
   _isOfflineIndex = true;
   _offlineErrorsIndex++;
-  setConnBar('error', '⚠ Connexion perdue — ' + (errorMsg || 'erreur réseau'));
+  if(!_offlineSince) _offlineSince = Date.now();
+  _derniereErreur = String(errorMsg||'');
+  const _auto = !/périmée/i.test(_derniereErreur) && (Date.now() - _offlineSince) < 10*60*1000;
+  setConnBar('error', '⚠ Connexion perdue — ' + (errorMsg || 'erreur réseau') + (_auto ? ' — nouvelle tentative automatique…' : ''));
   const detail = document.getElementById('conn-error-detail');
   if (detail) { detail.textContent = '(' + _offlineErrorsIndex + ' erreur' + (_offlineErrorsIndex>1?'s':'') + ')'; detail.style.display='inline'; }
   const retryBtn = document.getElementById('conn-retry-btn');
@@ -1102,29 +1240,59 @@ function setOnlineIndex() {
   if (_tabBlinkIndex) { clearInterval(_tabBlinkIndex); _tabBlinkIndex = null; document.title = 'Planning Production — Rousseau'; }
 }
 
+async function _testerConnexion() {
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST', headers: {'Content-Type': 'text/plain'},
+    body: JSON.stringify({action: 'getTranches'})
+  });
+  const r = await res.json();
+  if (!r.ok) throw new Error(r.error || 'Réponse invalide');
+  return r;
+}
+// Serveur de nouveau joignable : on enregistre ce qui était en attente, sinon on se resynchronise
+// (si le chargement initial avait échoué, on le refait en entier).
+async function _apresReconnexion() {
+  if (!state._initOk) { await initApp(); return; }
+  setOnlineIndex();
+  if (_modifsEnAttente()) {
+    setSyncPill('saving', 'Reconnexion — enregistrement…');
+    await saveToSupabase(state.atelier);
+  } else {
+    _offlineSince = 0;
+    setSyncPill('saving', 'Reconnexion — synchronisation…');
+    await syncDistant();
+    setSyncPill('ok', 'Reconnecté ' + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+  }
+}
 async function retryConnectionIndex() {
   const btns = document.querySelectorAll('.offline-retry-btn, #conn-retry-btn');
   btns.forEach(b => { b.textContent = '⟳ Test...'; b.disabled = true; });
+  _reconnexionEnCours = true;
   try {
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST', headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({action: 'getTranches'})
-    });
-    const r = await res.json();
-    if (r.ok) {
-      setOnlineIndex();
-      setSyncPill('saving', 'Reconnexion...');
-      for (const atId of Object.keys(state.tranches)) {
-        await saveToSupabase(atId);
-        break;
-      }
-    } else throw new Error(r.error || 'Réponse invalide');
+    await _testerConnexion();
+    await _apresReconnexion();
   } catch(e) {
+    _offlineSince = Date.now();   // l'utilisateur est présent : on relance la fenêtre de reconnexion automatique
     setOfflineIndex('Serveur toujours inaccessible : ' + e.message);
   } finally {
+    _reconnexionEnCours = false;
     btns.forEach(b => { b.textContent = '↻ Réessayer'; b.disabled = false; });
   }
 }
+// Reconnexion automatique : toutes les 20 s tant que la page est hors ligne depuis moins de 10 min
+// (au-delà, ou si la version est périmée : bouton « Réessayer » / rechargement).
+async function reconnexionAuto() {
+  if (!_isOfflineIndex || _reconnexionEnCours) return;
+  if (/périmée/i.test(_derniereErreur)) return;
+  if (_offlineSince && Date.now() - _offlineSince > 10*60*1000) return;
+  _reconnexionEnCours = true;
+  try {
+    await _testerConnexion();
+    await _apresReconnexion();
+  } catch(e) { /* toujours hors ligne : nouvel essai au prochain passage */ }
+  finally { _reconnexionEnCours = false; }
+}
+setInterval(reconnexionAuto, 20000);
 
 async function deleteFromSupabase(dbId) {
 if (!_sbConnected || IS_READONLY || !dbId) return;
@@ -1466,7 +1634,7 @@ const searchArea = document.getElementById('search-area');
 if(searchArea) searchArea.style.display = 'block';
 const _btnUndoTri = document.getElementById('btn-tri-undo');
 if(_btnUndoTri) _btnUndoTri.style.display = (_triUndo[atId] && !IS_READONLY) ? '' : 'none';
-const _nRetirables = IS_READONLY ? 0 : tr.filter(t=>!t.termine && statutErpTranche(t)).length;
+const _nRetirables = IS_READONLY ? 0 : tr.filter(t=>!t.termine && statutErpTranche(t) && !termineErpDouteux(t,atId)).length;
 const _btnRet = document.getElementById('btn-retirer-livrees');
 if(_btnRet){ _btnRet.style.display = _nRetirables ? '' : 'none'; _btnRet.textContent = '✅ Retirer les livrées/terminées ('+_nRetirables+')'; }
 const _btnRetU = document.getElementById('btn-retirer-undo');
@@ -1495,7 +1663,7 @@ ondrop="dropRow(event,'${atId}',${realIdx});this.classList.remove('drag-over')">
 <td>
   <div style="font-size:11px;word-break:break-word;white-space:normal;line-height:1.3;padding:2px 0;user-select:text;cursor:text;display:flex;align-items:flex-start;gap:5px" ondragstart="event.stopPropagation()" onmousedown="event.stopPropagation()">
     ${lienDotHtml(t)}
-    <span>${esc(t.tranche)}${livreBadgeHtml(t)}</span>
+    <span>${esc(t.tranche)}${livreBadgeHtml(t,atId)}</span>
   </div>
 </td>
 <td>
@@ -1586,11 +1754,13 @@ function retirerLivreesTerminees(atId, sansConfirmation){
   if(IS_READONLY) return 0;
   atId = atId || state.atelier;
   if(!(state._erpIdx && state._erpIdx.statut)){ toast('Statuts ERP pas encore chargés — réessayez dans quelques secondes'); return 0; }
-  const cibles = (state.tranches[atId]||[]).filter(t=>!t.termine && statutErpTranche(t));
-  if(!cibles.length){ toast('Aucune tranche livrée/terminée à retirer'); return 0; }
+  const toutes = (state.tranches[atId]||[]).filter(t=>!t.termine && statutErpTranche(t));
+  const douteuses = toutes.filter(t=>termineErpDouteux(t,atId));
+  const cibles = toutes.filter(t=>!douteuses.includes(t));
+  if(!cibles.length){ toast(douteuses.length ? douteuses.length+' tranche(s) « Terminé » dans l\'ERP mais encore planifiée(s) : à vérifier dans l\'ERP' : 'Aucune tranche livrée/terminée à retirer'); return 0; }
   if(!sansConfirmation){
     const noms = cibles.slice(0,10).map(t=>'• '+t.tranche+' ('+(statutErpTranche(t)==='livre'?'livré':'terminé')+')').join('\n');
-    const msg = 'Retirer du planning '+cibles.length+' tranche(s) déclarée(s) livrée(s)/terminée(s) dans l\'ERP ?\n\n'+noms+(cibles.length>10?'\n… et '+(cibles.length-10)+' autre(s)':'')+'\n\nVous pourrez annuler avec « Annuler le retrait ».';
+    const msg = 'Retirer du planning '+cibles.length+' tranche(s) déclarée(s) livrée(s)/terminée(s) dans l\'ERP ?\n\n'+noms+(cibles.length>10?'\n… et '+(cibles.length-10)+' autre(s)':'')+(douteuses.length?'\n\n⚠ '+douteuses.length+' tranche(s) NON retirée(s) : « Terminé » dans l\'ERP mais production encore prévue ('+douteuses.slice(0,4).map(t=>t.tranche).join(' ; ')+(douteuses.length>4?' …':'')+')':'')+'\n\nVous pourrez annuler avec « Annuler le retrait ».';
     if(!confirm(msg)) return 0;
   }
   const jour = new Date().toISOString().slice(0,10);
@@ -1858,7 +2028,7 @@ ${t.parallel?`<span class="flag-pill flag-parallel">⇉ parallèle</span>`:''}
 </div>`:'';
 return`<div class="gantt-row" style="${rowBg}">
 <div class="gantt-row-label">
-<div class="tranche-name">${esc(t.tranche)}${lienGanttHtml(t)}${livreBadgeHtml(t)}</div>
+<div class="tranche-name">${esc(t.tranche)}${lienGanttHtml(t)}${livreBadgeHtml(t,atId)}</div>
 ${t.comment?`<div class="tranche-comment">${esc(t.comment)}</div>`:''}
 ${flagsHtml}
 </div>
@@ -2745,13 +2915,18 @@ html+=`<div class="ch-stat-row"><div class="ch-stat"><b>${joursOccupes.size}</b>
 document.getElementById('charge-content').innerHTML=html;
 }
 
-setTimeout(initApp, 100);
+// Démarrage : l'application ne charge AUCUNE donnée tant que l'utilisateur n'est pas connecté.
+(function(){
+  if(checkExistingSession()) hideLoginScreen();
+  else { try{ document.getElementById('login-user').focus(); }catch(e){} }
+})();
 
 // ── SYNC MULTI-UTILISATEUR ────────────────────────────────────────────────
 // Relit getTranches toutes les 30s et merge silencieusement les changements
 // distants dans le state local, sans écraser les modifications en cours.
 // Préserve : termine, lockDebut, lockFin, ordre local non encore sauvegardé.
 async function syncDistant() {
+  if (!_authUser) return;
   if (_isOfflineIndex) return;
   // Ne pas syncer si une sauvegarde est en attente (éviter les conflits)
   if (_saveTimeout || _saveInFlight || _modifsEnAttente()) return;
@@ -2960,9 +3135,18 @@ function statutErpTranche(t){
 }
 function estLivre(t){ return statutErpTranche(t) === 'livre'; }
 function estTermineErp(t){ return statutErpTranche(t) === 'termine'; }
-function livreBadgeHtml(t){
+// « Terminé » dans l'ERP alors que la production est encore prévue au planning (fin prévue aujourd'hui ou plus tard) :
+// presque toujours un statut posé trop tôt dans l'ERP (ex. sync « fin usinage ») — à vérifier, pas à retirer d'office.
+function termineErpDouteux(t, atId){
+  if(!atId || t.termine || statutErpTranche(t) !== 'termine') return false;
+  try{ const f = dateFin(t, atId); return !!f && f >= today(); }catch(e){ return false; }
+}
+function livreBadgeHtml(t, atId){
   const v = statutErpTranche(t);
   if(!v) return '';
+  if(termineErpDouteux(t, atId)){
+    return `<span style="display:inline-block;margin-left:5px;padding:0 6px;border-radius:9px;font-size:9.5px;font-weight:700;line-height:15px;white-space:nowrap;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);vertical-align:middle" title="${esc("L'ERP déclare cette tranche « Terminé » mais la production est encore prévue ici jusqu'au "+fmtDate(dateFin(t,atId))+". Si c'est une erreur : ERP › Tableau de pilotage › Par chantier › statut de la tranche › En cours.")}">⚠ Terminé dans l'ERP ?</span>`;
+  }
   const liv = v === 'livre';
   const col = liv ? ['var(--purple-bg)','var(--purple)','var(--purple-border)','📦 Livré','Déclarée « Livré » dans l\'ERP — à retirer du planning (cocher ✅ terminé)']
                   : ['var(--purple-bg)','var(--purple)','var(--purple-border)','✅ Terminé','Déclarée « Terminé » dans l\'ERP — à retirer du planning si plus à produire (cocher ✅ terminé)'];
@@ -3080,6 +3264,7 @@ async function refreshErpTranches(){
 
 // Fonction de mise à jour CTVX + liens depuis ERP / fichier DATES — réutilisable
 function refreshCtvxDepuisDATES(){
+  if(!_authUser) return Promise.resolve(0);
   return refreshErpTranches().then(()=>
     fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getDATES'})})
   ).then(r=>r.json()).then(async r=>{
@@ -3102,7 +3287,6 @@ function refreshCtvxDepuisDATES(){
 }
 
 // Appel immédiat au chargement (pas seulement toutes les 10 min)
-setTimeout(refreshCtvxDepuisDATES, 1500);
 
 // Recalculer liens + CTVX toutes les 10 minutes
 setInterval(refreshCtvxDepuisDATES, 10*60*1000);
