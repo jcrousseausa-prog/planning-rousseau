@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261021-1000">
+<meta name="version" content="20261102-1000">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -458,6 +458,10 @@ transition:all .3s;
 <label>Date besoin CTVX</label>
 <input type="date" id="f-besoin"/>
 </div>
+<div class="form-group">
+<label>Date reprojetée <span style="font-weight:400;color:var(--text3)">(remplace la CTVX comme date de besoin — vide = identique à la CTVX)</span></label>
+<input type="date" id="f-reproj"/>
+</div>
 <div style="border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:.5rem">
 <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px">⚙ Options de planification</div>
 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -745,7 +749,7 @@ try {
       _dbId: get(cols,'id'), id: get(cols,'id'),
       tranche: get(cols,'nom'), comment: get(cols,'commentaire'),
       debut: get(cols,'date_debut')||'', duree: roundTenth(parseFloat(get(cols,'duree_jours')))||1,
-      besoin: get(cols,'date_besoin')||null, ordre: parseInt(get(cols,'ordre'))||i,
+      besoin: get(cols,'date_besoin')||null, reproj: get(cols,'date_reprojetee')||null, ordre: parseInt(get(cols,'ordre'))||i,
       lockDebut: get(cols,'lock_debut')==='TRUE', lockFin: get(cols,'lock_fin')==='TRUE',
       lockFinDate: get(cols,'lock_fin_date')||null, parallel: get(cols,'parallel')==='TRUE',
       termine: get(cols,'termine')==='TRUE', _termineLe: get(cols,'_termineLe')||'',
@@ -803,7 +807,7 @@ async function initApp() {
       tr[atId].push({
   _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
   debut:normD(t.date_debut), duree:roundTenth(parseFloat(t.duree_jours))||1,
-  besoin:normD(t.date_besoin)||null, ordre:parseInt(t.ordre)||i,
+  besoin:normD(t.date_besoin)||null, reproj:normD(t.date_reprojetee)||null, ordre:parseInt(t.ordre)||i,
   lockDebut:normBool(t.lock_debut),
   lockFin:normBool(t.lock_fin),
   lockFinDate:normD(t.lock_fin_date)||null,
@@ -820,6 +824,7 @@ async function initApp() {
       state.tranches = tr;
       state._baseTime = Number(rAS.serverTime)||0;
       state._csvFallback = false;
+      state._srvReproj = (rAS.tranches||[]).some(x => x && ('date_reprojetee' in x));   // false = Code.gs pas encore à jour
       total = Object.values(tr).reduce((s,a)=>s+a.length,0);
       source = 'Sheets';
     } catch(asErr) {
@@ -840,7 +845,7 @@ async function initApp() {
         tr[atId].push({
           _dbId:get(cols,'id'), id:get(cols,'id'), tranche:get(cols,'nom'), comment:get(cols,'commentaire'),
           debut:get(cols,'date_debut')||'', duree:roundTenth(parseFloat(get(cols,'duree_jours')))||1,
-          besoin:get(cols,'date_besoin')||null, ordre:parseInt(get(cols,'ordre'))||i,
+          besoin:get(cols,'date_besoin')||null, reproj:get(cols,'date_reprojetee')||null, ordre:parseInt(get(cols,'ordre'))||i,
           lockDebut:get(cols,'lock_debut')==='TRUE', lockFin:get(cols,'lock_fin')==='TRUE',
           lockFinDate:get(cols,'lock_fin_date')||null, parallel:get(cols,'parallel')==='TRUE',
           termine:get(cols,'termine')==='TRUE', _termineLe:get(cols,'_termineLe')||'',
@@ -1008,6 +1013,7 @@ comment: row.commentaire || '',
 debut: row.date_debut,
 duree: row.duree_jours,
 besoin: row.date_besoin || null,
+reproj: row.date_reprojetee || null,
 ordre: row.ordre || 0,
 lockDebut: row.lock_debut || false,
 lockFin: row.lock_fin || false,
@@ -1025,6 +1031,7 @@ commentaire: t.comment || '',
 date_debut: t.debut,
 duree_jours: t.duree || 1,
 date_besoin: t.besoin || null,
+date_reprojetee: t.reproj || null,
 ordre: t.ordre || 0,
 lock_debut: t.lockDebut || false,
 lock_fin: t.lockFin || false,
@@ -1126,7 +1133,7 @@ async function _saveToSupabaseOnce(atId) {
   id: t._dbId||t.id||'', atelier_id: aid,
   nom: t.tranche||'', commentaire: t.comment||'',
   date_debut: t.debut||'', duree_jours: t.duree||1,
-  date_besoin: t.besoin||'', ordre: t.ordre||0,
+  date_besoin: t.besoin||'', date_reprojetee: t.reproj||'', ordre: t.ordre||0,
   lock_debut: t.lockDebut?'TRUE':'FALSE', lock_fin: t.lockFin?'TRUE':'FALSE',
   lock_fin_date: t.lockFinDate||'', parallel: t.parallel?'TRUE':'FALSE',
   termine: t.termine?'TRUE':'FALSE',
@@ -1377,9 +1384,21 @@ function normalizeDate(s) {
   return null;
 }
 
+// ── Date reprojetée : par défaut = date CTVX ; une fois saisie, elle REMPLACE la CTVX
+//    comme date de besoin (statut, Gantt, charge, tri). La CTVX (t.besoin) continue d'être
+//    mise à jour depuis DATES, sans jamais écraser la reprojetée (t.reproj).
+function besoinEff(t){ return (t && (t.reproj || t.besoin)) || null; }
+function reprojActive(t){ return !!(t && t.reproj && t.reproj !== t.besoin); }
+function onReprojChange(atId,idx,val){
+  const t=(state.tranches[atId]||[])[idx]; if(!t) return;
+  const v=String(val||'').trim();
+  updT(atId,idx,'reproj',(v && v!==t.besoin)?v:'');
+}
+
 function normalizeTranche(t) {
 t.debut       = normalizeDate(t.debut) || today();
 t.besoin      = normalizeDate(t.besoin) || null;
+t.reproj      = normalizeDate(t.reproj) || null;
 t.lockFinDate = normalizeDate(t.lockFinDate) || null;
 if (t.lockDebut  === undefined) t.lockDebut  = false;
 if (t.lockFin    === undefined) t.lockFin    = false;
@@ -1567,8 +1586,8 @@ const atId=state.atelier;
 const off=state.joursOff[atId]||[];
 const open=state.joursOpen;
 const tr=state.tranches[atId]||[];
-const retards=tr.filter(t=>t.besoin&&diffDays(dateFin(t,atId),t.besoin)<0).length;
-const urgents=tr.filter(t=>{if(!t.besoin)return false;const d=diffDays(dateFin(t,atId),t.besoin);return d>=0&&d<=3;}).length;
+const retards=tr.filter(t=>besoinEff(t)&&diffDays(dateFin(t,atId),besoinEff(t))<0).length;
+const urgents=tr.filter(t=>{const b=besoinEff(t);if(!b)return false;const d=diffDays(dateFin(t,atId),b);return d>=0&&d<=3;}).length;
 const offLabels=[...JOURS_LABELS.filter((_,i)=>off.includes(i)),...(off.includes(7)?['Fériés']:[])];
 const fermAll=state.fermetures.filter(f=>f.atelier==='all');
 const fermAtId=state.fermetures.filter(f=>f.atelier===atId);
@@ -1639,14 +1658,14 @@ const _btnRet = document.getElementById('btn-retirer-livrees');
 if(_btnRet){ _btnRet.style.display = _nRetirables ? '' : 'none'; _btnRet.textContent = '✅ Retirer les livrées/terminées ('+_nRetirables+')'; }
 const _btnRetU = document.getElementById('btn-retirer-undo');
 if(_btnRetU) _btnRetU.style.display = (_retraitUndo[atId] && !IS_READONLY) ? '' : 'none';
-let html=`
+let html=`${state._srvReproj===false?'<div style="margin:0 0 8px;padding:7px 12px;border:1px solid var(--orange);background:var(--orange-bg);color:var(--orange);border-radius:8px;font-size:12px;font-weight:600">⚠ Le script Google (Code.gs) n\'est pas à jour : les dates reprojetées ne seront PAS enregistrées après rechargement.</div>':''}
 <div class="table-wrap"><table><thead><tr>
 <th style="width:32px">⠿</th>
 <th>Tranche</th><th>Commentaire</th><th style="color:var(--text3);font-size:10px">Début</th><th style="font-size:12px;color:var(--green);font-weight:700">Fin prod</th><th style="color:var(--text3);font-size:10px">Dur.</th>
-<th>CTVX</th><th>Statut</th><th style="width:32px;text-align:center" title="Marquer terminé — retire la ligne du planning">✅</th>
+<th title="Date CTVX (issue de DATES)">CTVX</th><th title="Date reprojetée : remplace la CTVX comme date de besoin. Vide = identique à la CTVX">Reprojetée</th><th>Statut</th><th style="width:32px;text-align:center" title="Marquer terminé — retire la ligne du planning">✅</th>
 ${IS_READONLY?'':`<th style="width:24px;text-align:center;font-size:10px" title="Figer début">🔒D</th><th style="width:24px;text-align:center;font-size:10px" title="Figer fin">🔒F</th><th style="width:24px;text-align:center;font-size:10px" title="Parallèle">⇉</th><th style="width:60px"></th>`}
 </tr></thead><tbody>`;
-if(!rows.length) html+=`<tr><td colspan="12" class="empty-state">${q?`Aucun résultat pour "${esc(q)}"`:IS_READONLY?'Aucune tranche planifiée.':'Aucune tranche — cliquez sur "+ OF".'}</td></tr>`;
+if(!rows.length) html+=`<tr><td colspan="13" class="empty-state">${q?`Aucun résultat pour "${esc(q)}"`:IS_READONLY?'Aucune tranche planifiée.':'Aucune tranche — cliquez sur "+ OF".'}</td></tr>`;
 rows.forEach((realIdx)=>{
 const t = tr[realIdx];
 const finP=finPos(t,atId);
@@ -1673,13 +1692,14 @@ ondrop="dropRow(event,'${atId}',${realIdx});this.classList.remove('drag-over')">
 <td><input type="date" value="${t.debut}" onchange="updT('${atId}',${realIdx},'debut',this.value)" ${IS_READONLY?'readonly':''} style="width:110px;font-size:11px;color:var(--text3)"/>${debutFracLabel}</td>
 <td>
   <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block;
-    background:${fin<today()&&!t.besoin?'var(--red-bg)':t.besoin&&fin>t.besoin?'var(--red-bg)':t.besoin&&diffDays(fin,t.besoin)<=3?'var(--orange-bg)':'var(--green-bg)'};
-    color:${fin<today()&&!t.besoin?'var(--red)':t.besoin&&fin>t.besoin?'var(--red)':t.besoin&&diffDays(fin,t.besoin)<=3?'var(--orange)':'var(--green)'}">
+    background:${fin<today()&&!besoinEff(t)?'var(--red-bg)':besoinEff(t)&&fin>besoinEff(t)?'var(--red-bg)':besoinEff(t)&&diffDays(fin,besoinEff(t))<=3?'var(--orange-bg)':'var(--green-bg)'};
+    color:${fin<today()&&!besoinEff(t)?'var(--red)':besoinEff(t)&&fin>besoinEff(t)?'var(--red)':besoinEff(t)&&diffDays(fin,besoinEff(t))<=3?'var(--orange)':'var(--green)'}">
     ${fmtDate(fin)}
   </span>${finFracLabel}
 </td>
 <td><input type="number" value="${t.duree}" min="0.1" step="0.1" onchange="updT('${atId}',${realIdx},'duree',roundTenth(+this.value||0.1))" ${IS_READONLY?'readonly':''} style="width:52px;font-size:11px;color:var(--text3)"/></td>
-<td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${realIdx},'besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:110px;font-size:11px"/></td>
+<td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${realIdx},'besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:110px;font-size:11px;${reprojActive(t)?'opacity:.5;text-decoration:line-through':''}" title="${reprojActive(t)?'CTVX remplacée par la date reprojetée':'Date CTVX'}"/></td>
+<td style="white-space:nowrap"><input type="date" value="${esc(t.reproj||t.besoin||'')}" onchange="onReprojChange('${atId}',${realIdx},this.value)" ${IS_READONLY?'readonly':''} style="width:110px;font-size:11px;${reprojActive(t)?'font-weight:700;border-color:var(--orange);background:var(--orange-bg);color:var(--orange)':'color:var(--text3);font-style:italic'}" title="${reprojActive(t)?'Date reprojetée = date de besoin (CTVX d\'origine : '+fmtDate(t.besoin||'')+')':'Identique à la CTVX — saisir une date pour la remplacer'}"/>${(reprojActive(t)&&!IS_READONLY)?`<button onclick="onReprojChange('${atId}',${realIdx},'')" class="btn btn-xs" style="margin-left:3px" title="Revenir à la date CTVX">↺</button>`:''}</td>
 <td>${statusBadge(t,atId,{})}</td>
 <td style="text-align:center"><span style="font-size:16px;opacity:${t.termine?1:.15}" title="${t.termine?'OF terminé':'Non terminé'}">✅</span></td>
 ${IS_READONLY?'':`
@@ -1707,8 +1727,8 @@ function onSearchInput(el){
 }
 function statusBadge(t,atId,simDates){
 const fin=simDates?.[t.id]?.fin||dateFin(t,atId);
-if(t.besoin){
-const d=diffDays(fin,t.besoin);
+if(besoinEff(t)){
+const d=diffDays(fin,besoinEff(t));
 if(d<0)return`<span class="badge badge-red">⚠ Retard ${Math.abs(d)}j</span>`;
 if(d<=3)return`<span class="badge badge-orange">⏱ Urgent +${d}j</span>`;
 return`<span class="badge badge-green">✓ OK +${d}j</span>`;
@@ -1822,7 +1842,7 @@ setTimeout(verifierVersion, 45*1000);
 //  • à CTVX égal, l'ordre actuel est conservé (tri stable) ;
 //  • la 1re tranche de la chaîne reprend la date de début de l'ancienne 1re.
 let _triUndo = {};   // atId → [{t, ordre, debut, debutFrac}]
-function _cleCTVX(t){ return /^\d{4}-\d{2}-\d{2}$/.test(t.besoin||'') ? t.besoin : '9999-99-99'; }
+function _cleCTVX(t){ const b=besoinEff(t); return /^\d{4}-\d{2}-\d{2}$/.test(b||'') ? b : '9999-99-99'; }
 function calcTriCTVX(atId){
   const actives = [...(state.tranches[atId]||[]).filter(t=>!t.termine)].sort((a,b)=>(a.ordre||0)-(b.ordre||0));
   const pos = new Map(actives.map((t,i)=>[t,i]));
@@ -1899,7 +1919,7 @@ for(const atId of atelierIds){
 const tr=state.tranches[atId]||[];
 for(const t of tr){
 if(t.debut&&/^\d{4}-\d{2}-\d{2}$/.test(t.debut)){allDates.push(t.debut);const fin=dateFin(t,atId);if(fin)allDates.push(fin);}
-if(t.besoin&&/^\d{4}-\d{2}-\d{2}$/.test(t.besoin))allDates.push(t.besoin);
+if(besoinEff(t)&&/^\d{4}-\d{2}-\d{2}$/.test(besoinEff(t)))allDates.push(besoinEff(t));
 }
 }
 if(!allDates.length)return{days:[]};
@@ -2013,11 +2033,12 @@ ${pinDebutHtml}${label}${phaseBadges}${pinFinHtml}
 });
 }
 let besoinHtml='';
-if(t.besoin){
-const bi=days.findIndex(d=>d.date>=t.besoin);
+const _bEff=besoinEff(t);
+if(_bEff){
+const bi=days.findIndex(d=>d.date>=_bEff);
 if(bi>=0){
-const bx=bi*COL+13;const retard=diffDays(finReal,t.besoin)<0;
-besoinHtml=`<div style="position:absolute;left:${bx}px;top:0;bottom:0;width:2px;background:${retard?'var(--red)':'var(--green)'};opacity:.7;z-index:3" title="CTVX: ${t.besoin}">
+const bx=bi*COL+13;const retard=diffDays(finReal,_bEff)<0;
+besoinHtml=`<div style="position:absolute;left:${bx}px;top:0;bottom:0;width:2px;background:${retard?'var(--red)':'var(--green)'};opacity:.7;z-index:3" title="${reprojActive(t)?'Reprojetée: '+_bEff+' (CTVX: '+(t.besoin||'—')+')':'CTVX: '+_bEff}">
 <div style="position:absolute;top:3px;left:3px;font-size:9px;font-weight:700;color:${retard?'var(--red)':'var(--green)'}">${retard?'⚠':'✓'}</div></div>`;
 }
 }
@@ -2432,6 +2453,7 @@ try {
 document.getElementById('f-comment').value='';
 document.getElementById('f-debut').value=lastFin;document.getElementById('f-duree').value=5;
 document.getElementById('f-besoin').value='';
+document.getElementById('f-reproj').value='';
 document.getElementById('f-lockDebut').checked=false;document.getElementById('f-lockFin').checked=false;
 document.getElementById('f-lockFinDate').value='';document.getElementById('f-lockFinDate-group').style.display='none';
 document.getElementById('f-parallel').checked=false;
@@ -2451,6 +2473,7 @@ document.getElementById('f-comment').value=t.comment||'';
 initPhaseTags(t.phases||t.phase||[]);
 document.getElementById('f-debut').value=t.debut;document.getElementById('f-duree').value=t.duree;
 document.getElementById('f-besoin').value=t.besoin||'';
+document.getElementById('f-reproj').value=t.reproj||'';
 document.getElementById('f-lockDebut').checked=!!t.lockDebut;document.getElementById('f-lockFin').checked=!!t.lockFin;
 document.getElementById('f-lockFinDate').value=t.lockFinDate||dateFin(t,atId);
 document.getElementById('f-lockFinDate-group').style.display=t.lockFin?'block':'none';
@@ -2712,6 +2735,7 @@ phases:getPhaseArray(),
 comment:document.getElementById('f-comment').value,
 debut:debutVal,duree:Math.max(0.1,roundTenth(+document.getElementById('f-duree').value||0.1)),
 besoin:document.getElementById('f-besoin').value||null,
+reproj:(()=>{const r=document.getElementById('f-reproj').value||'';const b=document.getElementById('f-besoin').value||'';return (r&&r!==b)?r:null;})(),
 lockDebut:document.getElementById('f-lockDebut').checked,
 lockFin,lockFinDate:lockFin?document.getElementById('f-lockFinDate').value:null,
 parallel:document.getElementById('f-parallel').checked,
@@ -2898,10 +2922,10 @@ else if(demarre)statHtml=`<span class="ch-statut ch-statut-debut">▶ Démarre</
 else if(seFini)statHtml=`<span class="ch-statut ch-statut-fin">■ Termine</span>`;
 else statHtml=`<span class="ch-statut ch-statut-cours">↔ En cours</span>`;
 let ctvxHtml='';
-if(t.besoin){const marge=diffDays(tFin,t.besoin);
-if(marge<0)ctvxHtml=`<span class="ch-ctvx-warn">⚠ CTVX ${fmtDate(t.besoin)} — retard ${Math.abs(marge)}j</span>`;
-else if(marge<=5)ctvxHtml=`<span class="ch-ctvx-soon">⏱ CTVX ${fmtDate(t.besoin)} — dans ${marge}j</span>`;
-else ctvxHtml=`<span class="ch-ctvx-ok">✓ CTVX ${fmtDate(t.besoin)}</span>`;
+if(besoinEff(t)){const _b=besoinEff(t),_lib=reprojActive(t)?'Reproj.':'CTVX';const marge=diffDays(tFin,_b);
+if(marge<0)ctvxHtml=`<span class="ch-ctvx-warn">⚠ ${_lib} ${fmtDate(_b)} — retard ${Math.abs(marge)}j</span>`;
+else if(marge<=5)ctvxHtml=`<span class="ch-ctvx-soon">⏱ ${_lib} ${fmtDate(_b)} — dans ${marge}j</span>`;
+else ctvxHtml=`<span class="ch-ctvx-ok">✓ ${_lib} ${fmtDate(_b)}</span>`;
 }
 html+=`<div class="ch-tranche-row">
 <div style="flex:1"><div class="ch-tranche-nom">${esc(t.tranche)}</div>${t.comment?`<div class="ch-tranche-comment">${esc(t.comment)}</div>`:''}</div>
@@ -2984,6 +3008,7 @@ async function syncDistant() {
           local.tranche = String(t.nom||local.tranche||''); local.comment = t.commentaire||'';
           local.duree = roundTenth(parseFloat(t.duree_jours))||1;
           local.besoin = normD(t.date_besoin)||null;
+          if ('date_reprojetee' in t) local.reproj = normD(t.date_reprojetee)||null;
           local.lockDebut = normBool(t.lock_debut); local.lockFin = normBool(t.lock_fin);
           local.lockFinDate = normD(t.lock_fin_date)||null; local.parallel = normBool(t.parallel);
           local.termine = normBool(t.termine); local._termineLe = normD(t._terminele||t._termineLe||'');
@@ -3010,7 +3035,7 @@ async function syncDistant() {
         state.tranches[atId].push({
   _dbId:t.id||'', id:t.id||'', tranche:t.nom||'', comment:t.commentaire||'',
   debut:normD(t.date_debut), duree:roundTenth(parseFloat(t.duree_jours))||1,
-  besoin:normD(t.date_besoin)||null, ordre:parseInt(t.ordre)||0,
+  besoin:normD(t.date_besoin)||null, reproj:normD(t.date_reprojetee)||null, ordre:parseInt(t.ordre)||0,
   lockDebut:normBool(t.lock_debut), lockFin:normBool(t.lock_fin),
   lockFinDate:normD(t.lock_fin_date)||null, parallel:normBool(t.parallel),
   termine:normBool(t.termine), _termineLe:normD(t._terminele||t._termineLe||''),
@@ -3027,6 +3052,7 @@ async function syncDistant() {
         const distBesoin = normD(t.date_besoin)||null;
         if (local.termine !== distTermine) { local.termine = distTermine; local._termineLe = normD(t._terminele||t._termineLe||''); changed = true; }
         if (local.besoin !== distBesoin && !_saveTimeout) { local.besoin = distBesoin; changed = true; }
+        if ('date_reprojetee' in t && !_saveTimeout) { const distRe = normD(t.date_reprojetee)||null; if ((local.reproj||null) !== distRe) { local.reproj = distRe; changed = true; } }
         // Phases : un onglet resté ouvert peut garder une version locale périmée
         // (vide ou obsolète) indéfiniment si on ne la rafraîchit jamais ici — et comme
         // saveTranches réécrit toute la feuille à partir de l'état local, un simple
