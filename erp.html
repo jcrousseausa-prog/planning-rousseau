@@ -1786,7 +1786,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='02/11/2026-n';
+const ERP_BUILD='03/11/2026-b';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -5432,7 +5432,7 @@ function renderSaisieHebdo(){
     }
 
     html += `<tr style="border-bottom:1px solid var(--border)">
-      <td style="font-weight:600;font-size:13px;white-space:nowrap">${esc(emp.nom)} ${esc(emp.prenom)}<br><span class="${badge}" style="font-size:9px">${emp.statut==='interim'?'Intérim':'CDI'}</span></td>
+      <td style="font-weight:600;font-size:13px;white-space:nowrap">${esc(emp.nom)} ${esc(emp.prenom)}${(emp.statut!=='interim'&&emp.matricule)?` <span style="font-size:10px;font-weight:500;color:var(--text3)" title="Matricule">· ${esc(emp.matricule)}</span>`:''}<br><span class="${badge}" style="font-size:9px">${emp.statut==='interim'?'Intérim':'CDI'}</span></td>
       <td>
         <select style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:inherit" onchange="updateAtelierSemaine('${emp.id}','${semSel}',this.value)">
           ${ATELIERS_H.map(a=>`<option value="${a}"${(lignes[0]?.atelier||emp.atelier)===a?' selected':''}>${a}</option>`).join('')}
@@ -7288,7 +7288,7 @@ function exportPDFCDI(empId, semaine){
     </div>
     <div class="info-grid">
       <div class="info-row"><span class="info-label">Entreprise :</span> ROUSSEAU CONSTRUCTION</div>
-      <div class="info-row"><span class="info-label">Employé :</span> ${emp.nom} ${emp.prenom}</div>
+      <div class="info-row"><span class="info-label">Employé :</span> ${emp.nom} ${emp.prenom} &nbsp;—&nbsp; <span class="info-label">Matricule :</span> ${esc(emp.matricule||'—')}</div>
       <div class="info-row"><span class="info-label">Atelier / Service :</span> ${lignesChantier[0]?.atelier||emp.atelier||'—'}</div>
       <div class="info-row"><span class="info-label">Période :</span> du ${String(lundi.getDate()).padStart(2,'0')}/${String(lundi.getMonth()+1).padStart(2,'0')} au ${String(new Date(lundi.getTime()+4*86400000).getDate()).padStart(2,'0')}/${String(new Date(lundi.getTime()+4*86400000).getMonth()+1).padStart(2,'0')}/${yr}</div>
     </div>
