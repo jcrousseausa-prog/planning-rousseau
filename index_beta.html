@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261103-0900">
+<meta name="version" content="20261103-1100">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BETA — Planning Production — Ateliers</title>
 <style>
@@ -2215,7 +2215,8 @@ scheduleSave(atId);render();
 //  Lit l'onglet « Source » via Apps Script (actions pcuGetSource / pcuRemplirTranches / pcuTraitement)
 //  → la colonne F (tranche) est renseignée automatiquement depuis chantier (N) + phase (O)
 // ═══════════════════════════════════════════════════════════════════════════
-const _pcu = {data:null, loading:false, busy:false, msg:null, filtre:'traiter', q:'', err:null};
+const _pcu = {data:null, loading:false, busy:false, msg:null, filtre:'traiter', q:'', err:null, edit:false};
+_pcu.edit = !(typeof BETA !== 'undefined' && BETA);   // en beta : édition désactivée tant qu'on ne l'active pas explicitement
 const PCU_ETATS = {
   ok:               {l:'✓ OK',                c:'var(--green)',  bg:'var(--green-bg)',  b:'var(--green-border)'},
   a_renseigner:     {l:'À renseigner',        c:'var(--orange)', bg:'var(--orange-bg)', b:'var(--orange-border)'},
@@ -2342,6 +2343,8 @@ function renderPCU(){
       <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px;pointer-events:none">🔍</span>
       <input type="text" id="pcu-q" value="${esc(_pcu.q)}" placeholder="Rechercher (chantier, phase, tranche, fichier…)" oninput="pcuSetQ(this.value)" style="width:100%;padding:7px 10px 7px 32px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)"/>
     </div>
+    <label style="display:flex;gap:5px;align-items:center;font-size:12px;cursor:pointer;color:var(--text2)" title="Autorise la modification des colonnes C (temps machine), J (priorité) et L (zone d'expédition) directement depuis cette page. Chaque modification est écrite dans l'onglet Source."><input type="checkbox" ${_pcu.edit?'checked':''} ${IS_READONLY?'disabled':''} onchange="pcuSetEdit(this.checked)"> <b>✎ Édition active</b></label>
+    ${(_pcu.edit&&d&&!(d.dPret&&d.verrouD))?`<button class="btn" onclick="pcuPreparer()" title="Met la formule « C + 20 % » dans la colonne D (là où elle manque) et verrouille la colonne D en écriture dans la feuille" style="background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)">🔒 Préparer la colonne D</button>`:''}
     <span style="font-size:12px;color:var(--text3)" id="pcu-count"></span>
   </div>
   <div class="table-wrap" id="pcu-table"></div>
@@ -2353,11 +2356,64 @@ function renderPCU(){
   renderPCUTable();
 }
 
+// ── temps machine : lecture / mise en forme côté page (même règles que le serveur) ──
+function pcuParseH(t){
+  const x = String(t==null?'':t).trim().toLowerCase().replace(/\s+/g,''); if(!x) return '';
+  let m;
+  if((m=x.match(/^(\d+):(\d{1,2})(?::(\d{1,2}))?$/))) return +m[1] + +m[2]/60 + (m[3]?+m[3]/3600:0);
+  if((m=x.match(/^(\d+)h(\d{1,2})?$/))) return +m[1] + (m[2]?+m[2]/60:0);
+  if((m=x.match(/^(\d+)(?:[.,](\d+))?$/))) return parseFloat(m[1]+(m[2]?'.'+m[2]:''));
+  return null;
+}
+function pcuFmtH(h){ const t=Math.round(h*3600), hh=Math.floor(t/3600), mm=Math.floor(t%3600/60), ss=t%60; return hh+':'+String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0'); }
+function pcuDplus20(c){ const h=pcuParseH(c); return (h===null||h==='')?'':pcuFmtH(h*1.2); }
+
+function pcuSetEdit(v){
+  if(v && typeof BETA !== 'undefined' && BETA && !confirm("Version BETA : l'édition écrit pour de vrai dans l'onglet Source (colonnes C, J, L).\n\nActiver l'édition ?")){ renderPCU(); return; }
+  _pcu.edit = !!v; renderPCU();
+}
+async function pcuPreparer(){
+  if(_pcu.busy) return;
+  if(!confirm("Préparer la colonne D de Source :\n• formule « C + 20 % » ajoutée là où D est vide (rien d'existant n'est écrasé)\n• colonne D verrouillée en écriture dans la feuille (toi seul peux la modifier)\n\nContinuer ?")) return;
+  _pcu.busy = true; _pcu.msg = null; renderPCU();
+  try{
+    const r = await pcuCall('pcuPreparerSource');
+    if(!r.ok) throw new Error(r.error||'Erreur');
+    const f = r.formules||{};
+    _pcu.msg = {type:'ok', html:'🔒 Colonne D : <b>'+(f.ajoutees||0)+'</b> formule(s) ajoutée(s)'+(f.arrayformula?' (une ARRAYFORMULA existe déjà : non modifiée)':'')+(f.valeursManuelles?' · '+f.valeursManuelles+' valeur(s) saisie(s) à la main conservée(s)':'')+(r.verrouCree?' · verrou posé':' · verrou déjà présent')+(r.verrouErreur?' · ⚠ '+esc(r.verrouErreur):'')};
+    await pcuRafraichirSilencieux();
+  }catch(e){ _pcu.msg = {type:'err', html:'❌ '+esc(e.message)}; }
+  _pcu.busy = false; if(state.view==='pcu') renderPCU();
+}
+
+// Modification d'une cellule (C, J ou L) → écrite tout de suite dans Source, avec contrôle de conflit
+const PCU_IDX = {C:2, J:9, L:11};
+async function pcuEdit(row, col, el){
+  const d = _pcu.data; if(!d) return;
+  const o = d.rows.find(x=>x.r===row); if(!o) return;
+  const idx = PCU_IDX[col], ancien = o.c[idx], val = String(el.value).trim();
+  if(val === String(ancien).trim()) { el.style.outline=''; return; }
+  if(!_pcu.edit){ el.value = ancien; return; }
+  el.style.outline = '2px solid var(--orange)'; el.disabled = true;
+  try{
+    const r = await pcuCall('pcuEcrireCellule', {row, col, valeur:val, ancien});
+    if(r.ok){
+      o.c = r.c; el.value = r.c[idx];
+      const dc = document.getElementById('pcu-d-'+row); if(dc){ dc.textContent = r.c[3] || pcuDplus20(r.c[2]); dc.style.fontStyle = r.c[3]?'normal':'italic'; }
+      el.style.outline = '2px solid var(--green)'; setTimeout(()=>{ el.style.outline=''; }, 900);
+    } else {
+      el.value = (r.conflit ? r.actuel : ancien); if(r.conflit) o.c[idx] = r.actuel;
+      el.style.outline = '2px solid var(--red)'; toast('❌ '+(r.error||'Écriture refusée'));
+      const dc = document.getElementById('pcu-d-'+row); if(dc){ dc.textContent = o.c[3] || pcuDplus20(o.c[2]); }
+    }
+  }catch(e){ el.value = ancien; el.style.outline='2px solid var(--red)'; toast('❌ '+e.message); }
+  el.disabled = false;
+}
+
 function renderPCUTable(){
   const d = _pcu.data, host = document.getElementById('pcu-table');
   if(!d || !host) return;
-  const idx = {A:0,B:1,C:2,I:8,K:10,F:d.colonnes.tranche,N:d.colonnes.chantier,O:d.colonnes.phase};
-  const hd = (i,def) => esc((d.headers[i]||'').trim() || def);
+  const idx = {B:1,C:2,D:3,I:8,J:9,K:10,L:11,F:d.colonnes.tranche,N:d.colonnes.chantier,O:d.colonnes.phase};
   const q = (_pcu.q||'').trim().toLowerCase();
   let rows = d.rows.filter(r=>{
     const e = r.etat;
@@ -2369,29 +2425,49 @@ function renderPCUTable(){
     if(q){ const t=(r.c.join(' ')+' '+(r.tranche_erp||'')).toLowerCase(); if(!t.includes(q)) return false; }
     return true;
   });
-  const th = 'style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;position:sticky;top:0;background:var(--surface2)"';
-  const td = 'style="padding:7px 10px;font-size:12.5px;border-top:1px solid var(--border);white-space:nowrap"';
-  let h = `<table style="width:100%;border-collapse:collapse"><thead><tr>
-    <th ${th}>Ligne</th><th ${th}>${hd(idx.B,'Fichier')}</th><th ${th}>${hd(idx.C,'Temps')}</th><th ${th}>${hd(idx.I,'Machine')}</th><th ${th}>${hd(idx.K,'Fin usinage')}</th>
-    <th ${th}>${hd(idx.N,'Chantier')}</th><th ${th}>${hd(idx.O,'Phase')}</th><th ${th}>${hd(idx.F,'Tranche')} (saisie)</th><th ${th}>Tranche selon l'ERP</th><th ${th}>Statut</th></tr></thead><tbody>`;
-  if(!rows.length) h += `<tr><td colspan="10" style="padding:1.5rem;text-align:center;color:var(--text3);font-size:13px">Aucune ligne pour ce filtre.</td></tr>`;
+  const edit = _pcu.edit && !IS_READONLY;
+  const th = (txt, w, extra) => `<th title="${esc(txt)}" style="text-align:left;padding:7px 8px;font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;position:sticky;top:0;background:${extra||'var(--surface2)'};max-width:${w}px;min-width:${Math.min(w,34)}px;overflow:hidden;text-overflow:ellipsis">${esc(txt)}</th>`;
+  const hd = (i,def) => ((d.headers[i]||'').trim() || def);
+  const td = (w, extra) => `style="padding:5px 8px;font-size:12.5px;border-top:1px solid var(--border);white-space:nowrap;max-width:${w}px;overflow:hidden;text-overflow:ellipsis;${extra||''}"`;
+  const VERT = '#d9ead3';   // la colonne « temps machine » reste verte, comme dans la feuille
+  const listeL = (d.listes&&d.listes.L&&d.listes.L.liste)||[], listeJ = (d.listes&&d.listes.J&&d.listes.J.liste)||[];
+  let h = `<datalist id="pcu-dl-j">${listeJ.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
+  <table style="width:100%;border-collapse:collapse"><thead><tr>
+    ${th('Ligne',40)}${th(hd(idx.B,'Fichier'),200)}${th(hd(idx.C,'Temps machine'),98,VERT)}${th(hd(idx.D,'Temps +20 %')+' 🔒',98,'#e7e7e7')}
+    ${th(hd(idx.F,'Tranche')+' (saisie)',170)}${th("Tranche selon l'ERP",170)}${th(hd(idx.I,'Machine'),80)}${th(hd(idx.J,'Priorité'),90)}${th(hd(idx.K,'Fin usinage'),90)}
+    ${th(hd(idx.L,"Zone d'expédition"),130)}${th(hd(idx.N,'Chantier'),150)}${th(hd(idx.O,'Phase'),64)}${th('Statut',120)}</tr></thead><tbody>`;
+  if(!rows.length) h += `<tr><td colspan="13" style="padding:1.5rem;text-align:center;color:var(--text3);font-size:13px">Aucune ligne pour ce filtre.</td></tr>`;
+  const inp = 'style="width:100%;box-sizing:border-box;padding:3px 5px;border:1px solid var(--border2);border-radius:5px;font-family:inherit;font-size:12.5px;'
   rows.forEach(r=>{
     const e = PCU_ETATS[r.etat] || {l:r.etat,c:'var(--text2)',bg:'var(--surface2)',b:'var(--border)'};
     let erp = r.tranche_erp ? esc(r.tranche_erp) : '<span style="color:var(--text3)">—</span>';
     if(r.candidats) erp = '<span style="color:var(--purple)" title="Plusieurs tranches possibles">'+r.candidats.map(esc).join(' / ')+'</span>';
-    const f = r.c[idx.F];
+    const f = r.c[idx.F], c = r.c, R = r.r;
+    const cC = edit ? `<input ${inp}background:${VERT};text-align:right" value="${esc(c[idx.C])}" oninput="pcuOnTemps(${R},this)" onchange="pcuEdit(${R},'C',this)" onkeydown="if(event.key==='Enter')this.blur()" placeholder="h:mm">`
+                    : esc(c[idx.C]);
+    const dTxt = c[idx.D] || pcuDplus20(c[idx.C]);
+    const cJ = edit ? `<input ${inp}" list="pcu-dl-j" value="${esc(c[idx.J])}" onchange="pcuEdit(${R},'J',this)" onkeydown="if(event.key==='Enter')this.blur()">` : esc(c[idx.J]);
+    const optsL = (listeL.includes(c[idx.L])||!c[idx.L] ? listeL : listeL.concat([c[idx.L]]));
+    const cL = edit ? `<select ${inp}" onchange="pcuEdit(${R},'L',this)"><option value=""></option>${optsL.map(x=>`<option value="${esc(x)}"${x===c[idx.L]?' selected':''}>${esc(x)}</option>`).join('')}</select>` : esc(c[idx.L]);
     h += `<tr>
-      <td ${td}><span style="color:var(--text3)">${r.r}</span></td>
-      <td ${td}>${esc(r.c[idx.B])}</td><td ${td}>${esc(r.c[idx.C])}</td><td ${td}>${esc(r.c[idx.I])}</td><td ${td}>${esc(r.c[idx.K])}</td>
-      <td ${td}><b>${esc(r.c[idx.N])}</b></td><td ${td}>${esc(r.c[idx.O])}</td>
-      <td ${td}>${f?esc(f):'<span style="color:var(--text3)">(vide)</span>'}</td>
-      <td ${td}>${erp}</td>
-      <td ${td}><span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${e.bg};color:${e.c};border:1px solid ${e.b}">${e.l}</span></td></tr>`;
+      <td ${td(40)}><span style="color:var(--text3)">${R}</span></td>
+      <td ${td(200)} title="${esc(c[idx.B])}">${esc(c[idx.B])}</td>
+      <td ${td(98,'background:'+VERT+';text-align:right;padding:3px 4px')}>${cC}</td>
+      <td ${td(98,'background:#f0f0f0;color:var(--text2);text-align:right')}><span id="pcu-d-${R}" style="${c[idx.D]?'':'font-style:italic'}">${esc(dTxt)}</span></td>
+      <td ${td(170)} title="${esc(f)}">${f?esc(f):'<span style="color:var(--text3)">(vide)</span>'}</td>
+      <td ${td(170)}>${erp}</td>
+      <td ${td(80)}>${esc(c[idx.I])}</td>
+      <td ${td(90,'padding:3px 4px')}>${cJ}</td>
+      <td ${td(90)}>${esc(c[idx.K])}</td>
+      <td ${td(130,'padding:3px 4px')}>${cL}</td>
+      <td ${td(150)} title="${esc(c[idx.N])}"><b>${esc(c[idx.N])}</b></td><td ${td(64)}>${esc(c[idx.O])}</td>
+      <td ${td(120)}><span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${e.bg};color:${e.c};border:1px solid ${e.b}">${e.l}</span></td></tr>`;
   });
   h += '</tbody></table>';
   host.innerHTML = h;
-  const c = document.getElementById('pcu-count'); if(c) c.textContent = rows.length+' ligne'+(rows.length>1?'s':'')+' affichée'+(rows.length>1?'s':'');
+  const cn = document.getElementById('pcu-count'); if(cn) cn.textContent = rows.length+' ligne'+(rows.length>1?'s':'')+' affichée'+(rows.length>1?'s':'');
 }
+function pcuOnTemps(row, el){ const dc=document.getElementById('pcu-d-'+row); if(dc){ dc.textContent = pcuDplus20(el.value); dc.style.fontStyle='italic'; } }
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  BETA — Fichiers du serveur (NAS) → Source   (File System Access API : Chrome / Edge)
