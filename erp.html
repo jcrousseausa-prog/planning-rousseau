@@ -1786,7 +1786,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='03/11/2026-b';
+const ERP_BUILD='04/11/2026-a';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -9762,9 +9762,46 @@ function phasesHtml(a){
   if(!liste.length) return '<span style="color:var(--text3);font-size:11px">—</span>';
   return liste.map(p=>`<span style="background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;margin-right:3px;display:inline-block;margin-bottom:2px">${esc(p)}</span>`).join('');
 }
+// Date du Planning Production (date reprojetée ; à défaut CTVX) par tranche non terminée — pour le Suivi production.
+// Lecture de « getTranches », mise en cache 2 min ; la plus proche des lignes si la tranche est dans plusieurs ateliers.
+function _clePlan(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+async function chargerDatesPlanning(){
+  const c = state._datesPlan;
+  if(c && Date.now()-c.t < 120000) return c;
+  if(state._datesPlanProm) return state._datesPlanProm;
+  state._datesPlanProm = (async()=>{
+    try{
+      const res = await fetch(APPS_SCRIPT_URL, {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'getTranches'})});
+      const r = await res.json();
+      if(r.ok && Array.isArray(r.tranches)){
+        const parNom = new Map(), parId = new Map();
+        const iso = v => { const x=String(v||'').trim().slice(0,10); return /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : ''; };
+        r.tranches.forEach(t=>{
+          if(String(t.termine).toUpperCase()==='TRUE') return;
+          const reproj = iso(t.date_reprojetee), besoin = iso(t.date_besoin), d = reproj || besoin;
+          if(!d) return;
+          const info = {d, reproj: !!(reproj && reproj!==besoin), ctvx: besoin};
+          const maj = (m,k)=>{ const o=m.get(k); if(!o || d<o.d) m.set(k,info); };
+          const kn = _clePlan(t.nom); if(kn) maj(parNom, kn);
+          const eid = String(t.erp_tranche_id||'').trim(); if(eid) maj(parId, eid);
+        });
+        state._datesPlan = {t:Date.now(), parNom, parId};
+      }
+    }catch(e){ console.warn('dates planning (suivi production) :', e.message); }
+    state._datesPlanProm = null;
+    return state._datesPlan;
+  })();
+  return state._datesPlanProm;
+}
+
 async function renderSuiviProd(){
   const el = document.getElementById('suivi-prod-content') || document.getElementById('screen-suivi_prod');
   if(!el) return;
+  const plan = state._datesPlan;
+  if(!plan || Date.now()-plan.t > 120000){
+    chargerDatesPlanning().then(p=>{ if(p && p!==state._datesPlanUtilise) renderSuiviProd(); });
+  }
+  state._datesPlanUtilise = plan;
 
   if(!state._suiviProdFiltres) state._suiviProdFiltres = {search:'', atelier:'', taille:''};
   const norm = s => String(s||'').trim().toLowerCase();
@@ -9811,7 +9848,8 @@ async function renderSuiviProd(){
         return null; // ni phase réelle, ni besoin usinage seul → rien à montrer
       }
 
-      return { tr, ateliers, sortDate: trancheSortDate(tr.nom), phases };
+      const dPlan = plan ? (plan.parId.get(String(tr.id)) || plan.parNom.get(_clePlan(tr.nom))) : null;
+      return { tr, ateliers, sortDate: dPlan ? dPlan.d : trancheSortDate(tr.nom), dPlan, phases };
     })
     .filter(Boolean);
 
@@ -9903,7 +9941,7 @@ async function renderSuiviProd(){
             </div>`).join('');
           return `<tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
             <td style="padding:7px 10px;font-family:'DM Mono',monospace;white-space:nowrap;vertical-align:top">
-              ${dateAff}${aDebutProd?'<span style="font-size:9px;color:var(--blue);display:block">Début prod</span>':'<span style="font-size:9px;color:var(--text3);display:block">CTVX</span>'}
+              ${dateAff}${l.dPlan?(l.dPlan.reproj?'<span style="font-size:9px;color:var(--orange);font-weight:700;display:block" title="Date reprojetée du Planning Production (CTVX d\'origine : '+(l.dPlan.ctvx?l.dPlan.ctvx.split('-').reverse().join('/'):'—')+')">Reprojetée</span>':'<span style="font-size:9px;color:var(--text3);display:block" title="Date du Planning Production (identique à la CTVX)">CTVX</span>'):(aDebutProd?'<span style="font-size:9px;color:var(--blue);display:block">Début prod</span>':'<span style="font-size:9px;color:var(--text3);display:block">CTVX</span>')}
             </td>
             <td style="padding:7px 10px;font-weight:500;vertical-align:top">${esc(l.tr.nom)}</td>
             <td style="padding:7px 10px;color:var(--text2);vertical-align:top;white-space:nowrap">${esc(atelierAff)}</td>
