@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261102-1000">
+<meta name="version" content="20261102-1100">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -371,7 +371,7 @@ transition:all .3s;
       oninput="onSearchInput(this)"
       style="width:100%;padding:7px 10px 7px 32px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)"/>
   </div>
-  <button class="btn" data-edit-only id="btn-tri-ctvx" onclick="trierParCTVX()" title="Trie les tranches de cet atelier par date CTVX croissante. Les lignes avec 🔒D (figer début) gardent leur place.">↕ Trier par CTVX</button>
+  <button class="btn" data-edit-only id="btn-tri-ctvx" onclick="trierParCTVX()" title="Trie les tranches de cet atelier par date reprojetée croissante (à défaut : date CTVX). Les lignes avec 🔒D (figer début) gardent leur place.">↕ Trier par date reprojetée</button>
   <button class="btn" data-edit-only id="btn-retirer-livrees" onclick="retirerLivreesTerminees()" style="display:none;background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)" title="Coche ✅ terminé sur les tranches de cet atelier déclarées livrées ou terminées dans l'ERP (elles disparaissent du planning)">✅ Retirer les livrées/terminées</button>
   <button class="btn" data-edit-only id="btn-retirer-undo" onclick="annulerRetraitLivrees()" style="display:none" title="Remettre ces tranches dans le planning">↶ Annuler le retrait</button>
   <button class="btn" data-edit-only id="btn-tri-undo" onclick="annulerTriCTVX()" style="display:none" title="Revenir à l'ordre d'avant le tri">↶ Annuler le tri</button>
@@ -1834,7 +1834,7 @@ setInterval(verifierVersion, 5*60*1000);
 setInterval(_autoReloadSiPerime, 30*1000);
 setTimeout(verifierVersion, 45*1000);
 
-// ═══ TRI PAR DATE CTVX ═════════════════════════════════════════════════════
+// ═══ TRI PAR DATE REPROJETÉE (à défaut CTVX) ═════════════════════════════════════════════════════
 // Trie les tranches (non terminées) d'un atelier par CTVX croissant.
 //  • Les tranches avec « Figer début » (🔒D) gardent EXACTEMENT leur place dans la liste ;
 //  • les autres remplissent les places restantes, dans l'ordre des CTVX ;
@@ -1859,12 +1859,12 @@ function trierParCTVX(atId, sansConfirmation){
   atId = atId || state.atelier;
   const c = calcTriCTVX(atId);
   if(c.actives.length < 2){ toast('Rien à trier'); return false; }
-  if(!c.deplacees){ toast('✓ Déjà trié par CTVX'); return false; }
+  if(!c.deplacees){ toast('✓ Déjà trié par date reprojetée'); return false; }
   if(!sansConfirmation){
-    const msg = `Trier l'atelier par date CTVX ?\n\n`+
+    const msg = `Trier l'atelier par date reprojetée (à défaut CTVX) ?\n\n`+
       `• ${c.deplacees} tranche(s) vont changer de place\n`+
       `• ${c.figees} tranche(s) « figer début » (🔒D) restent à leur place\n`+
-      (c.sansCTVX?`• ${c.sansCTVX} tranche(s) sans CTVX seront placées à la fin\n`:'')+
+      (c.sansCTVX?`• ${c.sansCTVX} tranche(s) sans date seront placées à la fin\n`:'')+
       `\nVous pourrez annuler avec « Annuler le tri ».`;
     if(!confirm(msg)) return false;
   }
@@ -1879,7 +1879,7 @@ function trierParCTVX(atId, sansConfirmation){
   state.tranches[atId] = [...c.resultat, ...state.tranches[atId].filter(t=>t.termine)];
   rechainAtelier(atId);
   keepGanttPos(); scheduleSave(atId); render();
-  toast(`↕ Trié par CTVX — ${c.deplacees} tranche(s) déplacée(s)`);
+  toast(`↕ Trié par date reprojetée — ${c.deplacees} tranche(s) déplacée(s)`);
   return true;
 }
 function annulerTriCTVX(atId){
