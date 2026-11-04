@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261102-1100">
+<meta name="version" content="20261104-1000">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -3188,16 +3188,18 @@ function lienGanttHtml(t){
 }
 
 function _indexDATES(data){
-  const byId = new Map(), byNom = new Map();
+  const byId = new Map(), byNom = new Map(), dup = new Set();
   (data||[]).forEach(d=>{
     const trId = String(d.tr_id||'').trim();
-    if(trId && !byId.has(trId)) byId.set(trId, d);
+    // Un code partagé par plusieurs tranches DATES n'identifie personne (ex. « 100 » en double) : on l'écarte plus bas
+    if(trId){ if(!byId.has(trId)) byId.set(trId, d); else if(byId.get(trId) !== d) dup.add(trId); }
     const k = _normLien(d.nom);
     if(!k) return;
     if(!byNom.has(k)) byNom.set(k, []);
     byNom.get(k).push(d);
   });
-  return {byId, byNom};
+  dup.forEach(id=>byId.delete(id));
+  return {byId, byNom, dup};
 }
 function _indexERP(list){
   const ids = new Set(), byNom = new Map(), statut = new Map();
@@ -3238,10 +3240,14 @@ function synchroniserLiens(){
       }
       // ── DATES : lien par tr_id (prioritaire) sinon par nom unique, + date CTVX ──
       if(datIdx){
-        let d = (t.tr_id && datIdx.byId.get(String(t.tr_id))) || (k ? _pickUnique(datIdx.byNom.get(k), t.tranche) : null);
+        // Le NOM fait foi ; le code ID ne sert que si le nom n'est plus trouvé (tranche renommée) et jamais s'il est partagé par plusieurs tranches.
+        const dBN = k ? _pickUnique(datIdx.byNom.get(k), t.tranche) : null;
+        const dBI = (t.tr_id && datIdx.byId.get(String(t.tr_id))) || null;
+        let d = dBN || dBI;
+        const _dTrOk = d && String(d.tr_id||'').trim() && !(datIdx.dup && datIdx.dup.has(String(d.tr_id).trim()));
         // _datesNom : marqueur d'affichage uniquement (jamais sauvegardé) — vrai si la ligne
         // DATES est trouvée mais qu'elle n'a pas de code ID exploitable.
-        t._datesNom = !!(d && !(t.tr_id && datIdx.byId.has(String(t.tr_id))) && !String(d.tr_id||'').trim());
+        t._datesNom = !!(d && !(t.tr_id && datIdx.byId.has(String(t.tr_id))) && !_dTrOk);
         if(d){
           // Date CTVX de référence : celle de la ligne "BESOIN ATELIER" cochée (action loadDATES,
           // une seule ligne par tranche). getDATES renvoie la 1re ligne rencontrée pour ce nom,
@@ -3251,7 +3257,7 @@ function synchroniserLiens(){
           const dateRef = (state._ctvxAtelier && state._ctvxAtelier.get(_normLien(d.nom))) || d.date_ctvx;
           if(dateRef && t.besoin !== dateRef){ t.besoin = dateRef; touched = true; }
           const dTr = String(d.tr_id||'').trim();
-          if(dTr && t.tr_id !== dTr){ t.tr_id = dTr; touched = true; }
+          if(dTr && _dTrOk && t.tr_id !== dTr){ t.tr_id = dTr; touched = true; }
         }
       }
       if(touched){ updated++; ateliersMaj.add(atId); }
