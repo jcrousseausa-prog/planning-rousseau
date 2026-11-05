@@ -1786,7 +1786,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='04/11/2026-a';
+const ERP_BUILD='05/11/2026-a';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -2343,6 +2343,8 @@ async function syncCTVX(){
       const cols = lines[i].split(sep).map(c=>c.trim().replace(/^"|"$/g,''));
       const trancheNom = (cols[4]||'').trim();
       const dateRaw    = (cols[6]||'').trim();
+      // Seules les lignes dont « BESOIN ATELIER ? » (colonne J) est cochée sont prises en compte
+      if(!/^(true|vrai|1|oui|x|✓|☑)$/i.test((cols[9]||'').trim())) continue;
       const date = parseDate(dateRaw);
       if(!trancheNom||!date) continue;
       datesSrc.push({trancheNom: trancheNom.toLowerCase(), date_ctvx: date});
@@ -8210,14 +8212,19 @@ async function renderCoherenceTranches(){
     // cette map retombe alors sur le défaut "true" ci-dessous et échappe à tort au filtre
     // fauxPositif, même quand la case "besoin atelier" est bien décochée dans le fichier DATES
     // (cf. retour utilisateur oct. 2026 : "BARATERIE – BAT A – TN – TERRASSES").
+    state._datesErpOk = false;
     await loadDATESSource();
+    const besoinAtelierFiable = !!state._datesErpOk;   // loadDATES a bien répondu
     const besoinAtelierMap = new Map();
     (state.dates_erp||[]).forEach(d=>{
       const k = norm(d.tranche||'');
       if(k && !besoinAtelierMap.has(k)) besoinAtelierMap.set(k, !!d.besoin_atelier);
     });
-    // Inconnu (pas encore chargé/pas de correspondance) → true, pour ne jamais masquer un vrai écart par erreur
-    const aBesoinAtelier = k => besoinAtelierMap.has(k) ? besoinAtelierMap.get(k) : true;
+    // RÈGLE : seules les lignes DATES dont « BESOIN ATELIER ? » est COCHÉ sont à programmer.
+    // loadDATES ne renvoie QUE les tranches cochées : une tranche de getDATES absente de cette liste
+    // est donc NON cochée → exclue (et non « inconnue → incluse », ce qui gonflait les écarts :
+    // 439 absentes de l'ERP / 462 non planifiées). Le repli « inclus » ne sert que si loadDATES a échoué.
+    const aBesoinAtelier = k => besoinAtelierFiable ? (besoinAtelierMap.get(k)===true) : true;
     // Faux positif = déjà produite/livrée, OU pas de besoin atelier déclaré dans DATES
     const fauxPositif = k => estDejaProduite(k) || !aBesoinAtelier(k);
 
@@ -8237,6 +8244,7 @@ async function renderCoherenceTranches(){
     // Population du widget : uniquement les lignes DATES dont « besoin atelier » est coché
     // (inconnu → inclus, pour ne jamais masquer un écart par erreur).
     const datesAtelier = [...datesNoms].filter(n=>aBesoinAtelier(n));
+    const nbSansBesoinAtelier = datesNoms.size - datesAtelier.length;   // lignes DATES non cochées, ignorées
 
     // 3. Tranches planning prod
     let prodNoms = new Set();
@@ -8300,7 +8308,7 @@ async function renderCoherenceTranches(){
     const erpPasProd= prodDispo ? dansERP.filter(n=>!inProd(n) && !fauxPositifProd(n)).map(k=>datesMap.get(k)) : [];
     // Nombre de tranches masquées par ces filtres (déjà produites/livrées, sans besoin atelier,
     // ou sans assemblage/équipement pour la partie planning prod).
-    const nbFauxPositifs = (datesNoms.size - datesAtelier.length) + datesAtelier.filter(n=>
+    const nbFauxPositifs = datesAtelier.filter(n=>
       (fauxPositif(n) && !inERP(n)) || (prodDispo && !inProd(n) && fauxPositifProd(n))).length;
     const pctERP  = total ? Math.round(dansERP.length/total*100) : 0;
     const pctProd = dansProd ? (totalProd ? Math.round(dansProd.length/totalProd*100) : 100) : null;
@@ -8310,7 +8318,7 @@ async function renderCoherenceTranches(){
     const erpSansIdDates = (state.tranches||[]).filter(t=>datesAtelier.includes(norm(t.nom||'')) && !String(t.id_dates||'').trim()).length;
 
     // Lignes dont l'état « besoin atelier » est introuvable côté loadDATES : comptées par précaution
-    const besoinInconnu = datesAtelier.filter(n=>!besoinAtelierMap.has(n)).length;
+    const besoinInconnu = besoinAtelierFiable ? 0 : datesAtelier.length;
 
     const colorBar = (pct) => pct===100?'var(--green)':pct>80?'var(--blue)':'var(--orange)';
 
@@ -8346,8 +8354,12 @@ async function renderCoherenceTranches(){
       'DATES sans code : <b style="color:'+(datesSansId.length?'var(--orange)':'var(--green)')+'">'+datesSansId.length+'</b> · '+
       'tranches ERP sans id_dates : <b style="color:'+(erpSansIdDates?'var(--orange)':'var(--green)')+'">'+erpSansIdDates+'</b> · '+
       'lignes planning prod sans tr_id : <b style="color:'+(prodSansTrId?'var(--orange)':'var(--green)')+'">'+prodSansTrId+'</b>'+(prodTotal?' / '+prodTotal:'')+
-      (besoinInconnu?' · <span title="Ces lignes de getDATES n\'ont pas été retrouvées dans loadDATES : on ne sait pas si besoin atelier est coché, elles sont donc comptées">⚠ besoin atelier inconnu : <b style="color:var(--orange)">'+besoinInconnu+'</b></span>':'')+
+      (besoinInconnu?' · <span title="loadDATES n\'a pas répondu : impossible de savoir quelles lignes ont « besoin atelier » coché, toutes les lignes DATES sont donc comptées. Cliquer sur ↻ Actualiser.">⚠ besoin atelier illisible : <b style="color:var(--orange)">toutes les lignes comptées</b></span>':'')+
       '</div>';
+
+    if(nbSansBesoinAtelier>0 && besoinAtelierFiable){
+      html += '<div style="font-size:10px;color:var(--text3);margin:-4px 0 10px 2px">'+nbSansBesoinAtelier+' ligne(s) DATES sans « besoin atelier » coché — ignorées (non programmées en production)</div>';
+    }
 
     // Bouton détail
     const showAbs = state._coherenceShowAbs||false;
@@ -8359,7 +8371,7 @@ async function renderCoherenceTranches(){
         '</button>' +
         ' <button class="btn btn-sm" onclick="renderCoherenceTranches()" title="Relire DATES, ERP et Planning prod (utile si le planning prod a changé depuis l\'ouverture de cette page)" style="margin-bottom:10px">↻ Actualiser</button>';
       if(nbFauxPositifs>0){
-        html += '<div style="font-size:10px;color:var(--text3);margin:-6px 0 10px 2px">'+nbFauxPositifs+' tranche(s) déjà produites ou sans besoin atelier — exclues automatiquement</div>';
+        html += '<div style="font-size:10px;color:var(--text3);margin:-6px 0 10px 2px">'+nbFauxPositifs+' tranche(s) déjà produites ou sans assemblage/équipement — exclues automatiquement</div>';
       }
     } else {
       html += '<div style="text-align:center;padding:8px;color:var(--green);font-weight:600;font-size:12px">✅ Toutes les tranches sont cohérentes</div>';
@@ -8456,9 +8468,10 @@ async function loadDATESSource() {
       body: JSON.stringify({action:'loadDATES'})
     });
     const r = await res.json();
-    if (!r.ok) { console.warn('loadDATES:', r.error); return; }
+    if (!r.ok) { console.warn('loadDATES:', r.error); state._datesErpOk = false; return; }
 
     // Normaliser les champs booléens des tranches ERP
+    state._datesErpOk = true;   // loadDATES a répondu : tranches_erp = UNIQUEMENT les tranches « besoin atelier » cochées
     state.dates_erp = (r.tranches_erp||[]).map(d=>({
       ...d,
       besoin_atelier: d.besoin_atelier===true||String(d.besoin_atelier||'').toUpperCase()==='TRUE',
