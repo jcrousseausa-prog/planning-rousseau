@@ -400,6 +400,7 @@ table.bl-lignes td.r{text-align:right}
         <th>Phase</th>
         <th>Tranche</th>
         <th style="width:100px">CTVX</th>
+        <th style="width:100px" title="Fin d'usinage de la tranche (plan de charge usinage)">Fin usinage</th>
         <th style="width:100px">Sortie prod</th>
         <th style="width:96px" title="Atelier qui réalise la dernière opération (OF qui se termine en dernier ; « Usinage » s'il n'y a pas d'assemblage)">Dernière op.</th>
         <th style="width:110px">Statut</th>
@@ -1786,7 +1787,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='05/11/2026-a';
+const ERP_BUILD='12/11/2026-a';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -3146,7 +3147,7 @@ function renderPlanningParPhase(){
   });
 
   if(!rows.length){
-    tbody.innerHTML = `<tr><td colspan="9" style="padding:2rem;text-align:center;color:var(--text3)">Aucune phase${q?' pour cette recherche':''}.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="padding:2rem;text-align:center;color:var(--text3)">Aucune phase${q?' pour cette recherche':''}.</td></tr>`;
     return;
   }
 
@@ -3158,7 +3159,7 @@ function renderPlanningParPhase(){
     const ph=r.ph, tr=r.tr, ch=r.ch;
     if(ch.id !== chantierCourant){
       chantierCourant = ch.id;
-      html += `<tr><td colspan="9" style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:8px 10px;border-top:2px solid var(--blue-border);border-bottom:1px solid var(--blue-border)">🏗 ${esc(ch.nom)}</td></tr>`;
+      html += `<tr><td colspan="10" style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:8px 10px;border-top:2px solid var(--blue-border);border-bottom:1px solid var(--blue-border)">🏗 ${esc(ch.nom)}</td></tr>`;
     }
     const sl = statutLabels[ph.statut||'planifie']||statutLabels['planifie'];
     const nbArt = state.articles.filter(a=>a.pid===ph.id).length;
@@ -3166,6 +3167,9 @@ function renderPlanningParPhase(){
     const ctvx = ctvxDeTranche(tr);
     const ctvxHtml = ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)
       ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(ctvx)}</span>`
+      : `<span style="color:var(--text3);font-size:11px">—</span>`;
+    const finUsinagePhaseHtml = tr.date_fin_usinage
+      ? `<span style="font-size:11px;background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-border);border-radius:4px;padding:1px 5px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(tr.date_fin_usinage)}</span>`
       : `<span style="color:var(--text3);font-size:11px">—</span>`;
     const finProd = finProdTrancheFlat(tr);
     let finProdHtml;
@@ -3184,6 +3188,7 @@ function renderPlanningParPhase(){
       <td style="font-weight:500">${esc(ph.nom||'—')}</td>
       <td style="color:var(--text2)">${esc(tr.nom||'')}</td>
       <td>${ctvxHtml}</td>
+      <td>${finUsinagePhaseHtml}</td>
       <td>${finProdHtml}</td>
       <td>${atelierFinHtml(tr, ph)}</td>
       <td onclick="event.stopPropagation()"><button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut de la phase"><span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;white-space:nowrap">${sl[0]} ▾</span></button>${tailleRestanteHtml(ph,tr)}</td>
@@ -8226,7 +8231,19 @@ async function renderCoherenceTranches(){
     // 439 absentes de l'ERP / 462 non planifiées). Le repli « inclus » ne sert que si loadDATES a échoué.
     const aBesoinAtelier = k => besoinAtelierFiable ? (besoinAtelierMap.get(k)===true) : true;
     // Faux positif = déjà produite/livrée, OU pas de besoin atelier déclaré dans DATES
-    const fauxPositif = k => estDejaProduite(k) || !aBesoinAtelier(k);
+    const fauxPositif = k => estDejaProduite(k) || estLivreDATES(k) || !aBesoinAtelier(k);
+
+    // Statut LIVRÉ dans DATES (colonne STATUT) : une tranche dont TOUTES les lignes « besoin atelier »
+    // cochées sont au statut LIVRÉ n'a plus rien à planifier ni à créer → exclue des écarts.
+    const livreMap = new Map();
+    let livreConnu = false;
+    (state.dates_erp||[]).forEach(d=>{
+      const k = norm(d.tranche||'');
+      if(!k) return;
+      if(d._livreConnu) livreConnu = true;
+      if(!livreMap.has(k)) livreMap.set(k, !!d.livre);
+    });
+    const estLivreDATES = k => livreMap.get(k)===true;
 
     // Planning de production : seules les tranches avec ASSEMBLAGE et/ou ÉQUIPEMENT cochés dans
     // DATES ont à y être planifiées (l'usinage seul — taillage sans assemblage ni équipement —
@@ -8239,8 +8256,8 @@ async function renderCoherenceTranches(){
       besoinProdMap.set(k, (besoinProdMap.get(k)||false) || !!d.assemblage || !!d.equipement);
     });
     // Le besoin atelier reste un prérequis pour TOUT le widget : sans lui, aucune ligne n'est comptée.
-    const aBesoinProd = k => aBesoinAtelier(k) && (besoinProdMap.has(k) ? besoinProdMap.get(k) : true);
-    const fauxPositifProd = k => estDejaProduite(k) || !aBesoinProd(k);
+    const aBesoinProd = k => aBesoinAtelier(k) && !estLivreDATES(k) && (besoinProdMap.has(k) ? besoinProdMap.get(k) : true);
+    const fauxPositifProd = k => estDejaProduite(k) || estLivreDATES(k) || !aBesoinProd(k);
     // Population du widget : uniquement les lignes DATES dont « besoin atelier » est coché
     // (inconnu → inclus, pour ne jamais masquer un écart par erreur).
     const datesAtelier = [...datesNoms].filter(n=>aBesoinAtelier(n));
@@ -8357,6 +8374,9 @@ async function renderCoherenceTranches(){
       (besoinInconnu?' · <span title="loadDATES n\'a pas répondu : impossible de savoir quelles lignes ont « besoin atelier » coché, toutes les lignes DATES sont donc comptées. Cliquer sur ↻ Actualiser.">⚠ besoin atelier illisible : <b style="color:var(--orange)">toutes les lignes comptées</b></span>':'')+
       '</div>';
 
+    if(besoinAtelierFiable && !livreConnu && (state.dates_erp||[]).length){
+      html += '<div style="font-size:10px;color:var(--orange);margin:-4px 0 10px 2px">⚠ Statut LIVRÉ de DATES non reçu — republier Code.gs (nouvelle version) pour exclure les tranches livrées</div>';
+    }
     if(nbSansBesoinAtelier>0 && besoinAtelierFiable){
       html += '<div style="font-size:10px;color:var(--text3);margin:-4px 0 10px 2px">'+nbSansBesoinAtelier+' ligne(s) DATES sans « besoin atelier » coché — ignorées (non programmées en production)</div>';
     }
@@ -8371,7 +8391,7 @@ async function renderCoherenceTranches(){
         '</button>' +
         ' <button class="btn btn-sm" onclick="renderCoherenceTranches()" title="Relire DATES, ERP et Planning prod (utile si le planning prod a changé depuis l\'ouverture de cette page)" style="margin-bottom:10px">↻ Actualiser</button>';
       if(nbFauxPositifs>0){
-        html += '<div style="font-size:10px;color:var(--text3);margin:-6px 0 10px 2px">'+nbFauxPositifs+' tranche(s) déjà produites ou sans assemblage/équipement — exclues automatiquement</div>';
+        html += '<div style="font-size:10px;color:var(--text3);margin:-6px 0 10px 2px">'+nbFauxPositifs+' tranche(s) déjà produites/livrées ou sans assemblage/équipement — exclues automatiquement</div>';
       }
     } else {
       html += '<div style="text-align:center;padding:8px;color:var(--green);font-weight:600;font-size:12px">✅ Toutes les tranches sont cohérentes</div>';
@@ -8478,6 +8498,8 @@ async function loadDATESSource() {
       assemblage:     d.assemblage===true||String(d.assemblage||'').toUpperCase()==='TRUE',
       equipement:     d.equipement===true||String(d.equipement||'').toUpperCase()==='TRUE',
       taillage:       d.taillage===true||String(d.taillage||'').toUpperCase()==='TRUE',
+      livre:          d.livre===true||String(d.livre||'').toUpperCase()==='TRUE',
+      _livreConnu:    d.livre!==undefined,   // false si Code.gs n'a pas encore été republié (pas de colonne STATUT lue)
     }));
     state.dates_atelier = r.tranches_atelier || [];
     autoTerminerTranchesUsinageSeul();
