@@ -1612,8 +1612,17 @@ function quickStatutPhase(id, newStatut, e){
   p.statut = newStatut;
   if(newStatut==='termine') p.date_termine = today;
   if(newStatut==='livre')   { p.statut='livre'; p.date_livre = today; }
-  scheduleSave(); renderPlanning(); renderSuiviProd(); renderPilotagePhases();
-  toast(newStatut==='livre'?'✅ Phase marquée Livrée':'✅ Phase marquée Terminée');
+  scheduleSave();
+  _redessinerApresStatut('phase '+id+' → '+newStatut);
+  toast(newStatut==='livre'?'✅ Phase marquée Livrée':newStatut==='termine'?'✅ Phase marquée Terminée':newStatut==='en_cours'?'🔧 Phase en cours':'📋 Phase planifiée');
+}
+// Redessine seulement l'écran affiché (les autres se redessinent à l'ouverture via showScreen), chaque bloc isolé
+// pour qu'une erreur dans l'un n'empêche pas les autres ; durée consignée dans diagERP().
+function _redessinerApresStatut(label){
+  const t0=performance.now();
+  const fns={ 'planning':[renderPlanning], 'suivi-prod':[renderSuiviProd], 'pilotage-phases':[renderPilotagePhases] }[_currentScreen] || [renderPlanning];
+  fns.forEach(fn=>{ try{ fn(); }catch(e){ console.error('Redessin après changement de statut :', e); _evt('ERREUR redessin '+(fn.name||'?')+' : '+e.message); } });
+  _evt('statut '+label+' : redessin '+Math.round(performance.now()-t0)+' ms');
 }
 
 function quickStatutArticle(id, newStatut, e){
@@ -1787,7 +1796,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='16/11/2026-a';
+const ERP_BUILD='16/11/2026-b';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
