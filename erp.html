@@ -1787,7 +1787,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='12/11/2026-a';
+const ERP_BUILD='12/11/2026-b';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -3168,9 +3168,7 @@ function renderPlanningParPhase(){
     const ctvxHtml = ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)
       ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(ctvx)}</span>`
       : `<span style="color:var(--text3);font-size:11px">—</span>`;
-    const finUsinagePhaseHtml = tr.date_fin_usinage
-      ? `<span style="font-size:11px;background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-border);border-radius:4px;padding:1px 5px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(tr.date_fin_usinage)}</span>`
-      : `<span style="color:var(--text3);font-size:11px">—</span>`;
+    const finUsinagePhaseHtml = finUsinageBadge(tr.date_fin_usinage, ctvx, true);
     const finProd = finProdTrancheFlat(tr);
     let finProdHtml;
     if(!finProd){
@@ -3292,6 +3290,16 @@ function atelierDerniereOp(tr, ph){
   }
   return {label:'', title:''};
 }
+// Badge « Fin usinage » : rouge si la fin d'usinage dépasse la date CTVX, vert sinon (turquoise si pas de CTVX)
+function finUsinageBadge(dateFinUs, ctvx, petit){
+  if(!dateFinUs) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  let c='var(--teal)', bg='var(--teal-bg)', bd='var(--teal-border)';
+  if(ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx) && /^\d{4}-\d{2}-\d{2}/.test(dateFinUs)){
+    if(String(dateFinUs).slice(0,10) > ctvx){ c='var(--red)'; bg='var(--red-bg)'; bd='var(--red-border)'; }
+    else { c='var(--green)'; bg='var(--green-bg)'; bd='var(--green-border)'; }
+  }
+  return `<span title="Fin d'usinage${ctvx?' (comparée au CTVX '+fmtDate(ctvx)+')':''}" style="font-size:11px;background:${bg};color:${c};border:1px solid ${bd};border-radius:${petit?4:5}px;padding:${petit?'1px 5px':'2px 6px'};font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(String(dateFinUs).slice(0,10))}</span>`;
+}
 function atelierFinHtml(tr, ph){
   const r = atelierDerniereOp(tr, ph);
   if(!r.label) return '<span style="color:var(--text3);font-size:11px">—</span>';
@@ -3411,9 +3419,7 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
     ? `<span style="font-size:11px;background:${dateBg};color:${dateColor};border:1px solid ${dateBorder};border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(dateSortie)}${dateIcon}</span>`
     : '<span style="color:var(--text3);font-size:11px">—</span>';
 
-  const finUsinageHtml = tr.date_fin_usinage
-    ? `<span style="font-size:11px;background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-border);border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace">${fmtDate(tr.date_fin_usinage)}</span>`
-    : '<span style="color:var(--text3);font-size:11px">—</span>';
+  const finUsinageHtml = finUsinageBadge(tr.date_fin_usinage, ctvx, false);
 
   // Lignes OF sous la tranche (quand déplié)
   let ofsHtml = '';
