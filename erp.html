@@ -1787,7 +1787,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='13/11/2026-a';
+const ERP_BUILD='16/11/2026-a';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -5894,6 +5894,185 @@ function saveHeuresSemaine(){
 
 
 // ── PLANNING RESSOURCES (imprimable + saisie horaires) ──
+// ═══ REMPLISSAGE RAPIDE DU PLANNING RESSOURCES ═══════════════════════════════════════════════════════════════
+// Au lieu d'ouvrir chaque fiche : on choisit les personnes (cases à cocher), on applique les horaires standard
+// (ou on copie la semaine précédente) sur la semaine affichée, éventuellement sur plusieurs semaines.
+// Les cases déjà renseignées (horaire, absence, maladie, fermeture…) ne sont jamais écrasées, sauf case « Écraser » cochée.
+const HORAIRES_STD_DEFAUT = {lunjeu:'7h00-12h00 / 12h45-16h30', ven:'7h00-12h15'};
+let _std = null;
+
+function _horaireTotal(h){
+  const parts = String(h||'').split('/').map(s=>s.trim()).filter(Boolean);
+  if(!parts.length || parts.length>2) return null;
+  let tot = 0;
+  for(const p of parts){
+    const m = p.replace(/\s/g,'').match(/^(\d+h\d*)-(\d+h\d*)$/);
+    if(!m) return null;
+    const a = parseHeure(m[1]), b = parseHeure(m[2]);
+    if(a===null || b===null || b<=a) return null;
+    tot += b-a;
+  }
+  return Math.round(tot*100)/100;
+}
+function _stdLire(){
+  try{ const s = JSON.parse(localStorage.getItem('erp_horaires_std')||'null'); if(s && _horaireTotal(s.lunjeu) && _horaireTotal(s.ven)) return s; }catch(e){}
+  // À défaut : les horaires les plus fréquents déjà saisis (lundi–jeudi / vendredi)
+  const cnt = {lunjeu:{}, ven:{}};
+  (state.heures||[]).forEach(h=>{
+    if(h.type_saisie!=='presence' || !h.horaire || h.absent) return;
+    const g = h.jour==='Vendredi' ? 'ven' : 'lunjeu';
+    cnt[g][h.horaire] = (cnt[g][h.horaire]||0)+1;
+  });
+  const top = g => Object.entries(cnt[g]).sort((a,b)=>b[1]-a[1])[0]?.[0];
+  return {lunjeu: top('lunjeu')||HORAIRES_STD_DEFAUT.lunjeu, ven: top('ven')||HORAIRES_STD_DEFAUT.ven};
+}
+function _dateLocaleISO(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function _semaineDecalee(sem, nb){
+  const [y,w] = sem.split('-S'); const l = getLundiFromSemaine(parseInt(y), parseInt(w)); l.setDate(l.getDate()+7*nb); return getWeekISO(l);
+}
+// Personnes affichées dans le Planning ressources pour une semaine (même règle que le tableau : actifs, intérimaires en mission)
+function _planningEmpsParAtelier(sem){
+  const [yr, sw] = sem.split('-S');
+  const lundi = getLundiFromSemaine(parseInt(yr), parseInt(sw));
+  const ven = new Date(lundi); ven.setDate(lundi.getDate()+4);
+  const lStr = _dateLocaleISO(lundi), vStr = _dateLocaleISO(ven);
+  const heuresSem = (state.heures||[]).filter(h=>h.semaine===sem);
+  const labels = {B1:'Charpente B1',B2:'MOB B2',B3:'Sous-traitance B3',Men:'Atelier Men',Log:'Logistique',Transport:'Transport'};
+  return ATELIERS_H.map(at=>{
+    const emps = (state.employes||[]).filter(e=>{
+      if(e.inactif) return false;
+      const lignes = heuresSem.filter(h=>h.emp_id===e.id);
+      if((lignes[0]?.atelier||e.atelier)!==at) return false;
+      if(e.statut==='interim'){
+        const deb=e.debut_mission||'2000-01-01', fin=e.fin_mission||'2099-12-31';
+        if(deb<=vStr && fin>=lStr) return true;
+        return !!(e.contrats||[]).some(c=>(c.debut||'2000-01-01')<=vStr && (c.fin||'2099-12-31')>=lStr);
+      }
+      return true;
+    });
+    return {at, label: labels[at]||'Usinage', emps};
+  }).filter(g=>g.emps.length);
+}
+function _celluleSaisie(empId, sem, jour){
+  return (state.heures||[]).find(h=>h.emp_id===empId && h.semaine===sem && h.jour===jour && (h.type_saisie==='presence' || h.horaire || (h.absent && !h.chantier1))) || null;
+}
+function openRemplirSemaine(){
+  const sem = state._semHeure || getSemainesDisponibles()[0]?.val || getWeekISO(new Date());
+  const groupes = _planningEmpsParAtelier(sem);
+  if(!groupes.length){ toast('Aucune personne dans le planning pour cette semaine'); return; }
+  const std = _stdLire();
+  const sel = new Set();
+  groupes.forEach(g=>g.emps.forEach(e=>{ if(!JOURS_SEMAINE.some(j=>_celluleSaisie(e.id, sem, j))) sel.add(e.id); }));   // pré-coché : personnes sans aucune saisie
+  _std = {sem, groupes, sel, mode:'std', std, ecraser:false, nbSem:1};
+  _stdRender();
+  document.getElementById('modal-remplir').classList.add('show');
+}
+function _stdRender(){
+  const s = _std; if(!s) return;
+  const [y,w] = s.sem.split('-S');
+  const blocs = s.groupes.map(g=>`
+    <div style="margin:8px 0 2px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;display:flex;gap:10px;align-items:center">${g.label}
+      <button class="btn btn-sm" style="font-size:10px;padding:1px 6px" onclick="_stdSelAtelier('${g.at}',true)">tous</button>
+      <button class="btn btn-sm" style="font-size:10px;padding:1px 6px" onclick="_stdSelAtelier('${g.at}',false)">aucun</button></div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:2px 14px">${g.emps.map(e=>{
+      const nb = JOURS_SEMAINE.filter(j=>_celluleSaisie(e.id, s.sem, j)).length;
+      return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" style="width:auto" ${s.sel.has(e.id)?'checked':''} onchange="_stdToggle('${e.id}',this.checked)"/>${esc(e.nom)} ${esc(e.prenom)}${nb?` <span style="font-size:10px;color:var(--text3)">(${nb} j saisi${nb>1?'s':''})</span>`:''}</label>`;}).join('')}</div>`).join('');
+  document.getElementById('modal-remplir-body').innerHTML = `
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Semaine <b>${y} — S${w}</b>. Les cases déjà remplies (horaires, absences, maladie, fermetures) ne sont pas modifiées.</div>
+    <div style="display:flex;gap:16px;margin-bottom:10px;font-size:12px">
+      <label style="cursor:pointer"><input type="radio" name="std-mode" style="width:auto" ${s.mode==='std'?'checked':''} onchange="_std.mode='std';_stdRender()"/> Horaires standard</label>
+      <label style="cursor:pointer"><input type="radio" name="std-mode" style="width:auto" ${s.mode==='copie'?'checked':''} onchange="_std.mode='copie';_stdRender()"/> Copier la semaine précédente</label>
+    </div>
+    ${s.mode==='std'?`<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px">
+      <label style="font-size:12px;font-weight:600">Lundi → Jeudi</label>
+      <input id="std-lunjeu" value="${esc(s.std.lunjeu)}" oninput="_std.std.lunjeu=this.value;_stdResume()" style="font-family:'DM Mono',monospace;padding:6px 8px;border:1px solid var(--border);border-radius:6px"/>
+      <label style="font-size:12px;font-weight:600">Vendredi</label>
+      <input id="std-ven" value="${esc(s.std.ven)}" oninput="_std.std.ven=this.value;_stdResume()" style="font-family:'DM Mono',monospace;padding:6px 8px;border:1px solid var(--border);border-radius:6px"/>
+      <div></div><div style="font-size:10px;color:var(--text3)">Format : 7h00-12h00 / 12h45-16h30 (une ou deux plages). Ces horaires sont mémorisés pour la prochaine fois.</div>
+    </div>`:''}
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:12px;font-weight:600">Personnes
+      <button class="btn btn-sm" style="font-size:10px;padding:1px 6px" onclick="_stdSelTous(true)">Tous</button>
+      <button class="btn btn-sm" style="font-size:10px;padding:1px 6px" onclick="_stdSelTous(false)">Aucun</button>
+      <button class="btn btn-sm" style="font-size:10px;padding:1px 6px" onclick="_stdSelVides()">Sans saisie cette semaine</button></div>
+    <div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px 10px">${blocs}</div>
+    <div style="display:flex;align-items:center;gap:16px;margin-top:10px;font-size:12px;flex-wrap:wrap">
+      <label style="cursor:pointer"><input type="checkbox" style="width:auto" ${s.ecraser?'checked':''} onchange="_std.ecraser=this.checked;_stdResume()"/> Écraser aussi les cases déjà remplies</label>
+      <label>Répéter sur <input type="number" min="1" max="12" value="${s.nbSem}" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:6px" oninput="_std.nbSem=Math.max(1,Math.min(12,parseInt(this.value)||1));_stdResume()"/> semaine(s)</label>
+    </div>
+    <div id="std-resume" style="margin-top:10px;font-size:12px;font-weight:600;color:var(--blue)"></div>`;
+  _stdResume();
+}
+function _stdToggle(id,on){ on?_std.sel.add(id):_std.sel.delete(id); _stdResume(); }
+function _stdSelTous(on){ _std.groupes.forEach(g=>g.emps.forEach(e=>on?_std.sel.add(e.id):_std.sel.delete(e.id))); _stdRender(); }
+function _stdSelAtelier(at,on){ const g=_std.groupes.find(x=>x.at===at); if(g) g.emps.forEach(e=>on?_std.sel.add(e.id):_std.sel.delete(e.id)); _stdRender(); }
+function _stdSelVides(){ _std.sel.clear(); _std.groupes.forEach(g=>g.emps.forEach(e=>{ if(!JOURS_SEMAINE.some(j=>_celluleSaisie(e.id,_std.sem,j))) _std.sel.add(e.id); })); _stdRender(); }
+
+// Calcule ce qui serait créé (sans rien modifier)
+function _stdPlan(){
+  const s = _std, plan = {ajouts:[], remplace:[], ignorees:0, fermetures:0, sansSource:0, erreur:''};
+  if(s.mode==='std'){
+    if(!_horaireTotal(s.std.lunjeu)) plan.erreur = 'Horaires lundi → jeudi invalides';
+    else if(!_horaireTotal(s.std.ven)) plan.erreur = 'Horaires vendredi invalides';
+  }
+  if(plan.erreur) return plan;
+  const [y0,w0] = s.sem.split('-S');
+  for(let k=0;k<s.nbSem;k++){
+    const sem = _semaineDecalee(s.sem, k);
+    const lundi = getLundiFromSemaine(parseInt(sem.split('-S')[0]), parseInt(sem.split('-S')[1]));
+    const eligibles = new Set(_planningEmpsParAtelier(sem).flatMap(g=>g.emps.map(e=>e.id)));
+    s.sel.forEach(empId=>{
+      const emp = (state.employes||[]).find(e=>e.id===empId); if(!emp || !eligibles.has(empId)) return;
+      JOURS_SEMAINE.forEach((jour,i)=>{
+        const d = new Date(lundi); d.setDate(lundi.getDate()+i); const dISO = _dateLocaleISO(d);
+        const exist = _celluleSaisie(empId, sem, jour);
+        if(exist && !s.ecraser){ plan.ignorees++; return; }
+        const base = {id:null, emp_id:empId, semaine:sem, jour, chantier1:'', chantier2:'', statut:emp.statut||'CDI', type_saisie:'presence', h_am:0};
+        // Fermeture d'atelier ce jour-là : on la pose comme « Fermeture » (même résultat que le bouton Fermetures)
+        const ferme = (state.fermetures||[]).some(f=>f.date===dISO && (f.atelier==='all' || String(f.atelier||'').toLowerCase()===String(emp.atelier||'').toLowerCase()));
+        let entree;
+        if(ferme){
+          entree = {...base, atelier:emp.atelier||'B1', horaire:'', absent:'Fermeture', h_mat:0, total_hebdo:0, comment:'Fermeture atelier'}; plan.fermetures++;
+        } else if(s.mode==='std'){
+          const h = jour==='Vendredi' ? s.std.ven.trim() : s.std.lunjeu.trim(); const tot = _horaireTotal(h);
+          entree = {...base, atelier:(exist&&exist.atelier)||emp.atelier||'B2', horaire:h, absent:'', h_mat:tot, total_hebdo:tot, comment:''};
+        } else {
+          const src = _celluleSaisie(empId, _semaineDecalee(s.sem,-1), jour);
+          if(!src || !src.horaire || src.absent){ plan.sansSource++; return; }     // on ne recopie ni les absences ni les cases vides
+          entree = {...base, atelier:src.atelier||emp.atelier||'B2', horaire:src.horaire, absent:'', h_mat:src.h_mat, total_hebdo:src.total_hebdo, comment:src.comment||''};
+        }
+        if(exist) plan.remplace.push(exist);
+        plan.ajouts.push(entree);
+      });
+    });
+  }
+  return plan;
+}
+function _stdResume(){
+  const el = document.getElementById('std-resume'); if(!el || !_std) return;
+  const p = _stdPlan();
+  if(p.erreur){ el.style.color='var(--red)'; el.textContent = '⚠ '+p.erreur; return; }
+  el.style.color = p.ajouts.length ? 'var(--blue)' : 'var(--text3)';
+  el.textContent = p.ajouts.length
+    ? `→ ${p.ajouts.length} case(s) seront remplies pour ${_std.sel.size} personne(s)`+(p.fermetures?` (dont ${p.fermetures} fermeture(s))`:'')+(p.ignorees?` · ${p.ignorees} déjà remplie(s), conservée(s)`:'')+(p.sansSource?` · ${p.sansSource} sans horaire la semaine précédente`:'')
+    : 'Rien à remplir avec cette sélection'+(p.ignorees?` (${p.ignorees} case(s) déjà remplie(s))`:'');
+}
+function appliquerRemplirSemaine(){
+  const s = _std; if(!s) return;
+  const p = _stdPlan();
+  if(p.erreur){ toast('⚠ '+p.erreur); return; }
+  if(!p.ajouts.length){ toast('Rien à remplir'); return; }
+  if(!state.heures) state.heures = [];
+  if(p.remplace.length){ const ids = new Set(p.remplace.map(h=>h.id)); state.heures = state.heures.filter(h=>!ids.has(h.id)); }
+  p.ajouts.forEach(a=>{ a.id = uid()+Math.random().toString(36).slice(2,5); state.heures.push(a); });
+  if(s.mode==='std'){ try{ localStorage.setItem('erp_horaires_std', JSON.stringify({lunjeu:s.std.lunjeu.trim(), ven:s.std.ven.trim()})); }catch(e){} }
+  closeModal('modal-remplir');
+  state._semHeure = s.sem;
+  scheduleSave();
+  renderPlanningRessources();
+  toast(`✓ ${p.ajouts.length} case(s) remplie(s)`);
+  _std = null;
+}
+
 function renderPlanningRessources(){
   const el = document.getElementById('hscreen-planning');
   const employes = state.employes||[];
@@ -5917,6 +6096,7 @@ function renderPlanningRessources(){
     <select id="plan-sem-sel" style="padding:6px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px" onchange="state._semHeure=this.value;renderPlanningRessources()">
       ${semaines.map(s=>`<option value="${s.val}"${s.val===semSel?' selected':''}>${s.label}</option>`).join('')}
     </select>
+    <button class="btn btn-primary" onclick="openRemplirSemaine()" title="Remplir toute la semaine en quelques clics (horaires standard ou copie de la semaine précédente)">⚡ Remplir la semaine</button>
     <button class="btn btn-primary" onclick="openPrintAteliers()">🖨 Imprimer</button>
     <button class="btn" onclick="openPauseConfig()" title="Configurer les pauses par atelier">⚙ Pauses</button>
     <button class="btn btn-orange" onclick="appliquerFermetures()" title="Pré-remplir les absences depuis les fermetures du planning production">📅 Fermetures</button>
@@ -10973,6 +11153,18 @@ document.getElementById('charge-debut').value=d.toISOString().slice(0,10);
       <button class="btn btn-red btn-sm" onclick="clearCellPlanning()" style="margin-right:auto">Effacer</button>
       <button class="btn" onclick="closeModal('modal-presence')">Annuler</button>
       <button class="btn btn-primary" onclick="saveCellPlanningMulti()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REMPLIR LA SEMAINE (planning ressources) -->
+<div class="modal-bg" id="modal-remplir" onclick="if(event.target===this)closeModal('modal-remplir')">
+  <div class="modal" style="width:620px;max-width:96vw">
+    <h2>⚡ Remplir la semaine</h2>
+    <div id="modal-remplir-body"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-remplir')">Annuler</button>
+      <button class="btn btn-primary" onclick="appliquerRemplirSemaine()">Appliquer</button>
     </div>
   </div>
 </div>
