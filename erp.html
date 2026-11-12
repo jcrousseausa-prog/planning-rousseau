@@ -1787,7 +1787,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='12/11/2026-b';
+const ERP_BUILD='13/11/2026-a';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -3168,11 +3168,14 @@ function renderPlanningParPhase(){
     const ctvxHtml = ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)
       ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(ctvx)}</span>`
       : `<span style="color:var(--text3);font-size:11px">—</span>`;
-    const finUsinagePhaseHtml = finUsinageBadge(tr.date_fin_usinage, ctvx, true);
+    const phFini = ['termine','livre'].includes(ph.statut||'') || tr.statut_erp==='livre';
+    const finUsinagePhaseHtml = finUsinageBadge(tr.date_fin_usinage, ctvx, true, phFini);
     const finProd = finProdTrancheFlat(tr);
     let finProdHtml;
     if(!finProd){
       finProdHtml = `<span style="color:var(--text3);font-size:11px">—</span>`;
+    } else if(phFini){
+      finProdHtml = dateFiniHtml(finProd, ctvx, true);
     } else {
       let color='var(--text2)', bg='transparent', border='var(--border)';
       if(ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)){
@@ -3291,7 +3294,20 @@ function atelierDerniereOp(tr, ph){
   return {label:'', title:''};
 }
 // Badge « Fin usinage » : rouge si la fin d'usinage dépasse la date CTVX, vert sinon (turquoise si pas de CTVX)
-function finUsinageBadge(dateFinUs, ctvx, petit){
+// Phase/tranche terminée ou livrée : date estompée en gris avec ✓ (plus de rouge/vert → on ne voit que les retards à traiter).
+// Le survol rappelle le retard éventuel par rapport au CTVX.
+function dateFiniHtml(date, ctvx, petit){
+  if(!date) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  const d = String(date).slice(0,10);
+  let info = 'Terminée';
+  if(ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx) && /^\d{4}-\d{2}-\d{2}$/.test(d)){
+    const j = Math.round((new Date(d)-new Date(ctvx))/86400000);
+    info += j>0 ? ' — fin le '+fmtDate(d)+', '+j+' j après le CTVX du '+fmtDate(ctvx) : ' — dans les temps (CTVX '+fmtDate(ctvx)+')';
+  }
+  return `<span title="${esc(info)}" style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;white-space:nowrap;padding:${petit?'1px 5px':'2px 6px'}">✓ ${fmtDate(d)}</span>`;
+}
+function finUsinageBadge(dateFinUs, ctvx, petit, fini){
+  if(fini) return dateFiniHtml(dateFinUs, ctvx, petit);
   if(!dateFinUs) return '<span style="color:var(--text3);font-size:11px">—</span>';
   let c='var(--teal)', bg='var(--teal-bg)', bd='var(--teal-border)';
   if(ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx) && /^\d{4}-\d{2}-\d{2}/.test(dateFinUs)){
@@ -3415,11 +3431,12 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
     ? `<span style="font-size:11px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace">${fmtDate(ctvx)}</span>`
     : '<span style="color:var(--text3);font-size:11px">—</span>';
 
-  const finProdHtml = dateSortie
+  const trFini = statut==='termine' || tr.statut_erp==='termine' || tr.statut_erp==='livre';
+  const finProdHtml = (dateSortie && trFini) ? dateFiniHtml(dateSortie, ctvx, false) : dateSortie
     ? `<span style="font-size:11px;background:${dateBg};color:${dateColor};border:1px solid ${dateBorder};border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(dateSortie)}${dateIcon}</span>`
     : '<span style="color:var(--text3);font-size:11px">—</span>';
 
-  const finUsinageHtml = finUsinageBadge(tr.date_fin_usinage, ctvx, false);
+  const finUsinageHtml = finUsinageBadge(tr.date_fin_usinage, ctvx, false, trFini);
 
   // Lignes OF sous la tranche (quand déplié)
   let ofsHtml = '';
@@ -8487,6 +8504,103 @@ async function syncFinUsinageManuel() {
   }
 }
 
+// ═══ CRÉATION AUTOMATIQUE DES TRANCHES (et chantiers) PRÉSENTS DANS DATES ═════════════════════════════
+// Règle (nov. 2026) : toute tranche de DATES dont « BESOIN ATELIER ? » est coché doit exister dans l'ERP,
+// rattachée à son chantier. Si le chantier n'existe pas, il est créé avec les informations du fichier DOSSIERS.
+// Une seule fois par ouverture de l'ERP (au chargement), jamais en lecture seule, et jamais si l'ERP n'est pas
+// complètement chargé (sinon on recréerait tout). Les tranches « LIVRÉ » dans DATES sont créées au statut Livré.
+let _creationDATESFaite = false, _creationDATESTentatives = 0;
+const _cleCh = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+const _MAP_MARCHE = {prive:'Marché privé', public:'Marché public', 'gre a gre':'Gré à gré', ao:"Appel d'offres"};
+const _MAP_BATIMENT = {mi:'Maison individuelle', collectif:'Logements collectifs', tertiaire:'Tertiaire', erp:'ERP', industriel:'Industriel', agricole:'Agricole'};
+function _mapListe(map, v){
+  const k = String(v||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+  return map[k] || '';
+}
+async function creerTranchesDepuisDATES(opts){
+  opts = opts || {};
+  if(_creationDATESFaite && !opts.force) return;
+  // L'ERP doit être entièrement chargé depuis le serveur ; sinon on attend un peu (max ~30 s) puis on abandonne
+  if(!_sheetsLoaded || !state.chantiers.length){
+    if(++_creationDATESTentatives <= 15) setTimeout(()=>creerTranchesDepuisDATES(opts), 2000);
+    return;
+  }
+  if(!state._datesErpOk || !(state.dates_erp||[]).length) return;      // besoin atelier illisible : on ne crée rien
+  if(!canEdit('planning')) return;                                       // profil en lecture seule
+  if(_saveTimeout || _savePromise) { if(++_creationDATESTentatives <= 15) setTimeout(()=>creerTranchesDepuisDATES(opts), 2000); return; }
+  _creationDATESFaite = true;
+
+  const existantes = new Set(state.tranches.map(t=>_cleNomTranche(t.nom)));
+  const idsLies = new Set(state.tranches.map(t=>String(t.id_dates||'').trim()).filter(Boolean));
+  const vues = new Set();
+  const manquantes = (state.dates_erp||[]).filter(d=>{
+    const k = _cleNomTranche(d.tranche); if(!k) return false;
+    if(existantes.has(k) || vues.has(k)) return false;
+    if(d.id_unique && idsLies.has(String(d.id_unique).trim())) return false;   // déjà liée sous un autre nom
+    vues.add(k); return true;
+  });
+  if(!manquantes.length){ console.log('DATES → ERP : aucune tranche manquante'); return; }
+
+  // Fiche chantiers (fichier DOSSIERS) : seulement si au moins un chantier est à créer
+  const cleChantierErp = new Map(); state.chantiers.forEach(c=>{ const k=_cleCh(c.nom); if(k && !cleChantierErp.has(k)) cleChantierErp.set(k,c); });
+  const codeChantierErp = new Map(); state.chantiers.forEach(c=>{ const k=String(c.code||'').trim(); if(k && !codeChantierErp.has(k)) codeChantierErp.set(k,c); });
+  let dossiers = null, dossiersErr = '';
+  const besoinDossiers = manquantes.some(d=>d.dossier && !cleChantierErp.has(_cleCh(d.dossier)));
+  if(besoinDossiers){
+    try{
+      const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getDossiers'})});
+      const r = await res.json();
+      if(r.ok) dossiers = r.dossiers||[]; else dossiersErr = r.error||'fichier DOSSIERS illisible';
+    }catch(e){ dossiersErr = e.message; }
+  }
+  const dosParCle = new Map(); (dossiers||[]).forEach(x=>{ const k=_cleCh(x.nom); if(k && !dosParCle.has(k)) dosParCle.set(k,x); });
+
+  // Garde-fou : un volume anormal vient presque toujours d'une lecture incomplète → confirmation
+  if(manquantes.length > 150 && !confirm('DATES contient '+manquantes.length+' tranches absentes de l\'ERP. Les créer toutes maintenant ?')){ return; }
+
+  const today = new Date().toISOString().slice(0,10);
+  const crees = {tranches:0, chantiers:[], livrees:0, sansDossier:[], chantierInconnu:[]};
+  let n = 0;
+  manquantes.forEach(d=>{
+    const nomDos = String(d.dossier||'').trim();
+    if(!nomDos){ crees.sansDossier.push(d.tranche); return; }
+    const kC = _cleCh(nomDos);
+    let ch = cleChantierErp.get(kC);
+    const dos = dosParCle.get(kC) || null;
+    if(!ch && dos && dos.code) ch = codeChantierErp.get(String(dos.code).trim()) || null;
+    if(!ch){
+      if(dossiers===null){ crees.chantierInconnu.push(d.tranche); return; }     // fichier DOSSIERS illisible : on ne crée pas un chantier à moitié renseigné
+      const m3 = dos ? String(dos.m3||'').replace(/\s/g,'').replace(',','.') : '';
+      ch = {
+        id: uid()+'-'+(n++).toString(36), open:false, actif:true,
+        nom: dos ? dos.nom : nomDos, conduc:'',
+        code: dos?dos.code:'', adresse: dos?dos.adresse:'', moe: dos?dos.moe:'', moa: dos?dos.moa:'',
+        type_marche: dos?_mapListe(_MAP_MARCHE,dos.type_marche):'', type_travaux:'',
+        type_batiment: dos?_mapListe(_MAP_BATIMENT,dos.type_batiment):'',
+        m3: m3, heures_atelier:'', image_url:''
+      };
+      state.chantiers.push(ch); cleChantierErp.set(kC,ch); cleChantierErp.set(_cleCh(ch.nom),ch);
+      if(ch.code) codeChantierErp.set(String(ch.code).trim(),ch);
+      crees.chantiers.push(ch.nom + (dos?'':' (absent du fichier DOSSIERS : nom seul)'));
+    }
+    const livre = d.livre===true;
+    const tr = {id: uid()+'-'+(n++).toString(36), cid: ch.id, nom: d.tranche, conduc: ch.conduc||'', open:false,
+                ctvx: d.date_ctvx||'', id_dates: d.id_unique||'', statut_erp: livre?'livre':''};
+    if(livre){ tr.date_livre = today; crees.livrees++; }
+    state.tranches.push(tr); crees.tranches++;
+  });
+  state.chantiers.sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
+  state._creationDATES = crees;
+  if(crees.tranches){
+    scheduleSave(); try{ renderAll(); }catch(e){}
+    toast('✅ DATES → ERP : '+crees.tranches+' tranche(s) créée(s)'+(crees.chantiers.length?' · '+crees.chantiers.length+' chantier(s) créé(s)':''));
+  }
+  console.log('DATES → ERP :', crees, dossiersErr?('(DOSSIERS : '+dossiersErr+')'):'');
+  if(crees.sansDossier.length||crees.chantierInconnu.length) console.warn('DATES → ERP : non créées', {sansDossier:crees.sansDossier, chantierInconnu:crees.chantierInconnu});
+  try{ renderCoherenceTranches(); }catch(e){}
+}
+window.creerTranchesDepuisDATES = creerTranchesDepuisDATES;
+
 async function loadDATESSource() {
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
@@ -8509,6 +8623,7 @@ async function loadDATESSource() {
     }));
     state.dates_atelier = r.tranches_atelier || [];
     autoTerminerTranchesUsinageSeul();
+    setTimeout(()=>{ try{ creerTranchesDepuisDATES(); }catch(e){ console.warn('creerTranchesDepuisDATES:', e.message); } }, 0);   // une seule fois par ouverture
     // Re-render le planning avec les nouvelles données CTVX
     if(state.currentTab === 'pilotage') renderPlanning();
 
