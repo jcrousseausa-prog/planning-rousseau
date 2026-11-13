@@ -1796,7 +1796,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='16/11/2026-e';
+const ERP_BUILD='16/11/2026-f';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -6103,6 +6103,7 @@ function appliquerRemplirSemaine(){
 // Ateliers sans feuille : Logistique et Usinage.
 const ATELIERS_SANS_FEUILLE = ['Log','Us'];
 const _JOURS_FEUILLE = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
+const FEUILLE_PREREMPLIR_CHANTIERS = false;   // true = imprime les chantiers probables de chaque personne ; false = lignes vides à remplir
 const FEUILLE_NB_LIGNES_CHANTIERS = 8;   // lignes pré-imprimées (chantiers probables)
 const FEUILLE_NB_LIGNES_LIBRES = 3;      // lignes vides à compléter à la main
 
@@ -6162,7 +6163,7 @@ function _donneesFeuille(emp, at, sem, opts){
   return { emp, at, sem, annee: parseInt(yr), semaine: parseInt(sw), jours,
            totalPrevu: Math.round(jours.reduce((s,x)=>s+x.prevu,0)*100)/100,
            commentaire: jours.filter(x=>x.comment).map(x=>x.jour+' : '+x.comment).join(' ; '),
-           chantiers: opts.sansChantiers ? [] : _chantiersProbables(emp, at, sem),
+           chantiers: (opts.sansChantiers || !FEUILLE_PREREMPLIR_CHANTIERS) ? [] : _chantiersProbables(emp, at, sem),
            nbJoursTravailles: jours.filter(x=>x.travaille).length };
 }
 function _fmtDateFR(d){ return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear(); }
@@ -6189,7 +6190,7 @@ function _htmlFeuille(F, logo){
    +'<tr><td class="sous">Semaine '+F.semaine+' — du '+_fmtDateFR(F.jours[0].date)+' au '+_fmtDateFR(F.jours[4].date)+'</td></tr></table>'
    +'<table class="ident"><tr><td class="lbl">Nom</td><td class="val">'+e(F.emp.nom||'')+'</td><td class="lbl">Prénom</td><td class="val">'+e(F.emp.prenom||'')+'</td><td class="lbl">Atelier</td><td class="val c">'+e(F.at)+'</td></tr></table>'
    +'<div class="consigne">Indique le <b>nombre d\'heures passées sur chaque chantier</b>, chaque jour, en décimal (ex : 4,5). '
-   +'Le total de chaque jour doit être égal aux <b>heures prévues</b> (pause de 15 min déjà déduite). Chantier absent de la liste : écris son nom sur une ligne vide.</div>'
+   +'Le total de chaque jour doit être égal aux <b>heures prévues</b> (pause de 15 min déjà déduite). Écris le nom du chantier dans la 1re colonne.</div>'
    +'<table class="grille"><thead><tr><th class="chh">Chantier</th>'+entetesJours+'<th class="tth">Total<br>semaine</th></tr></thead><tbody>'
    +'<tr class="prevu"><td class="ch">Présence prévue <span class="pt">(planning ressources)</span></td>'+prevu+'<td class="tot"><b>'+_fmtHeures(F.totalPrevu)+' h</b></td></tr>'
    +lignes
@@ -6230,11 +6231,11 @@ function openFeuillesHebdo(){
     if(it.at!==lastAt){ corps += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--blue);margin:10px 0 4px">'+esc(it.label)+'</div>'; lastAt = it.at; }
     const vide = it.nb===0;
     corps += '<label style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:13px'+(vide?';opacity:.6':'')+'"><input type="checkbox" class="fh-cb" data-i="'+i+'"'+(vide?'':' checked')+' style="accent-color:#1A4F8A"> <span>'+esc(it.emp.nom)+' '+esc(it.emp.prenom||'')+'</span>'
-      +'<span style="margin-left:auto;font-size:11px;color:var(--text3)">'+(vide?'aucun horaire saisi':_fmtHeures(it.prevu)+' h prévues')+(it.nbAbs?' · '+it.nbAbs+' abs.':'')+' · '+it.nbCh+' chantier(s) listé(s)</span></label>';
+      +'<span style="margin-left:auto;font-size:11px;color:var(--text3)">'+(vide?'aucun horaire saisi':_fmtHeures(it.prevu)+' h prévues')+(it.nbAbs?' · '+it.nbAbs+' abs.':'')+'</span></label>';
   });
   ov.innerHTML = '<div style="background:var(--surface);border-radius:14px;max-width:620px;width:100%;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,.35);max-height:90vh;display:flex;flex-direction:column">'
     +'<div style="font-size:16px;font-weight:700">📄 Feuilles d\'heures par chantier — semaine '+sw+'</div>'
-    +'<div style="font-size:12px;color:var(--text2);margin:4px 0 8px">Du '+_fmtDateFR(lundi)+' au '+_fmtDateFR(ven)+'. Une page par personne : horaires prévus, absences et chantiers probables déjà imprimés ; chacun n\'a plus qu\'à écrire ses heures par chantier. Logistique et Usinage n\'ont pas de feuille.</div>'
+    +'<div style="font-size:12px;color:var(--text2);margin:4px 0 8px">Du '+_fmtDateFR(lundi)+' au '+_fmtDateFR(ven)+'. Une page par personne : horaires prévus et absences déjà imprimés ; chacun écrit le nom du chantier et ses heures. Logistique et Usinage n\'ont pas de feuille.</div>'
     +'<div style="display:flex;gap:8px;margin-bottom:4px"><button class="btn btn-sm" id="fh-tout">Tout cocher</button><button class="btn btn-sm" id="fh-rien">Tout décocher</button><span id="fh-nb" style="margin-left:auto;font-size:12px;font-weight:600;align-self:center"></span></div>'
     +'<div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:8px;padding:4px 8px">'+corps+'</div>'
     +'<label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:10px;cursor:pointer"><input type="checkbox" id="fh-std" style="accent-color:#1A4F8A"> Compléter les jours sans horaire avec les horaires standard</label>'
