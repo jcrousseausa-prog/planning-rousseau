@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261104-1000">
+<meta name="version" content="20261110-1000">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -1141,6 +1141,10 @@ async function _saveToSupabaseOnce(atId) {
   phases: Array.isArray(t.phases) ? t.phases.join(',') : (t.phases||''),
   erp_tranche_id: t.erp_tranche_id||'',
   tr_id: t.tr_id||'',
+  // Date de fin de production TELLE QU'AFFICHÉE ici (demi-journées, durées décimales, fermetures) :
+  // c'est elle que l'ERP doit reprendre (Suivi production, Pilotage phases). Le serveur ne sait pas
+  // refaire ce calcul (il ignore les fractions de journée) et n'en sert qu'en secours.
+  date_fin_prod: dateFin(t, aid)||'',
   maj: t._maj||'', majl: t._majl||'',
 }));
   }
