@@ -1796,7 +1796,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='16/11/2026-b';
+const ERP_BUILD='16/11/2026-e';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -3193,8 +3193,8 @@ function renderPlanningParPhase(){
       }
       finProdHtml = `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;background:${bg};color:${color};border:1px solid ${border};border-radius:4px;padding:1px 5px">${fmtDate(finProd)}</span>`;
     }
-    html += `<tr style="cursor:pointer;border-bottom:1px solid var(--border)" onclick="jumperVersPhase('${ph.id}')" title="Cliquer pour voir cette phase dans la vue par tranches">
-      <td style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue);white-space:nowrap;padding-left:20px">${esc(ph.num||'—')}</td>
+    html += `<tr class="ph-ligne" data-ph="${ph.id}" style="border-bottom:1px solid var(--border);user-select:text;-webkit-user-select:text;cursor:text">
+      <td style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue);white-space:nowrap;padding-left:20px"><span class="ph-num">${esc(ph.num||'—')}</span> <button class="ph-act" onclick="copierLignePhase('${ph.id}',event)" title="Copier cette phase (colonnes séparées par des tabulations, prêt à coller dans Planning Production ou un tableur)" style="border:1px solid var(--border);background:var(--surface);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer;margin-left:4px;user-select:none">📋</button><button class="ph-act" onclick="jumperVersPhase('${ph.id}')" title="Voir cette phase dans la vue par tranches" style="border:1px solid var(--border);background:var(--surface);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer;margin-left:3px;user-select:none">↗</button></td>
       <td style="font-weight:500">${esc(ph.nom||'—')}</td>
       <td style="color:var(--text2)">${esc(tr.nom||'')}</td>
       <td>${ctvxHtml}</td>
@@ -3209,9 +3209,21 @@ function renderPlanningParPhase(){
   tbody.innerHTML = html;
 }
 
-// Depuis la Vue par phase, clic sur une ligne → bascule vers la vue par chantier, déplie
+// Depuis la Vue par phase, bouton ↗ → bascule vers la vue par chantier, déplie
 // automatiquement le chantier et la tranche concernés, et surligne + scrolle jusqu'à la phase
 // (même mécanisme que la recherche par phase).
+// Copie une ligne de la vue « par phase » (texte des colonnes, séparées par des tabulations)
+function copierLignePhase(phId, e){
+  if(e) e.stopPropagation();
+  const tr=document.querySelector('#planning-phase-tbody tr.ph-ligne[data-ph="'+phId+'"]'); if(!tr) return;
+  const txt=[...tr.children].map((td,i)=>{
+    const c=td.cloneNode(true); c.querySelectorAll('.ph-act').forEach(b=>b.remove());
+    return c.innerText.replace(/\s+/g,' ').replace(/▾/g,'').trim();
+  }).join('\t');
+  const ok=()=>toast('📋 Phase copiée');
+  const repli=()=>{ try{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); ok(); }catch(err){ toast('Copie impossible — sélectionne le texte à la souris puis Ctrl+C'); } };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok,repli); else repli();
+}
 function jumperVersPhase(phId){
   const ph = state.phases.find(p=>p.id===phId); if(!ph) return;
   const tr = state.tranches.find(t=>t.id===ph.tid);
@@ -6082,6 +6094,183 @@ function appliquerRemplirSemaine(){
   _std = null;
 }
 
+// ═══ FEUILLES D'HEURES HEBDOMADAIRES PAR CHANTIER (une page par personne, pré-remplie depuis l'ERP) ═══════════════
+// Objectif : chacun répartit SES heures de la semaine par chantier (pour le bilan d'affaire) sans rien recopier d'autre.
+// Pré-rempli par l'ERP : identité, atelier, semaine, dates, horaires PRÉVUS et heures prévues par jour (pause déduite),
+// absences (RTT, CP, maladie, fermeture…) et la liste des chantiers probables de la personne.
+// Reste à faire à la main : écrire les heures (en décimal) dans la grille chantier × jour.
+// Même grille que l'écran « Saisie semaine » de l'ERP (une ligne par chantier, une colonne par jour) : la reprise est directe.
+// Ateliers sans feuille : Logistique et Usinage.
+const ATELIERS_SANS_FEUILLE = ['Log','Us'];
+const _JOURS_FEUILLE = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
+const FEUILLE_NB_LIGNES_CHANTIERS = 8;   // lignes pré-imprimées (chantiers probables)
+const FEUILLE_NB_LIGNES_LIBRES = 3;      // lignes vides à compléter à la main
+
+function _horaireBrutHeures(h){ const t=_horaireTotal(h); return t===null?0:t; }
+function _fmtHeures(n){ return (Math.round(n*100)/100).toString().replace('.',','); }
+function _atelierCorrespond(valOF, at){
+  const a = String(valOF||'').toUpperCase(), c = String(at||'').toUpperCase();
+  if(!a||!c) return false;
+  return new RegExp('(^|[^A-Z0-9])'+c+'([^A-Z0-9]|$)').test(a);
+}
+// Chantiers probables d'une personne cette semaine : (1) OF de son atelier en cours de production cette semaine
+// (planning production), (2) chantiers sur lesquels elle a déjà pointé les 2 semaines précédentes.
+function _chantiersProbables(emp, at, sem, max){
+  const [yr, sw] = sem.split('-S');
+  const lundi = getLundiFromSemaine(parseInt(yr), parseInt(sw)); const ven = new Date(lundi); ven.setDate(lundi.getDate()+4);
+  const lStr = _dateLocaleISO(lundi), vStr = _dateLocaleISO(ven);
+  const out = []; const vus = new Set();
+  const ajouter = nom => { const n=String(nom||'').trim(); if(!n) return; const k=n.toLowerCase(); if(vus.has(k)) return; vus.add(k); out.push(n); };
+  const trs = state.tranches||[], chs = state.chantiers||[];
+  const nbParCh = new Map();
+  (state.suivi_prod||[]).forEach(o=>{
+    if(!_atelierCorrespond(o.atelier, at)) return;
+    const deb = o.date_debut||'', fin = o.date_fin_prod||'';
+    if(deb && deb>vStr) return;
+    if(fin && fin<lStr) return;
+    if(!deb && !fin) return;
+    if(o.expire_le && o.expire_le<lStr) return;
+    const tr = o.erp_tranche_id ? trs.find(t=>t.id===o.erp_tranche_id)
+      : trs.find(t=>String(t.nom||'').trim().toLowerCase()===String(o.tranche||'').trim().toLowerCase());
+    if(!tr || tr.statut_erp==='livre') return;
+    const ch = chs.find(c=>c.id===tr.cid); if(!ch || ch.actif===false) return;
+    nbParCh.set(ch.nom, (nbParCh.get(ch.nom)||0)+1);
+  });
+  [...nbParCh.entries()].sort((a,b)=>b[1]-a[1]).forEach(([nom])=>ajouter(nom));
+  [1,2].forEach(n=>{
+    const s = _semaineDecalee(sem, -n);
+    (state.heures||[]).filter(h=>h.emp_id===emp.id && h.semaine===s && h.type_saisie!=='presence').forEach(h=>{ ajouter(h.chantier1); ajouter(h.chantier2); });
+  });
+  return out.slice(0, max||FEUILLE_NB_LIGNES_CHANTIERS);
+}
+// Données d'une feuille pour une personne et une semaine
+function _donneesFeuille(emp, at, sem, opts){
+  opts = opts||{};
+  const [yr, sw] = sem.split('-S');
+  const lundi = getLundiFromSemaine(parseInt(yr), parseInt(sw));
+  const std = opts.std || null;
+  const jours = _JOURS_FEUILLE.map((j,i)=>{
+    const d = new Date(lundi); d.setDate(lundi.getDate()+i);
+    const l = _celluleSaisie(emp.id, sem, j);
+    const absent = l && l.absent ? String(l.absent) : '';
+    let horaire = (l && !absent && l.horaire) ? l.horaire : '';
+    if(!absent && !horaire && std) horaire = (j==='Vendredi') ? std.ven : std.lunjeu;
+    const brut = horaire ? _horaireBrutHeures(horaire) : 0;
+    const prevu = horaire ? Math.max(0, Math.round((brut-PAUSE_JOUR_H)*100)/100) : 0;
+    return { jour:j, date:d, absent, horaire, prevu, travaille: !!horaire, comment: (l && l.comment) ? String(l.comment) : '' };
+  });
+  return { emp, at, sem, annee: parseInt(yr), semaine: parseInt(sw), jours,
+           totalPrevu: Math.round(jours.reduce((s,x)=>s+x.prevu,0)*100)/100,
+           commentaire: jours.filter(x=>x.comment).map(x=>x.jour+' : '+x.comment).join(' ; '),
+           chantiers: opts.sansChantiers ? [] : _chantiersProbables(emp, at, sem),
+           nbJoursTravailles: jours.filter(x=>x.travaille).length };
+}
+function _fmtDateFR(d){ return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear(); }
+function _fmtDateCourte(d){ return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0'); }
+
+function _htmlFeuille(F, logo){
+  const e = esc;
+  const nbAbsJour = j => !!j.absent;
+  // cellules de saisie d'une ligne : grisées si absence ce jour-là
+  const cellules = () => F.jours.map(j=> j.absent ? '<td class="x"></td>' : '<td class="s"></td>').join('');
+  let lignes = '';
+  F.chantiers.forEach(nom=>{ lignes += '<tr class="lg"><td class="ch">'+e(nom)+'</td>'+cellules()+'<td class="tot"></td></tr>'; });
+  const nbVides = Math.max(0, FEUILLE_NB_LIGNES_CHANTIERS - F.chantiers.length) + FEUILLE_NB_LIGNES_LIBRES;
+  for(let i=0;i<nbVides;i++) lignes += '<tr class="lg"><td class="ch libre"></td>'+cellules()+'<td class="tot"></td></tr>';
+  lignes += '<tr class="lg hc"><td class="ch">Hors chantier <span class="pt">(atelier, rangement, SAV, formation…)</span></td>'+cellules()+'<td class="tot"></td></tr>';
+  const entetesJours = F.jours.map(j=>'<th>'+j.jour.slice(0,3)+'.<br><span class="dt">'+_fmtDateCourte(j.date)+'</span></th>').join('');
+  const prevu = F.jours.map(j=> j.absent
+      ? '<td class="abs">'+e(j.absent)+'</td>'
+      : (j.horaire ? '<td class="pv"><span class="hr">'+j.horaire.split('/').map(x=>e(x.trim())).join('<br>')+'</span><br><b>'+_fmtHeures(j.prevu)+' h</b></td>' : '<td class="pv">—</td>')).join('');
+  const totaux = F.jours.map(j=> j.absent ? '<td class="x"></td>' : '<td class="s tt"></td>').join('');
+  return '<div class="page">'
+   +'<table class="ent"><tr><td class="logo" rowspan="2">'+(logo?'<img src="'+logo+'">':'<b>ROUSSEAU</b>')+'</td>'
+   +'<td class="titre">FEUILLE D\'HEURES PAR CHANTIER</td></tr>'
+   +'<tr><td class="sous">Semaine '+F.semaine+' — du '+_fmtDateFR(F.jours[0].date)+' au '+_fmtDateFR(F.jours[4].date)+'</td></tr></table>'
+   +'<table class="ident"><tr><td class="lbl">Nom</td><td class="val">'+e(F.emp.nom||'')+'</td><td class="lbl">Prénom</td><td class="val">'+e(F.emp.prenom||'')+'</td><td class="lbl">Atelier</td><td class="val c">'+e(F.at)+'</td></tr></table>'
+   +'<div class="consigne">Indique le <b>nombre d\'heures passées sur chaque chantier</b>, chaque jour, en décimal (ex : 4,5). '
+   +'Le total de chaque jour doit être égal aux <b>heures prévues</b> (pause de 15 min déjà déduite). Chantier absent de la liste : écris son nom sur une ligne vide.</div>'
+   +'<table class="grille"><thead><tr><th class="chh">Chantier</th>'+entetesJours+'<th class="tth">Total<br>semaine</th></tr></thead><tbody>'
+   +'<tr class="prevu"><td class="ch">Présence prévue <span class="pt">(planning ressources)</span></td>'+prevu+'<td class="tot"><b>'+_fmtHeures(F.totalPrevu)+' h</b></td></tr>'
+   +lignes
+   +'<tr class="trow"><td class="ch"><b>TOTAL heures saisies</b></td>'+totaux+'<td class="s tt"></td></tr>'
+   +'</tbody></table>'
+   +'<table class="pied"><tr><td class="com"><b>Commentaire</b><br>'+e(F.commentaire)+'</td><td class="sig"><b>Signature</b></td></tr></table>'
+   +'</div>';
+}
+const _CSS_FEUILLE = '@page{size:A4 portrait;margin:9mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+ +'.page{page-break-after:always;width:100%}.page:last-child{page-break-after:auto}table{border-collapse:collapse;width:100%}'
+ +'.ent .logo{width:150px;border:none}.ent .logo img{max-width:135px;max-height:70px}.ent .titre{border:none;text-align:center;font-weight:700;font-size:17px;vertical-align:bottom}.ent .sous{border:none;text-align:center;font-size:12px;color:#333;vertical-align:top;padding-top:3px}'
+ +'.ident{margin-top:8px}.ident td{border:1px solid #000;padding:6px 8px}.ident .lbl{width:60px;background:#F0F0F0;font-weight:700}.ident .val{height:26px}.c{text-align:center}'
+ +'.consigne{margin:8px 0;padding:6px 8px;border:1px solid #999;background:#FAFAFA;font-size:10px;line-height:1.35}'
+ +'.grille{table-layout:fixed}.grille th{border:1px solid #000;background:#E4E4E4;padding:3px 4px;font-weight:700;text-align:center;font-size:11px}.grille .chh{text-align:left;width:34%}.grille .dt{font-weight:400;font-size:10px}.grille .tth{width:11%}'
+ +'.grille td{border:1px solid #000;height:27px;padding:2px 5px}.grille td.ch{font-size:11px;font-weight:600}.grille td.ch.libre{font-weight:400}.grille .pt{font-weight:400;font-size:8.5px;color:#444}'
+ +'.grille td.x{background:#DADADA}.grille td.tot{background:#F4F4F4}'
+ +'.grille tr.prevu td{height:42px;background:#EEF3F9;text-align:center;font-size:10px}.grille tr.prevu td.ch{text-align:left;font-size:10.5px}.grille .pv .hr{font-size:8.5px;color:#333}.grille td.abs{background:#D9D9D9;font-weight:700;letter-spacing:.04em;font-size:11px}'
+ +'.grille tr.trow td{height:32px;background:#F4F4F4}.grille tr.hc td.ch{border-top:1.6px solid #000}'
+ +'.pied{margin-top:10px}.pied td{border:1px solid #000;vertical-align:top;padding:5px 7px;height:70px;font-size:10px}.pied .sig{width:160px}';
+
+// Fenêtre de choix des personnes puis impression
+function openFeuillesHebdo(){
+  const sem = state._semHeure || getSemainesDisponibles()[0]?.val || getWeekISO(new Date());
+  const groupes = _planningEmpsParAtelier(sem).filter(g=>!ATELIERS_SANS_FEUILLE.includes(g.at));
+  if(!groupes.length){ toast('Aucune personne concernée dans le planning pour cette semaine'); return; }
+  const [yr, sw] = sem.split('-S');
+  const lundi = getLundiFromSemaine(parseInt(yr), parseInt(sw)); const ven = new Date(lundi); ven.setDate(lundi.getDate()+4);
+  const items = [];
+  groupes.forEach(g=>g.emps.forEach(emp=>{
+    const F = _donneesFeuille(emp, g.at, sem);
+    items.push({emp, at:g.at, label:g.label, nb:F.nbJoursTravailles, nbAbs:F.jours.filter(x=>x.absent).length, prevu:F.totalPrevu, nbCh:F.chantiers.length});
+  }));
+  const ov = document.createElement('div');
+  ov.id = 'modal-feuilles-hebdo';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  let corps = '', lastAt = null;
+  items.forEach((it,i)=>{
+    if(it.at!==lastAt){ corps += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--blue);margin:10px 0 4px">'+esc(it.label)+'</div>'; lastAt = it.at; }
+    const vide = it.nb===0;
+    corps += '<label style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:13px'+(vide?';opacity:.6':'')+'"><input type="checkbox" class="fh-cb" data-i="'+i+'"'+(vide?'':' checked')+' style="accent-color:#1A4F8A"> <span>'+esc(it.emp.nom)+' '+esc(it.emp.prenom||'')+'</span>'
+      +'<span style="margin-left:auto;font-size:11px;color:var(--text3)">'+(vide?'aucun horaire saisi':_fmtHeures(it.prevu)+' h prévues')+(it.nbAbs?' · '+it.nbAbs+' abs.':'')+' · '+it.nbCh+' chantier(s) listé(s)</span></label>';
+  });
+  ov.innerHTML = '<div style="background:var(--surface);border-radius:14px;max-width:620px;width:100%;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,.35);max-height:90vh;display:flex;flex-direction:column">'
+    +'<div style="font-size:16px;font-weight:700">📄 Feuilles d\'heures par chantier — semaine '+sw+'</div>'
+    +'<div style="font-size:12px;color:var(--text2);margin:4px 0 8px">Du '+_fmtDateFR(lundi)+' au '+_fmtDateFR(ven)+'. Une page par personne : horaires prévus, absences et chantiers probables déjà imprimés ; chacun n\'a plus qu\'à écrire ses heures par chantier. Logistique et Usinage n\'ont pas de feuille.</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:4px"><button class="btn btn-sm" id="fh-tout">Tout cocher</button><button class="btn btn-sm" id="fh-rien">Tout décocher</button><span id="fh-nb" style="margin-left:auto;font-size:12px;font-weight:600;align-self:center"></span></div>'
+    +'<div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:8px;padding:4px 8px">'+corps+'</div>'
+    +'<label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-top:10px;cursor:pointer"><input type="checkbox" id="fh-std" style="accent-color:#1A4F8A"> Compléter les jours sans horaire avec les horaires standard</label>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn" id="fh-annuler">Annuler</button><button class="btn btn-primary" id="fh-imprimer">🖨 Imprimer / PDF</button></div></div>';
+  document.body.appendChild(ov);
+  const maj = ()=>{ const n=ov.querySelectorAll('.fh-cb:checked').length; ov.querySelector('#fh-nb').textContent = n+' feuille(s)'; ov.querySelector('#fh-imprimer').disabled = !n; };
+  ov.addEventListener('change', maj); maj();
+  ov.querySelector('#fh-tout').onclick = ()=>{ ov.querySelectorAll('.fh-cb').forEach(c=>c.checked=true); maj(); };
+  ov.querySelector('#fh-rien').onclick = ()=>{ ov.querySelectorAll('.fh-cb').forEach(c=>c.checked=false); maj(); };
+  ov.querySelector('#fh-annuler').onclick = ()=>ov.remove();
+  ov.addEventListener('click', ev=>{ if(ev.target===ov) ov.remove(); });
+  ov.querySelector('#fh-imprimer').onclick = ()=>{
+    const choix = [...ov.querySelectorAll('.fh-cb:checked')].map(c=>items[+c.getAttribute('data-i')]);
+    const std = ov.querySelector('#fh-std').checked ? _stdLire() : null;
+    ov.remove();
+    imprimerFeuillesHebdo(sem, choix, std);
+  };
+}
+function _htmlFeuillesDoc(sem, choix, std){
+  let logo = ''; try{ logo = document.querySelector('header img')?.src || ''; }catch(e){}
+  const pages = choix.map(it=>_htmlFeuille(_donneesFeuille(it.emp, it.at, sem, {std}), logo)).join('');
+  return '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Feuilles d\'heures '+sem+'</title><style>'+_CSS_FEUILLE+'</style></head><body>'+pages+'</body></html>';
+}
+function imprimerFeuillesHebdo(sem, choix, std){
+  if(!choix.length) return;
+  const doc = _htmlFeuillesDoc(sem, choix, std);
+  const old = document.getElementById('fh-iframe'); if(old) old.remove();
+  const fr = document.createElement('iframe'); fr.id = 'fh-iframe';
+  fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(fr);
+  fr.contentDocument.open(); fr.contentDocument.write(doc); fr.contentDocument.close();
+  setTimeout(()=>{ try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){ toast('Impression impossible : '+e.message); } }, 350);
+  toast('📄 '+choix.length+' feuille(s) prêtes à imprimer');
+}
+window.openFeuillesHebdo = openFeuillesHebdo;
+
 function renderPlanningRessources(){
   const el = document.getElementById('hscreen-planning');
   const employes = state.employes||[];
@@ -6107,6 +6296,7 @@ function renderPlanningRessources(){
     </select>
     <button class="btn btn-primary" onclick="openRemplirSemaine()" title="Remplir toute la semaine en quelques clics (horaires standard ou copie de la semaine précédente)">⚡ Remplir la semaine</button>
     <button class="btn btn-primary" onclick="openPrintAteliers()">🖨 Imprimer</button>
+    <button class="btn btn-primary" onclick="openFeuillesHebdo()" title="Feuilles d'heures par chantier pré-remplies (une page par personne, sans Logistique ni Usinage)">📄 Feuilles hebdo</button>
     <button class="btn" onclick="openPauseConfig()" title="Configurer les pauses par atelier">⚙ Pauses</button>
     <button class="btn btn-orange" onclick="appliquerFermetures()" title="Pré-remplir les absences depuis les fermetures du planning production">📅 Fermetures</button>
     <span style="font-size:11px;color:var(--text3);margin-left:8px">Cliquez pour saisir les horaires</span>
