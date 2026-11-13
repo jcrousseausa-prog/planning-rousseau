@@ -1796,7 +1796,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='16/11/2026-f';
+const ERP_BUILD='16/11/2026-g';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -6104,7 +6104,7 @@ function appliquerRemplirSemaine(){
 const ATELIERS_SANS_FEUILLE = ['Log','Us'];
 const _JOURS_FEUILLE = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
 const FEUILLE_PREREMPLIR_CHANTIERS = false;   // true = imprime les chantiers probables de chaque personne ; false = lignes vides à remplir
-const FEUILLE_NB_LIGNES_CHANTIERS = 8;   // lignes pré-imprimées (chantiers probables)
+const FEUILLE_NB_LIGNES_CHANTIERS = 7;   // lignes pré-imprimées (chantiers probables)
 const FEUILLE_NB_LIGNES_LIBRES = 3;      // lignes vides à compléter à la main
 
 function _horaireBrutHeures(h){ const t=_horaireTotal(h); return t===null?0:t; }
@@ -6199,17 +6199,17 @@ function _htmlFeuille(F, logo){
    +'<table class="pied"><tr><td class="com"><b>Commentaire</b><br>'+e(F.commentaire)+'</td><td class="sig"><b>Signature</b></td></tr></table>'
    +'</div>';
 }
-const _CSS_FEUILLE = '@page{size:A4 portrait;margin:9mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+const _CSS_FEUILLE = '@page{size:A4 landscape;margin:8mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
  +'.page{page-break-after:always;width:100%}.page:last-child{page-break-after:auto}table{border-collapse:collapse;width:100%}'
- +'.ent .logo{width:150px;border:none}.ent .logo img{max-width:135px;max-height:70px}.ent .titre{border:none;text-align:center;font-weight:700;font-size:17px;vertical-align:bottom}.ent .sous{border:none;text-align:center;font-size:12px;color:#333;vertical-align:top;padding-top:3px}'
- +'.ident{margin-top:8px}.ident td{border:1px solid #000;padding:6px 8px}.ident .lbl{width:60px;background:#F0F0F0;font-weight:700}.ident .val{height:26px}.c{text-align:center}'
- +'.consigne{margin:8px 0;padding:6px 8px;border:1px solid #999;background:#FAFAFA;font-size:10px;line-height:1.35}'
- +'.grille{table-layout:fixed}.grille th{border:1px solid #000;background:#E4E4E4;padding:3px 4px;font-weight:700;text-align:center;font-size:11px}.grille .chh{text-align:left;width:34%}.grille .dt{font-weight:400;font-size:10px}.grille .tth{width:11%}'
- +'.grille td{border:1px solid #000;height:27px;padding:2px 5px}.grille td.ch{font-size:11px;font-weight:600}.grille td.ch.libre{font-weight:400}.grille .pt{font-weight:400;font-size:8.5px;color:#444}'
+ +'.ent .logo{width:150px;border:none}.ent .logo img{max-width:120px;max-height:52px}.ent .titre{border:none;text-align:center;font-weight:700;font-size:17px;vertical-align:bottom}.ent .sous{border:none;text-align:center;font-size:12px;color:#333;vertical-align:top;padding-top:3px}'
+ +'.ident{margin-top:4px}.ident td{border:1px solid #000;padding:6px 8px}.ident .lbl{width:60px;background:#F0F0F0;font-weight:700}.ident .val{height:26px}.c{text-align:center}'
+ +'.consigne{margin:6px 0;padding:6px 8px;border:1px solid #999;background:#FAFAFA;font-size:10px;line-height:1.35}'
+ +'.grille{table-layout:fixed}.grille th{border:1px solid #000;background:#E4E4E4;padding:3px 4px;font-weight:700;text-align:center;font-size:11px}.grille .chh{text-align:left;width:30%}.grille .dt{font-weight:400;font-size:10px}.grille .tth{width:10%}'
+ +'.grille td{border:1px solid #000;height:29px;padding:1px 5px}.grille td.ch{font-size:11px;font-weight:600}.grille td.ch.libre{font-weight:400}.grille .pt{font-weight:400;font-size:8.5px;color:#444}'
  +'.grille td.x{background:#DADADA}.grille td.tot{background:#F4F4F4}'
- +'.grille tr.prevu td{height:42px;background:#EEF3F9;text-align:center;font-size:10px}.grille tr.prevu td.ch{text-align:left;font-size:10.5px}.grille .pv .hr{font-size:8.5px;color:#333}.grille td.abs{background:#D9D9D9;font-weight:700;letter-spacing:.04em;font-size:11px}'
- +'.grille tr.trow td{height:32px;background:#F4F4F4}.grille tr.hc td.ch{border-top:1.6px solid #000}'
- +'.pied{margin-top:10px}.pied td{border:1px solid #000;vertical-align:top;padding:5px 7px;height:70px;font-size:10px}.pied .sig{width:160px}';
+ +'.grille tr.prevu td{height:36px;background:#EEF3F9;text-align:center;font-size:10px}.grille tr.prevu td.ch{text-align:left;font-size:10.5px}.grille .pv .hr{font-size:8.5px;color:#333}.grille td.abs{background:#D9D9D9;font-weight:700;letter-spacing:.04em;font-size:11px}'
+ +'.grille tr.trow td{height:28px;background:#F4F4F4}.grille tr.hc td.ch{border-top:1.6px solid #000}'
+ +'.pied{margin-top:6px}.pied td{border:1px solid #000;vertical-align:top;padding:4px 7px;height:48px;font-size:10px}.pied .sig{width:200px}';
 
 // Fenêtre de choix des personnes puis impression
 function openFeuillesHebdo(){
