@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261110-1000">
+<meta name="version" content="20261118-1100">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -492,15 +492,7 @@ transition:all .3s;
 <div class="modal-bg" id="sync-modal" style="display:none">
 <div class="modal" style="width:640px">
 <h2>⇅ Synchronisation Tableau de Pilotage</h2>
-<div class="modal-section" style="border-color:var(--blue-border);background:var(--blue-bg)">
-<h3 style="color:var(--blue)">🔄 Connexion Supabase</h3>
-<div id="supabase-status-detail" class="info-box" style="margin-bottom:.5rem"></div>
-<div style="display:flex;gap:8px;flex-wrap:wrap">
-<button class="btn btn-sim" onclick="testConnection()">🔌 Tester la connexion</button>
-<button class="btn btn-primary" onclick="importFromLocalStorage()">⬆ Importer données locales → Supabase</button>
-</div>
-<div id="import-ls-result" style="margin-top:.75rem;font-size:13px"></div>
-</div>
+
 <div class="modal-section">
 <h3>📥 Importer planning complet (CSV)</h3>
 <div class="form-group" style="margin-bottom:.5rem">
@@ -559,14 +551,50 @@ transition:all .3s;
 </div>
 
 <script>
-const SUPABASE_URL = 'https://umkrmneaqkleyoutazlh.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVta3JtbmVhcWtsZXlvdXRhemxoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0OTkyNDIsImV4cCI6MjA5NDA3NTI0Mn0.UwT7L3m39oJ2yXpdnaAPeMN-NnqQbWEMLZatI34s6Dk';
+// ═══ SÉCURITÉ : jeton de session ajouté automatiquement à chaque appel au serveur (sauf checkLogin) ═══
+(function(){
+  const natif = window.fetch.bind(window);
+  window.fetch = function(url, opts){
+    try{
+      if(typeof url==='string' && url.indexOf('script.google.com/macros/')>-1 && opts && typeof opts.body==='string'){
+        const b = JSON.parse(opts.body);
+        if(b){
+          if(window.__ERP_TAB){ b.tab = window.__ERP_TAB; b.page = 'planning'; b.build = window.__ERP_BUILD||''; }   // qui appelle (journal + sessions connectées)
+          if(b.action!=='checkLogin'){
+            const u = JSON.parse(sessionStorage.getItem('erp_user')||'null');
+            if(u && u.token) b.token = u.token;
+          }
+          opts = Object.assign({}, opts, {body: JSON.stringify(b)});
+        }
+      }
+    }catch(e){}
+    return natif(url, opts).then(function(resp){
+      try{
+        if(typeof url==='string' && url.indexOf('script.google.com/macros/')>-1){
+          resp.clone().text().then(function(t){
+            if(t.slice(0,60).indexOf('"auth":true')>-1 && typeof window.onSessionExpiree==='function'){
+              let m=''; try{ m=JSON.parse(t).error||''; }catch(e){}
+              window.onSessionExpiree(m);
+            }
+          }).catch(function(){});
+        }
+      }catch(e){}
+      return resp;
+    });
+  };
+})();
+// Session valide = jeton présent et non expiré (une session d'avant la sécurisation, sans jeton, est refusée)
+function _sessionValide(u){ return !!(u && u.token && u.expires && u.expires>Date.now()); }
+
+const SUPABASE_URL = '';   // Supabase désactivé (sécurité) : les données passent uniquement par le serveur authentifié
+const SUPABASE_KEY = '';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec';
 const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRoI_ySau7t8ZnVKYnTctBTGH49wQ2bIsKQ8_Y87QjpMfFdLcxiyLY_baKmSGtRRqhVau1wBrkIrNTP/pub?gid=2003335524&single=true&output=csv';
 const _TAB_ID = Math.random().toString(36).slice(2,8);
 const _UA_COURT = (()=>{ try{ const u=navigator.userAgent||''; const nav=/Edg\//.test(u)?'Edge':/Chrome\//.test(u)?'Chrome':/Firefox\//.test(u)?'Firefox':/Safari\//.test(u)?'Safari':'?'; return nav+' / '+(navigator.platform||''); }catch(e){ return ''; } })();
 const CLIENT_VERSION = (()=>{ try{ const m=document.querySelector('meta[name="version"]'); return m?m.content:''; }catch(e){ return ''; } })();
+window.__ERP_TAB=_TAB_ID; window.__ERP_BUILD='planning '+CLIENT_VERSION;
 setTimeout(()=>{ try{ const e=document.getElementById('build-tag'); if(e) e.textContent='v'+CLIENT_VERSION; }catch(_e){} },0);
 let IS_READONLY = window.location.search.includes('readonly') ||
 document.body.dataset.readonly === 'true';
@@ -579,7 +607,7 @@ let _authUser = null, _appDemarree = false;
 function checkExistingSession(){
   try{
     const stored = sessionStorage.getItem('erp_user');
-    if(stored){ const u = JSON.parse(stored); if(u && (u.login || u.nom)){ _authUser = u; return true; } }
+    if(stored){ const u = JSON.parse(stored); if(_sessionValide(u)){ _authUser = u; return true; } sessionStorage.removeItem('erp_user'); }
   }catch(e){}
   return false;
 }
@@ -600,7 +628,7 @@ async function doLogin(){
     });
     const r = await res.json();
     if(r.ok && r.user){
-      _authUser = r.user;
+      _authUser = r.user; _authUser.token = r.token; _authUser.expires = r.expires;
       try{ sessionStorage.setItem('erp_user', JSON.stringify(_authUser)); }catch(e){}
       hideLoginScreen();
     } else {
@@ -609,22 +637,21 @@ async function doLogin(){
       document.getElementById('login-pass').value = '';
     }
   }catch(e){
-    // Serveur inaccessible : même compte de secours que l'ERP, mais en CONSULTATION SEULE
-    // (sans serveur, de toute façon, rien ne peut être enregistré).
-    console.warn('Apps Script inaccessible, fallback local:', e.message);
-    if(login.toLowerCase()==='admin' && pass==='rousseau2026'){
-      _authUser = { login:'admin', nom:'Administrateur', profil:'admin', droits:{}, _horsLigne:true };
-      try{ sessionStorage.setItem('erp_user', JSON.stringify(_authUser)); }catch(e2){}
-      hideLoginScreen();
-    } else {
-      errEl.textContent = 'Erreur de connexion au serveur. Identifiant/mot de passe incorrect ou réseau indisponible.';
-      errEl.style.display = 'block';
-    }
+    // Aucun compte de secours : sans le serveur, pas de connexion possible
+    console.warn('Apps Script inaccessible:', e.message);
+    errEl.textContent = 'Serveur inaccessible : vérifiez votre connexion réseau et réessayez.';
+    errEl.style.display = 'block';
   }finally{
     loadEl.style.display = 'none';
     btnEl.disabled = false;
   }
 }
+window.onSessionExpiree = function(msg){
+  if(!_authUser) return;
+  try{ sessionStorage.removeItem('erp_user'); }catch(e){}
+  alert(msg || 'Session expirée : reconnectez-vous.');
+  window.location.reload();
+};
 function doLogout(){
   if(!confirm('Se déconnecter ?')) return;
   try{ sessionStorage.removeItem('erp_user'); sessionStorage.removeItem('erp_screen'); }catch(e){}
@@ -640,12 +667,20 @@ function hideLoginScreen(){
   }
   const lo = document.getElementById('btn-logout'); if(lo) lo.style.display = '';
   // Profil « lecture » (ou session de secours hors ligne) → consultation seule
-  if(_authUser.profil === 'lecture' || _authUser._horsLigne) IS_READONLY = true;
+  if(_authUser.profil === 'lecture') IS_READONLY = true;
   demarrerApp();
 }
+// Présence : cet onglet signale qu'il est connecté (liste « Sessions connectées » de l'ERP)
+function _battementPresence(etat){
+  if(!_authUser || !_authUser.token) return;
+  try{ fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'presence',ecran:(state&&state.atelier)?('atelier '+state.atelier):'',etat:etat||((typeof _saveTimeout!=='undefined'&&_saveTimeout)?'non enregistré':'ok')})}).catch(function(){}); }catch(e){}
+}
+setInterval(function(){ _battementPresence(); },45000);
+window.addEventListener('pagehide',function(){ try{ if(_authUser&&_authUser.token&&navigator.sendBeacon) navigator.sendBeacon(APPS_SCRIPT_URL,new Blob([JSON.stringify({action:'presence',token:_authUser.token,tab:window.__ERP_TAB,page:'planning',etat:'ferme'})],{type:'text/plain'})); }catch(e){} });
 function demarrerApp(){
   if(_appDemarree) return;
   _appDemarree = true;
+  setTimeout(function(){ _battementPresence(); },2000);
   setTimeout(initApp, 100);
   setTimeout(refreshCtvxDepuisDATES, 1500);
 }
@@ -679,6 +714,7 @@ let _sbChannel = null;
 let _saveTimeout = null;
 
 async function sbFetch(path, options={}) {
+throw new Error('Supabase désactivé (sécurité)');
 const url = `${SUPABASE_URL}/rest/v1/${path}`;
 const headers = {
 'apikey': SUPABASE_KEY,
@@ -2809,9 +2845,6 @@ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=
 }
 
 function openSyncModal(){
-document.getElementById('supabase-status-detail').textContent='Cliquez "Tester la connexion" pour vérifier.';
-document.getElementById('supabase-status-detail').style.background='';
-document.getElementById('supabase-status-detail').style.color='';
 document.getElementById('sync-modal').style.display='flex';
 }
 
