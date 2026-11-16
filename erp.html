@@ -62,6 +62,33 @@ main{padding:16px 12px;max-width:none;margin:0 auto}
 .btn-red{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
 .btn-purple{background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)}
 .btn-sm{padding:3px 9px;font-size:11px;border-radius:6px}
+/* ═══ Interface boutons (17/11) : plus lisible, mêmes repères partout ═══ */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:7px 14px;border:1px solid var(--border2);border-radius:10px;background:var(--surface);color:var(--text);font-size:13px;font-weight:600;line-height:1.2;box-shadow:0 1px 2px rgba(20,20,10,.06);transition:background .15s,border-color .15s,box-shadow .15s,transform .05s}
+.btn:hover{background:#F2F6FC;border-color:var(--blue-border);box-shadow:0 2px 8px rgba(26,79,138,.14)}
+.btn:active{transform:translateY(1px);box-shadow:none}
+.btn:focus-visible,.hdr-btn:focus-visible,.app-tab:focus-visible,.app-tab-achats:focus-visible{outline:3px solid rgba(26,79,138,.35);outline-offset:2px}
+.btn:disabled,.btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none;transform:none}
+.btn-primary{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 1px 3px rgba(26,79,138,.35)}
+.btn-primary:hover{background:#133F70;border-color:#133F70;box-shadow:0 3px 10px rgba(26,79,138,.35)}
+.btn-green:hover{background:#D5EEDF;border-color:var(--green)}
+.btn-orange:hover{background:#FBE6CC;border-color:var(--orange)}
+.btn-red:hover{background:#FADCDC;border-color:var(--red)}
+.btn-purple:hover{background:#E6DAF4;border-color:var(--purple)}
+.btn-sm{min-height:26px;padding:3px 10px;font-size:12px;border-radius:8px}
+/* Boutons de l'en-tête */
+.hdr-btn{display:inline-flex;align-items:center;gap:7px;padding:6px 14px;border-radius:999px;font-size:13px;font-weight:600;text-decoration:none;cursor:pointer;border:1px solid var(--blue-border);background:var(--blue-bg);color:var(--blue);transition:background .15s,color .15s,box-shadow .15s,transform .05s}
+.hdr-btn svg{flex:none}
+.hdr-btn:hover{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 2px 8px rgba(26,79,138,.3)}
+.hdr-btn:active{transform:translateY(1px)}
+/* Bouton « 🛒 Achats » dans la barre d'onglets (ouvre la page Achats) */
+.app-tab-achats{display:inline-flex;align-items:center;gap:6px;align-self:center;margin:4px 8px 4px 4px;padding:5px 14px;border-radius:999px;border:1px solid #EBCB6B;background:#FFF3C4;color:#6F4B00;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background .15s,box-shadow .15s,transform .05s}
+.app-tab-achats:hover{background:#FFE69A;box-shadow:0 2px 8px rgba(160,110,0,.25)}
+.app-tab-achats:active{transform:translateY(1px)}
+/* Onglets : zone de clic plus généreuse, onglet actif plus marqué */
+.app-tab{padding:11px 16px;font-weight:600;border-radius:8px 8px 0 0;transition:color .15s,background .15s}
+.app-tab:hover{background:var(--blue-bg);color:var(--blue)}
+.app-tab.active{font-weight:700;border-bottom-width:3px}
+
 .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;overflow-x:auto}
 table{width:100%;border-collapse:collapse;min-width:980px}
 th{background:var(--bg);font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
@@ -286,8 +313,10 @@ table.bl-lignes td.r{text-align:right}
   </div>
   <div class="header-right">
     <div class="rt-dot"></div><span class="rt-label" id="rt-label">Prêt</span>
-    <a href="index.html?readonly" style="font-size:12px;color:var(--text2);text-decoration:none;border:1px solid var(--border);padding:4px 10px;border-radius:7px">← Planning</a>
-    <a href="achats.html" style="font-size:12px;color:var(--text2);text-decoration:none;border:1px solid var(--border);padding:4px 10px;border-radius:7px">🛒 Achats</a>
+    <a href="index.html?readonly" class="hdr-btn hdr-planning" title="Retour au planning production">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      <span>Planning</span>
+    </a>
     <span class="sync-pill" id="sync-pill" style="display:none">
       <span class="sync-dot"></span>
       <span id="sync-text">Synchronisé</span>
@@ -321,11 +350,10 @@ table.bl-lignes td.r{text-align:right}
 <div class="app-tabs" style="position:sticky;top:49px;z-index:40">
   <button class="app-tab active" id="tab-dashboard" onclick="showScreen('dashboard')">Tableau de bord</button>
   <button class="app-tab" id="tab-planning" onclick="showScreen('planning')">Tableau de pilotage</button>
-  <button class="app-tab" id="tab-achats" onclick="showScreen('achats')">Achats<span class="notif-dot"></span></button>
+  <a class="app-tab-achats" id="tab-achats" href="achats.html" title="Ouvrir la page Achats : commandes fournisseur, fournisseurs, réceptions, stock, base articles"><span aria-hidden="true">🛒</span> Achats</a>
   <button class="app-tab" id="tab-stock" onclick="showScreen('stock')">Stock<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-bl" onclick="showScreen('bl')">Bons de livraison<span class="new-badge">NEW</span></button>
   <button class="app-tab" id="tab-qualite" onclick="showScreen('qualite')">Qualité</button>
-  <button class="app-tab" id="tab-charge" onclick="showScreen('charge')">Charge équipes</button>
   <button class="app-tab" id="tab-heures" onclick="showScreen('heures')">Heures</button>
   <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global production</button>
   <button class="app-tab" id="tab-retours" onclick="showScreen('retours')">Retours équipes</button>
@@ -1012,6 +1040,37 @@ table.bl-lignes td.r{text-align:right}
 </div>
 
 <script>
+// ═══ SÉCURITÉ : jeton de session ajouté automatiquement à chaque appel au serveur (sauf checkLogin) ═══
+(function(){
+  const natif = window.fetch.bind(window);
+  window.fetch = function(url, opts){
+    try{
+      if(typeof url==='string' && url.indexOf('script.google.com/macros/')>-1 && opts && typeof opts.body==='string'){
+        const b = JSON.parse(opts.body);
+        if(b && b.action!=='checkLogin'){
+          const u = JSON.parse(sessionStorage.getItem('erp_user')||'null');
+          if(u && u.token){ b.token = u.token; opts = Object.assign({}, opts, {body: JSON.stringify(b)}); }
+        }
+      }
+    }catch(e){}
+    return natif(url, opts).then(function(resp){
+      try{
+        if(typeof url==='string' && url.indexOf('script.google.com/macros/')>-1){
+          resp.clone().text().then(function(t){
+            if(t.slice(0,60).indexOf('"auth":true')>-1 && typeof window.onSessionExpiree==='function'){
+              let m=''; try{ m=JSON.parse(t).error||''; }catch(e){}
+              window.onSessionExpiree(m);
+            }
+          }).catch(function(){});
+        }
+      }catch(e){}
+      return resp;
+    });
+  };
+})();
+// Session valide = jeton présent et non expiré (une session d'avant la sécurisation, sans jeton, est refusée)
+function _sessionValide(u){ return !!(u && u.token && u.expires && u.expires>Date.now()); }
+
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec';
 const DATES_CSV_URL = 'https://docs.google.com/spreadsheets/d/1HdbsNfFae6GYzNDxUGLbzHZ6cxg5GXVb1jAIss7y-JE/pub?gid=0&single=true&output=csv';
 
@@ -1796,7 +1855,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='16/11/2026-g';
+const ERP_BUILD='18/11/2026-b';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -2615,10 +2674,10 @@ async function syncOFTermines(){
 // Droits par défaut (fallback si ERP_Droits non configuré dans Sheets)
 // Format : { profil: { onglet: 'full'|'read'|'none' } }
 const DEFAULT_DROITS = {
-  admin:        { planning:'full', dashboard:'full', achats:'full', stock:'full', bl:'full', charge:'full', heures:'full', 'planning-global':'full', retours:'full', 'suivi-prod':'full', 'pilotage-phases':'full' },
-  chef:         { planning:'full', dashboard:'read', achats:'read', stock:'full', bl:'full', charge:'full', heures:'read', 'planning-global':'full', retours:'full', 'suivi-prod':'full', 'pilotage-phases':'full' },
-  collaborateur:{ planning:'full', dashboard:'none', achats:'read', stock:'none', bl:'none',  charge:'full', heures:'none', 'planning-global':'full', retours:'full', 'suivi-prod':'full', 'pilotage-phases':'full' },
-  lecture:      { planning:'read', dashboard:'none', achats:'none', stock:'none', bl:'none',  charge:'read', heures:'none', 'planning-global':'read', retours:'none', 'suivi-prod':'read', 'pilotage-phases':'read' },
+  admin:        { planning:'full', dashboard:'full', achats:'full', stock:'full', bl:'full', qualite:'full', heures:'full', 'planning-global':'full', retours:'full', 'suivi-prod':'full', 'pilotage-phases':'full' },
+  chef:         { planning:'full', dashboard:'full', achats:'full', stock:'full', bl:'full', qualite:'full', heures:'full', 'planning-global':'full', retours:'full', 'suivi-prod':'full', 'pilotage-phases':'full' },
+  collaborateur:{ planning:'full', dashboard:'none', achats:'none', stock:'none', bl:'none', qualite:'full', heures:'none', 'planning-global':'full', retours:'full', 'suivi-prod':'full', 'pilotage-phases':'full' },
+  lecture:      { planning:'read', dashboard:'none', achats:'none', stock:'none', bl:'none', qualite:'none', heures:'none', 'planning-global':'read', retours:'none', 'suivi-prod':'read', 'pilotage-phases':'read' },
 };
 
 let _currentUser = null;   // { login, nom, profil, droits:{} }
@@ -2644,6 +2703,7 @@ async function doLogin(){
     const r = await res.json();
     if(r.ok && r.user){
       _currentUser = r.user;
+      _currentUser.token = r.token; _currentUser.expires = r.expires;
       sessionStorage.setItem('erp_user', JSON.stringify(_currentUser));
       hideLoginScreen();
     } else {
@@ -2652,20 +2712,10 @@ async function doLogin(){
       document.getElementById('login-pass').value = '';
     }
   } catch(e) {
-    // Fallback local si Apps Script inaccessible
-    console.warn('Apps Script inaccessible, fallback local:', e.message);
-    const USERS_FALLBACK = {
-      'admin': { login:'admin', nom:'Administrateur', profil:'admin', droits:{} }
-    };
-    const user = USERS_FALLBACK[login.toLowerCase()];
-    if(user && pass === 'rousseau2026') {
-      _currentUser = user;
-      sessionStorage.setItem('erp_user', JSON.stringify(_currentUser));
-      hideLoginScreen();
-    } else {
-      errEl.textContent = 'Erreur de connexion au serveur. Identifiant/mot de passe incorrect ou réseau indisponible.';
-      errEl.style.display = 'block';
-    }
+    // Aucun compte de secours : sans le serveur, pas de connexion possible
+    console.warn('Apps Script inaccessible:', e.message);
+    errEl.textContent = 'Serveur inaccessible : vérifiez votre connexion réseau et réessayez.';
+    errEl.style.display = 'block';
   } finally {
     loadEl.style.display = 'none';
     btnEl.disabled = false;
@@ -2701,7 +2751,7 @@ function applyDroits(){
   // qu'un nouvel onglet reste invisible pour tout le monde tant que personne n'a pensé à
   // l'ajouter manuellement dans la feuille de droits.
   const droitsDefaut = DEFAULT_DROITS[_currentUser.profil] || DEFAULT_DROITS.lecture;
-  const onglets = ['planning','dashboard','achats','stock','bl','charge','heures','planning-global','retours','suivi-prod','pilotage-phases'];
+  const onglets = ['planning','dashboard','achats','stock','bl','qualite','heures','planning-global','retours','suivi-prod','pilotage-phases'];   // 'achats' = bouton vers achats.html (pas d'écran dans l'ERP)
   const droitPour = id => (droitsUser[id] !== undefined ? droitsUser[id] : (droitsDefaut[id] || 'none'));
   onglets.forEach(id=>{
     const d = droitPour(id);
@@ -2710,6 +2760,7 @@ function applyDroits(){
     if(tabEl){
       if(d==='none'){ tabEl.style.display='none'; }
       else { tabEl.style.display=''; }
+      if(id==='achats'){ tabEl.style.display = (d==='none') ? 'none' : 'inline-flex'; }
     }
     // Stocker le niveau de droit sur le screen pour usage ultérieur
     if(screenEl) screenEl.dataset.droit = d;
@@ -2725,7 +2776,7 @@ function applyDroits(){
   });
 
   // Si aucun onglet visible n'est actif, activer le premier visible
-  const firstVisible = onglets.find(id=>{ const t=document.getElementById('tab-'+id); return t && t.style.display!=='none'; });
+  const firstVisible = onglets.find(id=>{ if(id==='achats') return false; const t=document.getElementById('tab-'+id); return t && t.style.display!=='none'; });
   // N'activer le premier onglet qu'au premier chargement (pas lors d'un re-render)
   const alreadyActive = onglets.some(id=>document.getElementById('tab-'+id)?.classList.contains('active'));
   if(firstVisible && !alreadyActive) showScreen(firstVisible);
@@ -2737,13 +2788,32 @@ function canEdit(screenId){
   return screenEl.dataset.readonly !== 'true';
 }
 
+// Session expirée / refusée par le serveur → retour à l'écran de connexion
+window.onSessionExpiree = function(msg){
+  if(!sessionStorage.getItem('erp_user')) return;
+  try{ sessionStorage.removeItem('erp_user'); sessionStorage.setItem('erp_login_msg', msg || 'Session expirée : reconnectez-vous.'); }catch(e){}
+  window.location.reload();
+};
+// Relit profil + droits auprès du serveur (les droits modifiés dans le tableau s'appliquent sans reconnexion)
+async function rafraichirSession(){
+  try{
+    const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'verifierSession'})});
+    const r = await res.json();
+    if(r && r.ok && r.user){
+      _currentUser = Object.assign({}, _currentUser, {nom:r.user.nom, profil:r.user.profil, droits:r.user.droits});
+      sessionStorage.setItem('erp_user', JSON.stringify(_currentUser));
+      applyDroits();
+    }
+  }catch(e){ console.warn('rafraichirSession:', e.message); }
+}
 // Vérifier si déjà connecté (sessionStorage)
 function checkExistingSession(){
   try {
     const stored = sessionStorage.getItem('erp_user');
     if(stored){
-      _currentUser = JSON.parse(stored);
-      return true;
+      const u = JSON.parse(stored);
+      if(_sessionValide(u)){ _currentUser = u; return true; }
+      sessionStorage.removeItem('erp_user');   // session sans jeton ou expirée
     }
   } catch(e){}
   return false;
@@ -11162,6 +11232,12 @@ document.getElementById('charge-debut').value=d.toISOString().slice(0,10);
 (function startApp(){
   if(checkExistingSession()){
     hideLoginScreen();
+    rafraichirSession();
+  } else {
+    try{
+      const m = sessionStorage.getItem('erp_login_msg');
+      if(m){ sessionStorage.removeItem('erp_login_msg'); const e=document.getElementById('login-error'); e.textContent=m; e.style.display='block'; }
+    }catch(e){}
   }
   // Sinon l'écran login reste visible, init() sera appelé après doLogin()
 })();
