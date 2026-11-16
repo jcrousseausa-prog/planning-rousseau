@@ -1856,7 +1856,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='18/11/2026-c';
+const ERP_BUILD='18/11/2026-d';
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -2696,28 +2696,41 @@ async function doLogin(){
   loadEl.style.display = 'block';
   btnEl.disabled = true;
 
+  const ctl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+  const tAbort = setTimeout(()=>{ try{ ctl && ctl.abort(); }catch(e){} }, 45000);
+  const tLong  = setTimeout(()=>{ loadEl.textContent = '⟳ Le serveur met du temps à répondre (jusqu\'à 30 s après une publication)…'; }, 8000);
+  const montrer = msg => { errEl.textContent = msg; errEl.style.display = 'block'; };
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
       method:'POST', headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify({ action:'checkLogin', login, pass })
+      body: JSON.stringify({ action:'checkLogin', login, pass }),
+      signal: ctl ? ctl.signal : undefined
     });
-    const r = await res.json();
-    if(r.ok && r.user){
+    const txt = await res.text();
+    let r = null;
+    try{ r = JSON.parse(txt); }catch(e){}
+    console.log('[login] HTTP', res.status, 'réponse :', txt.slice(0,200));
+    if(!r){
+      montrer('Le script Google ne répond pas correctement (réponse inattendue, HTTP '+res.status+'). Vérifiez qu\'il est publié en NOUVELLE version, accessible à « Tout le monde », et autorisé (voir console F12).');
+    } else if(r.ok && r.user && !r.token){
+      montrer('Le script Google est encore l\'ANCIENNE version (pas de jeton de session) : republiez Code.gs via Déployer → Gérer les déploiements → Nouvelle version.');
+    } else if(r.ok && r.user){
       _currentUser = r.user;
       _currentUser.token = r.token; _currentUser.expires = r.expires;
       sessionStorage.setItem('erp_user', JSON.stringify(_currentUser));
       hideLoginScreen();
     } else {
-      errEl.textContent = r.error || 'Identifiant ou mot de passe incorrect.';
-      errEl.style.display = 'block';
+      montrer(r.error || 'Identifiant ou mot de passe incorrect.');
       document.getElementById('login-pass').value = '';
     }
   } catch(e) {
     // Aucun compte de secours : sans le serveur, pas de connexion possible
-    console.warn('Apps Script inaccessible:', e.message);
-    errEl.textContent = 'Serveur inaccessible : vérifiez votre connexion réseau et réessayez.';
-    errEl.style.display = 'block';
+    console.warn('Apps Script inaccessible:', e && e.name, e && e.message);
+    if(e && e.name==='AbortError') montrer('Le serveur ne répond pas (délai de 45 s dépassé). Réessayez ; si cela persiste, le script Google doit être republié ou ré-autorisé.');
+    else montrer('Serveur inaccessible (réseau, autorisation ou déploiement du script) : '+(e&&e.message?e.message:'erreur inconnue')+'.');
   } finally {
+    clearTimeout(tAbort); clearTimeout(tLong);
+    loadEl.textContent = '⟳ Vérification en cours…';
     loadEl.style.display = 'none';
     btnEl.disabled = false;
   }
