@@ -321,6 +321,7 @@ table.bl-lignes td.r{text-align:right}
       <span class="sync-dot"></span>
       <span id="sync-text">Synchronisé</span>
     </span>
+    <button id="pres-pill" onclick="ouvrirConnectes()" title="Sessions connectées" style="display:none;font-size:11px;color:var(--text2);background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:20px;align-items:center;gap:5px;cursor:pointer;font-family:inherit">👥 <span id="pres-n">1</span></button>
     <span id="user-pill" style="display:none;font-size:11px;color:var(--text2);background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:20px;align-items:center;gap:6px">
       <span id="user-pill-name"></span>
       <button onclick="doLogout()" style="background:none;border:none;font-size:10px;cursor:pointer;color:var(--text3);padding:0;margin-left:4px" title="Se déconnecter">⏏</button>
@@ -1048,9 +1049,13 @@ table.bl-lignes td.r{text-align:right}
     try{
       if(typeof url==='string' && url.indexOf('script.google.com/macros/')>-1 && opts && typeof opts.body==='string'){
         const b = JSON.parse(opts.body);
-        if(b && b.action!=='checkLogin'){
-          const u = JSON.parse(sessionStorage.getItem('erp_user')||'null');
-          if(u && u.token){ b.token = u.token; opts = Object.assign({}, opts, {body: JSON.stringify(b)}); }
+        if(b){
+          if(window.__ERP_TAB){ b.tab = window.__ERP_TAB; b.page = 'erp'; b.build = window.__ERP_BUILD||''; }   // qui appelle (journal + sessions connectées)
+          if(b.action!=='checkLogin'){
+            const u = JSON.parse(sessionStorage.getItem('erp_user')||'null');
+            if(u && u.token) b.token = u.token;
+          }
+          opts = Object.assign({}, opts, {body: JSON.stringify(b)});
         }
       }
     }catch(e){}
@@ -1856,7 +1861,8 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='18/11/2026-d';
+const ERP_BUILD='18/11/2026-f';
+window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
 // À taper dans la console (F12) en cas de souci : montre la version chargée et les derniers événements de synchronisation
@@ -1977,8 +1983,85 @@ function _appliquerFusion(remote, mode, hash){
 
 async function _getHash(){
   const res=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERPHash'})});
-  return await res.json();
+  const r=await res.json();
+  if(r && r.dernier) _dernierEcrivain=r.dernier;
+  return r;
 }
+
+// ═══ SESSIONS CONNECTÉES + QUI A MODIFIÉ LA BASE ═══════════════════════════════════════════════════
+// Chaque onglet (ERP, planning) envoie un « battement » toutes les 45 s ; le serveur garde aussi le DERNIER ÉCRIVAIN de la base
+// ERP (et le journal dans l'onglet Journal_ERP du classeur) → on sait qui est « l'autre session » en cas de conflit.
+let _dernierEcrivain=null, _presence=null;
+const PRES_ACTIONS={saveERP:'enregistrement ERP',syncFinUsinage:'synchro fin d\'usinage',syncAllOF:'synchro des OF',saveTranches:'enregistrement planning',genererDates:'génération des dates',refreshDateFinProd:'dates de fin de prod',purgerAnciens:'purge',setDateReprojetee:'date reprojetée',saveAchats:'achats',pcuEcrireCellule:'plan de charge usinage',pcuRemplirTranches:'plan de charge usinage',pcuAjouterFichiers:'plan de charge usinage',saisirTourneeChauffeur:'saisie chauffeur',validerSemainePointage:'pointage'};
+const PRES_PAGES={erp:'ERP',planning:'Planning Production',achats:'Achats'};
+function _dureeCourte(sec){ sec=Math.max(0,Math.round(sec)); if(sec<60) return sec+' s'; if(sec<3600) return Math.round(sec/60)+' min'; return Math.round(sec/3600)+' h'; }
+function _etatSession(){ return _conflitDiffere?'conflit':((_pendingSave||_savePromise)?'non enregistré':'ok'); }
+// « Nom (page — action), il y a 3 min » ou '' si inconnu
+function _phraseEcrivain(d){
+  d=d||_dernierEcrivain; if(!d) return '';
+  const il='il y a '+_dureeCourte((Date.now()-(d.t||0))/1000);
+  if(d.login==='(serveur)') return 'synchronisation automatique du serveur, '+il;
+  const moi = _currentUser && d.login===_currentUser.login;
+  const qui = moi ? (d.tab===window.__ERP_TAB ? 'vous (cet onglet)' : 'vous-même depuis un AUTRE onglet ou une autre fenêtre') : (d.nom||d.login);
+  return qui+' ('+(PRES_PAGES[d.page]||d.page||'?')+(d.action?' — '+(PRES_ACTIONS[d.action]||d.action):'')+'), '+il;
+}
+function _nomEcrivainCourt(){
+  const d=_dernierEcrivain; if(!d) return '';
+  if(d.login==='(serveur)') return 'le serveur';
+  if(_currentUser && d.login===_currentUser.login) return 'vous-même (autre onglet)';
+  return d.nom||d.login;
+}
+async function presenceBattement(etat){
+  if(!_currentUser || !_currentUser.token) return null;
+  try{
+    const res=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'presence',ecran:_currentScreen||'',etat:etat||_etatSession()})});
+    const r=await res.json();
+    if(r && r.ok){ _presence={t:Date.now(),sessions:r.sessions||[]}; if(r.dernier) _dernierEcrivain=r.dernier; _majPillePresence(); return _presence; }
+  }catch(e){}
+  return null;
+}
+function _majPillePresence(){
+  const el=document.getElementById('pres-pill'), n=document.getElementById('pres-n'); if(!el||!_presence) return;
+  const toutes=_presence.sessions||[], autres=toutes.filter(x=>x.tab!==window.__ERP_TAB);
+  n.textContent=toutes.length; el.style.display='inline-flex';
+  el.title = autres.length ? 'Autres sessions : '+autres.map(x=>(x.nom||x.login)+' ('+(PRES_PAGES[x.page]||x.page)+(x.etat&&x.etat!=='ok'?', '+x.etat:'')+')').join(' · ')+' — cliquer pour le détail' : 'Vous êtes la seule session connectée';
+  const alerte=autres.some(x=>x.etat==='non enregistré'||x.etat==='conflit');
+  el.style.borderColor = alerte ? 'var(--orange)' : 'var(--border)';
+}
+function _infoConflitHtml(){
+  let h='';
+  const ph=_phraseEcrivain();
+  if(ph) h+='<div style="margin-top:10px;padding:8px 11px;border-radius:8px;background:var(--orange-bg);border:1px solid var(--orange-border);font-size:12.5px;color:var(--text)">📝 <b>Dernière modification du serveur :</b> '+esc(ph)+'</div>';
+  const autres=((_presence&&_presence.sessions)||[]).filter(x=>x.tab!==window.__ERP_TAB);
+  if(autres.length) h+='<div style="margin-top:6px;font-size:12px;color:var(--text2)">👥 <b>Autres sessions connectées :</b> '+autres.map(x=>esc((x.nom||x.login)+' — '+(PRES_PAGES[x.page]||x.page)+(x.ecran?' / '+x.ecran:'')+(x.etat&&x.etat!=='ok'?' ('+x.etat+')':''))).join(' · ')+'</div>';
+  return h;
+}
+async function ouvrirConnectes(){
+  if(document.getElementById('pres-modal')) return;
+  const ov=document.createElement('div'); ov.id='pres-modal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML='<div style="background:var(--surface);border-radius:14px;max-width:760px;width:100%;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,.35);max-height:90vh;overflow:auto"><div style="font-size:15px;color:var(--text3)">Chargement des sessions…</div></div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{ if(e.target===ov || e.target.closest('[data-fermer]')) ov.remove(); });
+  await presenceBattement(); try{ await _getHash(); }catch(e){}
+  const l=((_presence&&_presence.sessions)||[]).slice().sort((a,b)=>(a.tab===window.__ERP_TAB?-1:b.tab===window.__ERP_TAB?1:0)||String(a.nom||a.login).localeCompare(String(b.nom||b.login)));
+  const couleur=e=>e==='conflit'?'var(--red)':e==='non enregistré'?'var(--orange)':'var(--green)';
+  const lignes=l.map(x=>'<tr style="border-bottom:1px solid var(--border)'+(x.tab===window.__ERP_TAB?';background:var(--blue-bg)':'')+'">'
+    +'<td style="padding:7px 8px;font-weight:600">'+esc(x.nom||x.login)+(x.tab===window.__ERP_TAB?' <span style="font-weight:400;color:var(--blue)">(cet onglet)</span>':'')+'</td>'
+    +'<td style="padding:7px 8px">'+esc(PRES_PAGES[x.page]||x.page||'?')+'</td>'
+    +'<td style="padding:7px 8px;color:var(--text2)">'+esc(x.ecran||'—')+'</td>'
+    +'<td style="padding:7px 8px;color:'+couleur(x.etat)+';font-weight:600">'+esc(x.etat||'ok')+'</td>'
+    +'<td style="padding:7px 8px;color:var(--text3);white-space:nowrap">il y a '+_dureeCourte(x.age)+'</td>'
+    +'<td style="padding:7px 8px;color:var(--text3);font-size:11px">'+esc(x.build||'')+'</td></tr>').join('');
+  const ph=_phraseEcrivain();
+  ov.firstChild.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:16px;font-weight:700">👥 Sessions connectées <span style="font-weight:400;color:var(--text3);font-size:12px">('+l.length+')</span></div><button data-fermer style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--text3)">✕</button></div>'
+    +(l.length?'<table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr style="text-align:left;color:var(--text3);font-size:11px;text-transform:uppercase"><th style="padding:6px 8px">Qui</th><th style="padding:6px 8px">Où</th><th style="padding:6px 8px">Écran</th><th style="padding:6px 8px">État</th><th style="padding:6px 8px">Dernier signe</th><th style="padding:6px 8px">Version</th></tr></thead><tbody>'+lignes+'</tbody></table>':'<div style="color:var(--text3)">Impossible de lire la liste (serveur injoignable).</div>')
+    +'<div style="margin-top:12px;font-size:12.5px;color:var(--text2)">'+(ph?'📝 <b>Dernière modification de la base ERP :</b> '+esc(ph):'Aucune modification enregistrée depuis la mise en service du suivi.')+'</div>'
+    +'<div style="margin-top:6px;font-size:11.5px;color:var(--text3)">Une session disparaît de la liste 2 min 30 après son dernier signe (onglet fermé ou veille). « Non enregistré » = la personne a des modifications en attente d\'envoi. L\'historique détaillé des enregistrements est dans l\'onglet <b>Journal_ERP</b> du classeur.</div>'
+    +'<div style="text-align:right;margin-top:14px"><button data-fermer class="btn">Fermer</button></div>';
+}
+setInterval(()=>{ presenceBattement(); },45000);
+window.addEventListener('pagehide',()=>{ try{ if(_currentUser && _currentUser.token && navigator.sendBeacon) navigator.sendBeacon(APPS_SCRIPT_URL,new Blob([JSON.stringify({action:'presence',token:_currentUser.token,tab:window.__ERP_TAB,page:'erp',etat:'ferme'})],{type:'text/plain'})); }catch(e){} });
 async function _getRemoteERP(){
   const res=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERP'})});
   const r=await res.json();
@@ -1997,10 +2080,10 @@ function _barreDistante(mode){
   }
   if(mode==='diff'){
     b.style.background='var(--orange-bg)'; b.style.color='var(--orange)'; b.style.border='1px solid var(--orange-border)';
-    b.innerHTML='<span>🔄 Une autre session a modifié des données. Mise à jour automatique dès que vous aurez terminé la saisie en cours.</span><button onclick="actualiserMaintenant()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--orange);background:var(--surface);color:var(--orange);cursor:pointer;font-family:inherit;font-weight:600">Actualiser maintenant</button>';
+    b.innerHTML='<span>🔄 '+(_nomEcrivainCourt()?'Modifié par <b>'+esc(_nomEcrivainCourt())+'</b>':'Une autre session a modifié des données')+'. Mise à jour automatique dès que vous aurez terminé la saisie en cours.</span><button onclick="actualiserMaintenant()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--orange);background:var(--surface);color:var(--orange);cursor:pointer;font-family:inherit;font-weight:600">Actualiser maintenant</button>';
   } else {
     b.style.background='var(--red-bg)'; b.style.color='var(--red)'; b.style.border='1px solid var(--red-border)';
-    b.innerHTML='<span>⚠ Vos modifications ne sont PAS enregistrées : conflit avec une autre session.</span><button onclick="resoudreConflit()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--red);background:var(--surface);color:var(--red);cursor:pointer;font-family:inherit;font-weight:600">Résoudre</button>';
+    b.innerHTML='<span>⚠ Vos modifications ne sont PAS enregistrées : conflit avec '+(_nomEcrivainCourt()?'<b>'+esc(_nomEcrivainCourt())+'</b>':'une autre session')+'.</span><button onclick="resoudreConflit()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--red);background:var(--surface);color:var(--red);cursor:pointer;font-family:inherit;font-weight:600">Résoudre</button>';
   }
 }
 function resoudreConflit(){ _conflitDiffere=false; saveToSheets(); }
@@ -2025,7 +2108,7 @@ function _demanderConflit(conflits, fusionPossible){
         ? (conflits.length ? 'Vos modifications sur d\'autres lignes sont conservées automatiquement ; <b>'+conflits.length+' ligne(s)</b> ont été modifiées des deux côtés :<ul style="margin:6px 0 0 18px">'+liste+'</ul>'
                            : 'Aucune ligne en conflit.')
         : 'La fusion automatique n\'est pas possible (données de référence indisponibles).')
-      +'</div>'
+      +'</div>'+_infoConflitHtml()
       +(fusionPossible ? btn('mine','Garder mes versions','Vos modifications l\'emportent sur les lignes en conflit ; tout le reste de l\'autre session est conservé.','var(--green)')
                          + btn('theirs','Prendre leurs versions','Les modifications de l\'autre session l\'emportent sur les lignes en conflit ; vos autres modifications sont conservées.','var(--text2)') : '')
       +btn('recharger','Abandonner mes modifications et recharger','Recharge les données du serveur (vos changements non enregistrés sont perdus).','var(--orange)')
@@ -2049,6 +2132,7 @@ async function _verifierAvantSauvegarde(){
   catch(e){ return 'ok'; }          // réseau KO → laisser le POST gérer l'erreur / le mode hors ligne
   if(!hash || !_lastSaveHash || hash===_lastSaveHash) return 'ok';
   setSyncPill('error','Modifié par une autre session…');
+  try{ await presenceBattement(); }catch(e){}
   let remote=null;
   try{ remote=await _getRemoteERP(); }catch(e){ remote=null; }
   const fusionPossible = !!(remote && _baseSnap && _sheetsLoaded);
@@ -2145,7 +2229,7 @@ async function _rechargerDistant(){
     if(screenAvant && screenAvant!==_currentScreen){ _navLock=null; showScreen(screenAvant); }
     _scrollsRestituer(memo);
     setSyncPill('ok','Mis à jour '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-    toast('🔄 Mis à jour par une autre session'+(diff&&diff.length?' : '+diff.join(', '):''));
+    toast('🔄 Mis à jour par '+(_nomEcrivainCourt()||'une autre session')+(diff&&diff.length?' : '+diff.join(', '):''));
   }
   return ok;
   } finally { setTimeout(()=>{ _navLock=null; },800); }
@@ -2754,6 +2838,7 @@ function hideLoginScreen(){
     (_currentUser.nom || _currentUser.login) + ' · ' + (_currentUser.profil||'?');
   applyDroits();
   init();
+  setTimeout(()=>{ presenceBattement(); },1500);
 }
 
 function applyDroits(){
@@ -3190,9 +3275,9 @@ function renderPlanningParPhase(){
   // Dates du Planning Production (date reprojetée) : chargées en arrière-plan, la vue se redessine à l'arrivée
   const planR = state._datesPlan;
   if(!planR || Date.now()-planR.t > 120000){
-    chargerDatesPlanning().then(p=>{ if(p && p!==state._datesPlanPhaseUtilise && document.getElementById('planning-phase-tbody')) renderPlanningParPhase(); });
+    chargerDatesPlanning().then(p=>{ if(p && p!==window.__planPhaseUtilise && document.getElementById('planning-phase-tbody')) renderPlanningParPhase(); });
   }
-  state._datesPlanPhaseUtilise = planR;
+  window.__planPhaseUtilise = planR;
 
   // Date de sortie prod : dernier OF terminé pour la tranche, tous ateliers confondus
   // (B1/B2/B3/Usinage — même logique que l'onglet Pilotage phases), mémoïsée par tranche.
@@ -5752,6 +5837,7 @@ function openSaisieJours(empId, semaine){
           <option value="CP" ${absences[j]==='CP'?'selected':''}>CP</option>
           <option value="Maladie" ${absences[j]==='Maladie'?'selected':''}>Maladie</option>
           <option value="Formation" ${absences[j]==='Formation'?'selected':''}>Formation</option>
+          <option value="Délégation" ${absences[j]==='Délégation'?'selected':''}>Délégation</option>
         </select>
       </label>`).join('')}
   </div>
@@ -6477,7 +6563,7 @@ function renderPlanningRessources(){
           let cellContent = '';
           let cellStyle = '';
           if(abs){
-            const absColors = {Absent:'background:#FDECEA;color:#C0392B',RTT:'background:#EAF2FB;color:#1A5276',CP:'background:#EAFAF1;color:#1E8449',Maladie:'background:#FEF9E7;color:#D68910',Formation:'background:#F4ECF7;color:#6C3483',Fermeture:'background:#F5F4F0;color:#6B6860'};
+            const absColors = {Absent:'background:#FDECEA;color:#C0392B',RTT:'background:#EAF2FB;color:#1A5276',CP:'background:#EAFAF1;color:#1E8449',Maladie:'background:#FEF9E7;color:#D68910',Formation:'background:#F4ECF7;color:#6C3483','Délégation':'background:#E6F4F1;color:#0E6655',Fermeture:'background:#F5F4F0;color:#6B6860'};
             cellStyle = absColors[abs]||'';
             cellContent = `<span style="font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;${cellStyle}">${abs}</span>`;
           } else if(horaire){
@@ -7976,6 +8062,7 @@ function renderVueMacro(){
             if(abs==='Absent'){ bg='#FDECEA'; txt=`<span style="color:#C0392B;font-weight:700;font-size:9px">Abs</span>`; border+=';outline:1px solid #F5B7B1'; }
             else if(abs==='RTT'){ bg='#EAF2FB'; txt=`<span style="color:#1A5276;font-weight:700;font-size:9px">RTT</span>`; border+=';outline:1px solid #AED6F1'; }
             else if(abs==='CP'){ bg='#EAF2FB'; txt=`<span style="color:#1A5276;font-weight:700;font-size:9px">CP</span>`; border+=';outline:1px solid #AED6F1'; }
+            else if(abs==='Délégation'){ bg='#E6F4F1'; txt=`<span style="color:#0E6655;font-weight:700;font-size:8px">Délég.</span>`; border+=';outline:1px solid #A3D9CE'; }
             else if(abs==='Fermeture'){ bg='#F0EFE8'; txt=`<span style="color:#A8A59E;font-size:8px">Ferm.</span>`; }
             else if(abs){ bg='#FEF9E7'; txt=`<span style="color:#D68910;font-weight:700;font-size:8px">${abs.slice(0,4)}</span>`; }
             else if(hor){ bg='#EAFAF1'; txt=`<span style="color:#1E8449;font-size:8px;font-family:monospace">${hor.replace('-','↗')}</span>`; }
@@ -9158,7 +9245,7 @@ async function loadDATESSource() {
 function renderAbsencesDashboard(){
   const heures = state.heures||[];
   const employes = state.employes||[];
-  const typesConnus = ['Maladie','CP','RTT','Absent','Formation','Fermeture'];
+  const typesConnus = ['Maladie','CP','RTT','Absent','Formation','Délégation','Fermeture'];
 
   // Calculer les absences sur les 12 dernières semaines
   const today = new Date();
@@ -11495,6 +11582,7 @@ document.getElementById('charge-debut').value=d.toISOString().slice(0,10);
         <option value="Maladie">Maladie</option>
         <option value="Formation">Formation</option>
         <option value="Visite médicale">Visite médicale</option>
+        <option value="Délégation">Délégation</option>
         <option value="Fermeture">Fermeture atelier</option>
       </select>
     </div>
