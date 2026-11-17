@@ -142,6 +142,16 @@ tr:last-child td{border-bottom:none}
 .modal{background:var(--surface);border-radius:14px;padding:20px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.18)}
 .modal h2{font-size:15px;font-weight:600;margin-bottom:14px}
 .modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+/* Fenêtre de réception : grande, confortable pour la saisie des lignes */
+#modal-reception .modal{width:min(1320px,97vw);max-height:94vh;padding:26px 30px}
+#modal-reception .modal h2{font-size:18px;margin-bottom:18px}
+#modal-reception .field input,#modal-reception .field select{font-size:14px;padding:10px 12px}
+#modal-reception .lignes-table{font-size:14px}
+#modal-reception .lignes-table th{font-size:11px;padding:10px 12px}
+#modal-reception .lignes-table td{padding:12px;vertical-align:top}
+#modal-reception .lignes-table select{min-width:230px;font-size:13px!important;padding:7px 9px!important}
+#modal-reception .lignes-table input[type=number]{font-size:14px!important;padding:7px 9px!important;width:120px!important}
+#mr-cde-info{font-size:12px;margin-top:5px;min-height:16px}
 .field{margin-bottom:12px}
 .field label{display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
 .field input,.field select,.field textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)}
@@ -245,9 +255,47 @@ table.bl-lignes td.r{text-align:right}
   .cde-print {display:block!important;}
 }
 .cde-print {display:none;}
+/* ── COMMANDES FOURNISSEUR (tableau ACHATS, lecture seule) ── */
+.cf-scroll{max-height:68vh;overflow:auto}
+.cf-table{width:max-content;min-width:100%}
+.cf-table thead th{position:sticky;top:0;z-index:2;cursor:pointer;user-select:none;box-shadow:0 1px 0 var(--border)}
+.cf-table thead th:hover{color:var(--text)}
+.cf-table td{white-space:nowrap;font-size:12px;padding:6px 10px}
+.cf-table td.txt{white-space:normal;min-width:200px;max-width:340px}
+.cf-table td.num{text-align:right;font-family:'DM Mono',monospace}
+.cf-table tbody tr:hover td{background:#FAFAF8}
+.cf-note{font-size:11px;color:var(--text3);margin:-2px 0 10px}
+.test-banner{background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:10px;padding:9px 14px;font-size:12px;color:var(--orange);margin:26px 0 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* Accès par droits (onglet « achats » de l'ERP) */
+.gate{position:fixed;inset:0;background:var(--bg);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
+.gate.show{display:flex}
+.gate-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px 32px;max-width:420px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.1)}
+.gate-box h2{font-size:16px;margin-bottom:8px}
+.gate-box p{font-size:13px;color:var(--text2);margin-bottom:16px}
+.gate-form{display:none;text-align:left;margin-bottom:14px}
+.gate-form label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin:10px 0 4px}
+.gate-form input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px}
+.gate-form input:focus{outline:none;border-color:var(--blue)}
+.gate-form .gate-err{display:none;color:var(--red);font-size:12px;margin-top:10px}
+.gate-box{min-width:340px}
+body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit"]{display:none!important}
 </style>
 </head>
 <body>
+<!-- Accès : session ERP + droit « achats » obligatoires -->
+<div class="gate" id="gate"><div class="gate-box">
+  <h2 id="gate-titre">Connexion requise</h2>
+  <p id="gate-texte">Connectez-vous depuis l'ERP pour accéder aux achats.</p>
+  <form class="gate-form" id="gate-form" onsubmit="event.preventDefault();gateLogin()">
+    <label for="gate-login">Identifiant</label>
+    <input type="text" id="gate-login" autocomplete="username" autocapitalize="none" spellcheck="false"/>
+    <label for="gate-pass">Mot de passe</label>
+    <input type="password" id="gate-pass" autocomplete="current-password"/>
+    <div class="gate-err" id="gate-err"></div>
+    <button type="submit" class="btn btn-primary" id="gate-btn" style="width:100%;margin-top:14px;justify-content:center">Se connecter</button>
+  </form>
+  <a class="btn" id="gate-erp" href="erp.html" style="text-decoration:none;display:inline-block">← Aller à l'ERP</a>
+</div></div>
 <header>
   <div style="display:flex;align-items:center;gap:12px">
     <img src="data:image/png;base64,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" style="height:36px;width:auto" alt="Rousseau"/>
@@ -264,47 +312,74 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </header>
 <div class="app-tabs">
-  <button class="app-tab active" id="tab-cdes" onclick="showTab('cdes')">📋 Commandes</button>
+  <button class="app-tab active" id="tab-cdes" onclick="showTab('cdes')">📋 Commandes fournisseur</button>
   <button class="app-tab" id="tab-fourns" onclick="showTab('fourns')">🏢 Fournisseurs</button>
   <button class="app-tab" id="tab-receptions" onclick="showTab('receptions')">🚚 Réceptions</button>
   <button class="app-tab" id="tab-stock" onclick="showTab('stock')">📦 Stock</button>
-  <button class="app-tab" id="tab-articles" onclick="showTab('articles')">🗂️ Articles</button>
+  <button class="app-tab" id="tab-articles" onclick="showTab('articles')">🗂️ Base articles</button>
 </div>
 <main>
-<!-- ══ COMMANDES ══ -->
+<!-- ══ COMMANDES FOURNISSEUR (= tableau ACHATS, lecture seule) ══ -->
 <div class="screen active" id="screen-cdes">
   <div class="toolbar no-print">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" id="cde-search" placeholder="Rechercher commande, fournisseur…" oninput="renderCdes()"/>
+      <input type="text" id="cf-search" placeholder="Rechercher (chantier, désignation, fournisseur, ID…)" oninput="cfPage=1;renderCdesFournisseur()"/>
     </div>
-    <select class="btn" id="cde-fil-statut" onchange="renderCdes()">
-      <option value="">Tous statuts</option>
-      <option value="Brouillon">Brouillon</option>
-      <option value="Validée">Validée</option>
-      <option value="Envoyée">Envoyée</option>
-      <option value="Réception partielle">Réception partielle</option>
-      <option value="Reçue">Reçue</option>
-      <option value="Litige">Litige</option>
-    </select>
-    <select class="btn" id="cde-fil-chantier" onchange="renderCdes()">
-      <option value="">Tous chantiers</option>
-    </select>
-    <button class="btn btn-primary" onclick="openNewCde()">+ Nouvelle commande</button>
+    <select class="btn" id="cf-fil-statut" onchange="cfPage=1;renderCdesFournisseur()"><option value="">Tous statuts</option></select>
+    <select class="btn" id="cf-fil-chantier" onchange="cfPage=1;renderCdesFournisseur()"><option value="">Tous chantiers</option></select>
+    <select class="btn" id="cf-fil-fourn" onchange="cfPage=1;renderCdesFournisseur()"><option value="">Tous fournisseurs</option></select>
+    <button class="btn" onclick="loadCdesFournisseur(true)">↻ Actualiser</button>
+    <button class="btn btn-primary" id="btn-new-cde-test" style="display:none" onclick="openNewCde()">+ Nouvelle commande (test)</button>
   </div>
-  <div class="metrics" id="cde-metrics" style="margin-bottom:12px"></div>
-  <div id="cde-list"></div>
+  <div class="metrics" id="cf-metrics" style="margin-bottom:12px"></div>
+  <p class="cf-note" id="cf-note"></p>
+  <div class="table-wrap"><div class="cf-scroll">
+    <table class="cf-table"><thead id="cf-thead"></thead><tbody id="cf-tbody"></tbody></table>
+  </div></div>
+  <div style="text-align:center;margin-top:10px" id="cf-more"></div>
+
+  <!-- Commandes de test : visibles uniquement pour les identifiants de TEST_USERS -->
+  <div id="cde-test-zone" style="display:none">
+    <div class="test-banner">🧪 <strong>Mode test</strong> — commandes saisies dans cette page, visibles uniquement par <span id="test-users-txt"></span>. Elles n'alimentent pas le tableau ACHATS.</div>
+    <div class="toolbar no-print">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="cde-search" placeholder="Rechercher commande, fournisseur…" oninput="renderCdes()"/>
+      </div>
+      <select class="btn" id="cde-fil-statut" onchange="renderCdes()">
+        <option value="">Tous statuts</option>
+        <option value="Brouillon">Brouillon</option>
+        <option value="Validée">Validée</option>
+        <option value="Envoyée">Envoyée</option>
+        <option value="Réception partielle">Réception partielle</option>
+        <option value="Reçue">Reçue</option>
+        <option value="Litige">Litige</option>
+      </select>
+      <select class="btn" id="cde-fil-chantier" onchange="renderCdes()">
+        <option value="">Tous chantiers</option>
+      </select>
+    </div>
+    <div class="metrics" id="cde-metrics" style="margin-bottom:12px"></div>
+    <div id="cde-list"></div>
+  </div>
 </div>
 <!-- ══ FOURNISSEURS ══ -->
 <div class="screen" id="screen-fourns">
   <div class="toolbar no-print">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" id="fourn-search" placeholder="Rechercher fournisseur…" oninput="renderFourns()"/>
+      <input type="text" id="fourn-search" placeholder="Rechercher un fournisseur (nom, contact, catégorie, ville…)" oninput="fsPage=1;renderFourns()"/>
     </div>
-    <button class="btn btn-primary" onclick="openNewFourn()">+ Nouveau fournisseur</button>
+    <select class="btn" id="fs-fil-livraison" onchange="fsPage=1;renderFourns()" style="display:none"><option value="">Toutes livraisons</option></select>
+    <button class="btn" onclick="loadFournisseursSource(true)">↻ Actualiser</button>
   </div>
-  <div id="fourn-list"></div>
+  <div class="metrics" id="fs-metrics" style="margin-bottom:12px"></div>
+  <p class="cf-note" id="fs-note"></p>
+  <div class="table-wrap"><div class="cf-scroll">
+    <table class="cf-table"><thead id="fs-thead"></thead><tbody id="fs-tbody"></tbody></table>
+  </div></div>
+  <div style="text-align:center;margin-top:10px" id="fs-more"></div>
 </div>
 <!-- ══ RÉCEPTIONS ══ -->
 <div class="screen" id="screen-receptions">
@@ -392,7 +467,7 @@ table.bl-lignes td.r{text-align:right}
     </table>
   </div>
 </div>
-<!-- ══ ARTICLES ══ -->
+<!-- ══ BASE ARTICLES ══ -->
 <div class="screen" id="screen-articles">
   <div class="toolbar no-print">
     <div class="search-wrap">
@@ -620,14 +695,14 @@ table.bl-lignes td.r{text-align:right}
 </div>
 <!-- ══ MODAL NOUVELLE RÉCEPTION ══ -->
 <div class="modal-bg" id="modal-reception">
-  <div class="modal" style="width:820px;max-width:98vw">
+  <div class="modal">
     <h2>Nouvelle réception</h2>
     <div class="field-2" style="margin-bottom:12px">
       <div class="field">
-        <label>Commande à réceptionner *</label>
-        <select id="mr-cde" onchange="onReceptionCdeChange()">
-          <option value="">— Sélectionner —</option>
-        </select>
+        <label>N° de commande à réceptionner * <span style="text-transform:none;font-weight:400;color:var(--text3)">(commence par BC-)</span></label>
+        <input type="text" id="mr-cde" list="mr-cde-list" autocomplete="off" placeholder="BC-26-00123" oninput="onReceptionNumInput()" onfocus="if(!this.value){this.value='BC-';}" onchange="onReceptionNumInput(true)" onkeydown="if(event.key==='Enter'){event.preventDefault();onReceptionNumInput(true);}"/>
+        <datalist id="mr-cde-list"></datalist>
+        <div id="mr-cde-info"></div>
       </div>
       <div class="field">
         <label>Fournisseur</label>
@@ -636,11 +711,11 @@ table.bl-lignes td.r{text-align:right}
     </div>
     <div class="field-2" style="margin-bottom:12px">
       <div class="field">
-        <label>N° bon de livraison *</label>
-        <input type="text" id="mr-bl-numero" placeholder="ex. BL-2026-0457"/>
+        <label>N° BR (bon de réception) *</label>
+        <input type="text" id="mr-bl-numero" placeholder="BR-2026-001"/>
       </div>
       <div class="field">
-        <label>Date du BL *</label>
+        <label>Date de réception *</label>
         <input type="date" id="mr-bl-date"/>
       </div>
     </div>
@@ -728,18 +803,99 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </div>
 <script>
-// URL /exec du déploiement Apps Script actif du backend Achats (Code.gs).
-// IMPORTANT : à chaque "Nouveau déploiement" (et non "Nouvelle version" sur
-// le même déploiement), cette URL change et DOIT être remise à jour ici,
-// sinon la page continue silencieusement d'appeler l'ancien code figé (déjà
-// arrivé plusieurs fois : articles/emplacements manquants, stock à 0...).
-// Vérifier dans l'éditeur Apps Script du classeur Achats : Déployer → Gérer
-// les déploiements → URL du déploiement actif.
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby1jaBhdZE6dICs_8oYS4nZXZe_2lJg57IkhhEIxZFeCuBOnKWKR3AIA4JNnaBeNZU/exec';
+// ═══ SÉCURITÉ : jeton de session ajouté automatiquement à chaque appel au serveur (sauf checkLogin) ═══
+(function(){
+  const natif = window.fetch.bind(window);
+  window.fetch = function(url, opts){
+    try{
+      if(typeof url==='string' && url.indexOf('script.google.com/macros/')>-1 && opts && typeof opts.body==='string'){
+        const b = JSON.parse(opts.body);
+        if(b && b.action!=='checkLogin'){
+          const u = JSON.parse(sessionStorage.getItem('erp_user')||'null');
+          if(u && u.token){ b.token = u.token; opts = Object.assign({}, opts, {body: JSON.stringify(b)}); }
+        }
+      }
+    }catch(e){}
+    return natif(url, opts).then(function(resp){
+      try{
+        if(typeof url==='string' && url.indexOf('script.google.com/macros/')>-1){
+          resp.clone().text().then(function(t){
+            if(t.slice(0,60).indexOf('"auth":true')>-1 && typeof window.onSessionExpiree==='function'){
+              let m=''; try{ m=JSON.parse(t).error||''; }catch(e){}
+              window.onSessionExpiree(m);
+            }
+          }).catch(function(){});
+        }
+      }catch(e){}
+      return resp;
+    });
+  };
+})();
+function _sessionValide(u){ return !!(u && u.token && u.expires && u.expires>Date.now()); }
+
+// URL /exec du déploiement Apps Script — la MÊME que l'ERP et le planning (un seul déploiement à maintenir).
+// À chaque "Nouveau déploiement" l'URL change et doit être remise à jour dans erp.html, index.html ET ici.
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwNYEgJo3NKOgL7DHZqLvAD_VO56axypAj1AOao6JcbRxIaVhwF/exec';
+
+// ═══ ACCÈS : session ERP valide + droit « achats » ═══════════════════════════
+// Mode test : seuls ces identifiants voient « + Nouvelle commande » et les commandes saisies dans cette page.
+// Pour terminer la phase de test : mettre la liste à [].
+const TEST_USERS = ['jcharles'];
+let _user = null;
+window.onSessionExpiree = function(msg){
+  try{ sessionStorage.removeItem('erp_user'); }catch(e){}
+  afficherGate('Session expirée', (msg||'Votre session a expiré.')+' Reconnectez-vous ci-dessous.', true);
+};
+function afficherGate(titre, texte, avecConnexion){
+  document.getElementById('gate-titre').textContent = titre;
+  document.getElementById('gate-texte').textContent = texte;
+  document.getElementById('gate-form').style.display = avecConnexion ? 'block' : 'none';
+  document.getElementById('gate').classList.add('show');
+  if (avecConnexion) setTimeout(()=>{ try{ document.getElementById('gate-login').focus(); }catch(e){} }, 50);
+}
+// Connexion directe depuis la page Achats (mêmes comptes que l'ERP) : la session est enregistrée comme celle de l'ERP
+async function gateLogin(){
+  const login = document.getElementById('gate-login').value.trim();
+  const pass = document.getElementById('gate-pass').value;
+  const err = document.getElementById('gate-err'), btn = document.getElementById('gate-btn');
+  const montrer = m => { err.textContent = m; err.style.display = 'block'; };
+  err.style.display = 'none';
+  if (!login || !pass) { montrer('Renseignez l\'identifiant et le mot de passe.'); return; }
+  btn.disabled = true; const txt0 = btn.textContent; btn.textContent = 'Vérification…';
+  const ctl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+  const t = setTimeout(()=>{ try{ ctl && ctl.abort(); }catch(e){} }, 45000);
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'checkLogin', login, pass}), signal: ctl?ctl.signal:undefined});
+    let r = null; try { r = JSON.parse(await res.text()); } catch(e) {}
+    if (!r) montrer('Le serveur ne répond pas correctement. Réessayez dans un instant.');
+    else if (r.ok && r.user && r.token) {
+      const u = Object.assign({}, r.user, {token: r.token, expires: r.expires});
+      try { sessionStorage.setItem('erp_user', JSON.stringify(u)); } catch(e) {}
+      location.reload(); return;
+    } else if (r.ok && r.user) montrer('Le script Google n\'est pas à jour (pas de jeton de session) : republiez Code.gs.');
+    else { montrer(r.error || 'Identifiant ou mot de passe incorrect.'); document.getElementById('gate-pass').value = ''; }
+  } catch(e) {
+    montrer(e && e.name==='AbortError' ? 'Le serveur ne répond pas (45 s). Réessayez.' : 'Serveur inaccessible : vérifiez votre connexion.');
+  } finally { clearTimeout(t); btn.disabled = false; btn.textContent = txt0; }
+}
+// 'full' | 'read' | 'none' — même logique que l'ERP (droit enregistré, sinon défaut du profil)
+function niveauAchats(u){
+  let v = (u.droits||{}).achats;
+  if (v === undefined) v = (u.profil==='admin'||u.profil==='chef') ? 'full' : 'none';
+  v = String(v).toLowerCase();
+  if (v==='1'||v==='true'||v==='oui') return 'full';
+  return (v==='full'||v==='read') ? v : 'none';
+}
+function lireSession(){
+  try{ const u = JSON.parse(sessionStorage.getItem('erp_user')||'null'); return _sessionValide(u) ? u : null; }catch(e){ return null; }
+}
+function estTest(){ return !!_user && TEST_USERS.indexOf(String(_user.login||'').toLowerCase())>=0; }
 // ═══ STATE ════════════════════════════════════════════════════════════════
 let state = {
   commandes: [],
-  fournisseurs: [],
+  fournisseurs: [],          // liste utilisée par les formulaires : l'onglet FOURNISSEUR du tableau ACHATS (à défaut, anciennes fiches de l'ERP)
+  fournisseursInternes: [],  // anciennes fiches saisies dans l'ERP (conservées telles quelles à l'enregistrement)
+  fs: { colonnes: [], lignes: [], maj: '', erreur: '' },
   stock_mp: [],
   chantiers: [],
   articles_stock: [], // Articles du stock ERP pour liaison
@@ -749,6 +905,7 @@ let state = {
   emplacements_defaut: [], // { designation, emplacementId } — emplacement mémorisé par article, proposé automatiquement à la réception
   articles: [],       // { id, designation, unite, fournisseur_id, fournisseur_nom, seuil_mini, delai_appro_jours, qte_reappro } — fiches des articles suivis en stock
   rebuts: [],          // { id, date, designation, quantite, emplacementId, motif, created_at } — mises au rebut (traçabilité)
+  cf: { colonnes: [], lignes: [], maj: '', onglet: '', erreur: '' }, // tableau ACHATS (Google Sheet), lecture seule
 };
 let _ctx = {};
 let _nbLignes = 0;
@@ -756,10 +913,22 @@ let _nbContacts = 0;
 let _nbLignesRecep = 0;
 // ═══ INIT ═════════════════════════════════════════════════════════════════
 async function init() {
+  _user = lireSession();
+  if (!_user) { afficherGate('Connexion requise', 'Connectez-vous avec vos identifiants de l\'ERP pour accéder aux achats.', true); return; }
+  const niv = niveauAchats(_user);
+  if (niv==='none') { afficherGate('Accès non autorisé', 'Votre profil n\'a pas accès aux achats. Contactez un administrateur.'); return; }
+  if (niv==='read') document.body.classList.add('ro');
+  if (estTest()) {
+    document.getElementById('btn-new-cde-test').style.display = '';
+    document.getElementById('cde-test-zone').style.display = 'block';
+    document.getElementById('test-users-txt').textContent = TEST_USERS.join(', ');
+  }
   setSyncPill('saving','Chargement...');
-  await Promise.all([loadChantiers(), loadData()]);
+  await Promise.all([loadChantiers(), loadData(), loadCdesFournisseur(), loadFournisseursSource()]);
+  composerFournisseurs();
   populateFournSelects();
   populateChantierSelects();
+  renderCdesFournisseur();
   renderCdes();
   renderFourns();
   renderReceptions();
@@ -787,7 +956,8 @@ async function loadData() {
     const r = await res.json();
     if (r.ok) {
       state.commandes    = r.commandes    || [];
-      state.fournisseurs = r.fournisseurs || [];
+      state.fournisseursInternes = r.fournisseurs || [];
+      composerFournisseurs();
       state.stock_mp     = r.stock_mp     || [];
       state.emplacements = r.emplacements || [];
       state.receptions   = r.receptions   || [];
@@ -803,7 +973,7 @@ async function saveData() {
   try {
     const res = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},
       body:JSON.stringify({action:'saveAchats',data:{
-        commandes:state.commandes,fournisseurs:state.fournisseurs,stock_mp:state.stock_mp,
+        commandes:state.commandes,fournisseurs:state.fournisseursInternes,stock_mp:state.stock_mp,
         emplacements:state.emplacements,receptions:state.receptions,transferts:state.transferts,
         emplacements_defaut:state.emplacements_defaut,
         articles:state.articles,rebuts:state.rebuts
@@ -833,6 +1003,111 @@ function showTab(id) {
   document.getElementById('screen-'+id).classList.add('active');
   document.getElementById('tab-'+id).classList.add('active');
 }
+// ═══ COMMANDES FOURNISSEUR — tableau ACHATS (Google Sheet), lecture seule ════
+// Colonnes et lignes viennent du serveur (action getCommandesFournisseur) ; la colonne « % pose » n'est jamais envoyée.
+let cfTri = { col: '', sens: 1 };
+let cfPage = 1;
+const CF_PAR_PAGE = 300;
+function cfNorm(s) { return String(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+function cfCol(...noms) { // 1re colonne dont le nom normalisé commence par l'un des noms
+  for (const n of noms) { const c = state.cf.colonnes.find(x=>cfNorm(x)===n) || state.cf.colonnes.find(x=>cfNorm(x).startsWith(n)); if (c) return c; }
+  return '';
+}
+async function loadCdesFournisseur(manuel) {
+  if (manuel) toast('Actualisation du tableau ACHATS…');
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getCommandesFournisseur'})});
+    const r = await res.json();
+    if (r.ok) {
+      state.cf = { colonnes: r.colonnes||[], lignes: r.commandes||[], maj: r.maj||'', onglet: r.onglet||'', erreur: '' };
+    } else {
+      state.cf.erreur = r.error || 'Lecture impossible';
+    }
+  } catch(e) { state.cf.erreur = 'Serveur inaccessible'; }
+  if (manuel) { cfPage = 1; renderCdesFournisseur(); }
+}
+function cfEstDate(v) { return /^\d{4}-\d{2}-\d{2}$/.test(String(v)); }
+function cfBadgeStatut(v) {
+  const t = cfNorm(v);
+  if (!t) return '';
+  let cls = 'badge-gray';
+  if (/recu|livre|termin|solde|ok/.test(t)) cls = 'badge-green';
+  else if (/annul|litige|refus/.test(t)) cls = 'badge-red';
+  else if (/attente|cours|devis|partiel|relance/.test(t)) cls = 'badge-orange';
+  else if (/command|valid|envoy|pass/.test(t)) cls = 'badge-blue';
+  return `<span class="badge ${cls}">${esc(v)}</span>`;
+}
+function cfCellule(col, v) {
+  if (v===''||v===null||v===undefined) return '<td></td>';
+  const n = cfNorm(col);
+  if (n==='statut') return `<td>${cfBadgeStatut(v)}</td>`;
+  if (cfEstDate(v)) return `<td>${fmtDate(v)}</td>`;
+  if (/€|euro|devis|facture|montant|prix/.test(n) && typeof v==='number') return `<td class="num">${fmtEuro(v)}</td>`;
+  if (typeof v==='number') return `<td class="num">${fmtQte(v)}</td>`;
+  const long = /designation|commentaire|titre|tache|zone/.test(n) || String(v).length>40;
+  return `<td${long?' class="txt"':''}>${esc(v)}</td>`;
+}
+function cfRemplirFiltre(id, colonne, libelleTous) {
+  const el = document.getElementById(id); if (!el) return;
+  const sel = el.value;
+  const vals = colonne ? [...new Set(state.cf.lignes.map(l=>String(l[colonne]||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr',{numeric:true})) : [];
+  el.innerHTML = `<option value="">${libelleTous}</option>` + vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  if (vals.includes(sel)) el.value = sel;
+  el.style.display = colonne ? '' : 'none';
+}
+function trierCdesFournisseurPar(col) {
+  if (cfTri.col===col) cfTri.sens *= -1; else { cfTri.col = col; cfTri.sens = 1; }
+  cfPage = 1; renderCdesFournisseur();
+}
+function cfAfficherPlus() { cfPage++; renderCdesFournisseur(); }
+function renderCdesFournisseur() {
+  const cf = state.cf;
+  const thead = document.getElementById('cf-thead'), tbody = document.getElementById('cf-tbody');
+  if (cf.erreur && !cf.lignes.length) {
+    thead.innerHTML = '';
+    tbody.innerHTML = `<tr><td style="padding:2rem;text-align:center;color:var(--red)">Tableau ACHATS indisponible : ${esc(cf.erreur)}</td></tr>`;
+    document.getElementById('cf-metrics').innerHTML = ''; document.getElementById('cf-note').textContent = ''; document.getElementById('cf-more').innerHTML = '';
+    return;
+  }
+  const cStatut = cfCol('statut'), cChantier = cfCol('chantier'), cFourn = cfCol('fournisseur');
+  cfRemplirFiltre('cf-fil-statut', cStatut, 'Tous statuts');
+  cfRemplirFiltre('cf-fil-chantier', cChantier, 'Tous chantiers');
+  cfRemplirFiltre('cf-fil-fourn', cFourn, 'Tous fournisseurs');
+  const q = cfNorm(document.getElementById('cf-search')?.value||'');
+  const fs = document.getElementById('cf-fil-statut').value, fc = document.getElementById('cf-fil-chantier').value, ff = document.getElementById('cf-fil-fourn').value;
+  let rows = cf.lignes.filter(l=>{
+    if (fs && String(l[cStatut]||'').trim()!==fs) return false;
+    if (fc && String(l[cChantier]||'').trim()!==fc) return false;
+    if (ff && String(l[cFourn]||'').trim()!==ff) return false;
+    if (q && !cf.colonnes.some(c=>cfNorm(l[c]).includes(q))) return false;
+    return true;
+  });
+  if (cfTri.col) {
+    const col = cfTri.col, s = cfTri.sens;
+    rows = rows.slice().sort((a,b)=>{
+      const x=a[col], y=b[col];
+      if (typeof x==='number' && typeof y==='number') return (x-y)*s;
+      return String(x===undefined?'':x).localeCompare(String(y===undefined?'':y),'fr',{numeric:true})*s;
+    });
+  }
+  // Indicateurs
+  const cDevis = cfCol('€devis','devis'), cFact = cfCol('€facture','facture');
+  const somme = c => c ? rows.reduce((t,l)=>t+(typeof l[c]==='number'?l[c]:0),0) : 0;
+  document.getElementById('cf-metrics').innerHTML =
+    `<div class="metric"><div class="metric-k">Lignes affichées</div><div class="metric-v">${rows.length}</div><div class="metric-sub">sur ${cf.lignes.length}</div></div>`
+    + (cDevis ? `<div class="metric"><div class="metric-k">Total ${esc(cDevis)}</div><div class="metric-v">${fmtEuro(somme(cDevis))}</div></div>` : '')
+    + (cFact ? `<div class="metric"><div class="metric-k">Total ${esc(cFact)}</div><div class="metric-v">${fmtEuro(somme(cFact))}</div></div>` : '');
+  document.getElementById('cf-note').textContent = `Tableau ACHATS (Google Sheet) — lecture seule${cf.maj?' · mis à jour le '+cf.maj:''}. Pour modifier une commande, éditer le tableau ACHATS puis cliquer sur « Actualiser ».`;
+  // En-têtes triables
+  thead.innerHTML = '<tr>' + cf.colonnes.map(c=>`<th data-col="${esc(c)}">${esc(c)}<span class="tri-icone${cfTri.col===c?' actif':''}">${cfTri.col===c?(cfTri.sens===1?'▲':'▼'):'⇅'}</span></th>`).join('') + '</tr>';
+  thead.querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>trierCdesFournisseurPar(th.dataset.col)));
+  const visibles = rows.slice(0, cfPage*CF_PAR_PAGE);
+  tbody.innerHTML = visibles.length
+    ? visibles.map(l=>'<tr>'+cf.colonnes.map(c=>cfCellule(c,l[c])).join('')+'</tr>').join('')
+    : `<tr><td colspan="${Math.max(cf.colonnes.length,1)}" style="padding:2rem;text-align:center;color:var(--text3)">Aucune commande ne correspond.</td></tr>`;
+  document.getElementById('cf-more').innerHTML = rows.length>visibles.length
+    ? `<button class="btn" onclick="cfAfficherPlus()">Afficher plus (${rows.length-visibles.length} lignes restantes)</button>` : '';
+}
 function genNumeroCde() {
   const annee = new Date().getFullYear();
   const existing = state.commandes.filter(c=>c.num&&c.num.startsWith('CDE-'+annee+'-'));
@@ -840,12 +1115,16 @@ function genNumeroCde() {
   const next = nums.length ? Math.max(...nums)+1 : 1;
   return `CDE-${annee}-${String(next).padStart(3,'0')}`;
 }
+// N° de bon de réception : BR-AAAA-001, 002… Le compteur se base sur le n° BR généré à chaque réception (champ brNumero), même si le champ a été retouché à la main ;
+// les anciens n° REC-AAAA-… restent comptés pour ne jamais repartir à 001.
 function genNumeroBL() {
   const annee = new Date().getFullYear();
-  const existing = state.receptions.filter(r=>r.blNumero&&r.blNumero.startsWith('REC-'+annee+'-'));
-  const nums = existing.map(r=>parseInt((r.blNumero.split('-')[2])||0)).filter(n=>!isNaN(n));
-  const next = nums.length ? Math.max(...nums)+1 : 1;
-  return `REC-${annee}-${String(next).padStart(3,'0')}`;
+  const re = new RegExp('^(?:BR|REC)-'+annee+'-(\\d+)$','i');
+  let max = 0;
+  state.receptions.forEach(r=>{
+    [r.brNumero, r.blNumero].forEach(v=>{ const m = String(v||'').trim().match(re); if (m) max = Math.max(max, parseInt(m[1],10)); });
+  });
+  return `BR-${annee}-${String(max+1).padStart(3,'0')}`;
 }
 function populateFournSelects() {
   const opts = ['<option value="">— Sélectionner —</option>',
@@ -986,7 +1265,7 @@ function addLigneCde(data={}) {
         <option value="">— Nouvel article (créera une fiche) —</option>
         ${articleOpts}
       </select>
-      <span style="margin-left:8px;font-size:10px;color:var(--text3)">Sélectionner une fiche remplit désignation/unité ci-dessus — garantit le lien avec l'onglet Articles.</span>
+      <span style="margin-left:8px;font-size:10px;color:var(--text3)">Sélectionner une fiche remplit désignation/unité ci-dessus — garantit le lien avec l'onglet Base articles.</span>
     </div>`;
   wrap.appendChild(div);
   if (data.qte && data.pu) updateLigneTotals();
@@ -1045,11 +1324,13 @@ function getLignes() {
   }
   return lignes;
 }
-// ═══ COMMANDES — CRUD ════════════════════════════════════════════════════
+// ═══ COMMANDES (TEST) — CRUD ═════════════════════════════════════════════
+// La saisie de commandes dans cette page est réservée au mode test (TEST_USERS) : les vraies commandes viennent du tableau ACHATS.
 function openNewCde() {
+  if (!estTest()) { alert('La création de commandes dans cette page est désactivée : les commandes proviennent du tableau ACHATS.'); return; }
   _ctx = {type:'new'};
   _nbLignes = 0;
-  document.getElementById('mc-title').textContent = 'Nouvelle commande';
+  document.getElementById('mc-title').textContent = 'Nouvelle commande (test)';
   document.getElementById('mc-num').value = genNumeroCde();
   document.getElementById('mc-ref').value = '';
   document.getElementById('mc-date').value = new Date().toISOString().slice(0,10);
@@ -1174,7 +1455,7 @@ function updateStatutCde(id, statut) {
   const cde = state.commandes.find(c=>c.id===id);
   if (cde) { cde.statut=statut; saveData(); renderCdes(); renderRecapCommandes(); renderPrevisionnel(); renderMetrics(); toast('Statut mis à jour'); }
 }
-// ═══ RENDU COMMANDES ══════════════════════════════════════════════════════
+// ═══ RENDU COMMANDES (TEST) ═══════════════════════════════════════════════
 function renderMetrics() {
   const nb = state.commandes.length;
   const attente = state.commandes.filter(c=>c.statut==='Envoyée'||c.statut==='Réception partielle').length;
@@ -1206,7 +1487,7 @@ function renderCdes() {
     return true;
   });
   if (!cdes.length) {
-    document.getElementById('cde-list').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune commande trouvée.</div>';
+    document.getElementById('cde-list').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune commande de test.</div>';
     return;
   }
   document.getElementById('cde-list').innerHTML = cdes.map(cde=>{
@@ -1449,43 +1730,106 @@ function deleteFourn(id) {
   state.fournisseurs=state.fournisseurs.filter(f=>f.id!==id);
   saveData();renderFourns();populateFournSelects();toast('Fournisseur supprimé');
 }
-function renderFourns() {
-  const q=(document.getElementById('fourn-search')?.value||'').toLowerCase();
-  const fourns=state.fournisseurs.filter(f=>!q||f.nom.toLowerCase().includes(q)||(f.categorie||'').toLowerCase().includes(q));
-  if(!fourns.length){
-    document.getElementById('fourn-list').innerHTML='<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun fournisseur. Cliquez sur "+ Nouveau fournisseur".</div>';return;
-  }
-  document.getElementById('fourn-list').innerHTML=fourns.map(f=>{
-    const nbCdes=state.commandes.filter(c=>c.fourn_id===f.id).length;
-    return `<div class="fourn-card">
-      <div class="fourn-header" onclick="toggleFourn('${f.id}')">
-        <span class="chevron${f.open?' open':''}">▶</span>
-        <span style="font-weight:700;font-size:14px;flex:1">${esc(f.nom)}</span>
-        ${f.categorie?`<span class="badge badge-blue">${esc(f.categorie)}</span>`:''}
-        ${nbCdes?`<span class="badge badge-gray">${nbCdes} commande${nbCdes>1?'s':''}</span>`:''}
-        <div onclick="event.stopPropagation()" style="display:flex;gap:5px">
-          <button class="btn btn-sm" onclick="openEditFourn('${f.id}')">✎</button>
-          <button class="btn btn-sm btn-red" onclick="deleteFourn('${f.id}')">✕</button>
-        </div>
-      </div>
-      ${f.open?`<div class="fourn-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;font-size:12px">
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">SIRET</div>${esc(f.siret||'—')}</div>
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Paiement</div>${esc(f.conditions_paiement||'—')}</div>
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Adresse</div>${esc(f.adresse||'—').replace(/\n/g,'<br>')}</div>
-        </div>
-        ${(f.contacts||[]).length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Contacts</div>
-        ${f.contacts.map(c=>`<div class="contact-row">
-          <span style="font-weight:600;min-width:150px">${esc(c.nom)}</span>
-          ${c.poste?`<span class="badge badge-gray" style="font-size:10px">${esc(c.poste)}</span>`:''}
-          ${c.tel?`<span style="color:var(--blue)">📞 ${esc(c.tel)}</span>`:''}
-          ${c.email?`<span style="color:var(--blue)">✉ ${esc(c.email)}</span>`:''}
-        </div>`).join('')}`:''}
-        ${f.notes?`<div style="margin-top:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:12px;color:var(--text2)">${esc(f.notes)}</div>`:''}
-      </div>`:''}</div>`;
-  }).join('');
+// ═══ FOURNISSEURS — onglet « FOURNISSEUR » du tableau ACHATS (Google Sheet), lecture seule ═══
+// Mêmes colonnes et mêmes lignes que la source. Les formulaires (réceptions, articles, commande de test) utilisent cette même liste.
+let fsTri = { col: '', sens: 1 };
+let fsPage = 1;
+const FS_PAR_PAGE = 300;
+function fsCol(...noms) {
+  for (const n of noms) { const c = state.fs.colonnes.find(x=>cfNorm(x)===n) || state.fs.colonnes.find(x=>cfNorm(x).startsWith(n)); if (c) return c; }
+  return '';
 }
-function toggleFourn(id){const f=state.fournisseurs.find(x=>x.id===id);if(f){f.open=!f.open;renderFourns();}}
+async function loadFournisseursSource(manuel) {
+  if (manuel) toast('Actualisation des fournisseurs…');
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getFournisseursSource'})});
+    const r = await res.json();
+    if (r.ok) state.fs = { colonnes: r.colonnes||[], lignes: r.fournisseurs||[], maj: r.maj||'', erreur: '' };
+    else state.fs.erreur = r.error || 'Lecture impossible';
+  } catch(e) { state.fs.erreur = 'Serveur inaccessible'; }
+  composerFournisseurs();
+  if (manuel) { fsPage = 1; renderFourns(); populateFournSelects(); }
+}
+// Liste des fournisseurs des formulaires : celle du tableau ACHATS dès qu'elle est lue, sinon les anciennes fiches
+function composerFournisseurs() {
+  const fs = state.fs;
+  if (!fs.lignes.length) { state.fournisseurs = state.fournisseursInternes; return; }
+  const cNom = fsCol('fournisseur','nom'), cContact = fsCol('contact'), cRole = fsCol('role','fonction','poste'),
+        cTel = fsCol('telephone','tel'), cMail = fsCol('email','mail'), cAdr = fsCol('adresse'), cCat = fsCol('categorie');
+  state.fournisseurs = fs.lignes.filter(l=>String(l[cNom]||'').trim()).map(l=>({
+    id: 'src-' + String(l[fs.colonnes[0]]||'').trim(),
+    nom: String(l[cNom]).trim(),
+    categorie: String(l[cCat]||'').trim(),
+    adresse: String(l[cAdr]||'').trim(),
+    siret: '', conditions_paiement: '', notes: '',
+    contacts: (String(l[cContact]||'').trim() || String(l[cTel]||'').trim() || String(l[cMail]||'').trim())
+      ? [{ nom: String(l[cContact]||'').trim(), poste: String(l[cRole]||'').trim(), tel: String(l[cTel]||'').trim(), email: String(l[cMail]||'').trim() }] : [],
+    source: true
+  })).sort((a,b)=>a.nom.localeCompare(b.nom,'fr'));
+}
+function trierFournsPar(col) {
+  if (fsTri.col===col) fsTri.sens *= -1; else { fsTri.col = col; fsTri.sens = 1; }
+  fsPage = 1; renderFourns();
+}
+function fsAfficherPlus() { fsPage++; renderFourns(); }
+function renderFourns() {
+  const fs = state.fs;
+  const thead = document.getElementById('fs-thead'), tbody = document.getElementById('fs-tbody');
+  if (!thead) return;
+  if (fs.erreur && !fs.lignes.length) {
+    thead.innerHTML = '';
+    tbody.innerHTML = `<tr><td style="padding:2rem;text-align:center;color:var(--red)">Onglet FOURNISSEUR indisponible : ${esc(fs.erreur)}</td></tr>`;
+    document.getElementById('fs-metrics').innerHTML = ''; document.getElementById('fs-note').textContent = ''; document.getElementById('fs-more').innerHTML = '';
+    return;
+  }
+  const cLiv = fsCol('livraison');
+  const selLiv = document.getElementById('fs-fil-livraison');
+  if (selLiv) {
+    const cur = selLiv.value;
+    const vals = cLiv ? [...new Set(fs.lignes.map(l=>String(l[cLiv]||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr')) : [];
+    selLiv.innerHTML = '<option value="">Toutes livraisons</option>' + vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    if (vals.includes(cur)) selLiv.value = cur;
+    selLiv.style.display = cLiv ? '' : 'none';
+  }
+  const q = cfNorm(document.getElementById('fourn-search')?.value||'');
+  const fl = selLiv ? selLiv.value : '';
+  let rows = fs.lignes.filter(l=>{
+    if (fl && String(l[cLiv]||'').trim()!==fl) return false;
+    if (q && !fs.colonnes.some(c=>cfNorm(l[c]).includes(q))) return false;
+    return true;
+  });
+  if (fsTri.col) {
+    const col = fsTri.col, s = fsTri.sens;
+    rows = rows.slice().sort((a,b)=>{
+      const x=a[col], y=b[col];
+      if (typeof x==='number' && typeof y==='number') return (x-y)*s;
+      return String(x===undefined?'':x).localeCompare(String(y===undefined?'':y),'fr',{numeric:true})*s;
+    });
+  }
+  document.getElementById('fs-metrics').innerHTML =
+    `<div class="metric"><div class="metric-k">Fournisseurs affichés</div><div class="metric-v">${rows.length}</div><div class="metric-sub">sur ${fs.lignes.length}</div></div>`;
+  document.getElementById('fs-note').textContent = `Onglet FOURNISSEUR du tableau ACHATS (Google Sheet) — lecture seule${fs.maj?' · mis à jour le '+fs.maj:''}. Pour ajouter ou modifier un fournisseur, éditer le tableau ACHATS puis cliquer sur « Actualiser ».`;
+  thead.innerHTML = '<tr>' + fs.colonnes.map(c=>`<th data-col="${esc(c)}">${esc(c)}<span class="tri-icone${fsTri.col===c?' actif':''}">${fsTri.col===c?(fsTri.sens===1?'▲':'▼'):'⇅'}</span></th>`).join('') + '</tr>';
+  thead.querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>trierFournsPar(th.dataset.col)));
+  const cel = (c,v) => {
+    if (v===''||v===null||v===undefined) return '<td></td>';
+    const n = cfNorm(c);
+    if (n==='id') return `<td class="num">${esc(v)}</td>`;
+    if (n==='email') { const m=String(v).trim(); return `<td><a href="mailto:${esc(m)}" style="color:var(--blue);text-decoration:none">${esc(m)}</a></td>`; }
+    if (n==='telephone'||n==='tel') { const t=String(v).trim(); return `<td><a href="tel:${esc(t.replace(/\s+/g,''))}" style="color:inherit;text-decoration:none">${esc(t)}</a></td>`; }
+    if (n==='livraison') return `<td><span class="badge badge-gray">${esc(v)}</span></td>`;
+    if (typeof v==='number') return `<td class="num">${esc(v)}</td>`;
+    const long = /adresse|categorie|commentaire|note/.test(n) || String(v).length>40;
+    return `<td${long?' class="txt"':''}>${esc(v)}</td>`;
+  };
+  const visibles = rows.slice(0, fsPage*FS_PAR_PAGE);
+  tbody.innerHTML = visibles.length
+    ? visibles.map(l=>'<tr>'+fs.colonnes.map(c=>cel(c,l[c])).join('')+'</tr>').join('')
+    : `<tr><td colspan="${Math.max(fs.colonnes.length,1)}" style="padding:2rem;text-align:center;color:var(--text3)">Aucun fournisseur ne correspond.</td></tr>`;
+  document.getElementById('fs-more').innerHTML = rows.length>visibles.length
+    ? `<button class="btn" onclick="fsAfficherPlus()">Afficher plus (${rows.length-visibles.length} lignes restantes)</button>` : '';
+}
+function toggleFourn(id){}
 // ═══ RÉCEPTIONS (circuit complet, BL obligatoire) ═════════════════════════
 function receptionsCommande(cdeId) {
   return state.receptions.filter(r=>r.cdeId===cdeId);
@@ -1499,26 +1843,88 @@ function dejaRecuLigne(cdeId, ligneId) {
 function commandesReceptionnables() {
   return state.commandes.filter(c=>['Validée','Envoyée','Réception partielle'].includes(c.statut) && (c.lignes||[]).length>0);
 }
+// ── Commande à réceptionner : on tape son n° (BC-…) ; elle est retrouvée dans le tableau ACHATS (ou parmi les commandes saisies dans l'ERP) ──
+let _recCde = null;      // commande résolue pour la réception en cours (objet, éventuellement « miroir » d'une ligne du tableau ACHATS pas encore enregistrée)
+function normNumBC(v) {
+  let t = String(v||'').trim().toUpperCase().replace(/\s+/g,'');
+  if (!t) return '';
+  if (/^\d/.test(t)) t = 'BC-' + t;
+  return t;
+}
+function nombreDepuisTexte(v) {
+  if (typeof v === 'number') return v;
+  const m = String(v||'').replace(/\s/g,'').replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+  return m ? parseFloat(m[0]) : 0;
+}
+function uniteDepuisTexte(v) {
+  if (typeof v === 'number') return '';
+  return String(v||'').replace(/\s/g,'').replace(/^-?[\d.,]+/,'').trim();
+}
+function trouverCdeReception(texte) {
+  const num = normNumBC(texte);
+  if (!num) return null;
+  // 1) commande déjà connue de l'ERP (déjà réceptionnée en partie, ou saisie dans l'ERP)
+  const interne = state.commandes.find(c=>String(c.num||'').toUpperCase()===num && (c.lignes||[]).length>0);
+  if (interne) return interne;
+  // 2) ligne(s) du tableau ACHATS portant ce n°
+  const cf = state.cf; if (!cf || !cf.lignes.length) return null;
+  const cId = cf.colonnes[0], cDes = cfCol('designation'), cFo = cfCol('fournisseur'), cQte = cfCol('qte'), cUn = cfCol('qte_unite','unite'),
+        cCh = cfCol('chantier'), cSt = cfCol('statut');
+  const rows = cf.lignes.filter(l=>String(l[cId]||'').trim().toUpperCase()===num);
+  if (!rows.length) return null;
+  const fournNom = String(rows[0][cFo]||'').trim();
+  const fo = state.fournisseurs.find(f=>f.nom && f.nom.toUpperCase()===fournNom.toUpperCase());
+  return {
+    id: 'bc-'+num, num, fourn_id: fo?fo.id:'', fourn_nom: fournNom, statut: 'Validée', miroir: true,
+    chantier_nom: String(rows[0][cCh]||'').trim(),
+    lignes: rows.map((l,i)=>{
+      const q = nombreDepuisTexte(l[cQte]);
+      return { id: 'bc-'+num+'-'+(i+1), desc: String(l[cDes]||'').trim() || num, qte: q>0?q:1,
+               unite: String(l[cUn]||'').trim() || uniteDepuisTexte(l[cQte]), pu: 0, gerer_stock: false, recue: 0 };
+    })
+  };
+}
 function openNewReception() {
   _ctx = {type:'new-reception'};
-  const opts = ['<option value="">— Sélectionner —</option>',
-    ...commandesReceptionnables().map(c=>`<option value="${c.id}">${esc(c.num)} · ${esc(c.fourn_nom||'')}</option>`)
-  ].join('');
-  document.getElementById('mr-cde').innerHTML = opts;
+  _recCde = null;
+  const nums = [];
+  state.commandes.forEach(c=>{ if (c.num && (c.lignes||[]).length) nums.push(c.num); });
+  if (state.cf && state.cf.lignes.length) { const cId = state.cf.colonnes[0]; state.cf.lignes.forEach(l=>{ const v=String(l[cId]||'').trim(); if (v) nums.push(v); }); }
+  document.getElementById('mr-cde-list').innerHTML = [...new Set(nums)].sort().map(n=>`<option value="${esc(n)}">`).join('');
+  document.getElementById('mr-cde').value = '';
+  document.getElementById('mr-cde-info').textContent = '';
   document.getElementById('mr-fourn').value = '';
-  document.getElementById('mr-bl-numero').value = genNumeroBL();
+  { const n = genNumeroBL(); const e = document.getElementById('mr-bl-numero'); e.value = n; e.dataset.auto = n; }
   document.getElementById('mr-bl-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('mr-lignes-wrap').innerHTML = '';
   document.getElementById('mr-info').style.display = 'block';
-  document.getElementById('mr-info').textContent = 'Sélectionnez une commande pour afficher ses lignes.';
+  document.getElementById('mr-info').textContent = 'Saisissez le n° de commande (BC-…) pour afficher ses lignes.';
   document.getElementById('modal-reception').classList.add('show');
+  setTimeout(()=>document.getElementById('mr-cde').focus(),50);
+}
+function onReceptionNumInput(valider) {
+  const inp = document.getElementById('mr-cde');
+  const info = document.getElementById('mr-cde-info');
+  const brut = inp.value;
+  const cde = trouverCdeReception(brut);
+  if (cde) {
+    if (_recCde && _recCde.num === cde.num) return;          // déjà affichée
+    inp.value = cde.num;
+    info.style.color = 'var(--green)';
+    info.textContent = '✓ ' + cde.num + (cde.fourn_nom?' · '+cde.fourn_nom:'') + (cde.chantier_nom?' · '+cde.chantier_nom:'') + ' — ' + (cde.lignes||[]).length + ' ligne(s)';
+    _recCde = cde; onReceptionCdeChange();
+  } else {
+    _recCde = null; onReceptionCdeChange();
+    const t = normNumBC(brut);
+    info.style.color = 'var(--text3)';
+    info.textContent = (valider && t.length>3) ? '✗ Aucune commande « '+t+' » dans le tableau ACHATS.' : '';
+  }
 }
 function onReceptionCdeChange() {
-  const cdeId = document.getElementById('mr-cde').value;
-  const cde = state.commandes.find(c=>c.id===cdeId);
+  const cde = _recCde;
   const wrap = document.getElementById('mr-lignes-wrap');
   const info = document.getElementById('mr-info');
-  if (!cde) { wrap.innerHTML=''; info.style.display='block'; document.getElementById('mr-fourn').value=''; return; }
+  if (!cde) { wrap.innerHTML=''; info.style.display='block'; info.textContent='Saisissez le n° de commande (BC-…) pour afficher ses lignes.'; document.getElementById('mr-fourn').value=''; return; }
   document.getElementById('mr-fourn').value = cde.fourn_nom||'';
   info.style.display = 'none';
   _nbLignesRecep = 0;
@@ -1650,13 +2056,14 @@ function getLignesReception() {
   return lignes;
 }
 function saveReception() {
-  const cdeId = document.getElementById('mr-cde').value;
-  const cde = state.commandes.find(c=>c.id===cdeId);
-  if (!cde) { alert('Sélectionnez une commande.'); return; }
+  const cde = _recCde;
+  if (!cde) { alert('Saisissez un n° de commande valide (BC-…), trouvé dans le tableau ACHATS.'); return; }
   const blNumero = document.getElementById('mr-bl-numero').value.trim();
   const blDate = document.getElementById('mr-bl-date').value;
-  if (!blNumero) { alert('Le n° de bon de livraison est obligatoire.'); return; }
-  if (!blDate) { alert('La date du BL est obligatoire.'); return; }
+  if (!blNumero) { alert('Le n° de bon de réception est obligatoire.'); return; }
+  if (!blDate) { alert('La date de réception est obligatoire.'); return; }
+  // Numéro BR attribué automatiquement à l'ouverture : mémorisé même si le champ a été modifié (le compteur ne repart jamais à 001)
+  const brAuto = (document.getElementById('mr-bl-numero').dataset.auto || '').trim();
   const lignes = getLignesReception();
   if (!lignes.length) { alert('Saisissez au moins une quantité reçue.'); return; }
   for (const l of lignes) {
@@ -1669,13 +2076,15 @@ function saveReception() {
   }
   const reception = {
     id: uid(), cdeId: cde.id, cdeNum: cde.num, fournId: cde.fourn_id, fournNom: cde.fourn_nom,
-    blNumero, blDate, date: blDate,
+    blNumero, brNumero: brAuto || blNumero, blDate, date: blDate,
     lignes: lignes.map(l=>({
       cdeLigneId: l.cdeLigneId, desc: l.desc, unite: l.unite, prixUnitaire: l.prixUnitaire,
       quantite: l.quantite, repartition: l.repartition,
     })),
     created_at: new Date().toISOString(), open: false,
   };
+  // Commande issue du tableau ACHATS : on l'enregistre dans l'ERP à la 1re réception, pour suivre reliquat / statut
+  if (cde.miroir && !state.commandes.some(c=>c.id===cde.id)) { delete cde.miroir; state.commandes.push(cde); }
   state.receptions.unshift(reception);
   // Met à jour la quantité reçue sur la commande (mécanisme existant) + le statut
   lignes.forEach(l=>{
@@ -2101,7 +2510,7 @@ function saveTransfert() {
   saveData(); renderStock(); renderArticles();
   toast('🔄 Transfert enregistré');
 }
-// ═══ FICHES ARTICLES ═════════════════════════════════════════════════════
+// ═══ BASE ARTICLES (fiches articles) ═════════════════════════════════════
 // Une fiche article n'a de sens que pour un article suivi en stock : elle
 // centralise le seuil de réappro, le fournisseur habituel et l'historique.
 // Le rattachement au stock/commandes/réceptions se fait par désignation
