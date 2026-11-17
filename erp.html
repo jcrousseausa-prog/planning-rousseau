@@ -142,6 +142,16 @@ tr:last-child td{border-bottom:none}
 .modal{background:var(--surface);border-radius:14px;padding:20px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.18)}
 .modal h2{font-size:15px;font-weight:600;margin-bottom:14px}
 .modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+/* Fenêtre de réception : grande, confortable pour la saisie des lignes */
+#modal-reception .modal{width:min(1320px,97vw);max-height:94vh;padding:26px 30px}
+#modal-reception .modal h2{font-size:18px;margin-bottom:18px}
+#modal-reception .field input,#modal-reception .field select{font-size:14px;padding:10px 12px}
+#modal-reception .lignes-table{font-size:14px}
+#modal-reception .lignes-table th{font-size:11px;padding:10px 12px}
+#modal-reception .lignes-table td{padding:12px;vertical-align:top}
+#modal-reception .lignes-table select{min-width:230px;font-size:13px!important;padding:7px 9px!important}
+#modal-reception .lignes-table input[type=number]{font-size:14px!important;padding:7px 9px!important;width:120px!important}
+#mr-cde-info{font-size:12px;margin-top:5px;min-height:16px}
 .field{margin-bottom:12px}
 .field label{display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
 .field input,.field select,.field textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface);color:var(--text)}
@@ -671,14 +681,14 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
 </div>
 <!-- ══ MODAL NOUVELLE RÉCEPTION ══ -->
 <div class="modal-bg" id="modal-reception">
-  <div class="modal" style="width:820px;max-width:98vw">
+  <div class="modal">
     <h2>Nouvelle réception</h2>
     <div class="field-2" style="margin-bottom:12px">
       <div class="field">
-        <label>Commande à réceptionner *</label>
-        <select id="mr-cde" onchange="onReceptionCdeChange()">
-          <option value="">— Sélectionner —</option>
-        </select>
+        <label>N° de commande à réceptionner * <span style="text-transform:none;font-weight:400;color:var(--text3)">(commence par BC-)</span></label>
+        <input type="text" id="mr-cde" list="mr-cde-list" autocomplete="off" placeholder="BC-26-00123" oninput="onReceptionNumInput()" onfocus="if(!this.value){this.value='BC-';}" onchange="onReceptionNumInput(true)" onkeydown="if(event.key==='Enter'){event.preventDefault();onReceptionNumInput(true);}"/>
+        <datalist id="mr-cde-list"></datalist>
+        <div id="mr-cde-info"></div>
       </div>
       <div class="field">
         <label>Fournisseur</label>
@@ -687,11 +697,11 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
     </div>
     <div class="field-2" style="margin-bottom:12px">
       <div class="field">
-        <label>N° bon de livraison *</label>
-        <input type="text" id="mr-bl-numero" placeholder="ex. BL-2026-0457"/>
+        <label>N° BR (bon de réception) *</label>
+        <input type="text" id="mr-bl-numero" placeholder="BR-2026-001"/>
       </div>
       <div class="field">
-        <label>Date du BL *</label>
+        <label>Date de réception *</label>
         <input type="date" id="mr-bl-date"/>
       </div>
     </div>
@@ -1064,12 +1074,16 @@ function genNumeroCde() {
   const next = nums.length ? Math.max(...nums)+1 : 1;
   return `CDE-${annee}-${String(next).padStart(3,'0')}`;
 }
+// N° de bon de réception : BR-AAAA-001, 002… Le compteur se base sur le n° BR généré à chaque réception (champ brNumero), même si le champ a été retouché à la main ;
+// les anciens n° REC-AAAA-… restent comptés pour ne jamais repartir à 001.
 function genNumeroBL() {
   const annee = new Date().getFullYear();
-  const existing = state.receptions.filter(r=>r.blNumero&&r.blNumero.startsWith('REC-'+annee+'-'));
-  const nums = existing.map(r=>parseInt((r.blNumero.split('-')[2])||0)).filter(n=>!isNaN(n));
-  const next = nums.length ? Math.max(...nums)+1 : 1;
-  return `REC-${annee}-${String(next).padStart(3,'0')}`;
+  const re = new RegExp('^(?:BR|REC)-'+annee+'-(\\d+)$','i');
+  let max = 0;
+  state.receptions.forEach(r=>{
+    [r.brNumero, r.blNumero].forEach(v=>{ const m = String(v||'').trim().match(re); if (m) max = Math.max(max, parseInt(m[1],10)); });
+  });
+  return `BR-${annee}-${String(max+1).padStart(3,'0')}`;
 }
 function populateFournSelects() {
   const opts = ['<option value="">— Sélectionner —</option>',
@@ -1788,26 +1802,88 @@ function dejaRecuLigne(cdeId, ligneId) {
 function commandesReceptionnables() {
   return state.commandes.filter(c=>['Validée','Envoyée','Réception partielle'].includes(c.statut) && (c.lignes||[]).length>0);
 }
+// ── Commande à réceptionner : on tape son n° (BC-…) ; elle est retrouvée dans le tableau ACHATS (ou parmi les commandes saisies dans l'ERP) ──
+let _recCde = null;      // commande résolue pour la réception en cours (objet, éventuellement « miroir » d'une ligne du tableau ACHATS pas encore enregistrée)
+function normNumBC(v) {
+  let t = String(v||'').trim().toUpperCase().replace(/\s+/g,'');
+  if (!t) return '';
+  if (/^\d/.test(t)) t = 'BC-' + t;
+  return t;
+}
+function nombreDepuisTexte(v) {
+  if (typeof v === 'number') return v;
+  const m = String(v||'').replace(/\s/g,'').replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+  return m ? parseFloat(m[0]) : 0;
+}
+function uniteDepuisTexte(v) {
+  if (typeof v === 'number') return '';
+  return String(v||'').replace(/\s/g,'').replace(/^-?[\d.,]+/,'').trim();
+}
+function trouverCdeReception(texte) {
+  const num = normNumBC(texte);
+  if (!num) return null;
+  // 1) commande déjà connue de l'ERP (déjà réceptionnée en partie, ou saisie dans l'ERP)
+  const interne = state.commandes.find(c=>String(c.num||'').toUpperCase()===num && (c.lignes||[]).length>0);
+  if (interne) return interne;
+  // 2) ligne(s) du tableau ACHATS portant ce n°
+  const cf = state.cf; if (!cf || !cf.lignes.length) return null;
+  const cId = cf.colonnes[0], cDes = cfCol('designation'), cFo = cfCol('fournisseur'), cQte = cfCol('qte'), cUn = cfCol('qte_unite','unite'),
+        cCh = cfCol('chantier'), cSt = cfCol('statut');
+  const rows = cf.lignes.filter(l=>String(l[cId]||'').trim().toUpperCase()===num);
+  if (!rows.length) return null;
+  const fournNom = String(rows[0][cFo]||'').trim();
+  const fo = state.fournisseurs.find(f=>f.nom && f.nom.toUpperCase()===fournNom.toUpperCase());
+  return {
+    id: 'bc-'+num, num, fourn_id: fo?fo.id:'', fourn_nom: fournNom, statut: 'Validée', miroir: true,
+    chantier_nom: String(rows[0][cCh]||'').trim(),
+    lignes: rows.map((l,i)=>{
+      const q = nombreDepuisTexte(l[cQte]);
+      return { id: 'bc-'+num+'-'+(i+1), desc: String(l[cDes]||'').trim() || num, qte: q>0?q:1,
+               unite: String(l[cUn]||'').trim() || uniteDepuisTexte(l[cQte]), pu: 0, gerer_stock: false, recue: 0 };
+    })
+  };
+}
 function openNewReception() {
   _ctx = {type:'new-reception'};
-  const opts = ['<option value="">— Sélectionner —</option>',
-    ...commandesReceptionnables().map(c=>`<option value="${c.id}">${esc(c.num)} · ${esc(c.fourn_nom||'')}</option>`)
-  ].join('');
-  document.getElementById('mr-cde').innerHTML = opts;
+  _recCde = null;
+  const nums = [];
+  state.commandes.forEach(c=>{ if (c.num && (c.lignes||[]).length) nums.push(c.num); });
+  if (state.cf && state.cf.lignes.length) { const cId = state.cf.colonnes[0]; state.cf.lignes.forEach(l=>{ const v=String(l[cId]||'').trim(); if (v) nums.push(v); }); }
+  document.getElementById('mr-cde-list').innerHTML = [...new Set(nums)].sort().map(n=>`<option value="${esc(n)}">`).join('');
+  document.getElementById('mr-cde').value = '';
+  document.getElementById('mr-cde-info').textContent = '';
   document.getElementById('mr-fourn').value = '';
-  document.getElementById('mr-bl-numero').value = genNumeroBL();
+  { const n = genNumeroBL(); const e = document.getElementById('mr-bl-numero'); e.value = n; e.dataset.auto = n; }
   document.getElementById('mr-bl-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('mr-lignes-wrap').innerHTML = '';
   document.getElementById('mr-info').style.display = 'block';
-  document.getElementById('mr-info').textContent = 'Sélectionnez une commande pour afficher ses lignes.';
+  document.getElementById('mr-info').textContent = 'Saisissez le n° de commande (BC-…) pour afficher ses lignes.';
   document.getElementById('modal-reception').classList.add('show');
+  setTimeout(()=>document.getElementById('mr-cde').focus(),50);
+}
+function onReceptionNumInput(valider) {
+  const inp = document.getElementById('mr-cde');
+  const info = document.getElementById('mr-cde-info');
+  const brut = inp.value;
+  const cde = trouverCdeReception(brut);
+  if (cde) {
+    if (_recCde && _recCde.num === cde.num) return;          // déjà affichée
+    inp.value = cde.num;
+    info.style.color = 'var(--green)';
+    info.textContent = '✓ ' + cde.num + (cde.fourn_nom?' · '+cde.fourn_nom:'') + (cde.chantier_nom?' · '+cde.chantier_nom:'') + ' — ' + (cde.lignes||[]).length + ' ligne(s)';
+    _recCde = cde; onReceptionCdeChange();
+  } else {
+    _recCde = null; onReceptionCdeChange();
+    const t = normNumBC(brut);
+    info.style.color = 'var(--text3)';
+    info.textContent = (valider && t.length>3) ? '✗ Aucune commande « '+t+' » dans le tableau ACHATS.' : '';
+  }
 }
 function onReceptionCdeChange() {
-  const cdeId = document.getElementById('mr-cde').value;
-  const cde = state.commandes.find(c=>c.id===cdeId);
+  const cde = _recCde;
   const wrap = document.getElementById('mr-lignes-wrap');
   const info = document.getElementById('mr-info');
-  if (!cde) { wrap.innerHTML=''; info.style.display='block'; document.getElementById('mr-fourn').value=''; return; }
+  if (!cde) { wrap.innerHTML=''; info.style.display='block'; info.textContent='Saisissez le n° de commande (BC-…) pour afficher ses lignes.'; document.getElementById('mr-fourn').value=''; return; }
   document.getElementById('mr-fourn').value = cde.fourn_nom||'';
   info.style.display = 'none';
   _nbLignesRecep = 0;
@@ -1939,13 +2015,14 @@ function getLignesReception() {
   return lignes;
 }
 function saveReception() {
-  const cdeId = document.getElementById('mr-cde').value;
-  const cde = state.commandes.find(c=>c.id===cdeId);
-  if (!cde) { alert('Sélectionnez une commande.'); return; }
+  const cde = _recCde;
+  if (!cde) { alert('Saisissez un n° de commande valide (BC-…), trouvé dans le tableau ACHATS.'); return; }
   const blNumero = document.getElementById('mr-bl-numero').value.trim();
   const blDate = document.getElementById('mr-bl-date').value;
-  if (!blNumero) { alert('Le n° de bon de livraison est obligatoire.'); return; }
-  if (!blDate) { alert('La date du BL est obligatoire.'); return; }
+  if (!blNumero) { alert('Le n° de bon de réception est obligatoire.'); return; }
+  if (!blDate) { alert('La date de réception est obligatoire.'); return; }
+  // Numéro BR attribué automatiquement à l'ouverture : mémorisé même si le champ a été modifié (le compteur ne repart jamais à 001)
+  const brAuto = (document.getElementById('mr-bl-numero').dataset.auto || '').trim();
   const lignes = getLignesReception();
   if (!lignes.length) { alert('Saisissez au moins une quantité reçue.'); return; }
   for (const l of lignes) {
@@ -1958,13 +2035,15 @@ function saveReception() {
   }
   const reception = {
     id: uid(), cdeId: cde.id, cdeNum: cde.num, fournId: cde.fourn_id, fournNom: cde.fourn_nom,
-    blNumero, blDate, date: blDate,
+    blNumero, brNumero: brAuto || blNumero, blDate, date: blDate,
     lignes: lignes.map(l=>({
       cdeLigneId: l.cdeLigneId, desc: l.desc, unite: l.unite, prixUnitaire: l.prixUnitaire,
       quantite: l.quantite, repartition: l.repartition,
     })),
     created_at: new Date().toISOString(), open: false,
   };
+  // Commande issue du tableau ACHATS : on l'enregistre dans l'ERP à la 1re réception, pour suivre reliquat / statut
+  if (cde.miroir && !state.commandes.some(c=>c.id===cde.id)) { delete cde.miroir; state.commandes.push(cde); }
   state.receptions.unshift(reception);
   // Met à jour la quantité reçue sur la commande (mécanisme existant) + le statut
   lignes.forEach(l=>{
