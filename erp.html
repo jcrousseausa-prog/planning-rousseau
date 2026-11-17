@@ -36,12 +36,10 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:.
 .sync-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .sync-pill.saving .sync-dot{animation:blink .6s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.app-tabs{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:0;overflow-x:auto;position:sticky;top:49px;z-index:40;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .app-tab{padding:10px 15px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s}
 .app-tab:hover{color:var(--text)}
 .app-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
 .notif-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red);margin-left:4px;vertical-align:middle}
-.new-badge{display:inline-block;background:var(--green);color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle;text-transform:uppercase;letter-spacing:.04em}
 main{padding:16px 12px;max-width:none;margin:0 auto}
 .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px}
 .metric{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
@@ -66,7 +64,7 @@ main{padding:16px 12px;max-width:none;margin:0 auto}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:7px 14px;border:1px solid var(--border2);border-radius:10px;background:var(--surface);color:var(--text);font-size:13px;font-weight:600;line-height:1.2;box-shadow:0 1px 2px rgba(20,20,10,.06);transition:background .15s,border-color .15s,box-shadow .15s,transform .05s}
 .btn:hover{background:#F2F6FC;border-color:var(--blue-border);box-shadow:0 2px 8px rgba(26,79,138,.14)}
 .btn:active{transform:translateY(1px);box-shadow:none}
-.btn:focus-visible,.hdr-btn:focus-visible,.app-tab:focus-visible,.app-tab-achats:focus-visible{outline:3px solid rgba(26,79,138,.35);outline-offset:2px}
+.btn:focus-visible,.hdr-btn:focus-visible,.app-tab:focus-visible,.fam-tab:focus-visible{outline:3px solid rgba(26,79,138,.35);outline-offset:2px}
 .btn:disabled,.btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none;transform:none}
 .btn-primary{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 1px 3px rgba(26,79,138,.35)}
 .btn-primary:hover{background:#133F70;border-color:#133F70;box-shadow:0 3px 10px rgba(26,79,138,.35)}
@@ -80,10 +78,24 @@ main{padding:16px 12px;max-width:none;margin:0 auto}
 .hdr-btn svg{flex:none}
 .hdr-btn:hover{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 2px 8px rgba(26,79,138,.3)}
 .hdr-btn:active{transform:translateY(1px)}
-/* Bouton « 🛒 Achats » dans la barre d'onglets (ouvre la page Achats) */
-.app-tab-achats{display:inline-flex;align-items:center;gap:6px;align-self:center;margin:4px 8px 4px 4px;padding:5px 14px;border-radius:999px;border:1px solid #EBCB6B;background:#FFF3C4;color:#6F4B00;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background .15s,box-shadow .15s,transform .05s}
-.app-tab-achats:hover{background:#FFE69A;box-shadow:0 2px 8px rgba(160,110,0,.25)}
-.app-tab-achats:active{transform:translateY(1px)}
+/* ── Navigation par FAMILLES : 1re ligne = familles (icône + nom), 2e ligne = onglets de la famille ── */
+.app-nav{position:sticky;top:49px;z-index:40;background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.fam-tabs{display:flex;gap:4px;padding:6px 20px 0;border-bottom:1px solid var(--border);overflow-x:auto}
+.fam-tab{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:700;color:var(--text2);border-bottom:3px solid transparent;margin-bottom:-1px;border-radius:8px 8px 0 0;white-space:nowrap;transition:color .15s,background .15s}
+.fam-tab svg{flex:none;opacity:.85}
+.fam-tab:hover{background:var(--blue-bg);color:var(--blue)}
+.fam-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.sub-tabs{display:flex;gap:2px;padding:0 20px;background:var(--bg);border-bottom:1px solid var(--border);overflow-x:auto;min-height:36px}
+.sub-tabs .app-tab{font-size:12.5px;padding:8px 14px;border-radius:7px 7px 0 0}
+.sub-tabs a.app-tab{text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.fam-masque{display:none!important}
+.hdr-btn.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+/* Interrupteur « Suivi des tranches | Planning global » (même écran, deux vues) */
+.seg-suivi{display:inline-flex;margin:12px 20px 0;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface)}
+.seg-suivi button{border:none;background:none;padding:7px 16px;font-family:inherit;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer}
+.seg-suivi button+button{border-left:1px solid var(--border)}
+.seg-suivi button:hover{background:var(--blue-bg);color:var(--blue)}
+.seg-suivi button.active{background:var(--blue);color:#fff}
 /* Onglets : zone de clic plus généreuse, onglet actif plus marqué */
 .app-tab{padding:11px 16px;font-weight:600;border-radius:8px 8px 0 0;transition:color .15s,background .15s}
 .app-tab:hover{background:var(--blue-bg);color:var(--blue)}
@@ -199,7 +211,7 @@ table.bl-lignes td.r{text-align:right}
 .toggle-check:checked{background:var(--green);border-color:var(--green)}
 .toggle-check:checked::after{content:'✓';position:absolute;top:-1px;left:2px;font-size:11px;color:#fff;font-weight:700}
 @media print{
-  header,.app-tabs,.toolbar,#bl-actions{display:none!important}
+  header,.app-nav,.toolbar,#bl-actions{display:none!important}
   body{background:#fff}
 }
 /* ── BANDEAU OFFLINE ── */
@@ -256,7 +268,7 @@ table.bl-lignes td.r{text-align:right}
 .pp-absent  { background:#FDECEA;color:#C0392B;font-weight:600;text-align:center;border-radius:4px;padding:2px 6px;font-size:11px; }
 .pp-rtt    { background:#EAF2FB;color:#1A5276;font-weight:600;text-align:center;border-radius:4px;padding:2px 6px;font-size:11px; }
 @media print {
-  .app-tab,.htab,.btn,.toolbar,#conn-bar,header,.tabs,#jours-panel-area { display:none!important; }
+  .app-tab,.fam-tab,.app-nav,.seg-suivi,.htab,.btn,.toolbar,#conn-bar,header,.tabs,#jours-panel-area { display:none!important; }
   .screen { display:block!important; }
   .planning-print { border:none; }
   .atelier-hidden-print { display:none!important; }
@@ -317,6 +329,10 @@ table.bl-lignes td.r{text-align:right}
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
       <span>Planning</span>
     </a>
+    <button class="hdr-btn" id="tab-retours" onclick="showScreen('retours')" title="Retours équipes : remontées, suggestions et anomalies sur l'ERP" style="display:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 01-11.6 7.1L3 21l1.9-5.7A8 8 0 1121 12z"/></svg>
+      <span>Retours</span>
+    </button>
     <span class="sync-pill" id="sync-pill" style="display:none">
       <span class="sync-dot"></span>
       <span id="sync-text">Synchronisé</span>
@@ -348,20 +364,25 @@ table.bl-lignes td.r{text-align:right}
   </div>
 </div>
 
-<div class="app-tabs" style="position:sticky;top:49px;z-index:40">
-  <button class="app-tab active" id="tab-dashboard" onclick="showScreen('dashboard')">Tableau de bord</button>
-  <button class="app-tab" id="tab-planning" onclick="showScreen('planning')">Tableau de pilotage</button>
-  <a class="app-tab-achats" id="tab-achats" href="achats.html" title="Ouvrir la page Achats : commandes fournisseur, fournisseurs, réceptions, stock, base articles"><span aria-hidden="true">🛒</span> Achats</a>
-  <button class="app-tab" id="tab-stock" onclick="showScreen('stock')">Stock<span class="new-badge">NEW</span></button>
-  <button class="app-tab" id="tab-bl" onclick="showScreen('bl')">Bons de livraison<span class="new-badge">NEW</span></button>
-  <button class="app-tab" id="tab-qualite" onclick="showScreen('qualite')">Qualité</button>
-  <button class="app-tab" id="tab-heures" onclick="showScreen('heures')">Heures</button>
-  <button class="app-tab" id="tab-planning-global" onclick="showScreen('planning-global')">Planning global production</button>
-  <button class="app-tab" id="tab-retours" onclick="showScreen('retours')">Retours équipes</button>
-  <button class="app-tab" id="tab-suivi-prod" onclick="showScreen('suivi-prod')">📦 Suivi production</button>
-  <button class="app-tab" id="tab-pilotage-phases" onclick="showScreen('pilotage-phases')">🧭 Pilotage phases</button>
-  <button class="app-tab" id="tab-renseignement" onclick="showScreen('renseignement')" style="display:none">📋 Renseignement</button>
-</div>
+<nav class="app-nav" id="app-nav" aria-label="Navigation">
+  <div class="fam-tabs" id="fam-tabs">
+    <button class="fam-tab" id="fam-pilotage" onclick="showFamille('pilotage')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg><span>Pilotage</span></button>
+    <button class="fam-tab" id="fam-production" onclick="showFamille('production')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 21h20"/><path d="M4 21V9l5 3V9l5 3V5h3v16"/></svg><span>Production</span></button>
+    <button class="fam-tab" id="fam-achats_logistique" onclick="showFamille('achats_logistique')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg><span>Achats &amp; logistique</span></button>
+    <button class="fam-tab" id="fam-equipes" onclick="showFamille('equipes')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.2c2.6.2 4.5 2 4.5 4.8"/></svg><span>Équipes</span></button>
+  </div>
+  <div class="sub-tabs" id="sub-tabs">
+    <button class="app-tab active" id="tab-dashboard" data-fam="pilotage" onclick="showScreen('dashboard')">Tableau de bord</button>
+    <button class="app-tab" id="tab-planning" data-fam="pilotage" onclick="showScreen('planning')">Tableau de pilotage</button>
+    <button class="app-tab" id="tab-suivi-prod" data-fam="production" onclick="showScreen('suivi-prod')">Suivi production</button>
+    <button class="app-tab" id="tab-qualite" data-fam="production" onclick="showScreen('qualite')">Qualité</button>
+    <button class="app-tab" id="tab-stock" data-fam="achats_logistique" onclick="showScreen('stock')">Stock</button>
+    <button class="app-tab" id="tab-bl" data-fam="achats_logistique" onclick="showScreen('bl')">Bons de livraison</button>
+    <a class="app-tab" id="tab-achats" data-fam="achats_logistique" href="achats.html" title="Ouvrir la page Achats : commandes fournisseur, fournisseurs, réceptions, stock, base articles">Achats <span aria-hidden="true">↗</span></a>
+    <button class="app-tab" id="tab-heures" data-fam="equipes" onclick="showScreen('heures')">Heures</button>
+    <button class="app-tab" id="tab-renseignement" data-fam="pilotage" onclick="showScreen('renseignement')" style="display:none">Renseignement</button>
+  </div>
+</nav>
 
 <main>
 
@@ -400,7 +421,7 @@ table.bl-lignes td.r{text-align:right}
     <button class="btn" onclick="openRecapChantiers()" title="Récapitulatif des heures saisies par chantier" style="background:var(--teal-bg);color:var(--teal);border-color:var(--teal-border)">📊 Récap chantiers</button>
   </div>
   <div id="doublons-tranches"></div>
-  <div class="table-wrap" id="planning-view-chantier" style="max-height:calc(100vh - 160px);overflow-y:auto">
+  <div class="table-wrap" id="planning-view-chantier" style="max-height:calc(100vh - 196px);overflow-y:auto">
     <table>
       <thead style="position:sticky;top:0;z-index:10"><tr>
         <th style="width:20px"></th>
@@ -422,7 +443,7 @@ table.bl-lignes td.r{text-align:right}
       <tbody id="planning-tbody"></tbody>
     </table>
   </div>
-  <div class="table-wrap" id="planning-view-phase" style="display:none;max-height:calc(100vh - 160px);overflow-y:auto">
+  <div class="table-wrap" id="planning-view-phase" style="display:none;max-height:calc(100vh - 196px);overflow-y:auto">
     <table>
       <thead style="position:sticky;top:0;z-index:10"><tr>
         <th style="width:80px">N° phase</th>
@@ -625,6 +646,7 @@ table.bl-lignes td.r{text-align:right}
 
 <!-- ══ PLANNING GLOBAL ══ -->
 <div class="screen" id="screen-planning-global">
+  <div class="seg-suivi" role="tablist" aria-label="Vue du suivi de production"><button data-v="suivi-prod" onclick="showScreen('suivi-prod')">Suivi des tranches</button><button data-v="planning-global" onclick="showScreen('planning-global')">Planning global</button></div>
   <div class="toolbar">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
@@ -647,12 +669,8 @@ table.bl-lignes td.r{text-align:right}
 
 <!-- ══ SUIVI PRODUCTION ══ -->
 <div class="screen" id="screen-suivi-prod">
+  <div class="seg-suivi" role="tablist" aria-label="Vue du suivi de production"><button data-v="suivi-prod" onclick="showScreen('suivi-prod')">Suivi des tranches</button><button data-v="planning-global" onclick="showScreen('planning-global')">Planning global</button></div>
   <div id="suivi-prod-content" style="padding:16px 20px"></div>
-</div>
-
-<!-- ══ PILOTAGE PHASES (vue détaillée, triable, avec commentaire) ══ -->
-<div class="screen" id="screen-pilotage-phases">
-  <div id="pilotage-phases-content" style="padding:16px 20px"></div>
 </div>
 
 <!-- ══ RETOURS ÉQUIPES ══ -->
@@ -1620,7 +1638,7 @@ function quickStatutTranche(id, newStatut, e){
     });
   }
 
-  scheduleSave(); renderPlanning(); renderSuiviProd(); renderPilotagePhases();
+  scheduleSave(); renderPlanning(); renderSuiviProd();
   toast((newStatut==='livre'?'✅ Tranche marquée Livrée':'✅ Tranche marquée Terminée') + (phasesMaj?' — '+phasesMaj+' phase(s) mise(s) à jour':''));
 }
 
@@ -1662,7 +1680,7 @@ function cascaderPhasesDepuisTranches(){
 
 function rattraperPhasesTerminees(){
   const count = cascaderPhasesDepuisTranches();
-  if(count>0){ scheduleSave(); renderPlanning(); renderSuiviProd(); renderPilotagePhases(); }
+  if(count>0){ scheduleSave(); renderPlanning(); renderSuiviProd(); }
   toast('✅ Rattrapage : '+count+' phase(s) mise(s) à jour');
   console.log('Rattrapage phases terminées :', count);
   return count;
@@ -1685,7 +1703,7 @@ function quickStatutPhase(id, newStatut, e){
 // pour qu'une erreur dans l'un n'empêche pas les autres ; durée consignée dans diagERP().
 function _redessinerApresStatut(label){
   const t0=performance.now();
-  const fns={ 'planning':[renderPlanning], 'suivi-prod':[renderSuiviProd], 'pilotage-phases':[renderPilotagePhases] }[_currentScreen] || [renderPlanning];
+  const fns={ 'planning':[renderPlanning], 'suivi-prod':[renderSuiviProd] }[_currentScreen] || [renderPlanning];
   fns.forEach(fn=>{ try{ fn(); }catch(e){ console.error('Redessin après changement de statut :', e); _evt('ERREUR redessin '+(fn.name||'?')+' : '+e.message); } });
   _evt('statut '+label+' : redessin '+Math.round(performance.now()-t0)+' ms');
 }
@@ -1861,7 +1879,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='18/11/2026-g';
+const ERP_BUILD='18/11/2026-h';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -2759,11 +2777,21 @@ async function syncOFTermines(){
 // Droits par défaut (fallback si ERP_Droits non configuré dans Sheets)
 // Format : { profil: { onglet: 'full'|'read'|'none' } }
 const DEFAULT_DROITS = {
-  admin:        { planning:'full', dashboard:'full', achats:'full', stock:'full', bl:'full', qualite:'full', heures:'full', 'planning-global':'full', retours:'full', 'suivi-prod':'full', 'pilotage-phases':'full' },
-  chef:         { planning:'full', dashboard:'full', achats:'full', stock:'full', bl:'full', qualite:'full', heures:'full', 'planning-global':'full', retours:'full', 'suivi-prod':'full', 'pilotage-phases':'full' },
-  collaborateur:{ planning:'full', dashboard:'none', achats:'none', stock:'none', bl:'none', qualite:'full', heures:'none', 'planning-global':'full', retours:'full', 'suivi-prod':'full', 'pilotage-phases':'full' },
-  lecture:      { planning:'read', dashboard:'none', achats:'none', stock:'none', bl:'none', qualite:'none', heures:'none', 'planning-global':'read', retours:'none', 'suivi-prod':'read', 'pilotage-phases':'read' },
+  admin:        { planning:'full', dashboard:'full', achats:'full', stock:'full', bl:'full', qualite:'full', heures:'full', retours:'full', 'suivi-prod':'full' },
+  chef:         { planning:'full', dashboard:'full', achats:'full', stock:'full', bl:'full', qualite:'full', heures:'full', retours:'full', 'suivi-prod':'full' },
+  collaborateur:{ planning:'full', dashboard:'none', achats:'none', stock:'none', bl:'none', qualite:'full', heures:'none', retours:'full', 'suivi-prod':'full' },
+  lecture:      { planning:'read', dashboard:'none', achats:'none', stock:'none', bl:'none', qualite:'none', heures:'none', retours:'none', 'suivi-prod':'read' },
 };
+// Familles du menu : l'accès se règle par famille (+ exceptions par onglet) dans le tableau ERP_Droits_Onglets ; le serveur renvoie le niveau de chaque onglet.
+const FAMILLES_NAV = {
+  pilotage:          ['dashboard','planning'],
+  production:        ['suivi-prod','qualite'],
+  achats_logistique: ['stock','bl','achats'],
+  equipes:           ['heures']
+};
+// Écran → famille de menu (le planning global est une vue du Suivi production ; « retours » est dans l'en-tête, hors famille)
+const FAMILLE_DE = {dashboard:'pilotage',planning:'pilotage',renseignement:'pilotage','suivi-prod':'production','planning-global':'production',qualite:'production',aleas:'production',stock:'achats_logistique',bl:'achats_logistique',achats:'achats_logistique',heures:'equipes'};
+const _derniereDeFamille = {};
 
 let _currentUser = null;   // { login, nom, profil, droits:{} }
 let _droitsCache = null;   // droits lus depuis Sheets
@@ -2843,42 +2871,59 @@ function hideLoginScreen(){
 
 function applyDroits(){
   if(!_currentUser) return;
-  // Droits explicitement configurés pour cet utilisateur (lus depuis Sheets, ex. ERP_Droits)
+  // Niveau d'accès de chaque onglet : calculé par le serveur (famille + exceptions) ; à défaut, valeurs par défaut du profil
   const droitsUser = _currentUser.droits || {};
-  // Droits par défaut du profil, utilisés pour tout onglet absent de la config Sheets
-  // (typiquement un onglet ajouté après coup, pas encore présent dans ERP_Droits) — évite
-  // qu'un nouvel onglet reste invisible pour tout le monde tant que personne n'a pensé à
-  // l'ajouter manuellement dans la feuille de droits.
   const droitsDefaut = DEFAULT_DROITS[_currentUser.profil] || DEFAULT_DROITS.lecture;
-  const onglets = ['planning','dashboard','achats','stock','bl','qualite','heures','planning-global','retours','suivi-prod','pilotage-phases'];   // 'achats' = bouton vers achats.html (pas d'écran dans l'ERP)
+  const onglets = ['planning','dashboard','achats','stock','bl','qualite','heures','retours','suivi-prod'];   // 'achats' = lien vers achats.html ; 'retours' = bouton de l'en-tête
   const droitPour = id => (droitsUser[id] !== undefined ? droitsUser[id] : (droitsDefaut[id] || 'none'));
+  window.__droitsItems = {}; onglets.forEach(id=>{ window.__droitsItems[id]=droitPour(id); });
   onglets.forEach(id=>{
     const d = droitPour(id);
     const tabEl = document.getElementById('tab-'+id);
     const screenEl = document.getElementById('screen-'+id);
     if(tabEl){
-      if(d==='none'){ tabEl.style.display='none'; }
-      else { tabEl.style.display=''; }
-      if(id==='achats'){ tabEl.style.display = (d==='none') ? 'none' : 'inline-flex'; }
+      if(id==='retours') tabEl.style.display = (d==='none') ? 'none' : 'inline-flex';
+      else if(id==='achats') tabEl.style.display = (d==='none') ? 'none' : 'inline-flex';
+      else tabEl.style.display = (d==='none') ? 'none' : '';
     }
     // Stocker le niveau de droit sur le screen pour usage ultérieur
     if(screenEl) screenEl.dataset.droit = d;
+    // Mode lecture : désactiver les boutons d'ajout/modification sur les onglets en lecture seule
+    if(screenEl && d==='read') screenEl.dataset.readonly = 'true';
   });
-
-  // Mode lecture : désactiver les boutons d'ajout/modification sur les onglets en read
-  onglets.forEach(id=>{
-    const d = droitPour(id);
-    if(d==='read'){
-      const screenEl = document.getElementById('screen-'+id);
-      if(screenEl) screenEl.dataset.readonly = 'true';
-    }
+  // Le planning global fait partie du Suivi production : même droit
+  const pg = document.getElementById('screen-planning-global');
+  if(pg){ const d=droitPour('suivi-prod'); pg.dataset.droit=d; if(d==='read') pg.dataset.readonly='true'; }
+  // Une famille n'apparaît que si au moins un de ses onglets est accessible
+  Object.keys(FAMILLES_NAV).forEach(f=>{
+    const el=document.getElementById('fam-'+f);
+    if(el) el.style.display = FAMILLES_NAV[f].some(id=>droitPour(id)!=='none') ? '' : 'none';
   });
-
-  // Si aucun onglet visible n'est actif, activer le premier visible
-  const firstVisible = onglets.find(id=>{ if(id==='achats') return false; const t=document.getElementById('tab-'+id); return t && t.style.display!=='none'; });
-  // N'activer le premier onglet qu'au premier chargement (pas lors d'un re-render)
-  const alreadyActive = onglets.some(id=>document.getElementById('tab-'+id)?.classList.contains('active'));
-  if(firstVisible && !alreadyActive) showScreen(firstVisible);
+  // Premier affichage : premier onglet accessible (hors lien Achats)
+  let premier=null;
+  for(const f of Object.keys(FAMILLES_NAV)){ premier = FAMILLES_NAV[f].find(id=>id!=='achats' && droitPour(id)!=='none'); if(premier) break; }
+  const dejaActif = !!document.querySelector('#sub-tabs .app-tab.active') && document.querySelector('#sub-tabs .app-tab.active').style.display!=='none';
+  if(premier && !dejaActif) showScreen(premier); else majNavFamille(_currentScreen);
+}
+// Affiche la famille de l'écran courant : famille surlignée + onglets de cette famille (2e ligne ; masquée si un seul onglet)
+function majNavFamille(id){
+  const fam = FAMILLE_DE[id] || null;
+  document.querySelectorAll('.fam-tab').forEach(b=>b.classList.toggle('active', b.id==='fam-'+fam));
+  const dr = window.__droitsItems || {};
+  const visibles = fam ? FAMILLES_NAV[fam].filter(o=>(dr[o]||'none')!=='none') : [];
+  document.querySelectorAll('#sub-tabs [data-fam]').forEach(t=>t.classList.toggle('fam-masque', t.dataset.fam!==fam));
+  const sub=document.getElementById('sub-tabs'); if(sub) sub.classList.toggle('fam-masque', visibles.length<2);
+  if(fam) _derniereDeFamille[fam] = (id==='planning-global') ? 'suivi-prod' : (FAMILLES_NAV[fam].includes(id) ? id : _derniereDeFamille[fam]);
+  document.getElementById('tab-retours')?.classList.toggle('active', id==='retours');
+  document.querySelectorAll('.seg-suivi button').forEach(b=>b.classList.toggle('active', b.dataset.v===id));
+}
+// Clic sur une famille : onglet consulté en dernier dans la famille, sinon premier accessible
+function showFamille(f){
+  const dr = window.__droitsItems || {};
+  const ok = o => (dr[o]||'none')!=='none' && o!=='achats';
+  const cible = (_derniereDeFamille[f] && ok(_derniereDeFamille[f])) ? _derniereDeFamille[f] : FAMILLES_NAV[f].find(ok);
+  if(cible) showScreen(cible);
+  else majNavFamille(FAMILLES_NAV[f][0]);   // famille réduite au lien Achats : on affiche juste sa ligne d'onglets
 }
 
 function canEdit(screenId){
@@ -2937,7 +2982,7 @@ async function init(){
   try{
     const sc=sessionStorage.getItem('erp_screen');
     if(sc && sc!==_currentScreen && document.getElementById('screen-'+sc)){
-      const tabEl=document.getElementById('tab-'+sc);
+      const tabEl=document.getElementById('tab-'+(sc==='planning-global'?'suivi-prod':sc));
       if(sc==='renseignement' || (tabEl && tabEl.style.display!=='none')) showScreen(sc);
     }
   }catch(e){}
@@ -3078,7 +3123,7 @@ window.addEventListener('resize',()=>{ try{ ajusterHauteurPlanning(); }catch(e){
 // Rejoué automatiquement à chaque réaffichage (MutationObserver) : aucune modification n'est à faire écran par écran.
 function figerEntetesTableaux(){
   const screen=document.querySelector('.screen.active'); if(!screen) return;
-  const hdr=document.querySelector('header'), tabs=document.querySelector('.app-tabs');
+  const hdr=document.querySelector('header'), tabs=document.querySelector('.app-nav');
   const stickyTop=(hdr?hdr.offsetHeight:49)+(tabs?tabs.offsetHeight:40);
   screen.querySelectorAll('table').forEach(tbl=>{
     if(tbl.closest('.modal,.modal-bg,#planning-view-chantier,#planning-view-phase')) return;
@@ -3557,7 +3602,7 @@ function autoTerminerTranchesUsinageSeul(){
   if(count>0){
     console.log('Auto-terminé (usinage seul, sans assemblage) :', count, 'tranche(s)');
     scheduleSave();
-    try{ renderPlanning(); renderSuiviProd(); renderPilotagePhases(); }catch(e){}
+    try{ renderPlanning(); renderSuiviProd(); }catch(e){}
   }
   return count;
 }
@@ -4482,9 +4527,9 @@ function showScreen(id){
   _currentScreen = id;
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.app-tab').forEach(t=>t.classList.remove('active'));
-  // 'aleas' est maintenant un alias vers 'qualite' pour compatibilité
+  // 'aleas' est maintenant un alias vers 'qualite' pour compatibilité ; le planning global est une vue du Suivi production
   const screenId = id==='aleas' ? 'qualite' : id;
-  const tabId    = id==='aleas' ? 'qualite' : id;
+  const tabId    = id==='aleas' ? 'qualite' : (id==='planning-global' ? 'suivi-prod' : id);
   document.getElementById('screen-'+screenId)?.classList.add('active');
   const tab=document.getElementById('tab-'+tabId);if(tab)tab.classList.add('active');
   if(id==='heures'){showHTab('employes');}
@@ -4493,10 +4538,10 @@ function showScreen(id){
   _planifierFigerEntetes(80);   // en-têtes de tableaux figés sur l'écran affiché
   if(id==='planning')renderPlanning();   // recale la hauteur du tableau (en-têtes figés) et réapplique le filtre
   if(id==='suivi-prod')renderSuiviProd();
-  if(id==='pilotage-phases')renderPilotagePhases();
   if(id==='retours')renderRetours();
   if(id==='qualite'||id==='aleas'){showQTab('aleas');}
   if(id==='renseignement')initRenseignement();
+  majNavFamille(id);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -10776,309 +10821,6 @@ async function renderSuiviProd(){
   el.innerHTML = html;
 }
 
-function setPilotageTri(col){
-  const f = state._pilotagePhasesFiltres || (state._pilotagePhasesFiltres = {});
-  if(f.triCol===col) f.triDir = f.triDir==='desc' ? 'asc' : 'desc';
-  else { f.triCol = col; f.triDir = 'asc'; }
-  renderPilotagePhases();
-}
-
-async function renderPilotagePhases(){
-  const el = document.getElementById('pilotage-phases-content') || document.getElementById('screen-pilotage-phases');
-  if(!el) return;
-
-  // Le tableau est entièrement reconstruit à chaque frappe dans le champ recherche (filtrage en direct) :
-  // ça recrée l'input DOM et faisait sauter le focus/curseur après chaque lettre. On mémorise l'état du
-  // focus avant reconstruction et on le restaure sur le nouvel input une fois le HTML remplacé.
-  const _activeEl = document.activeElement;
-  const _searchWasFocused = _activeEl && _activeEl.id === 'pilotage-phases-search';
-  const _searchSelStart = _searchWasFocused ? _activeEl.selectionStart : null;
-  const _searchSelEnd = _searchWasFocused ? _activeEl.selectionEnd : null;
-
-  if(!state._pilotagePhasesFiltres) state._pilotagePhasesFiltres = {search:'', atelier:'', taille:'', statut:'actifs', triCol:'ctvx', triDir:'asc'};
-  const f = state._pilotagePhasesFiltres;
-  if(!f.triCol){ f.triCol='ctvx'; f.triDir='asc'; }
-  const norm = s => String(s||'').trim().toLowerCase();
-  const today = new Date().toISOString().slice(0,10);
-
-  // Date CTVX au plus tôt pour une tranche (même logique que le Tableau de pilotage)
-  function ctvxTranche(tr){
-    const src = (state.dates_erp||[]).filter(d=>norm(d.tranche)===norm(tr.nom));
-    return src.length ? src.reduce((min,d)=>(!min||d.date_ctvx<min)?d.date_ctvx:min,'') : (tr.ctvx||'');
-  }
-  // OF de production liés à une tranche (dédoublonnés — même logique que le Tableau de pilotage)
-  function ofsPourTranche(tr){
-    const seen = new Set();
-    return (state.suivi_prod||[]).filter(o=>{
-      const matchById = o.erp_tranche_id && o.erp_tranche_id === tr.id;
-      const matchByName = !o.erp_tranche_id && norm(o.tranche) === norm(tr.nom);
-      if(!matchById && !matchByName) return false;
-      const key = o.of_id || o.id || (o.tranche+o.date_fin_prod);
-      if(seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }
-  function debutProdTranche(tr){
-    const dates = ofsPourTranche(tr)
-      .filter(o=>!o.expire_le || o.expire_le>=today)
-      .map(o=>o.date_debut||'').filter(d=>d&&/^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
-    return dates.length ? dates[0] : '';
-  }
-  function finProdTranche(tr){
-    const dates = ofsPourTranche(tr)
-      .filter(o=>!o.expire_le || o.expire_le>=today)
-      .map(o=>o.date_fin_prod||'').filter(d=>d&&/^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
-    return dates.length ? dates[dates.length-1] : '';
-  }
-  function ateliersTranche(tr){
-    return [...new Set(ofsPourTranche(tr).map(o=>o.atelier).filter(Boolean))];
-  }
-  function trancheEstProduite(tr){
-    const ofs = ofsPourTranche(tr);
-    if(!ofs.length) return false;
-    return ofs.every(o=>o.statut==='termine' || o.statut==='produit');
-  }
-
-  // Construction de la liste à plat : une ligne par phase (vue pilotage détaillée, triable sur chaque colonne)
-  let lignes = [];
-  state.tranches.forEach(tr=>{
-    if(f.statut!=='tous' && (tr.statut_erp==='termine' || tr.statut_erp==='livre')) return;
-    if(trancheEstProduite(tr)) return;
-
-    const ch = state.chantiers.find(c=>c.id===tr.cid);
-    const phsReelles = state.phases.filter(p=>p.tid===tr.id);
-    const dSrc = (state.dates_erp||[]).find(d=>norm(d.tranche)===norm(tr.nom));
-    const usinageSeul = dSrc?.taillage && !dSrc.assemblage && !dSrc.equipement;
-    const ateliers = ateliersTranche(tr);
-    const ctvx = ctvxTranche(tr);
-    const debutProd = debutProdTranche(tr);
-    const finProd = finProdTranche(tr);
-    const assemblage = !!dSrc?.assemblage;
-    const taillage = !!dSrc?.taillage;
-
-    let phases;
-    if(phsReelles.length){
-      phases = phsReelles.map(ph=>({
-        id: ph.id, num: ph.num||'', nom: ph.nom||'', statut: ph.statut||'planifie',
-        fichier_taille: !!tailleManuelPhase(ph), etat: tailleEtatPhase(ph,tr), commentaire: ph.commentaire||'', virtuelle:false
-      }));
-      if(f.statut!=='tous') phases = phases.filter(p=>p.statut!=='termine' && p.statut!=='livre');
-    } else if(usinageSeul){
-      phases = [{
-        id:'us_'+tr.id, num:'Taillage', nom:'Fichier de taille à préparer', statut:'planifie',
-        fichier_taille: !!tr.fichier_taille_usinage, etat: tailleEtatTranche(tr), commentaire: tr.commentaire_usinage||'', virtuelle:true
-      }];
-    } else {
-      phases = []; // ni phase réelle, ni besoin usinage seul → rien à montrer
-    }
-
-    phases.forEach(ph=>{
-      lignes.push({ tr, ch, ph, ateliers: ph.virtuelle ? ['Usinage'] : ateliers, ctvx, debutProd, finProd, assemblage, taillage });
-    });
-  });
-
-  const q = norm(f.search);
-  const ateliersConnus = [...new Set(lignes.flatMap(l=>l.ateliers))].sort((a,b)=>{
-    if(a==='Usinage') return 1; if(b==='Usinage') return -1;
-    return a.localeCompare(b);
-  });
-
-  lignes = lignes.filter(l=>{
-    if(f.taille==='non_dispo'){ if(l.ph.etat!=='manquant') return false; }
-    else if(f.taille && l.ph.etat!==f.taille) return false;
-    if(f.atelier && !l.ateliers.includes(f.atelier)) return false;
-    if(q && !(norm(l.tr.nom).includes(q) || norm(l.ph.nom).includes(q) || norm(l.ph.num).includes(q) || norm(l.ch?.nom).includes(q))) return false;
-    return true;
-  });
-
-  // Tri — n'importe quelle colonne, cliquable dans l'en-tête (le tout triable à souhait)
-  // Les dates vides restent toujours en bas, qu'importe le sens (asc/desc) — géré dans le comparateur lui-même
-  const cmpDateDir = (a,b,dir) => {
-    const ea=!a, eb=!b;
-    if(ea&&eb) return 0;
-    if(ea) return 1;
-    if(eb) return -1;
-    const r = a<b?-1:a>b?1:0;
-    return dir==='desc' ? -r : r;
-  };
-  const cmpStr  = (a,b) => String(a||'').localeCompare(String(b||''),'fr',{sensitivity:'base'});
-  const cmpBool = (a,b) => (a?1:0)-(b?1:0);
-  const statutRang = {planifie:0, en_attente:0.5, en_cours:1, termine:2, livre:3};
-  const dateCols = new Set(['ctvx','debut','fin']);
-  const comparateurs = {
-    ctvx:       (a,b,dir)=>cmpDateDir(a.ctvx,b.ctvx,dir),
-    chantier:   (a,b)=>cmpStr(a.ch?.nom,b.ch?.nom),
-    tranche:    (a,b)=>cmpStr(a.tr.nom,b.tr.nom),
-    phase:      (a,b)=>cmpStr(a.ph.nom,b.ph.nom),
-    assemblage: (a,b)=>cmpBool(a.assemblage,b.assemblage),
-    taillage:   (a,b)=>cmpBool(a.taillage,b.taillage),
-    atelier:    (a,b)=>cmpStr(a.ateliers.join(','),b.ateliers.join(',')),
-    debut:      (a,b,dir)=>cmpDateDir(a.debutProd,b.debutProd,dir),
-    fin:        (a,b,dir)=>cmpDateDir(a.finProd,b.finProd,dir),
-    taille_dispo: (a,b)=>(TAILLE_RANG[a.ph.etat]??0)-(TAILLE_RANG[b.ph.etat]??0),
-    statut:     (a,b)=>(statutRang[a.ph.statut]??0)-(statutRang[b.ph.statut]??0),
-  };
-  const cmp = comparateurs[f.triCol] || comparateurs.ctvx;
-  lignes.sort((a,b)=>{
-    if(dateCols.has(f.triCol)) return cmp(a,b,f.triDir);
-    const r = cmp(a,b);
-    return f.triDir==='desc' ? -r : r;
-  });
-
-  const trancheSet = new Set(lignes.map(l=>l.tr.id));
-  const totalPhases = lignes.length;
-  const dispoCount = lignes.filter(l=>l.ph.etat!=='manquant').length;
-
-  let html = `<div style="padding:16px 20px">`;
-
-  html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--blue)">${trancheSet.size}</div>
-      <div style="font-size:11px;color:var(--text3)">Tranches concernées</div>
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--green)">${dispoCount}</div>
-      <div style="font-size:11px;color:var(--text3)">Phases fichier taille dispo BE</div>
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center">
-      <div style="font-size:22px;font-weight:700;color:var(--orange)">${totalPhases-dispoCount}</div>
-      <div style="font-size:11px;color:var(--text3)">Phases fichier manquant</div>
-    </div>
-  </div>`;
-
-  html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
-    <input type="text" id="pilotage-phases-search" value="${esc(f.search)}" placeholder="Rechercher chantier, tranche, phase…"
-      oninput="state._pilotagePhasesFiltres.search=this.value;renderPilotagePhases()"
-      style="flex:1;max-width:220px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"/>
-    <select onchange="state._pilotagePhasesFiltres.atelier=this.value;renderPilotagePhases()"
-      style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
-      <option value="">Tous ateliers</option>
-      ${ateliersConnus.map(a=>`<option value="${esc(a)}"${f.atelier===a?' selected':''}>${esc(a)}</option>`).join('')}
-    </select>
-    <select onchange="state._pilotagePhasesFiltres.taille=this.value;renderPilotagePhases()"
-      style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
-      <option value="">Fichier taille : tous</option>
-      <option value="manquant"${(f.taille==='manquant'||f.taille==='non_dispo')?' selected':''}>⚠ Manquant</option>
-      <option value="dispo"${f.taille==='dispo'?' selected':''}>✅ Dispo BE</option>
-      <option value="en_cours"${f.taille==='en_cours'?' selected':''}>🔧 En cours (usinage)</option>
-      <option value="termine"${f.taille==='termine'?' selected':''}>✔ Terminé</option>
-    </select>
-    <select onchange="state._pilotagePhasesFiltres.statut=this.value;renderPilotagePhases()"
-      style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px">
-      <option value="actifs"${f.statut==='actifs'?' selected':''}>Masquer terminés/livrés</option>
-      <option value="tous"${f.statut==='tous'?' selected':''}>Tous statuts</option>
-    </select>
-    <span style="font-size:11px;color:var(--text3)">↕ Cliquez sur un en-tête de colonne pour trier</span>
-  </div>`;
-
-  if(!lignes.length){
-    html += `<div style="text-align:center;padding:2rem;color:var(--text3)">Aucune phase à afficher pour ces critères.</div>`;
-  } else {
-    // En-tête figé : reste visible sous le bandeau + les onglets pendant le défilement de la page.
-    // (le conteneur est en overflow:visible, sinon le sticky se rattacherait à lui et non à la page)
-    const _hdr = document.querySelector('header'), _tabs = document.querySelector('.app-tabs');
-    const stickyTop = (_hdr ? _hdr.offsetHeight : 49) + (_tabs ? _tabs.offsetHeight : 40);
-    const stickyCss = `position:sticky;top:${stickyTop}px;z-index:5;`;
-    const th = (label, col) => {
-      const active = f.triCol===col;
-      const arrow = active ? (f.triDir==='desc' ? ' ▼' : ' ▲') : '';
-      return `<th style="${stickyCss}padding:8px 10px;text-align:left;cursor:pointer;user-select:none;white-space:nowrap;color:#fff;background:${active?'#2C5F8A':'var(--blue)'}" onclick="setPilotageTri('${col}')" title="Trier par ${label}">${label}${arrow}</th>`;
-    };
-    html += `<div class="table-wrap" style="overflow:visible"><table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead>
-        <tr style="background:var(--blue);color:#fff">
-          ${th('CTVX','ctvx')}
-          ${th('Chantier','chantier')}
-          ${th('Tranche','tranche')}
-          ${th('Phase','phase')}
-          ${th('Assemb.','assemblage')}
-          ${th('Taillage','taillage')}
-          ${th('Atelier','atelier')}
-          ${th('Début prod','debut')}
-          ${th('Fin prod','fin')}
-          ${th('Fichier taille','taille_dispo')}
-          ${th('Statut','statut')}
-          <th style="${stickyCss}padding:8px 10px;text-align:left;color:#fff;background:var(--blue)">Commentaire</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${lignes.map((l,i)=>{
-          const ph = l.ph;
-          const ctvxHtml = l.ctvx
-            ? `<span style="font-size:11px;background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(l.ctvx)}</span>`
-            : '<span style="color:var(--text3);font-size:11px">—</span>';
-
-          const debutHtml = l.debutProd
-            ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(l.debutProd)}</span>`
-            : '<span style="color:var(--text3);font-size:11px">—</span>';
-
-          let finProdHtml;
-          if(!l.finProd){
-            finProdHtml = '<span style="color:var(--text3);font-size:11px">—</span>';
-          } else {
-            let color='var(--blue)', bg='var(--blue-bg)', border='var(--blue-border)', icon='';
-            if(l.ctvx){
-              const jours = Math.round((new Date(l.ctvx) - new Date(l.finProd)) / 86400000);
-              if(l.finProd > l.ctvx){ color='var(--red)'; bg='var(--red-bg)'; border='var(--red-border)'; icon=`<span style="font-size:9px;margin-left:3px">⚠ +${Math.abs(jours)}j</span>`; }
-              else if(jours<=7){ color='var(--orange)'; bg='var(--orange-bg)'; border='var(--orange-border)'; icon=`<span style="font-size:9px;margin-left:3px">⏱ ${jours}j</span>`; }
-              else { color='var(--green)'; bg='var(--green-bg)'; border='var(--green-border)'; icon=`<span style="font-size:9px;margin-left:3px">✓ +${jours}j</span>`; }
-            }
-            finProdHtml = `<span style="font-size:11px;background:${bg};color:${color};border:1px solid ${border};border-radius:5px;padding:2px 6px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(l.finProd)}${icon}</span>`;
-          }
-
-          const flag = v => v ? `<span style="color:var(--green);font-weight:700">✓</span>` : `<span style="color:var(--text3)">—</span>`;
-
-          const statutLabels={planifie:['Planifié','var(--text3)','var(--bg)','var(--border)'],en_cours:['En cours','var(--blue)','var(--blue-bg)','var(--blue-border)'],termine:['Terminé','#fff','#1E8449','#14663A'],livre:['Livré','var(--purple)','var(--purple-bg)','var(--purple-border)'],en_attente:['En attente','var(--orange)','var(--orange-bg)','var(--orange-border)']};
-          const sl = statutLabels[ph.statut||'planifie']||statutLabels['planifie'];
-          const statutBadge = ph.virtuelle
-            ? `<span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px">${sl[0]}</span>`
-            : `<button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut">
-                 <span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px">${sl[0]} ▾</span>
-               </button>`;
-
-          const tailleHtml = `<button class="statut-btn" onclick="openTailleMenu('${ph.virtuelle?'tranche':'phase'}','${ph.virtuelle?l.tr.id:ph.id}',event)" title="Fichier de taille : Manquant → Dispo BE → En cours (usinage) → Terminé" style="cursor:pointer">${tailleBadgeHtml(ph.etat,{fleche:true})}</button>`;
-
-          const commentId = ph.virtuelle ? l.tr.id : ph.id;
-          return `<tr style="${i%2===0?'':'background:var(--bg)'};border-bottom:1px solid var(--border)">
-            <td style="padding:7px 10px;vertical-align:top">${ctvxHtml}</td>
-            <td style="padding:7px 10px;color:var(--text2);vertical-align:top">${esc(l.ch?.nom||'—')}</td>
-            <td style="padding:7px 10px;font-weight:500;vertical-align:top">${esc(l.tr.nom)}</td>
-            <td style="padding:7px 10px;vertical-align:top">
-              ${ph.num?`<span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--blue);font-weight:700;margin-right:5px">${esc(ph.num)}</span>`:''}${esc(ph.nom)}
-            </td>
-            <td style="padding:7px 10px;vertical-align:top;text-align:center">${flag(l.assemblage)}</td>
-            <td style="padding:7px 10px;vertical-align:top;text-align:center">${flag(l.taillage)}</td>
-            <td style="padding:7px 10px;color:var(--text2);vertical-align:top;white-space:nowrap">${esc(l.ateliers.join(', ')||'—')}</td>
-            <td style="padding:7px 10px;vertical-align:top">${debutHtml}</td>
-            <td style="padding:7px 10px;vertical-align:top">${finProdHtml}</td>
-            <td style="padding:7px 10px;vertical-align:top">${tailleHtml}</td>
-            <td style="padding:7px 10px;vertical-align:top">${statutBadge}</td>
-            <td style="padding:7px 10px;vertical-align:top;min-width:220px;position:relative">
-              <input type="text" value="${esc(ph.commentaire)}" placeholder="Commentaire…" title="${esc(ph.commentaire)}"
-                oninput="updatePhaseCommentaire('${commentId}', this.value, ${ph.virtuelle});this.title=this.value"
-                onfocus="this.style.width='380px';this.style.position='absolute';this.style.zIndex='20';this.style.top='4px';this.style.left='7px';this.style.boxShadow='0 4px 14px rgba(0,0,0,.2)'"
-                onblur="this.style.width='';this.style.position='';this.style.zIndex='';this.style.top='';this.style.left='';this.style.boxShadow=''"
-                style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:11px;background:var(--surface)"/>
-            </td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table></div>`;
-  }
-
-  html += '</div>';
-  el.innerHTML = html;
-
-  if(_searchWasFocused){
-    const _newSearch = document.getElementById('pilotage-phases-search');
-    if(_newSearch){
-      _newSearch.focus();
-      try { _newSearch.setSelectionRange(_searchSelStart, _searchSelEnd); } catch(e){}
-    }
-  }
-}
-
 function updatePhaseCommentaire(id, value, virtuelle){
   if(virtuelle){
     const tr = state.tranches.find(t=>t.id===id);
@@ -11180,7 +10922,7 @@ function openTailleMenu(kind, id, e){
     document.addEventListener('click', close);
   }, 0);
 }
-function _rafraichirTaille(){ scheduleSave(); renderSuiviProd(); renderPlanning(); renderPilotagePhases(); }
+function _rafraichirTaille(){ scheduleSave(); renderSuiviProd(); renderPlanning(); }
 function setTailleStatut(phaseId, etat){
   const ph = state.phases.find(p=>p.id===phaseId);
   if(!ph) return;
@@ -11244,7 +10986,7 @@ async function syncInitialeOF() {
       toast('✅ ' + (r2.added||0) + ' OF importés, ' + (r2.updated||0) + ' mis à jour');
       await loadSuiviProd();
       renderSuiviProd();
-      renderPilotagePhases();
+     
     }
   } catch(e) {
     toast('Erreur: ' + e.message);
