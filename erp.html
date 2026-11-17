@@ -372,8 +372,8 @@ table.bl-lignes td.r{text-align:right}
     <button class="fam-tab" id="fam-equipes" onclick="showFamille('equipes')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.2c2.6.2 4.5 2 4.5 4.8"/></svg><span>Équipes</span></button>
   </div>
   <div class="sub-tabs" id="sub-tabs">
-    <button class="app-tab active" id="tab-dashboard" data-fam="pilotage" onclick="showScreen('dashboard')">Tableau de bord</button>
-    <button class="app-tab" id="tab-planning" data-fam="pilotage" onclick="showScreen('planning')">Tableau de pilotage</button>
+    <button class="app-tab active" id="tab-planning" data-fam="pilotage" onclick="showScreen('planning')">Tableau de pilotage</button>
+    <button class="app-tab" id="tab-dashboard" data-fam="pilotage" onclick="showScreen('dashboard')">Tableau de bord</button>
     <button class="app-tab" id="tab-suivi-prod" data-fam="production" onclick="showScreen('suivi-prod')">Suivi production</button>
     <button class="app-tab" id="tab-qualite" data-fam="production" onclick="showScreen('qualite')">Qualité</button>
     <button class="app-tab" id="tab-stock" data-fam="achats_logistique" onclick="showScreen('stock')">Stock</button>
@@ -387,7 +387,7 @@ table.bl-lignes td.r{text-align:right}
 <main>
 
 <!-- ══ PLANNING ══ -->
-<div class="screen" id="screen-planning">
+<div class="screen active" id="screen-planning">
   <div class="toolbar">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
@@ -464,7 +464,7 @@ table.bl-lignes td.r{text-align:right}
 </div>
 
 <!-- ══ TABLEAU DE BORD ══ -->
-<div class="screen active" id="screen-dashboard">
+<div class="screen" id="screen-dashboard">
   <div class="toolbar" style="margin-bottom:16px">
     <label style="font-size:12px;font-weight:600;color:var(--text2)">Période intérim</label>
     <select id="db-annee" style="padding:6px 9px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:12px" onchange="renderDashboard()">
@@ -1584,7 +1584,7 @@ let _sheetsLoaded = false;
 let _lastSaveHash = '';
 let _pendingSave = false;
 let _currentBLId = null;
-let _currentScreen = 'dashboard'; // onglet actif courant
+let _currentScreen = 'planning'; // onglet actif courant (la page s'ouvre sur le Tableau de pilotage)
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -1879,7 +1879,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='18/11/2026-j';
+const ERP_BUILD='18/11/2026-k';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -2784,7 +2784,7 @@ const DEFAULT_DROITS = {
 };
 // Familles du menu : l'accès se règle par famille (+ exceptions par onglet) dans le tableau ERP_Droits_Onglets ; le serveur renvoie le niveau de chaque onglet.
 const FAMILLES_NAV = {
-  pilotage:          ['dashboard','planning'],
+  pilotage:          ['planning','dashboard'],
   production:        ['suivi-prod','qualite'],
   achats_logistique: ['stock','bl','achats'],
   equipes:           ['heures']
