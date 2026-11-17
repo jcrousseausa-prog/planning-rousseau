@@ -431,7 +431,7 @@ table.bl-lignes td.r{text-align:right}
         <th style="width:100px">CTVX</th>
         <th style="width:122px" title="Date reprojetée : remplace la CTVX comme date de besoin. Modifiable ici — elle est identique à celle du Planning Production. Vide / égale à la CTVX = non reprojetée">Date reprojetée</th>
         <th style="width:100px" title="Fin d'usinage de la tranche (plan de charge usinage)">Fin usinage</th>
-        <th style="width:100px">Sortie prod</th>
+        <th style="width:100px" title="Date de fin de production du Planning Production (la plus tardive des lignes de la tranche). Mise à jour automatique chaque minute">Sortie prod <button onclick="actualiserDatesPlanning(event)" title="Actualiser maintenant depuis le Planning Production" style="border:none;background:none;cursor:pointer;color:var(--blue);font-size:12px;padding:0 2px">↻</button></th>
         <th style="width:96px" title="Atelier qui réalise la dernière opération (OF qui se termine en dernier ; « Usinage » s'il n'y a pas d'assemblage)">Dernière op.</th>
         <th style="width:110px">Statut</th>
         <th style="width:110px" title="Fichier de taille : Manquant → Dispo BE → En cours (plan de charge usinage) → Terminé">Fichier taille</th>
@@ -1861,7 +1861,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='18/11/2026-f';
+const ERP_BUILD='18/11/2026-g';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -3274,8 +3274,8 @@ function renderPlanningParPhase(){
 
   // Dates du Planning Production (date reprojetée) : chargées en arrière-plan, la vue se redessine à l'arrivée
   const planR = state._datesPlan;
-  if(!planR || Date.now()-planR.t > 120000){
-    chargerDatesPlanning().then(p=>{ if(p && p!==window.__planPhaseUtilise && document.getElementById('planning-phase-tbody')) renderPlanningParPhase(); });
+  if(!planR || Date.now()-planR.t > 45000){
+    chargerDatesPlanning(45000).then(p=>{ if(p && p!==window.__planPhaseUtilise && document.getElementById('planning-phase-tbody')) renderPlanningParPhase(); });
   }
   window.__planPhaseUtilise = planR;
 
@@ -10482,9 +10482,9 @@ function phasesHtml(a){
 // Date du Planning Production (date reprojetée ; à défaut CTVX) par tranche non terminée — pour le Suivi production.
 // Lecture de « getTranches », mise en cache 2 min ; la plus proche des lignes si la tranche est dans plusieurs ateliers.
 function _clePlan(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
-async function chargerDatesPlanning(){
+async function chargerDatesPlanning(maxAge){
   const c = state._datesPlan;
-  if(c && Date.now()-c.t < 120000) return c;
+  if(c && Date.now()-c.t < (maxAge||120000)) return c;
   if(state._datesPlanProm) return state._datesPlanProm;
   state._datesPlanProm = (async()=>{
     try{
@@ -10510,6 +10510,19 @@ async function chargerDatesPlanning(){
           const eid = String(t.erp_tranche_id||'').trim(); if(eid) maj(parId, eid);
         });
         state._datesPlan = {t:Date.now(), parNom, parId, lnNom, lnId};
+        // Dates de DÉBUT / FIN de chaque OF reprises directement du Planning Production (la source) : l'ERP les lit dans ERP_Suivi_Production,
+        // qu'il ne charge qu'à l'ouverture — une modification faite ensuite dans le planning n'y arrivait qu'au prochain rechargement complet.
+        try{
+          const parOf = new Map();
+          r.tranches.forEach(t=>{ const id=String(t.id||'').trim(); if(id) parOf.set(id,{fin:iso(t.date_fin_prod), deb:iso(t.date_debut)}); });
+          let nb = 0;
+          (state.suivi_prod||[]).forEach(o=>{
+            const pl = parOf.get(String(o.of_id||'').trim()); if(!pl) return;
+            if(pl.fin && o.date_fin_prod!==pl.fin){ o.date_fin_prod=pl.fin; nb++; }
+            if(pl.deb && o.date_debut!==pl.deb){ o.date_debut=pl.deb; nb++; }
+          });
+          if(nb){ _evt('dates OF alignées sur le Planning Production ('+nb+' valeur(s))'); _redessinerApresPlanning(); }
+        }catch(e){ console.warn('alignement dates OF :', e.message); }
       }
     }catch(e){ console.warn('dates planning (suivi production) :', e.message); }
     state._datesPlanProm = null;
@@ -10517,6 +10530,23 @@ async function chargerDatesPlanning(){
   })();
   return state._datesPlanProm;
 }
+
+async function actualiserDatesPlanning(e){
+  if(e) e.stopPropagation();
+  state._datesPlan=null; state._datesPlanProm=null;
+  const p=await chargerDatesPlanning();
+  if(document.getElementById('planning-phase-tbody')) renderPlanningParPhase();
+  toast(p ? '↻ Dates actualisées depuis le Planning Production' : '⚠ Planning Production injoignable');
+}
+// Redessine les écrans après alignement des dates sur le planning (sans toucher à une saisie en cours)
+function _redessinerApresPlanning(){
+  if(document.querySelector('.modal-bg.show') || _champEnSaisie()){ window.__rerenderPlan=true; return; }
+  window.__rerenderPlan=false;
+  try{ const memo=_scrollsMemo(); renderAll(); _scrollsRestituer(memo); }catch(e){ console.warn('redessin :', e.message); }
+}
+// Actualisation régulière des dates du planning pendant que l'ERP est ouvert (et au retour sur l'onglet)
+setInterval(()=>{ if(window.__rerenderPlan) _redessinerApresPlanning(); if(_currentUser && _currentUser.token && !document.hidden) chargerDatesPlanning(50000); },60000);
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && _currentUser && _currentUser.token) chargerDatesPlanning(20000); });
 
 // ── Date reprojetée (vue « Par phase ») ───────────────────────────────────────────────────────────
 // Lue / écrite dans le Planning Production : c'est la MÊME donnée (colonne date_reprojetee), elle ne peut pas diverger.
