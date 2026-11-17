@@ -453,6 +453,11 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
     <select class="btn" id="stock-fil-emplacement" onchange="renderStock()">
       <option value="">Tous emplacements</option>
     </select>
+    <select class="btn" id="stock-fil-type" onchange="renderStock()">
+      <option value="">Standards + temporaires</option>
+      <option value="std">Articles standards</option>
+      <option value="tmp">Articles temporaires (projet)</option>
+    </select>
     <button class="btn" onclick="openEmplacements()">📍 Emplacements</button>
     <button class="btn" onclick="openNewTransfert()">🔄 Transfert interne</button>
     <button class="btn btn-primary" onclick="openNewStock()">+ Entrée stock</button>
@@ -474,12 +479,17 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
       <span class="search-icon">🔍</span>
       <input type="text" id="article-search" placeholder="Rechercher un article…" oninput="renderArticles()"/>
     </div>
+    <div style="display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface)">
+      <button class="btn" id="art-vue-std" onclick="setVueArticles('std')" style="border:none;border-radius:0">Standards</button>
+      <button class="btn" id="art-vue-tmp" onclick="setVueArticles('tmp')" style="border:none;border-radius:0;border-left:1px solid var(--border)">Temporaires (projet)</button>
+    </div>
     <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);white-space:nowrap;cursor:pointer">
       <input type="checkbox" id="article-fil-rupture" onchange="renderArticles()"/> Stock à 0 / sous le seuil
     </label>
     <button class="btn btn-primary" onclick="openNewArticle()">+ Nouvel article</button>
   </div>
-  <p style="font-size:11px;color:var(--text3);margin:-4px 0 12px">Fiches de référence pour les articles suivis en stock : seuil de réappro, fournisseur habituel, historique. Un article hors gestion de stock n'a pas besoin de fiche ici.</p>
+  <p id="art-note-tmp" style="display:none;font-size:11px;color:var(--text3);margin:-4px 0 12px">Articles temporaires : créés à la réception d'un produit non standard, toujours rattachés à un projet. Ils ont leur propre stock (par projet) et n'alimentent pas le stock des articles standards.</p>
+  <p id="art-note-std" style="font-size:11px;color:var(--text3);margin:-4px 0 12px">Fiches de référence pour les articles suivis en stock : seuil de réappro, fournisseur habituel, historique. Un article hors gestion de stock n'a pas besoin de fiche ici.</p>
   <div class="metrics" id="article-metrics" style="margin-bottom:12px"></div>
   <div id="article-list"></div>
 </div>
@@ -702,6 +712,7 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
         <label>N° de commande à réceptionner * <span style="text-transform:none;font-weight:400;color:var(--text3)">(commence par BC-)</span></label>
         <input type="text" id="mr-cde" list="mr-cde-list" autocomplete="off" placeholder="BC-26-00123" oninput="onReceptionNumInput()" onfocus="if(!this.value){this.value='BC-';}" onchange="onReceptionNumInput(true)" onkeydown="if(event.key==='Enter'){event.preventDefault();onReceptionNumInput(true);}"/>
         <datalist id="mr-cde-list"></datalist>
+        <datalist id="mr-art-list"></datalist>
         <div id="mr-cde-info"></div>
       </div>
       <div class="field">
@@ -965,10 +976,13 @@ async function loadData() {
       state.emplacements_defaut = r.emplacements_defaut || [];
       state.articles      = r.articles     || [];
       state.rebuts         = r.rebuts       || [];
+      state._chargeOk = true;   // les données ont bien été lues : l'enregistrement est autorisé
     }
   } catch(e) { console.warn('loadData:', e); }
 }
 async function saveData() {
+  // Garde-fou : si la lecture a échoué, enregistrer une liste vide effacerait les données du serveur
+  if (!state._chargeOk) { setSyncPill('error','Non chargé'); toast('⚠ Données non chargées : enregistrement bloqué. Rechargez la page.'); return; }
   setSyncPill('saving','Enregistrement...');
   try {
     const res = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},
@@ -1890,6 +1904,7 @@ function openNewReception() {
   const nums = [];
   state.commandes.forEach(c=>{ if (c.num && (c.lignes||[]).length) nums.push(c.num); });
   if (state.cf && state.cf.lignes.length) { const cId = state.cf.colonnes[0]; state.cf.lignes.forEach(l=>{ const v=String(l[cId]||'').trim(); if (v) nums.push(v); }); }
+  document.getElementById('mr-art-list').innerHTML = articlesStandards().map(a=>`<option value="${esc(a.designation)}">`).join('');
   document.getElementById('mr-cde-list').innerHTML = [...new Set(nums)].sort().map(n=>`<option value="${esc(n)}">`).join('');
   document.getElementById('mr-cde').value = '';
   document.getElementById('mr-cde-info').textContent = '';
@@ -1930,7 +1945,7 @@ function onReceptionCdeChange() {
   _nbLignesRecep = 0;
   wrap.innerHTML = `<table class="lignes-table" style="margin-bottom:10px">
     <thead><tr><th>Désignation</th><th style="text-align:right">Commandé</th><th style="text-align:right">Déjà reçu</th>
-      <th style="text-align:right">Reliquat</th><th style="text-align:right">Qté reçue</th><th>Emplacement(s)</th></tr></thead>
+      <th style="text-align:right">Reliquat</th><th style="text-align:right">Qté reçue</th><th>Article / stock</th><th>Emplacement(s)</th></tr></thead>
     <tbody id="mr-lignes-tbody"></tbody></table>`;
   const tbody = document.getElementById('mr-lignes-tbody');
   const manquants = [];
@@ -1977,10 +1992,49 @@ function onReceptionCdeChange() {
       <td class="r" style="color:var(--text2)">${fmtQte(dejaRecu)}</td>
       <td class="r" style="font-weight:600;color:${reliquat>0?'var(--orange)':'var(--green)'}">${fmtQte(reliquat)}</td>
       <td class="r"><input type="number" step="0.01" min="0" id="mrl${idx}-qte" value="${reliquat>0?reliquat:''}" style="width:80px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;text-align:right;font-family:'DM Mono',monospace;font-size:12px" oninput="onReceptionQteChange(${idx})"/></td>
+      <td id="mrl${idx}-art-wrap" style="min-width:260px">${l.stock_mp_id ? '<span class="badge badge-blue">📦 Stock pré-enregistré</span>' : celluleArticleReception(idx, l, cde)}</td>
       <td id="mrl${idx}-empl-wrap">${celluleEmplacement}</td>`;
     tbody.appendChild(tr);
+    if (!l.stock_mp_id) onReceptionTypeChange(idx);
   });
   if (manquants.length) ouvrirPopupEmplacementManquant(manquants);
+}
+// Chaque ligne reçue est soit un article STANDARD de la base (le stock augmente), soit un article TEMPORAIRE rattaché à un projet
+function celluleArticleReception(idx, l, cde) {
+  const std = trouverStandard(l.desc);
+  const defType = std ? 'std' : 'tmp';
+  return `<select id="mrl${idx}-type" onchange="onReceptionTypeChange(${idx})" style="width:100%">
+      <option value="std" ${defType==='std'?'selected':''}>Article standard (base)</option>
+      <option value="newstd">Nouvel article standard</option>
+      <option value="tmp" ${defType==='tmp'?'selected':''}>Article temporaire (projet)</option>
+    </select>
+    <div id="mrl${idx}-art-zone" style="margin-top:6px" data-cde-chantier="${esc(chantierParDefautCde(cde))}"></div>`;
+}
+function onReceptionTypeChange(idx) {
+  const tr = document.getElementById('mrl-'+idx); const zone = document.getElementById('mrl'+idx+'-art-zone');
+  const type = document.getElementById('mrl'+idx+'-type')?.value; if (!tr || !zone) return;
+  const desc = tr.dataset.desc || '';
+  const champ = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px';
+  if (type==='std') {
+    const std = trouverStandard(desc);
+    zone.innerHTML = `<input type="text" id="mrl${idx}-art" list="mr-art-list" value="${esc(std?std.designation:'')}" placeholder="Choisir un article de la base…" style="${champ}" oninput="majInfoArticleReception(${idx})"/>
+      <div id="mrl${idx}-art-info" style="font-size:11px;margin-top:3px"></div>`;
+    majInfoArticleReception(idx);
+  } else if (type==='newstd') {
+    zone.innerHTML = `<input type="text" id="mrl${idx}-art" value="${esc(desc)}" placeholder="Désignation de la nouvelle fiche" style="${champ}"/>
+      <div style="font-size:11px;margin-top:3px;color:var(--text3)">Une fiche standard est créée dans la base articles et son stock est augmenté.</div>`;
+  } else {
+    const chDef = zone.dataset.cdeChantier || '';
+    zone.innerHTML = `<input type="text" id="mrl${idx}-art" value="${esc(desc)}" placeholder="Désignation de l'article temporaire" style="${champ}"/>
+      <select id="mrl${idx}-chantier" style="${champ};margin-top:5px"><option value="">— Projet (obligatoire) —</option>${state.chantiers.map(c=>`<option value="${esc(c.id)}" ${c.id===chDef?'selected':''}>${esc(c.nom)}</option>`).join('')}</select>
+      <div style="font-size:11px;margin-top:3px;color:var(--text3)">Article léger rattaché au projet, stock propre au projet.</div>`;
+  }
+}
+function majInfoArticleReception(idx) {
+  const inp = document.getElementById('mrl'+idx+'-art'), info = document.getElementById('mrl'+idx+'-art-info'); if (!inp||!info) return;
+  const a = trouverStandard(inp.value);
+  if (a) { const st = stockActuelArticle(a.designation); info.style.color='var(--green)'; info.textContent = '✓ Stock actuel '+fmtQte(st.total)+' '+(a.unite||st.unite||'')+' → augmenté de la quantité reçue'; }
+  else { info.style.color = inp.value.trim()?'var(--red)':'var(--text3)'; info.textContent = inp.value.trim() ? 'Article absent de la base : choisissez-en un, ou « Nouvel article standard » / « Temporaire ».' : ''; }
 }
 function onReceptionQteChange(idx) {
   const qte = parseFloat(document.getElementById('mrl'+idx+'-qte')?.value)||0;
@@ -2050,6 +2104,9 @@ function getLignesReception() {
       cdeLigneId: tr.dataset.ligneId, desc: tr.dataset.desc, unite: tr.dataset.unite,
       prixUnitaire: parseFloat(tr.dataset.pu)||0, quantite: qte,
       stockMpId: tr.dataset.stockMpId||'', gererStock: tr.dataset.gererStock==='1',
+      type: document.getElementById('mrl'+idx+'-type')?.value || '',
+      artTxt: document.getElementById('mrl'+idx+'-art')?.value || '',
+      chantierId: document.getElementById('mrl'+idx+'-chantier')?.value || '',
       repartition: empl, idx,
     });
   });
@@ -2074,6 +2131,22 @@ function saveReception() {
     if (l.repartition.some(r=>!r.emplacementId)) { document.getElementById('mrl'+l.idx+'-empl-warn').textContent = 'Choisissez un emplacement.'; return; }
     if (Math.abs(somme - l.quantite) > 0.005) { document.getElementById('mrl'+l.idx+'-empl-warn').textContent = `Répartition (${fmtQte(somme)}) ≠ quantité reçue (${fmtQte(l.quantite)}).`; return; }
   }
+  // Article / stock de chaque ligne : standard de la base, nouvelle fiche standard, ou article temporaire d'un projet
+  for (const l of lignes) {
+    if (l.stockMpId) continue;                                   // stock pré-enregistré : circuit existant
+    const warn = document.getElementById('mrl'+l.idx+'-empl-warn');
+    const txt = (l.artTxt||'').trim();
+    if (l.type==='std') {
+      l.article = trouverStandard(txt);
+      if (!l.article) { if (warn) warn.textContent = 'Choisissez un article de la base (ou créez-le / passez en temporaire).'; return; }
+    } else if (l.type==='newstd') {
+      if (!txt) { if (warn) warn.textContent = 'Saisissez la désignation de la nouvelle fiche.'; return; }
+      l.article = trouverStandard(txt);                          // existe déjà : on le réutilise
+    } else if (l.type==='tmp') {
+      if (!txt) { if (warn) warn.textContent = 'Saisissez la désignation de l\'article temporaire.'; return; }
+      if (!l.chantierId) { if (warn) warn.textContent = 'Un article temporaire doit être rattaché à un projet.'; return; }
+    } else { if (warn) warn.textContent = 'Indiquez le type d\'article.'; return; }
+  }
   const reception = {
     id: uid(), cdeId: cde.id, cdeNum: cde.num, fournId: cde.fourn_id, fournNom: cde.fourn_nom,
     blNumero, brNumero: brAuto || blNumero, blDate, date: blDate,
@@ -2090,6 +2163,25 @@ function saveReception() {
   lignes.forEach(l=>{
     const cl = (cde.lignes||[]).find(x=>x.id===l.cdeLigneId);
     if (cl) cl.recue = (cl.recue||0) + l.quantite;
+    if (!l.stockMpId) {
+      // Nouveau circuit : article standard (stock +) ou article temporaire d'un projet
+      const dateStock = blDate, ctxS = { date: blDate, fourn_id: cde.fourn_id, fourn_nom: cde.fourn_nom, cde_num: cde.num };
+      let art, typ;
+      if (l.type==='tmp') {
+        const ch = state.chantiers.find(c=>c.id===l.chantierId);
+        const dn = normaliserDesignation(l.artTxt);
+        art = state.articles.find(a=>a.type==='temporaire' && a.chantier_id===l.chantierId && normaliserDesignation(a.designation)===dn);
+        if (!art) { art = { id: uid(), type:'temporaire', designation: l.artTxt.trim(), unite: l.unite||'', chantier_id: l.chantierId, chantier_nom: ch?ch.nom:'', fournisseur_id: cde.fourn_id||'', fournisseur_nom: cde.fourn_nom||'', source_cde: cde.num||'', created_at: new Date().toISOString() }; state.articles.push(art); }
+        typ = 'temporaire';
+      } else {
+        art = l.article;
+        if (!art) { art = { id: uid(), type:'standard', designation: l.artTxt.trim(), unite: l.unite||'', fournisseur_id: cde.fourn_id||'', fournisseur_nom: cde.fourn_nom||'', seuil_mini:0, delai_appro_jours:0, qte_reappro:0, open:false, created_at: new Date().toISOString() }; state.articles.push(art); }
+        typ = 'standard';
+      }
+      (l.repartition||[]).forEach(r=>{ if (r.quantite>0) crediterStock(art, typ, r.quantite, r.emplacementId, ctxS); });
+      const lr = reception.lignes.find(x=>x.cdeLigneId===l.cdeLigneId);
+      if (lr) { lr.articleId = art.id; lr.typeArticle = typ; lr.descCommande = lr.desc; lr.desc = art.designation; if (typ==='temporaire') { lr.chantierId = art.chantier_id; lr.chantierNom = art.chantier_nom; } }
+    }
     // Alimente le stock (statut en_attente -> en_stock), réparti par emplacement
     if (l.gererStock && l.stockMpId) {
       const entree = state.stock_mp.find(s=>s.id===l.stockMpId);
@@ -2122,7 +2214,7 @@ function saveReception() {
   closeModal('modal-reception');
   saveData();
   renderCdes(); renderReceptions(); renderRecapCommandes(); renderPrevisionnel(); renderStock(); renderArticles(); renderMetrics();
-  toast('✅ Réception enregistrée');
+  toast('✅ Réception enregistrée — stock mis à jour');
   openPrintBL(reception.id);
 }
 function renderMetricsReceptions() {
@@ -2417,15 +2509,17 @@ function renderStock(){
   }
   const empSel = filEmpl?.value || '';
   const empAutorises = empSel ? emplacementEtDescendants_(empSel) : null;
+  const typSel = document.getElementById('stock-fil-type')?.value || '';
   const rows=state.stock_mp.filter(s=>
-    (!q||s.designation.toLowerCase().includes(q))
+    (!q||s.designation.toLowerCase().includes(q)||(s.chantier_nom||'').toLowerCase().includes(q))
     && (!empAutorises || empAutorises.has(s.emplacementId||''))
+    && (!typSel || (typSel==='tmp' ? s.type==='temporaire' : s.type!=='temporaire'))
   );
   if(!rows.length){
     document.getElementById('stock-tbody').innerHTML='<tr><td colspan="10" style="padding:2rem;text-align:center;color:var(--text3)">Aucune entrée en stock.</td></tr>';return;
   }
   document.getElementById('stock-tbody').innerHTML=rows.map(s=>`<tr class="${s.statut!=='en_stock'?'sorti':''}">
-    <td style="font-weight:500">${esc(s.designation)}</td>
+    <td style="font-weight:500">${esc(s.designation)}${s.type==='temporaire'?' <span class="badge badge-orange">Temporaire</span>':''}</td>
     <td>${s.emplacementId?`<span class="emp">${esc(libelleEmplacement(s.emplacementId))}</span>`:'<span style="color:var(--text3);font-size:11px">Non localisé</span>'}</td>
     <td style="font-size:12px;color:var(--text2)">${esc(s.fourn_nom||'—')}</td>
     <td style="font-size:12px;color:var(--text2)">${esc(s.chantier_nom||'—')}</td>
@@ -2518,8 +2612,40 @@ function saveTransfert() {
 // emplacements par défaut) — pas de clé étrangère stricte.
 function lotsEnStockArticle(designation) {
   const n = normaliserDesignation(designation);
-  return state.stock_mp.filter(s=>normaliserDesignation(s.designation)===n && s.statut==='en_stock');
+  // Le stock d'un article STANDARD ne compte jamais le stock des articles temporaires (stock par projet)
+  return state.stock_mp.filter(s=>normaliserDesignation(s.designation)===n && s.statut==='en_stock' && s.type!=='temporaire');
 }
+// ── Articles standards (base) / temporaires (créés à la réception, rattachés à un projet) ──
+function articlesStandards() { return state.articles.filter(a=>a.type!=='temporaire'); }
+function articlesTemporaires() { return state.articles.filter(a=>a.type==='temporaire'); }
+function trouverStandard(txt) {
+  const n = normaliserDesignation(txt); if (!n) return null;
+  return articlesStandards().find(a=>normaliserDesignation(a.designation)===n) || null;
+}
+function chantierParDefautCde(cde) {
+  const nom = normaliserDesignation(cde && cde.chantier_nom); if (!nom) return '';
+  const ch = state.chantiers.find(c=>normaliserDesignation(c.nom)===nom) || state.chantiers.find(c=>{ const x=normaliserDesignation(c.nom); return x && (x.includes(nom) || nom.includes(x)); });
+  return ch ? ch.id : '';
+}
+// Ajoute une quantité au stock d'un article à un emplacement : incrémente la ligne existante, sinon en crée une
+function crediterStock(art, type, quantite, emplacementId, ctxStock) {
+  const dn = normaliserDesignation(art.designation);
+  const ex = state.stock_mp.find(s=>s.statut==='en_stock' && (s.emplacementId||'')===(emplacementId||'') &&
+    (type==='temporaire' ? s.articleId===art.id : (s.type!=='temporaire' && (s.articleId===art.id || (!s.articleId && normaliserDesignation(s.designation)===dn)))));
+  if (ex) {
+    ex.quantite = (Number(ex.quantite)||0) + quantite; ex.articleId = art.id; ex.entree = ctxStock.date;
+    if (!ex.unite) ex.unite = art.unite||'';
+    return ex;
+  }
+  const e = { id: uid(), designation: art.designation, quantite, unite: art.unite||'', emplacementId: emplacementId||'', articleId: art.id,
+    type: type==='temporaire' ? 'temporaire' : 'standard',
+    fourn_id: ctxStock.fourn_id||'', fourn_nom: ctxStock.fourn_nom||'', cde_num: ctxStock.cde_num||'',
+    chantier_id: type==='temporaire' ? art.chantier_id : '', chantier_nom: type==='temporaire' ? art.chantier_nom : '',
+    statut: 'en_stock', entree: ctxStock.date, created_at: new Date().toISOString() };
+  state.stock_mp.push(e); return e;
+}
+let artVue = 'std';
+function setVueArticles(v) { artVue = v; renderArticles(); }
 function stockActuelArticle(designation) {
   const lots = lotsEnStockArticle(designation);
   const parEmplacement = {};
@@ -2596,7 +2722,7 @@ function saveArticle() {
   const ancien = _ctx.type==='edit-article' ? state.articles.find(x=>x.id===_ctx.id) : null;
   const article = {
     id: _ctx.type==='edit-article' ? _ctx.id : uid(),
-    designation, unite: document.getElementById('ma-unite').value.trim(),
+    designation, type: 'standard', unite: document.getElementById('ma-unite').value.trim(),
     fournisseur_id: fournId, fournisseur_nom: fourn?.nom||'',
     seuil_mini: parseFloat(document.getElementById('ma-seuil').value)||0,
     delai_appro_jours: parseInt(document.getElementById('ma-delai').value)||0,
@@ -2622,9 +2748,10 @@ function deleteArticle(id) {
 }
 function toggleArticle(id) { const a=state.articles.find(x=>x.id===id); if(a){ a.open=!a.open; renderArticles(); } }
 function renderArticleMetrics() {
-  const sousSeuil = state.articles.filter(a=>a.seuil_mini>0 && stockActuelArticle(a.designation).total < a.seuil_mini).length;
+  const sousSeuil = articlesStandards().filter(a=>a.seuil_mini>0 && stockActuelArticle(a.designation).total < a.seuil_mini).length;
   document.getElementById('article-metrics').innerHTML = `
-    <div class="metric"><div class="metric-k">Fiches articles</div><div class="metric-v">${state.articles.length}</div></div>
+    <div class="metric"><div class="metric-k">Articles standards</div><div class="metric-v">${articlesStandards().length}</div></div>
+    <div class="metric"><div class="metric-k">Articles temporaires</div><div class="metric-v">${articlesTemporaires().length}</div></div>
     <div class="metric"><div class="metric-k">Sous le seuil mini</div><div class="metric-v${sousSeuil>0?' warn':' ok'}">${sousSeuil}</div></div>`;
 }
 // Tri du tableau récap articles (colonnes cliquables, comme demandé :
@@ -2643,11 +2770,55 @@ function flecheTriArticles(col) {
   return `<span class="tri-icone actif">${triArticles.sens === 1 ? '▲' : '▼'}</span>`;
 }
 
+function renderArticlesTemporaires() {
+  const q=(document.getElementById('article-search')?.value||'').toLowerCase();
+  const liste = articlesTemporaires().filter(a=>!q || a.designation.toLowerCase().includes(q) || (a.chantier_nom||'').toLowerCase().includes(q));
+  const el = document.getElementById('article-list');
+  if (!liste.length) { el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun article temporaire. Ils sont créés automatiquement à la réception d\'un produit non standard.</div>'; return; }
+  liste.sort((a,b)=>(a.chantier_nom||'').localeCompare(b.chantier_nom||'','fr') || a.designation.localeCompare(b.designation,'fr'));
+  el.innerHTML = `<div class="table-wrap"><table class="stock-table"><thead><tr><th>Désignation</th><th>Projet</th><th>Stock</th><th>Emplacement</th><th>Fournisseur</th><th>Créé le</th><th></th></tr></thead><tbody>` +
+    liste.map(a=>{
+      const lots = state.stock_mp.filter(s=>s.articleId===a.id && s.statut==='en_stock');
+      const total = lots.reduce((t,l)=>t+(Number(l.quantite)||0),0);
+      const empl = [...new Set(lots.filter(l=>l.emplacementId && (Number(l.quantite)||0)>0.001).map(l=>libelleEmplacement(l.emplacementId)))].join(', ') || '—';
+      return `<tr><td style="font-weight:500">${esc(a.designation)} <span class="badge badge-orange">Temporaire</span></td>
+        <td>${esc(a.chantier_nom||'—')}</td>
+        <td style="font-family:'DM Mono',monospace">${fmtQte(total)} ${esc(a.unite||'')}</td>
+        <td style="font-size:12px;color:var(--text2)">${esc(empl)}</td>
+        <td style="font-size:12px;color:var(--text2)">${esc(a.fournisseur_nom||'—')}</td>
+        <td style="font-size:12px;color:var(--text3)">${a.created_at?fmtDate(a.created_at.slice(0,10)):'—'}</td>
+        <td style="white-space:nowrap"><button class="btn btn-sm" onclick="promouvoirArticleTemporaire('${a.id}')" title="Transformer en article standard de la base">→ Standard</button>
+          <button class="btn btn-sm btn-red" onclick="supprimerArticleTemporaire('${a.id}')">✕</button></td></tr>`;
+    }).join('') + '</tbody></table></div>';
+}
+function promouvoirArticleTemporaire(id) {
+  const a = state.articles.find(x=>x.id===id); if (!a) return;
+  if (trouverStandard(a.designation)) { alert('Un article standard « '+a.designation+' » existe déjà dans la base.'); return; }
+  if (!confirm('Transformer « '+a.designation+' » (projet '+(a.chantier_nom||'—')+') en article standard ?\nSon stock actuel rejoint le stock des articles standards.')) return;
+  a.type = 'standard'; a.chantier_id = ''; a.chantier_nom = '';
+  state.stock_mp.forEach(s=>{ if (s.articleId===id) { s.type='standard'; s.chantier_id=''; s.chantier_nom=''; } });
+  saveData(); renderArticles(); renderStock(); toast('Article passé en standard');
+}
+function supprimerArticleTemporaire(id) {
+  const a = state.articles.find(x=>x.id===id); if (!a) return;
+  const reste = state.stock_mp.filter(s=>s.articleId===id && s.statut==='en_stock' && (Number(s.quantite)||0)>0.001).length;
+  if (!confirm('Supprimer l\'article temporaire « '+a.designation+' » ?'+(reste?'\nIl a encore du stock : les lignes de stock restent visibles dans l\'onglet Stock.':''))) return;
+  state.articles = state.articles.filter(x=>x.id!==id);
+  saveData(); renderArticles(); toast('Article temporaire supprimé');
+}
 function renderArticles() {
   renderArticleMetrics();
+  const bs = document.getElementById('art-vue-std'), bt = document.getElementById('art-vue-tmp');
+  if (bs && bt) {
+    bs.style.cssText = 'border:none;border-radius:0;' + (artVue==='std'?'background:var(--blue);color:#fff':'');
+    bt.style.cssText = 'border:none;border-radius:0;border-left:1px solid var(--border);' + (artVue==='tmp'?'background:var(--blue);color:#fff':'');
+    document.getElementById('art-note-tmp').style.display = artVue==='tmp' ? '' : 'none';
+    document.getElementById('art-note-std').style.display = artVue==='std' ? '' : 'none';
+  }
+  if (artVue==='tmp') { renderArticlesTemporaires(); return; }
   const q=(document.getElementById('article-search')?.value||'').toLowerCase();
   const filRupture = document.getElementById('article-fil-rupture')?.checked;
-  const articles = state.articles.filter(a=>!q||a.designation.toLowerCase().includes(q));
+  const articles = articlesStandards().filter(a=>!q||a.designation.toLowerCase().includes(q));
   if (!articles.length) {
     document.getElementById('article-list').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune fiche article. Cliquez sur "+ Nouvel article".</div>';
     return;
