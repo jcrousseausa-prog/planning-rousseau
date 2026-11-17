@@ -1879,7 +1879,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='18/11/2026-h';
+const ERP_BUILD='18/11/2026-j';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -2402,7 +2402,7 @@ async function loadFromSheets(opts) {
       state.heures    = r.data.heures||[];
       state.employes  = r.data.employes||[];
       state.aleas     = r.data.aleas||[];
-      if(rSuivi.ok) state.suivi_prod = rSuivi.articles||[];
+      if(rSuivi.ok){ state.suivi_prod = rSuivi.articles||[]; _retirerOrphelinsSuivi(); }
       _uiOpenRestore(_ui);
       // DATES et fermetures en arrière-plan (non bloquants)
       loadDATESSource();
@@ -3027,7 +3027,7 @@ async function loadFromSheetsfast(){
       state.tranches  = _fusionnerPartiel(state.tranches,  r.data.tranches||[]);
       state.phases    = _fusionnerPartiel(state.phases,    r.data.phases||[]);
       state.articles  = _fusionnerPartiel(state.articles,  r.data.articles||[]);
-      if(r.data.suivi_prod) state.suivi_prod = r.data.suivi_prod;
+      if(r.data.suivi_prod){ state.suivi_prod = r.data.suivi_prod; _retirerOrphelinsSuivi(); }
       _uiOpenRestore(_ui);
       // Rattrapage silencieux : une tranche peut arriver du serveur déjà statut_erp=termine/livre
       // (ex : auto-complétion "fin usinage" côté Apps Script) sans jamais passer par la cascade
@@ -3401,19 +3401,19 @@ function renderPlanningParPhase(){
     const reprojHtml = reprojCelluleHtml(tr, ctvx, planR);
     const phFini = ['termine','livre'].includes(ph.statut||'') || tr.statut_erp==='livre';
     const finUsinagePhaseHtml = finUsinageBadge(tr.date_fin_usinage, ctvx, true, phFini);
-    const finProd = finProdTrancheFlat(tr);
+    const _sp = sortieProdDetail(tr, ph), finProd = _sp.date;
     let finProdHtml;
     if(!finProd){
       finProdHtml = `<span style="color:var(--text3);font-size:11px">—</span>`;
     } else if(phFini){
-      finProdHtml = dateFiniHtml(finProd, ctvx, true);
+      finProdHtml = dateFiniHtml(finProd, ctvx, true).replace('<span ','<span data-tip="1" title="'+esc(_sp.titre)+'" ').replace(/ title="Terminée[^"]*"/,'');
     } else {
       let color='var(--text2)', bg='transparent', border='var(--border)';
       if(ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)){
         if(finProd > ctvx){ color='var(--red)'; bg='var(--red-bg)'; border='var(--red-border)'; }
         else { color='var(--green)'; bg='var(--green-bg)'; border='var(--green-border)'; }
       }
-      finProdHtml = `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;background:${bg};color:${color};border:1px solid ${border};border-radius:4px;padding:1px 5px">${fmtDate(finProd)}</span>`;
+      finProdHtml = `<span title="${esc(_sp.titre)}" style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;background:${bg};color:${color};border:1px solid ${border};border-radius:4px;padding:1px 5px;cursor:help">${fmtDate(finProd)}</span>`;
     }
     html += `<tr class="ph-ligne" data-ph="${ph.id}" style="border-bottom:1px solid var(--border);user-select:text;-webkit-user-select:text;cursor:text">
       <td style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue);white-space:nowrap;padding-left:20px"><span class="ph-num">${esc(ph.num||'—')}</span> <button class="ph-act" onclick="copierLignePhase('${ph.id}',event)" title="Copier cette phase (colonnes séparées par des tabulations, prêt à coller dans Planning Production ou un tableur)" style="border:1px solid var(--border);background:var(--surface);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer;margin-left:4px;user-select:none">📋</button><button class="ph-act" onclick="jumperVersPhase('${ph.id}')" title="Voir cette phase dans la vue par tranches" style="border:1px solid var(--border);background:var(--surface);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer;margin-left:3px;user-select:none">↗</button></td>
@@ -3502,6 +3502,32 @@ function ofsProdDeTranche(tr){
   });
 }
 
+
+// Date « Sortie prod » d'une phase : fin des OF (lignes du Planning Production) qui contiennent cette phase ; à défaut, de la tranche entière.
+// Retourne {date, titre} : le titre (survol) dit d'où vient la date : n° de ligne du planning, atelier, statut, autres OF de la tranche.
+function sortieProdDetail(tr, ph){
+  const today = new Date().toISOString().slice(0,10);
+  const iso = d => /^\d{4}-\d{2}-\d{2}/.test(String(d||'')) ? String(d).slice(0,10) : '';
+  const tous = ofsProdDeTranche(tr).filter(o=>!o.expire_le || o.expire_le>=today);
+  let cand = tous, parPhase = false;
+  if(ph && ph.num){
+    const normTag = x => String(x||'').toUpperCase().replace(/\s+/g,'');
+    const cible = normTag(ph.num);
+    const dePhase = tous.filter(o=>String(o.phases||'').split(',').map(normTag).includes(cible));
+    if(dePhase.length){ cand = dePhase; parPhase = true; }
+  }
+  const datees = cand.filter(o=>iso(o.date_fin_prod)).sort((a,b)=>iso(a.date_fin_prod)<iso(b.date_fin_prod)?1:-1);
+  if(!datees.length) return {date:'', titre:''};
+  const date = iso(datees[0].date_fin_prod);
+  const fmtOf = o => 'ligne '+(o.of_id||'?')+' · atelier '+(o.atelier||'?')+' · '+(o.statut==='termine'?'terminé':'en cours')+' · fin '+fmtDate(iso(o.date_fin_prod))+(o.phases?' · phases '+o.phases:'');
+  const gagnants = datees.filter(o=>iso(o.date_fin_prod)===date);
+  let t = 'Date de fin de production lue dans le Planning Production (colonne date_fin_prod = fin de la barre de la ligne, pas le CTVX ni la date reprojetée).\n'
+        + (parPhase ? 'Ligne(s) contenant cette phase :\n' : 'Aucune ligne ne cite cette phase → fin la plus tardive de la tranche :\n')
+        + gagnants.map(o=>'• '+fmtOf(o)).join('\n');
+  const autres = tous.filter(o=>!gagnants.includes(o));
+  if(autres.length) t += '\nAutres lignes de la tranche :\n' + autres.slice(0,6).map(o=>'• '+fmtOf(o)).join('\n');
+  return {date, titre:t};
+}
 
 // Atelier qui réalise la DERNIÈRE opération d'une tranche (ou d'une phase si des OF lui sont rattachés) :
 //  - tranche sans assemblage ni équipement (DATES : besoin atelier/taillage coché) → « Usinage » ;
@@ -9066,7 +9092,7 @@ async function loadSuiviProd() {
     });
     const r = await res.json();
     if(r.ok) {
-      state.suivi_prod = r.articles||[];
+      state.suivi_prod = r.articles||[]; _retirerOrphelinsSuivi();
       autoTerminerTranchesUsinageSeul();
     }
   } catch(e) { console.warn('loadSuiviProd:', e.message); }
@@ -10566,7 +10592,9 @@ async function chargerDatesPlanning(maxAge){
             if(pl.fin && o.date_fin_prod!==pl.fin){ o.date_fin_prod=pl.fin; nb++; }
             if(pl.deb && o.date_debut!==pl.deb){ o.date_debut=pl.deb; nb++; }
           });
-          if(nb){ _evt('dates OF alignées sur le Planning Production ('+nb+' valeur(s))'); _redessinerApresPlanning(); }
+          state._datesPlan.ofIds = new Set(parOf.keys());
+          const nOrph = _retirerOrphelinsSuivi();
+          if(nb || nOrph){ _evt('dates OF alignées sur le Planning Production ('+nb+' valeur(s))'+(nOrph?' ; '+nOrph+' ligne(s) de suivi sans ligne de planning ignorée(s)':'')); _redessinerApresPlanning(); }
         }catch(e){ console.warn('alignement dates OF :', e.message); }
       }
     }catch(e){ console.warn('dates planning (suivi production) :', e.message); }
@@ -10584,6 +10612,20 @@ async function actualiserDatesPlanning(e){
   toast(p ? '↻ Dates actualisées depuis le Planning Production' : '⚠ Planning Production injoignable');
 }
 // Redessine les écrans après alignement des dates sur le planning (sans toucher à une saisie en cours)
+// Le Planning Production est la SEULE source des OF : une ligne de ERP_Suivi_Production dont l'identifiant (of_id) n'existe plus dans le planning
+// (ligne supprimée, ou ligne ancienne sans of_id) est un reste périmé. Elle faussait « Sortie prod » et « Dernière op. » (ex. fin au 22/06/2027
+// sur une tranche absente du planning). Elle est ignorée dès que le planning a été lu ; la liste reste dans state._orphelinsSuivi.
+function _retirerOrphelinsSuivi(){
+  const ids = state._datesPlan && state._datesPlan.ofIds;
+  if(!ids || !ids.size || !Array.isArray(state.suivi_prod)) return 0;
+  const garde=[], orph=[];
+  state.suivi_prod.forEach(o=>{ const id=String(o.of_id||'').trim(); (id && ids.has(id)) ? garde.push(o) : orph.push(o); });
+  state._orphelinsSuivi = orph;
+  if(!orph.length) return 0;
+  state.suivi_prod = garde;
+  console.warn('Lignes de suivi sans ligne de planning ignorées :', orph.map(o=>(o.of_id||'(sans of_id)')+' · '+(o.tranche||'')+' · '+(o.atelier||'')+' · fin '+(o.date_fin_prod||'')));
+  return orph.length;
+}
 function _redessinerApresPlanning(){
   if(document.querySelector('.modal-bg.show') || _champEnSaisie()){ window.__rerenderPlan=true; return; }
   window.__rerenderPlan=false;
