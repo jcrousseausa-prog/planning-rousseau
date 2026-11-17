@@ -278,7 +278,14 @@ table.bl-lignes td.r{text-align:right}
 .gate-form input:focus{outline:none;border-color:var(--blue)}
 .gate-form .gate-err{display:none;color:var(--red);font-size:12px;margin-top:10px}
 .gate-box{min-width:340px}
-body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit"]{display:none!important}
+body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit"],body.ro .rw{display:none!important}
+.tab-badge{display:inline-block;min-width:18px;padding:0 6px;margin-left:6px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}
+.tab-badge.orange{background:var(--orange)}
+.reap-note{font-size:11px;color:var(--text3);margin:-4px 0 12px}
+.reap-prev{border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-top:18px}
+.reap-prev>summary{cursor:pointer;padding:12px 16px;font-weight:700;font-size:13px}
+.reap-prev-body{padding:0 16px 16px}
+.reap-detail td{background:var(--surface2);font-size:12px}
 </style>
 </head>
 <body>
@@ -317,6 +324,7 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
   <button class="app-tab" id="tab-receptions" onclick="showTab('receptions')">🚚 Réceptions</button>
   <button class="app-tab" id="tab-stock" onclick="showTab('stock')">📦 Stock</button>
   <button class="app-tab" id="tab-articles" onclick="showTab('articles')">🗂️ Base articles</button>
+  <button class="app-tab" id="tab-reappro" onclick="showTab('reappro')">🔔 Réappro<span class="tab-badge" id="reap-badge" style="display:none"></span></button>
 </div>
 <main>
 <!-- ══ COMMANDES FOURNISSEUR (= tableau ACHATS, lecture seule) ══ -->
@@ -459,6 +467,7 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
       <option value="tmp">Articles temporaires (projet)</option>
     </select>
     <button class="btn" onclick="openEmplacements()">📍 Emplacements</button>
+    <button class="btn rw" onclick="openImportStockERP()" title="Copie dans cette page le stock saisi dans l'ERP (onglet Stock)">⬇ Reprendre le stock de l'ERP</button>
     <button class="btn" onclick="openNewTransfert()">🔄 Transfert interne</button>
     <button class="btn btn-primary" onclick="openNewStock()">+ Entrée stock</button>
   </div>
@@ -492,6 +501,40 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
   <p id="art-note-std" style="font-size:11px;color:var(--text3);margin:-4px 0 12px">Fiches de référence pour les articles suivis en stock : seuil de réappro, fournisseur habituel, historique. Un article hors gestion de stock n'a pas besoin de fiche ici.</p>
   <div class="metrics" id="article-metrics" style="margin-bottom:12px"></div>
   <div id="article-list"></div>
+</div>
+<div class="screen" id="screen-reappro">
+  <div class="toolbar no-print">
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);white-space:nowrap">Horizon
+      <select class="btn" id="reap-horizon" onchange="renderReappro()">
+        <option value="30">30 jours</option><option value="60">60 jours</option><option value="90" selected>90 jours</option><option value="180">180 jours</option>
+      </select>
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);white-space:nowrap;cursor:pointer">
+      <input type="checkbox" id="reap-masquer-couverts" onchange="renderReappro()"/> Masquer les articles déjà commandés
+    </label>
+    <button class="btn" onclick="exporterReappro('csv')">⬇ Exporter (CSV)</button>
+    <button class="btn" onclick="exporterReappro('copie')">📋 Copier</button>
+  </div>
+  <p class="reap-note">Le système propose une commande dès qu'un article atteint son <b>stock mini</b> (stock + quantités déjà commandées). Avec un prévisionnel de consommation, il projette le stock jour par jour, signale la <b>rupture prévue</b> et la <b>date limite de commande</b> (date de rupture − délai d'appro). Les paramètres (mini, maxi, quantité de réappro, délai) se règlent sur la fiche de chaque article.</p>
+  <div class="metrics" id="reap-metrics" style="margin-bottom:12px"></div>
+  <div id="reap-list"></div>
+  <details class="reap-prev" id="reap-prev-box">
+    <summary>📈 Prévisionnel de consommation <span id="reap-prev-resume" style="font-weight:400;color:var(--text3);font-size:12px"></span></summary>
+    <div class="reap-prev-body">
+      <div class="toolbar rw" style="margin:8px 0 12px">
+        <button class="btn btn-primary rw" onclick="openImportPrev()">📥 Importer (copier-coller depuis Excel)</button>
+        <button class="btn btn-red rw" onclick="supprimerToutPrev()">Tout supprimer</button>
+      </div>
+      <div class="rw" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+        <div class="field" style="margin:0;flex:2;min-width:200px"><label>Article</label><input type="text" id="pv-art" list="pv-art-list" placeholder="Désignation de l'article"/><datalist id="pv-art-list"></datalist></div>
+        <div class="field" style="margin:0"><label>Date</label><input type="date" id="pv-date"/></div>
+        <div class="field" style="margin:0;width:110px"><label>Quantité</label><input type="number" step="0.01" min="0" id="pv-qte"/></div>
+        <div class="field" style="margin:0;flex:1;min-width:140px"><label>Projet</label><input type="text" id="pv-projet"/></div>
+        <button class="btn btn-primary rw" onclick="ajouterPrevManuel()">+ Ajouter</button>
+      </div>
+      <div id="reap-prev-list"></div>
+    </div>
+  </details>
 </div>
 </main>
 <div id="toast"></div>
@@ -665,14 +708,64 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
       <select id="ma-emplacement"><option value="">— Non défini —</option></select>
     </div>
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin:14px 0 8px">Réapprovisionnement</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-      <div class="field"><label>Quantité mini</label><input type="number" step="0.01" min="0" id="ma-seuil" placeholder="avant réappro"/></div>
-      <div class="field"><label>Délai d'appro (j)</label><input type="number" step="1" min="0" id="ma-delai"/></div>
-      <div class="field"><label>Qté de réappro</label><input type="number" step="0.01" min="0" id="ma-qte-reappro"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label>Stock mini (déclenche la proposition)</label><input type="number" step="0.01" min="0" id="ma-seuil" placeholder="ex. 100"/></div>
+      <div class="field"><label>Stock maxi</label><input type="number" step="0.01" min="0" id="ma-seuil-maxi" placeholder="ex. 500"/></div>
+      <div class="field"><label>Quantité de réappro standard</label><input type="number" step="0.01" min="0" id="ma-qte-reappro" placeholder="lot / conditionnement"/></div>
+      <div class="field"><label>Délai d'approvisionnement (jours)</label><input type="number" step="1" min="0" id="ma-delai"/></div>
     </div>
+    <div style="font-size:11px;color:var(--text3);margin:-4px 0 8px">Quantité proposée = multiple de la quantité de réappro standard permettant de remonter vers le maxi (ou mini + 1 lot si pas de maxi).</div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-article')">Annuler</button>
       <button class="btn btn-primary" onclick="saveArticle()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+<!-- ══ MODAL REPRISE DU STOCK ERP ══ -->
+<div class="modal-bg" id="modal-erpstock">
+  <div class="modal" style="width:680px;max-width:98vw">
+    <h2>Reprendre le stock de l'ERP</h2>
+    <p style="font-size:12px;color:var(--text2);margin:0 0 10px">Copie les lignes « en stock » de l'onglet Stock de l'ERP dans le stock de cette page. Le stock de l'ERP n'est <b>ni modifié ni supprimé</b>. Les lignes déjà reprises ne sont jamais reprises deux fois. Ensuite, le stock des matières se gère ici (les réceptions l'incrémentent).</p>
+    <div style="display:flex;gap:16px;margin-bottom:10px;font-size:13px">
+      <label style="cursor:pointer"><input type="checkbox" id="ie-mp" checked onchange="apercuImportStockERP()"/> Matières premières (MP)</label>
+      <label style="cursor:pointer"><input type="checkbox" id="ie-pf" onchange="apercuImportStockERP()"/> Produits finis (PF)</label>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="ie-creer-art" checked/> Créer la fiche article standard des désignations qui n'en ont pas (mini, maxi, délai à compléter ensuite)</label>
+    <div id="ie-apercu" style="font-size:12px;color:var(--text2);margin-bottom:8px"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-erpstock')">Annuler</button>
+      <button class="btn btn-primary" id="ie-valider" onclick="validerImportStockERP()">Reprendre</button>
+    </div>
+  </div>
+</div>
+<!-- ══ MODAL IMPORT PRÉVISIONNEL DE CONSOMMATION ══ -->
+<div class="modal-bg" id="modal-prev">
+  <div class="modal" style="width:720px;max-width:98vw">
+    <h2>Importer le prévisionnel de consommation</h2>
+    <p style="font-size:12px;color:var(--text2);margin:0 0 10px">Copiez les colonnes depuis Excel et collez-les ci-dessous. Ordre des colonnes : <b>Désignation · Date · Quantité · Projet</b> (le projet est facultatif). Dates acceptées : 25/12/2026 ou 2026-12-25. La première ligne d'en-têtes est ignorée automatiquement.</p>
+    <textarea id="mp-texte" oninput="apercuImportPrev()" style="width:100%;min-height:200px;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;resize:vertical" placeholder="Câble 3G2.5&#9;15/01/2027&#9;250&#9;Chantier A"></textarea>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:10px 0;cursor:pointer"><input type="checkbox" id="mp-remplacer"/> Remplacer tout le prévisionnel existant (sinon les lignes sont ajoutées)</label>
+    <div id="mp-apercu" style="font-size:12px;color:var(--text2);margin-bottom:8px"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-prev')">Annuler</button>
+      <button class="btn btn-primary" onclick="validerImportPrev()">Importer</button>
+    </div>
+  </div>
+</div>
+<!-- ══ MODAL CORRECTION DE STOCK ══ -->
+<div class="modal-bg" id="modal-correction">
+  <div class="modal" style="width:480px;max-width:98vw">
+    <h2>Corriger le stock — <span id="mco-designation"></span></h2>
+    <div class="field"><label>Emplacement</label><select id="mco-emplacement" onchange="majCorrection()"></select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label>Stock actuel (système)</label><input type="text" id="mco-avant" disabled/></div>
+      <div class="field"><label>Quantité réelle constatée *</label><input type="number" step="0.01" min="0" id="mco-apres" oninput="majCorrection()"/></div>
+    </div>
+    <div id="mco-ecart" style="font-size:13px;font-weight:600;margin:-4px 0 10px"></div>
+    <div class="field"><label>Commentaire * (motif de la correction)</label><textarea id="mco-commentaire" style="min-height:60px;resize:vertical;width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px" placeholder="ex. inventaire du 18/11, erreur de saisie à la réception BR-2026-012…"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-correction')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCorrection()">Enregistrer la correction</button>
     </div>
   </div>
 </div>
@@ -916,6 +1009,8 @@ let state = {
   emplacements_defaut: [], // { designation, emplacementId } — emplacement mémorisé par article, proposé automatiquement à la réception
   articles: [],       // { id, designation, unite, fournisseur_id, fournisseur_nom, seuil_mini, delai_appro_jours, qte_reappro } — fiches des articles suivis en stock
   rebuts: [],          // { id, date, designation, quantite, emplacementId, motif, created_at } — mises au rebut (traçabilité)
+  corrections_stock: [], // { id, date, designation, articleId, emplacementId, avant, apres, ecart, commentaire, par, created_at } — corrections de stock (inventaire)
+  previsions_conso: [], // { id, articleId, designation, date (AAAA-MM-JJ), quantite, projet } — prévisionnel de consommation (besoins datés)
   cf: { colonnes: [], lignes: [], maj: '', onglet: '', erreur: '' }, // tableau ACHATS (Google Sheet), lecture seule
 };
 let _ctx = {};
@@ -948,6 +1043,7 @@ async function init() {
   renderStock();
   renderArticles();
   renderMetrics();
+  renderReappro();
   setSyncPill('ok','Synchronisé');
   document.getElementById('rt-label').textContent = 'Connecté';
 }
@@ -976,6 +1072,8 @@ async function loadData() {
       state.emplacements_defaut = r.emplacements_defaut || [];
       state.articles      = r.articles     || [];
       state.rebuts         = r.rebuts       || [];
+      state.previsions_conso = r.previsions_conso || [];
+      state.corrections_stock = r.corrections_stock || [];
       state._chargeOk = true;   // les données ont bien été lues : l'enregistrement est autorisé
     }
   } catch(e) { console.warn('loadData:', e); }
@@ -990,13 +1088,14 @@ async function saveData() {
         commandes:state.commandes,fournisseurs:state.fournisseursInternes,stock_mp:state.stock_mp,
         emplacements:state.emplacements,receptions:state.receptions,transferts:state.transferts,
         emplacements_defaut:state.emplacements_defaut,
-        articles:state.articles,rebuts:state.rebuts
+        articles:state.articles,rebuts:state.rebuts,previsions_conso:state.previsions_conso,corrections_stock:state.corrections_stock
       }})
     });
     const r = await res.json();
     if (r.ok) setSyncPill('ok','Enregistré '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
     else throw new Error(r.error);
   } catch(e) { setSyncPill('error','Erreur'); console.warn(e); }
+  try { renderReappro(); } catch(e) { console.warn('renderReappro:', e); }
 }
 // ═══ HELPERS ══════════════════════════════════════════════════════════════
 function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
@@ -1016,6 +1115,7 @@ function showTab(id) {
   document.querySelectorAll('.app-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('screen-'+id).classList.add('active');
   document.getElementById('tab-'+id).classList.add('active');
+  if (id==='reappro') { try { renderReappro(); } catch(e) { console.warn(e); } }
 }
 // ═══ COMMANDES FOURNISSEUR — tableau ACHATS (Google Sheet), lecture seule ════
 // Colonnes et lignes viennent du serveur (action getCommandesFournisseur) ; la colonne « % pose » n'est jamais envoyée.
@@ -2692,7 +2792,7 @@ function historiqueReceptionsArticle(designation) {
 function openNewArticle() {
   _ctx = {type:'new-article'};
   document.getElementById('ma-title').textContent = 'Nouvel article';
-  ['ma-designation','ma-unite','ma-seuil','ma-delai','ma-qte-reappro'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['ma-designation','ma-unite','ma-seuil','ma-seuil-maxi','ma-delai','ma-qte-reappro'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('ma-fourn').value = '';
   populateEmplacementSelects(['ma-emplacement']);
   document.getElementById('ma-emplacement').value = '';
@@ -2707,6 +2807,7 @@ function openEditArticle(id) {
   document.getElementById('ma-unite').value = a.unite||'';
   document.getElementById('ma-fourn').value = a.fournisseur_id||'';
   document.getElementById('ma-seuil').value = a.seuil_mini||'';
+  document.getElementById('ma-seuil-maxi').value = a.seuil_maxi||'';
   document.getElementById('ma-delai').value = a.delai_appro_jours||'';
   document.getElementById('ma-qte-reappro').value = a.qte_reappro||'';
   populateEmplacementSelects(['ma-emplacement']);
@@ -2719,12 +2820,15 @@ function saveArticle() {
   document.getElementById('ma-designation').style.borderColor='';
   const fournId = document.getElementById('ma-fourn').value;
   const fourn = state.fournisseurs.find(f=>f.id===fournId);
+  { const mi=parseFloat(document.getElementById('ma-seuil').value)||0, ma=parseFloat(document.getElementById('ma-seuil-maxi').value)||0;
+    if (ma>0 && mi>ma) { alert('Le stock maxi doit être supérieur ou égal au stock mini.'); return; } }
   const ancien = _ctx.type==='edit-article' ? state.articles.find(x=>x.id===_ctx.id) : null;
   const article = {
     id: _ctx.type==='edit-article' ? _ctx.id : uid(),
     designation, type: 'standard', unite: document.getElementById('ma-unite').value.trim(),
     fournisseur_id: fournId, fournisseur_nom: fourn?.nom||'',
     seuil_mini: parseFloat(document.getElementById('ma-seuil').value)||0,
+    seuil_maxi: parseFloat(document.getElementById('ma-seuil-maxi').value)||0,
     delai_appro_jours: parseInt(document.getElementById('ma-delai').value)||0,
     qte_reappro: parseFloat(document.getElementById('ma-qte-reappro').value)||0,
     open: ancien?.open||false,
@@ -2748,11 +2852,11 @@ function deleteArticle(id) {
 }
 function toggleArticle(id) { const a=state.articles.find(x=>x.id===id); if(a){ a.open=!a.open; renderArticles(); } }
 function renderArticleMetrics() {
-  const sousSeuil = articlesStandards().filter(a=>a.seuil_mini>0 && stockActuelArticle(a.designation).total < a.seuil_mini).length;
+  const sousSeuil = articlesStandards().filter(a=>a.seuil_mini>0 && stockActuelArticle(a.designation).total <= a.seuil_mini).length;
   document.getElementById('article-metrics').innerHTML = `
     <div class="metric"><div class="metric-k">Articles standards</div><div class="metric-v">${articlesStandards().length}</div></div>
     <div class="metric"><div class="metric-k">Articles temporaires</div><div class="metric-v">${articlesTemporaires().length}</div></div>
-    <div class="metric"><div class="metric-k">Sous le seuil mini</div><div class="metric-v${sousSeuil>0?' warn':' ok'}">${sousSeuil}</div></div>`;
+    <div class="metric"><div class="metric-k">Au mini ou sous le mini</div><div class="metric-v${sousSeuil>0?' warn':' ok'}">${sousSeuil}</div></div>`;
 }
 // Tri du tableau récap articles (colonnes cliquables, comme demandé :
 // désignation, stock, emplacement, fournisseur...). Un second clic sur la
@@ -2827,10 +2931,11 @@ function renderArticles() {
   // Données dérivées calculées une fois par article — utilisées à la fois
   // pour l'affichage et pour le tri (désignation, stock, emplacement,
   // fournisseur, PMP, seuil).
+  const reapMap = reapParArticle();
   let lignes = articles.map(a => {
     const stock = stockActuelArticle(a.designation);
     const pmp = pmpArticle(a.designation);
-    const sousSeuil = a.seuil_mini>0 && stock.total < a.seuil_mini;
+    const sousSeuil = a.seuil_mini>0 && stock.total <= a.seuil_mini;
     const emplacements = Object.entries(stock.parEmplacement)
       .filter(([id,qte])=>id && qte>0.001)
       .sort((x,y)=>y[1]-x[1]);
@@ -2861,13 +2966,14 @@ function renderArticles() {
     fournisseur: (x,y)=>(x.a.fournisseur_nom||'').localeCompare(y.a.fournisseur_nom||''),
     pmp: (x,y)=>(x.pmp==null?-1:x.pmp)-(y.pmp==null?-1:y.pmp),
     seuil: (x,y)=>(x.a.seuil_mini||0)-(y.a.seuil_mini||0),
+    maxi: (x,y)=>(x.a.seuil_maxi||0)-(y.a.seuil_maxi||0),
   };
   const sens = triArticles.sens;
   lignes.sort((x,y)=>(comparateurs[triArticles.col]||comparateurs.designation)(x,y)*sens);
 
   const colonnes = [
     ['designation','Désignation'], ['stock','Stock'], ['emplacement','Emplacement'],
-    ['fournisseur','Fournisseur'], ['pmp','PMP'], ['seuil','Seuil mini'],
+    ['fournisseur','Fournisseur'], ['pmp','PMP'], ['seuil','Mini'], ['maxi','Maxi'],
   ];
   const theadHtml = `<tr>
     <th></th>
@@ -2877,33 +2983,41 @@ function renderArticles() {
 
   const corpsHtml = lignes.map(({a, stock, pmp, sousSeuil, emplacementLabel, parDefaut}) => {
     const defautId = getEmplacementDefaut(a.designation);
-    const cdes = historiqueCommandesArticle(a.designation);
+    const cdes = historiqueAchatsArticle(a.designation);
+    const rp = reapMap.get(a.id)||null;
+    const corrs = historiqueCorrectionsArticle(a);
     const recs = historiqueReceptionsArticle(a.designation);
     const ligneResume = `<tr class="clickable" onclick="toggleArticle('${a.id}')">
       <td><span class="chevron${a.open?' open':''}">▶</span></td>
       <td style="font-weight:700">${esc(a.designation)}${a.unite?` <span class="badge badge-gray">${esc(a.unite)}</span>`:''}</td>
-      <td><span class="badge ${sousSeuil?'badge-red':'badge-green'}">${fmtQte(stock.total)}</span>${sousSeuil?` <span class="badge badge-red">⚠ seuil ${fmtQte(a.seuil_mini)}</span>`:''}</td>
+      <td><span class="badge ${sousSeuil?'badge-red':'badge-green'}">${fmtQte(stock.total)}</span>${sousSeuil?` <span class="badge badge-red">⚠ mini ${fmtQte(a.seuil_mini)}</span>`:''}${a.seuil_maxi>0&&stock.total>a.seuil_maxi+0.001?' <span class="badge badge-blue">&gt; maxi</span>':''}</td>
       <td>${emplacementLabel==='Non localisé'?'<span style="color:var(--text3)">Non localisé</span>':(parDefaut?`<span style="color:var(--orange);font-style:italic">${esc(emplacementLabel)}</span>`:esc(emplacementLabel))}</td>
       <td>${esc(a.fournisseur_nom||'—')}</td>
       <td>${pmp!=null?fmtEuro(pmp):'—'}</td>
       <td>${a.seuil_mini?fmtQte(a.seuil_mini):'—'}</td>
+      <td>${a.seuil_maxi?fmtQte(a.seuil_maxi):'—'}</td>
       <td onclick="event.stopPropagation()" style="display:flex;gap:5px">
         <button class="btn btn-sm" onclick="openEditArticle('${a.id}')">✎</button>
         <button class="btn btn-sm btn-red" onclick="deleteArticle('${a.id}')">✕</button>
       </td>
     </tr>`;
     if (!a.open) return ligneResume;
-    const detail = `<tr><td colspan="8" style="padding:0">
+    const detail = `<tr><td colspan="9" style="padding:0">
       <div class="fourn-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px;font-size:12px">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;font-size:12px">
           <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Fournisseur habituel</div>${esc(a.fournisseur_nom||'—')}</div>
           <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Emplacement par défaut</div>${defautId?esc(libelleEmplacement(defautId)):'—'}</div>
+          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Stock mini</div>${a.seuil_mini?fmtQte(a.seuil_mini)+' '+esc(a.unite||''):'—'}</div>
+          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Stock maxi</div>${a.seuil_maxi?fmtQte(a.seuil_maxi)+' '+esc(a.unite||''):'—'}</div>
+          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Qté de réappro standard</div>${a.qte_reappro?fmtQte(a.qte_reappro)+' '+esc(a.unite||''):'—'}</div>
           <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Délai d'appro</div>${a.delai_appro_jours?a.delai_appro_jours+' j':'—'}</div>
-          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Qté de réappro</div>${a.qte_reappro?fmtQte(a.qte_reappro)+' '+esc(a.unite||''):'—'}</div>
+          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">En commande</div>${rp&&rp.enCommande>0.0001?fmtQte(rp.enCommande)+' '+esc(a.unite||''):'—'}</div>
+          <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Réappro</div>${reapResumeArticle(rp,a)}</div>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2)">Stock par emplacement</div>
-          <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openNewStockPourArticle('${a.id}')">+ Entrée stock</button>
+          <span style="display:flex;gap:6px"><button class="btn btn-sm rw" onclick="event.stopPropagation();openCorrection('${a.id}')">± Corriger le stock</button>
+          <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openNewStockPourArticle('${a.id}')">+ Entrée stock</button></span>
         </div>
         ${Object.keys(stock.parEmplacement).length?`<div class="table-wrap" style="margin-bottom:12px">
           <table class="stock-table"><thead><tr><th>Emplacement</th><th style="text-align:right">Quantité</th><th></th></tr></thead>
@@ -2913,13 +3027,23 @@ function renderArticles() {
             <td><button class="btn btn-sm" onclick="openRebut('${a.id}')">♻️ Rebut</button></td>
           </tr>`).join('')}</tbody></table>
         </div>`:`<div style="font-size:12px;color:var(--text3);margin-bottom:12px">Aucun stock actuellement.</div>`}
-        ${cdes.length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Historique commandes</div>
+        ${cdes.length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Historique des achats <span style="font-weight:400;text-transform:none;color:var(--text3)">(${cdes.length} ligne${cdes.length>1?'s':''}${cdes.length>15?', 15 dernières affichées':''} — commandes ERP et tableau ACHATS)</span></div>
         <div class="table-wrap" style="margin-bottom:12px">
-          <table class="stock-table"><thead><tr><th>Commande</th><th>Date</th><th>Fournisseur</th><th>Statut</th><th style="text-align:right">Qté cdée</th><th style="text-align:right">Qté reçue</th></tr></thead>
-          <tbody>${cdes.slice(0,10).map(c=>`<tr>
-            <td>${esc(c.cdeNum||'—')}</td><td>${fmtDate(c.date)}</td><td>${esc(c.fournNom||'—')}</td>
-            <td><span class="badge ${STATUS_COLORS[c.statut]||'badge-gray'}">${esc(c.statut||'—')}</span></td>
-            <td class="r">${fmtQte(c.qte)}</td><td class="r">${fmtQte(c.recue)}</td>
+          <table class="stock-table"><thead><tr><th>Commande</th><th>Date</th><th>Fournisseur</th><th>Chantier</th><th>Statut</th><th style="text-align:right">Qté cdée</th><th style="text-align:right">Qté reçue</th><th style="text-align:right">Montant</th></tr></thead>
+          <tbody>${cdes.slice(0,15).map(c=>`<tr>
+            <td>${esc(c.cdeNum||'—')}</td><td>${fmtDate(c.date)}</td><td>${esc(c.fournNom||'—')}</td><td>${esc(c.chantier||'—')}</td>
+            <td>${c.source==='ACHATS'?(cfBadgeStatut(c.statut)||'—'):`<span class="badge ${STATUS_COLORS[c.statut]||'badge-gray'}">${esc(c.statut||'—')}</span>`}</td>
+            <td class="r">${fmtQte(c.qte)}</td><td class="r">${c.recue==null?'—':fmtQte(c.recue)}</td><td class="r">${c.montant?fmtEuro(c.montant):'—'}</td>
+          </tr>`).join('')}</tbody></table>
+        </div>`:''}
+        ${corrs.length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Corrections de stock</div>
+        <div class="table-wrap" style="margin-bottom:12px">
+          <table class="stock-table"><thead><tr><th>Date</th><th>Emplacement</th><th style="text-align:right">Avant</th><th style="text-align:right">Après</th><th style="text-align:right">Écart</th><th>Commentaire</th><th>Par</th></tr></thead>
+          <tbody>${corrs.slice(0,15).map(c=>`<tr>
+            <td>${fmtDate(c.date)}</td><td>${c.emplacementId?esc(libelleEmplacement(c.emplacementId)):'Non localisé'}</td>
+            <td class="r">${fmtQte(c.avant)}</td><td class="r">${fmtQte(c.apres)}</td>
+            <td class="r" style="color:${c.ecart<0?'var(--red)':'var(--green)'};font-weight:600">${c.ecart>0?'+':''}${fmtQte(c.ecart)}</td>
+            <td>${esc(c.commentaire)}</td><td>${esc(c.par||'')}</td>
           </tr>`).join('')}</tbody></table>
         </div>`:''}
         ${recs.length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Historique réceptions</div>
@@ -2938,6 +3062,454 @@ function renderArticles() {
   document.getElementById('article-list').innerHTML = `<div class="table-wrap">
     <table class="stock-table"><thead>${theadHtml}</thead><tbody>${corpsHtml}</tbody></table>
   </div>`;
+}
+// ═══ RÉAPPROVISIONNEMENT & PRÉVISIONNEL DE CONSOMMATION ═══════════════════
+// Principe :
+//  • Position de stock (PS) = stock physique + quantités déjà commandées (reliquats ERP + lignes « commandées » du tableau ACHATS) − consommations prévues.
+//  • Une proposition de commande apparaît dès que PS ≤ stock mini (articles sans prévisionnel : dès aujourd'hui si stock + commandes ≤ mini).
+//  • Avec un prévisionnel : le stock PHYSIQUE est projeté jour par jour (arrivées datées − consommations) ; le 1er jour où il passe sous 0 = rupture prévue ;
+//    date limite de commande = date de rupture − délai d'appro (« en retard » si elle est déjà dépassée).
+//  • Quantité proposée = multiple de la quantité de réappro standard qui ramène la position vers le maxi (à défaut : mini + 1 lot), sans dépasser le maxi si possible.
+const REAP_EPS = 0.0001;
+function aujourdhuiLocal() { const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function addJours(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()+n); }
+function isoLocal(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function parseISO(sv) { const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(sv||'')); return m ? new Date(+m[1],+m[2]-1,+m[3]) : null; }
+function ecartJours(a, b) { return Math.round((a - b) / 86400000); }
+function fmtDateObj(d) { return d ? fmtDate(isoLocal(d)) : '—'; }
+
+// Lignes du tableau ACHATS, repérées par leurs colonnes
+function colonnesAchats() {
+  return { id: state.cf.colonnes[0]||'', des: cfCol('designation'), fo: cfCol('fournisseur'), qte: cfCol('qte'),
+    rec: cfCol('qte recue','qte_recue','recue'), st: cfCol('statut'), dispo: cfCol('dispo'), ch: cfCol('chantier'),
+    date: cfCol('date dp/com','date com','date'), devis: cfCol('€devis','devis'), fact: cfCol('€facture','facture') };
+}
+function numNumeroInterne(num) { return String(num||'').trim().toUpperCase(); }
+function numerosInternes() { const set = new Set(); state.commandes.forEach(c=>{ if ((c.lignes||[]).length) set.add(numNumeroInterne(c.num)); }); return set; }
+function ligneAchatsOuverte(statut) { const t = cfNorm(statut); if (!t) return false; if (/recu|livre|annul|solde|termin|refus|litige/.test(t)) return false; return /command|attente|cours|partiel|envoy|valid|pass/.test(t); }
+
+// Index des quantités déjà commandées, par désignation normalisée : [{date|null, qte, ref, source}]
+function indexCommandesOuvertes(today) {
+  const idx = new Map();
+  const add = (des, o) => { const k = normaliserDesignation(des); if (!k) return; if (!idx.has(k)) idx.set(k, []); idx.get(k).push(o); };
+  state.commandes.forEach(c=>{
+    if (!['Validée','Envoyée','Réception partielle'].includes(c.statut)) return;
+    const dl = parseISO(c.dliv);
+    (c.lignes||[]).forEach(l=>{
+      const rel = (Number(l.qte)||0) - (Number(l.recue)||0);
+      if (rel > REAP_EPS) add(l.desc, { date: dl && dl>=today ? dl : (dl ? today : null), qte: rel, ref: c.num||'', source: 'ERP', retard: !!(dl && dl<today) });
+    });
+  });
+  const cf = state.cf;
+  if (cf && cf.lignes.length) {
+    const C = colonnesAchats(), internes = numerosInternes();
+    cf.lignes.forEach(l=>{
+      const id = numNumeroInterne(l[C.id]);
+      if (id && internes.has(id)) return;                       // déjà suivie (et réceptionnée) dans l'ERP
+      if (!C.st || !ligneAchatsOuverte(l[C.st])) return;
+      const q = nombreDepuisTexte(l[C.qte]) - (C.rec ? nombreDepuisTexte(l[C.rec]) : 0);
+      if (q <= REAP_EPS) return;
+      const dd = C.dispo ? parseISO(l[C.dispo]) : null;
+      add(l[C.des], { date: dd && dd>=today ? dd : (dd ? today : null), qte: q, ref: String(l[C.id]||''), source: 'ACHATS', retard: !!(dd && dd<today) });
+    });
+  }
+  return idx;
+}
+// Index du prévisionnel, par id d'article
+function indexPrevisions(today) {
+  const idx = new Map();
+  state.previsions_conso.forEach(p=>{
+    const art = (p.articleId && state.articles.find(a=>a.id===p.articleId)) || trouverStandard(p.designation);
+    const d = parseISO(p.date); const q = Number(p.quantite)||0;
+    if (!art || !d || q<=0 || d<today) return;
+    if (!idx.has(art.id)) idx.set(art.id, []);
+    idx.get(art.id).push({ date: d, qte: q, projet: p.projet||'' });
+  });
+  return idx;
+}
+// Projection + proposition pour un article standard. Retourne toujours une fiche ; fiche.statut === null si rien à signaler.
+function projeterArticle(a, today, horizon, idxCde, idxPrev) {
+  const mini = Number(a.seuil_mini)||0, maxi = Number(a.seuil_maxi)||0, delai = Math.max(0, parseInt(a.delai_appro_jours)||0), qr = Number(a.qte_reappro)||0;
+  const stock0 = stockActuelArticle(a.designation).total;
+  const dflt = addJours(today, delai);
+  const arr = (idxCde.get(normaliserDesignation(a.designation))||[]).map(x=>({ date: x.date || dflt, qte: x.qte, ref: x.ref, source: x.source, retard: x.retard, estime: !x.date }));
+  const conso = idxPrev.get(a.id) || [];
+  const H = horizon + delai;
+  const cj = new Array(H+1).fill(0), aj = new Array(H+1).fill(0);
+  conso.forEach(p=>{ const d = ecartJours(p.date, today); if (d>=0 && d<=H) cj[d] += p.qte; });
+  let enCommande = 0;
+  arr.forEach(x=>{ enCommande += x.qte; const d = Math.max(0, ecartJours(x.date, today)); if (d<=H) aj[d] += x.qte; });
+  const ph = new Array(H+1), ps = new Array(H+1);
+  let cumC = 0, cumA = 0;
+  for (let d=0; d<=H; d++) { cumC += cj[d]; cumA += aj[d]; ph[d] = stock0 + cumA - cumC; ps[d] = stock0 + enCommande - cumC; }
+  const declenche = d => mini>0 ? ps[d] <= mini + REAP_EPS : ps[d] < -REAP_EPS;
+  let tMini = null, tRup = null;
+  for (let d=0; d<=horizon; d++) { if (tMini===null && declenche(d)) tMini = d; if (tRup===null && ph[d] < -REAP_EPS) tRup = d; if (tMini!==null && tRup!==null) break; }
+  const fiche = { a, stock: stock0, mini, maxi, delai, qr, enCommande, arrivees: arr.slice().sort((x,y)=>x.date-y.date), hasPrev: conso.length>0,
+    tMini, tRup, statut: null, orderByJ: null, orderBy: null, enRetard: false, qte: 0, arriveeEst: null, declencheur: '', conso };
+  const prochaine = fiche.arrivees[0] || null;
+  if (tMini===null && tRup===null) {
+    // Au (ou sous le) mini physique mais déjà couvert par une commande en cours ?
+    if (mini>0 && stock0 <= mini + REAP_EPS && enCommande > REAP_EPS) { fiche.statut = 'couvert'; fiche.declencheur = 'Déjà commandé' + (prochaine ? ' — arrivée '+fmtDateObj(prochaine.date)+(prochaine.estime?' (estimée)':'') : ''); }
+    return fiche;
+  }
+  const orderByJ = Math.min(tMini===null ? Infinity : tMini, tRup===null ? Infinity : tRup - delai);
+  fiche.orderByJ = orderByJ; fiche.orderBy = addJours(today, orderByJ); fiche.enRetard = orderByJ < 0;
+  const cd = Math.min(Math.max(orderByJ, 0) + delai, H);
+  const cible = maxi>0 ? maxi : (qr>0 ? mini+qr : (mini>0 ? mini*2 : 0));
+  const q0 = cible - ps[cd];
+  let q = 0;
+  if (q0 > REAP_EPS) {
+    if (qr > 0) {
+      let n = Math.max(1, Math.ceil(q0/qr - REAP_EPS));
+      if (maxi>0 && ps[cd] + n*qr > maxi + REAP_EPS) n = Math.max(1, Math.floor((maxi - ps[cd])/qr + REAP_EPS));
+      q = n*qr;
+    } else q = Math.ceil(q0*100)/100;
+  }
+  fiche.qte = q;
+  fiche.arriveeEst = addJours(today, Math.max(orderByJ,0) + delai);
+  if (tRup !== null) {
+    fiche.statut = 'rupture';
+    fiche.declencheur = 'Rupture prévue le ' + fmtDateObj(addJours(today, tRup));
+    if (q <= REAP_EPS && enCommande > REAP_EPS) fiche.declencheur += ' — la commande en cours arrive trop tard (relancer le fournisseur)';
+  } else if (tMini === 0) { fiche.statut = 'urgent'; fiche.declencheur = 'Stock mini atteint'; }
+  else { fiche.statut = 'prevu'; fiche.declencheur = 'Passe sous le mini le ' + fmtDateObj(addJours(today, tMini)); }
+  return fiche;
+}
+function reapCalculer(horizon) {
+  const today = aujourdhuiLocal();
+  const idxCde = indexCommandesOuvertes(today), idxPrev = indexPrevisions(today);
+  const fiches = articlesStandards().map(a=>projeterArticle(a, today, horizon, idxCde, idxPrev));
+  return { today, fiches };
+}
+const REAP_RANG = { rupture:0, urgent:1, prevu:2, couvert:3 };
+let _reapCache = null;
+function horizonReappro() { const e = document.getElementById('reap-horizon'); return e ? (parseInt(e.value)||90) : 90; }
+function reapParArticle() {
+  const r = reapCalculer(horizonReappro());
+  _reapCache = r;
+  const m = new Map(); r.fiches.forEach(f=>m.set(f.a.id, f)); return m;
+}
+function reapResumeArticle(f, a) {
+  if (!f || !f.statut) return (a.seuil_mini>0 || state.previsions_conso.length) ? '<span class="badge badge-green">OK</span>' : '<span style="color:var(--text3)">—</span>';
+  if (f.statut==='couvert') return '<span class="badge badge-blue">Déjà commandé</span>';
+  const cls = f.statut==='rupture' ? 'badge-red' : (f.statut==='urgent' ? 'badge-orange' : 'badge-blue');
+  return `<span class="badge ${cls}">${f.qte>0?'Commander '+fmtQte(f.qte)+' '+esc(a.unite||''):'À traiter'}</span> <span style="color:var(--text3)">avant le ${fmtDateObj(f.orderBy)}</span>`;
+}
+let _reapOuverts = {};
+function toggleReapDetail(id) { _reapOuverts[id] = !_reapOuverts[id]; renderReappro(); }
+function evenementsFiche(f, today, horizon) {
+  const ev = [];
+  f.arrivees.forEach(x=>{ if (ecartJours(x.date, today) <= horizon) ev.push({ date:x.date, type:'Arrivée', delta:+x.qte, info:(x.ref||'')+' ('+x.source+(x.estime?', date estimée':'')+')' }); });
+  f.conso.forEach(p=>{ if (ecartJours(p.date, today) <= horizon) ev.push({ date:p.date, type:'Consommation', delta:-p.qte, info:p.projet||'' }); });
+  ev.sort((x,y)=>x.date-y.date || y.delta-x.delta);
+  let pos = f.stock; ev.forEach(e=>{ pos += e.delta; e.pos = pos; });
+  return ev;
+}
+function renderReappro() {
+  const elList = document.getElementById('reap-list'); if (!elList) return;
+  const horizon = horizonReappro();
+  const { today, fiches } = reapCalculer(horizon);
+  _reapCache = { today, fiches };
+  const props = fiches.filter(f=>f.statut && f.statut!=='couvert');
+  const nbRupt = props.filter(f=>f.statut==='rupture').length;
+  const nbMaint = props.filter(f=>f.orderByJ<=0).length;
+  const badge = document.getElementById('reap-badge');
+  if (badge) {
+    badge.style.display = props.length ? '' : 'none'; badge.textContent = props.length;
+    badge.className = 'tab-badge' + (nbRupt ? '' : ' orange');
+  }
+  document.getElementById('reap-metrics').innerHTML = `
+    <div class="metric"><div class="metric-k">Propositions de commande</div><div class="metric-v${props.length?' warn':' ok'}">${props.length}</div></div>
+    <div class="metric"><div class="metric-k">À commander maintenant</div><div class="metric-v${nbMaint?' alert':' ok'}">${nbMaint}</div></div>
+    <div class="metric"><div class="metric-k">Ruptures prévues (${horizon} j)</div><div class="metric-v${nbRupt?' alert':' ok'}">${nbRupt}</div></div>
+    <div class="metric"><div class="metric-k">Lignes de prévisionnel</div><div class="metric-v">${state.previsions_conso.length}</div></div>`;
+  const masquer = document.getElementById('reap-masquer-couverts')?.checked;
+  let lignes = fiches.filter(f=>f.statut && !(masquer && f.statut==='couvert'));
+  lignes.sort((x,y)=>(REAP_RANG[x.statut]-REAP_RANG[y.statut]) || ((x.orderByJ??9999)-(y.orderByJ??9999)) || x.a.designation.localeCompare(y.a.designation,'fr'));
+  if (!articlesStandards().length) elList.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune fiche article. Créez vos articles standards dans « Base articles » (stock mini, maxi, quantité de réappro, délai).</div>';
+  else if (!lignes.length) {
+    const sansMini = articlesStandards().filter(a=>!(a.seuil_mini>0)).length;
+    elList.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun article à réapprovisionner sur ${horizon} jours. ✔${sansMini?`<br><span style="font-size:12px">${sansMini} article${sansMini>1?'s':''} sans stock mini : renseignez-le sur la fiche article pour être alerté.</span>`:''}</div>`;
+  } else {
+    const badgeStatut = f => f.statut==='rupture' ? '<span class="badge badge-red">Rupture</span>' : f.statut==='urgent' ? '<span class="badge badge-orange">Au mini</span>' : f.statut==='prevu' ? '<span class="badge badge-blue">À prévoir</span>' : '<span class="badge badge-gray">Commandé</span>';
+    const corps = lignes.map(f=>{
+      const a = f.a, u = esc(a.unite||'');
+      const ouvert = !!_reapOuverts[a.id];
+      const prochaine = f.arrivees[0];
+      let cmd = '—';
+      if (f.enCommande > REAP_EPS) cmd = fmtQte(f.enCommande)+' '+u+(prochaine?`<div style="font-size:10px;color:var(--text3)">${esc(prochaine.ref||'')} · ${fmtDateObj(prochaine.date)}${prochaine.estime?' (est.)':''}</div>`:'');
+      const avant = f.statut==='couvert' ? '—' : `<span style="${f.enRetard?'color:var(--red);font-weight:700':'font-weight:600'}">${f.orderByJ<=0?'Maintenant':fmtDateObj(f.orderBy)}</span>${f.enRetard?'<div style="font-size:10px;color:var(--red)">en retard de '+(-f.orderByJ)+' j</div>':''}`;
+      const qte = f.statut==='couvert' ? '—' : (f.qte>0 ? `<b>${fmtQte(f.qte)}</b> ${u}${f.arriveeEst?`<div style="font-size:10px;color:var(--text3)">arrivée vers le ${fmtDateObj(f.arriveeEst)}</div>`:''}` : '<span style="color:var(--text3)">à définir</span>');
+      let detail = '';
+      if (ouvert) {
+        const ev = evenementsFiche(f, today, horizon);
+        detail = `<tr class="reap-detail"><td colspan="10"><div style="padding:6px 8px">
+          <div style="margin-bottom:6px;color:var(--text2)">Stock physique actuel : <b>${fmtQte(f.stock)} ${u}</b> · ${f.hasPrev?'prévisionnel pris en compte':'<i>aucun prévisionnel pour cet article : déclenchement sur le seul stock mini</i>'}${a.qte_reappro?'':' · <span style="color:var(--orange)">pas de quantité de réappro standard sur la fiche</span>'}${a.delai_appro_jours?'':' · <span style="color:var(--orange)">pas de délai d’appro sur la fiche</span>'}</div>
+          ${ev.length?`<table class="stock-table"><thead><tr><th>Date</th><th>Mouvement</th><th>Détail</th><th style="text-align:right">Quantité</th><th style="text-align:right">Stock après</th></tr></thead><tbody>${ev.slice(0,20).map(e=>`<tr><td>${fmtDateObj(e.date)}</td><td>${e.type}</td><td>${esc(e.info)}</td><td class="r" style="color:${e.delta<0?'var(--red)':'var(--green)'}">${e.delta>0?'+':''}${fmtQte(e.delta)}</td><td class="r" style="${e.pos<0?'color:var(--red);font-weight:700':''}">${fmtQte(e.pos)}</td></tr>`).join('')}</tbody></table>${ev.length>20?'<div style="color:var(--text3);margin-top:4px">… '+(ev.length-20)+' autres mouvements</div>':''}`:'<div style="color:var(--text3)">Aucun mouvement prévu sur la période.</div>'}
+        </div></td></tr>`;
+      }
+      return `<tr class="clickable" onclick="toggleReapDetail('${a.id}')">
+        <td>${badgeStatut(f)}</td>
+        <td style="font-weight:700">${esc(a.designation)}${a.unite?` <span class="badge badge-gray">${u}</span>`:''}<div style="font-size:11px;font-weight:400;color:var(--text2)">${esc(f.declencheur)}</div></td>
+        <td class="r"><b>${fmtQte(f.stock)}</b></td>
+        <td class="r">${f.mini?fmtQte(f.mini):'—'} / ${f.maxi?fmtQte(f.maxi):'—'}</td>
+        <td class="r">${cmd}</td>
+        <td class="r">${f.delai?f.delai+' j':'—'}</td>
+        <td>${avant}</td>
+        <td class="r">${qte}</td>
+        <td>${esc(a.fournisseur_nom||'—')}</td>
+        <td><span class="chevron${ouvert?' open':''}">▶</span></td>
+      </tr>${detail}`;
+    }).join('');
+    elList.innerHTML = `<div class="table-wrap"><table class="stock-table"><thead><tr><th>Statut</th><th>Article</th><th style="text-align:right">Stock</th><th style="text-align:right">Mini / Maxi</th><th style="text-align:right">En commande</th><th style="text-align:right">Délai</th><th>Commander avant le</th><th style="text-align:right">Qté proposée</th><th>Fournisseur</th><th></th></tr></thead><tbody>${corps}</tbody></table></div>`;
+  }
+  renderPrevisionnelConso();
+}
+// ── Export des propositions ──
+function reapLignesExport() {
+  const r = _reapCache || reapCalculer(horizonReappro());
+  return r.fiches.filter(f=>f.statut && f.statut!=='couvert').sort((x,y)=>(REAP_RANG[x.statut]-REAP_RANG[y.statut])||(x.orderByJ-y.orderByJ)).map(f=>({
+    statut: f.statut==='rupture'?'Rupture':f.statut==='urgent'?'Au mini':'À prévoir', article: f.a.designation, unite: f.a.unite||'', stock: f.stock, mini: f.mini||'', maxi: f.maxi||'',
+    enCommande: f.enCommande||'', delai: f.delai||'', declencheur: f.declencheur, avant: f.orderByJ<=0 ? 'Maintenant' : fmtDateObj(f.orderBy), qte: f.qte||'', fournisseur: f.a.fournisseur_nom||'' }));
+}
+function exporterReappro(mode) {
+  const L = reapLignesExport();
+  if (!L.length) { toast('Aucune proposition à exporter'); return; }
+  const cols = [['statut','Statut'],['article','Article'],['unite','Unité'],['stock','Stock'],['mini','Mini'],['maxi','Maxi'],['enCommande','En commande'],['delai','Délai (j)'],['declencheur','Déclencheur'],['avant','Commander avant le'],['qte','Qté proposée'],['fournisseur','Fournisseur']];
+  const sep = mode==='csv' ? ';' : '\t';
+  const cel = v => { let t = String(v==null?'':(typeof v==='number'?String(v).replace('.',','):v)); if (mode==='csv' && /[;"\n]/.test(t)) t = '"'+t.replace(/"/g,'""')+'"'; return t; };
+  const texte = [cols.map(c=>c[1]).join(sep)].concat(L.map(l=>cols.map(c=>cel(l[c[0]])).join(sep))).join('\n');
+  if (mode==='csv') {
+    const blob = new Blob(['﻿'+texte], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = url; a.download = 'propositions_reappro_'+isoLocal(new Date())+'.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    toast('Export CSV : '+L.length+' proposition(s)');
+  } else {
+    (navigator.clipboard ? navigator.clipboard.writeText(texte) : Promise.reject()).then(()=>toast('Copié : '+L.length+' ligne(s), à coller dans Excel'), ()=>toast('Copie impossible : utilisez l\'export CSV'));
+  }
+}
+// ── Prévisionnel de consommation : saisie, import, liste ──
+function parseDatePrev(v) {
+  let t = String(v==null?'':v).trim(); if (!t) return '';
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t); let y, mo, d;
+  if (m) { y=+m[1]; mo=+m[2]; d=+m[3]; }
+  else if ((m = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/.exec(t))) { d=+m[1]; mo=+m[2]; y=+m[3]; if (y<100) y+=2000; }
+  else if (/^\d{5}$/.test(t)) { const dt = new Date(Date.UTC(1899,11,30) + (+t)*86400000); y=dt.getUTCFullYear(); mo=dt.getUTCMonth()+1; d=dt.getUTCDate(); }   // numéro de série Excel
+  else return '';
+  const dt = new Date(y, mo-1, d); if (dt.getFullYear()!==y || dt.getMonth()!==mo-1 || dt.getDate()!==d) return '';
+  return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+function parseQtePrev(v) {
+  let t = String(v==null?'':v).trim().replace(/\s/g,''); if (!t) return NaN;
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) t = t.replace(/\./g,'');
+  t = t.replace(',', '.'); return /^-?\d+(\.\d+)?$/.test(t) ? parseFloat(t) : NaN;
+}
+function parsePrevisions(texte) {
+  const lignes = [], erreurs = [];
+  const brut = String(texte||'').split(/\r?\n/).filter(l=>l.trim());
+  brut.forEach((l, i)=>{
+    const sep = l.indexOf('\t')>=0 ? '\t' : (l.indexOf(';')>=0 ? ';' : ',');
+    const c = l.split(sep).map(x=>x.trim().replace(/^"|"$/g,''));
+    const date = parseDatePrev(c[1]), q = parseQtePrev(c[2]);
+    if (i===0 && (!date || isNaN(q))) return;                 // ligne d'en-têtes
+    if (!c[0]) { erreurs.push({ n:i+1, msg:'désignation vide' }); return; }
+    if (!date) { erreurs.push({ n:i+1, msg:'date illisible « '+(c[1]||'')+' »' }); return; }
+    if (isNaN(q) || q<=0) { erreurs.push({ n:i+1, msg:'quantité illisible « '+(c[2]||'')+' »' }); return; }
+    lignes.push({ designation: c[0], date, quantite: q, projet: c[3]||'' });
+  });
+  return { lignes, erreurs };
+}
+function cleDoublonPrev(p) { return [normaliserDesignation(p.designation), p.date, Number(p.quantite), normaliserDesignation(p.projet)].join('|'); }
+function rattacherPrev(p) { const a = trouverStandard(p.designation); p.articleId = a ? a.id : ''; return p; }
+function openImportPrev() {
+  document.getElementById('mp-texte').value = ''; document.getElementById('mp-remplacer').checked = false; document.getElementById('mp-apercu').textContent = '';
+  document.getElementById('modal-prev').classList.add('show');
+}
+function apercuImportPrev() {
+  const r = parsePrevisions(document.getElementById('mp-texte').value);
+  const inconnus = [...new Set(r.lignes.filter(l=>!trouverStandard(l.designation)).map(l=>l.designation))];
+  let h = r.lignes.length || r.erreurs.length ? `<b>${r.lignes.length}</b> ligne(s) valide(s)` : '';
+  if (r.erreurs.length) h += ` · <span style="color:var(--red)">${r.erreurs.length} rejetée(s)</span> (${r.erreurs.slice(0,3).map(e=>'ligne '+e.n+' : '+esc(e.msg)).join(' ; ')}${r.erreurs.length>3?'…':''})`;
+  if (inconnus.length) h += `<br><span style="color:var(--orange)">⚠ ${inconnus.length} désignation(s) sans fiche article standard (ignorées par les calculs tant que l'article n'existe pas) : ${inconnus.slice(0,5).map(esc).join(', ')}${inconnus.length>5?'…':''}</span>`;
+  document.getElementById('mp-apercu').innerHTML = h;
+}
+function validerImportPrev() {
+  const r = parsePrevisions(document.getElementById('mp-texte').value);
+  if (!r.lignes.length) { toast('Aucune ligne valide à importer'); return; }
+  const remplacer = document.getElementById('mp-remplacer').checked;
+  if (remplacer && state.previsions_conso.length && !confirm('Remplacer les '+state.previsions_conso.length+' ligne(s) de prévisionnel existantes par les '+r.lignes.length+' lignes collées ?')) return;
+  const base = remplacer ? [] : state.previsions_conso.slice();
+  const vus = new Set(base.map(cleDoublonPrev)); let ajoutees = 0;
+  r.lignes.forEach(l=>{ const k = cleDoublonPrev(l); if (vus.has(k)) return; vus.add(k); base.push(rattacherPrev({ id: uid(), articleId:'', designation:l.designation, date:l.date, quantite:l.quantite, projet:l.projet })); ajoutees++; });
+  state.previsions_conso = base;
+  closeModal('modal-prev'); saveData(); renderReappro();
+  toast(ajoutees+' ligne(s) importée(s)'+(r.erreurs.length?' · '+r.erreurs.length+' rejetée(s)':''));
+  document.getElementById('reap-prev-box').open = true;
+}
+function ajouterPrevManuel() {
+  const des = document.getElementById('pv-art').value.trim(), date = document.getElementById('pv-date').value, q = parseFloat(document.getElementById('pv-qte').value);
+  if (!des || !date || !(q>0)) { toast('Article, date et quantité sont obligatoires'); return; }
+  state.previsions_conso.push(rattacherPrev({ id: uid(), articleId:'', designation:des, date, quantite:q, projet:document.getElementById('pv-projet').value.trim() }));
+  ['pv-art','pv-date','pv-qte','pv-projet'].forEach(id=>document.getElementById(id).value='');
+  saveData(); renderReappro(); toast('Ligne ajoutée');
+}
+function supprimerLignePrev(id) { state.previsions_conso = state.previsions_conso.filter(p=>p.id!==id); saveData(); renderReappro(); }
+function supprimerToutPrev() {
+  if (!state.previsions_conso.length) return;
+  if (!confirm('Supprimer les '+state.previsions_conso.length+' lignes du prévisionnel de consommation ? (action définitive)')) return;
+  state.previsions_conso = []; saveData(); renderReappro();
+}
+function renderPrevisionnelConso() {
+  const el = document.getElementById('reap-prev-list'); if (!el) return;
+  const L = state.previsions_conso;
+  const dl = document.getElementById('pv-art-list'); if (dl) dl.innerHTML = articlesStandards().map(a=>`<option value="${esc(a.designation)}">`).join('');
+  const dates = L.map(p=>p.date).filter(Boolean).sort();
+  document.getElementById('reap-prev-resume').textContent = L.length ? '— '+L.length+' ligne(s), du '+fmtDate(dates[0])+' au '+fmtDate(dates[dates.length-1]) : '— aucun prévisionnel importé';
+  if (!L.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px">Aucun prévisionnel. Collez-le depuis Excel (Importer) ou ajoutez des lignes une à une : les ruptures seront alors projetées jour par jour.</div>'; return; }
+  const inconnus = L.filter(p=>!((p.articleId && state.articles.find(a=>a.id===p.articleId)) || trouverStandard(p.designation)));
+  const tri = L.slice().sort((x,y)=>(x.date||'').localeCompare(y.date||'') || String(x.designation).localeCompare(String(y.designation),'fr'));
+  const today = isoLocal(new Date());
+  el.innerHTML = (inconnus.length ? `<div class="warn-box">⚠ ${inconnus.length} ligne(s) portent sur une désignation sans fiche article standard (ex. ${esc(inconnus[0].designation)}) : elles ne sont pas prises en compte. Créez l'article ou corrigez la désignation.</div>` : '') +
+    `<div class="table-wrap"><table class="stock-table"><thead><tr><th>Date</th><th>Article</th><th style="text-align:right">Quantité</th><th>Projet</th><th></th></tr></thead><tbody>${tri.slice(0,300).map(p=>{
+      const ok = !inconnus.includes(p);
+      return `<tr style="${p.date<today?'opacity:.5':''}"><td>${fmtDate(p.date)}${p.date<today?' <span class="badge badge-gray">passé</span>':''}</td><td>${esc(p.designation)}${ok?'':' <span class="badge badge-red">article inconnu</span>'}</td><td class="r">${fmtQte(p.quantite)}</td><td>${esc(p.projet||'—')}</td><td class="rw"><button class="btn btn-sm btn-red" onclick="supprimerLignePrev('${p.id}')">✕</button></td></tr>`;
+    }).join('')}</tbody></table></div>${tri.length>300?'<div style="font-size:11px;color:var(--text3);margin-top:6px">… '+(tri.length-300)+' autres lignes non affichées (toutes sont prises en compte dans les calculs).</div>':''}`;
+}
+// ── Historique des achats d'un article : commandes ERP + lignes du tableau ACHATS (sans doublon) ──
+function historiqueAchatsArticle(designation) {
+  const n = normaliserDesignation(designation); const out = []; const internes = new Set();
+  state.commandes.forEach(c=>{
+    (c.lignes||[]).forEach(l=>{ if (normaliserDesignation(l.desc)===n) { internes.add(numNumeroInterne(c.num));
+      out.push({ source:'ERP', cdeNum:c.num, date:c.date, fournNom:c.fourn_nom, chantier:c.chantier_nom, statut:c.statut, qte:l.qte, recue:l.recue||0, montant:(l.qte||0)*(l.pu||0) }); } });
+  });
+  const cf = state.cf;
+  if (cf && cf.lignes.length) {
+    const C = colonnesAchats();
+    cf.lignes.forEach(l=>{
+      if (normaliserDesignation(l[C.des])!==n) return;
+      if (internes.has(numNumeroInterne(l[C.id]))) return;
+      const dt = C.date ? String(l[C.date]||'') : '';
+      const mt = (C.fact && typeof l[C.fact]==='number' && l[C.fact]) ? l[C.fact] : ((C.devis && typeof l[C.devis]==='number') ? l[C.devis] : 0);
+      out.push({ source:'ACHATS', cdeNum:String(l[C.id]||''), date: /^\d{4}-\d{2}-\d{2}$/.test(dt)?dt:'', fournNom:String(l[C.fo]||''), chantier:String(l[C.ch]||''), statut:String(l[C.st]||''),
+        qte: nombreDepuisTexte(l[C.qte]), recue: C.rec && l[C.rec]!=='' ? nombreDepuisTexte(l[C.rec]) : null, montant: mt });
+    });
+  }
+  return out.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+}
+// ═══ REPRISE DU STOCK SAISI DANS L'ERP (onglet Stock de l'ERP → stock de cette page) ═══
+function typesImportERP() { const t=[]; if (document.getElementById('ie-mp')?.checked) t.push('MP'); if (document.getElementById('ie-pf')?.checked) t.push('PF'); return t; }
+function emplacementDepuisTexteERP(txt) {
+  const n = normaliserDesignation(txt); if (!n) return null;
+  return state.emplacements.find(e=>normaliserDesignation(e.code)===n) || state.emplacements.find(e=>normaliserDesignation(e.libelle)===n) ||
+         state.emplacements.find(e=>normaliserDesignation(cheminEmplacement(e.id))===n) || null;
+}
+function planImportStockERP() {
+  const types = typesImportERP();
+  const dejaRepris = new Set(state.stock_mp.map(x=>x.erpId).filter(Boolean));
+  const src = (state.articles_stock||[]).filter(x=>x.statut==='en_stock' && types.includes(x.type||'PF'));
+  const lignes = [], ignorees = [], nouveauxEmpl = new Set(); let deja = 0;
+  src.forEach(x=>{
+    if (dejaRepris.has(x.id)) { deja++; return; }
+    const des = String(x.designation||'').trim();
+    const q = nombreDepuisTexte(x.qte);
+    if (!des || !(q>0)) { ignorees.push((des||'(sans désignation)')+' — quantité « '+(x.qte||'')+' »'); return; }
+    const emp = String(x.emp||'').trim();
+    if (emp && !emplacementDepuisTexteERP(emp)) nouveauxEmpl.add(emp);
+    lignes.push({ src:x, designation:des, quantite:q, unite:uniteDepuisTexte(x.qte), emp });
+  });
+  const desSansFiche = [...new Set(lignes.map(l=>l.designation).filter(d=>!trouverStandard(d)))];
+  return { lignes, ignorees, deja, nouveauxEmpl:[...nouveauxEmpl], desSansFiche, totalSource: src.length };
+}
+function openImportStockERP() {
+  document.getElementById('modal-erpstock').classList.add('show');
+  apercuImportStockERP();
+}
+function apercuImportStockERP() {
+  const el = document.getElementById('ie-apercu'), btn = document.getElementById('ie-valider');
+  if (!(state.articles_stock||[]).length) { el.innerHTML = '<span style="color:var(--orange)">Le stock de l\'ERP n\'a pas pu être lu (ou il est vide). Rechargez la page et réessayez.</span>'; btn.disabled = true; return; }
+  const pl = planImportStockERP();
+  let h = `<b>${pl.lignes.length}</b> ligne(s) à reprendre sur ${pl.totalSource} ligne(s) en stock dans l'ERP`;
+  if (pl.deja) h += ` · ${pl.deja} déjà reprise(s)`;
+  if (pl.nouveauxEmpl.length) h += `<br>📍 ${pl.nouveauxEmpl.length} emplacement(s) inconnu(s) seront créés : ${pl.nouveauxEmpl.slice(0,6).map(esc).join(', ')}${pl.nouveauxEmpl.length>6?'…':''}`;
+  if (document.getElementById('ie-creer-art').checked && pl.desSansFiche.length) h += `<br>🗂️ ${pl.desSansFiche.length} fiche(s) article standard seront créées`;
+  if (pl.ignorees.length) h += `<br><span style="color:var(--orange)">⚠ ${pl.ignorees.length} ligne(s) ignorée(s) (quantité illisible) : ${pl.ignorees.slice(0,4).map(esc).join(' ; ')}${pl.ignorees.length>4?'…':''}</span>`;
+  el.innerHTML = h; btn.disabled = !pl.lignes.length;
+}
+function validerImportStockERP() {
+  if (!state._chargeOk) { toast('Données non chargées : rechargez la page'); return; }
+  const pl = planImportStockERP();
+  if (!pl.lignes.length) { toast('Rien à reprendre'); return; }
+  const creerArt = document.getElementById('ie-creer-art').checked;
+  const jour = isoLocal(new Date());
+  pl.nouveauxEmpl.forEach(c=>{ state.emplacements.push({ id: uid(), code: c, libelle: c, parentId: '' }); });
+  let nbArt = 0;
+  pl.lignes.forEach(l=>{
+    let art = trouverStandard(l.designation);
+    if (!art && creerArt) { art = { id: uid(), designation: l.designation, type:'standard', unite:l.unite||'', fournisseur_id:'', fournisseur_nom:'', seuil_mini:0, seuil_maxi:0, delai_appro_jours:0, qte_reappro:0, open:false, created_at:new Date().toISOString() }; state.articles.push(art); nbArt++; }
+    const emp = l.emp ? emplacementDepuisTexteERP(l.emp) : null;
+    state.stock_mp.push({ id: uid(), erpId: l.src.id, designation: l.designation, quantite: l.quantite, unite: l.unite||(art&&art.unite)||'', emplacementId: emp?emp.id:'',
+      articleId: art?art.id:'', type:'standard', chantier_id:'', chantier_nom: l.src.chantier||'', fourn_id:'', fourn_nom:'', cde_num:'',
+      statut:'en_stock', entree: String(l.src.entree||'')||jour, created_at: new Date().toISOString(), source:'ERP' });
+  });
+  closeModal('modal-erpstock');
+  saveData(); renderStock(); renderArticles(); renderReappro();
+  toast(pl.lignes.length+' ligne(s) de stock reprise(s)'+(nbArt?' · '+nbArt+' fiche(s) article créée(s)':''));
+}
+// ═══ CORRECTION DE STOCK (inventaire) — avec commentaire obligatoire, journalisée ═══
+function openCorrection(articleId) {
+  const a = state.articles.find(x=>x.id===articleId); if (!a) return;
+  _ctx = { type:'correction', articleId, designation:a.designation, unite:a.unite||'' };
+  document.getElementById('mco-designation').textContent = a.designation;
+  const st = stockActuelArticle(a.designation);
+  const avecStock = Object.entries(st.parEmplacement).filter(([,q])=>q>0.001).sort((x,y)=>y[1]-x[1]).map(x=>x[0]);
+  const ids = [...new Set([''].concat(state.emplacements.map(e=>e.id)))];
+  document.getElementById('mco-emplacement').innerHTML = ids.map(id=>`<option value="${id}">${id?esc(libelleEmplacement(id)):'Non localisé'}${st.parEmplacement[id]>0.001?' ('+fmtQte(st.parEmplacement[id])+')':''}</option>`).join('');
+  document.getElementById('mco-emplacement').value = avecStock.length ? avecStock[0] : (getEmplacementDefaut(a.designation)||'');
+  document.getElementById('mco-apres').value = '';
+  document.getElementById('mco-commentaire').value = '';
+  majCorrection();
+  document.getElementById('modal-correction').classList.add('show');
+}
+function majCorrection() {
+  const empId = document.getElementById('mco-emplacement').value;
+  const avant = stockActuelArticle(_ctx.designation||'').parEmplacement[empId]||0;
+  document.getElementById('mco-avant').value = fmtQte(avant)+' '+(_ctx.unite||'');
+  const v = document.getElementById('mco-apres').value;
+  const el = document.getElementById('mco-ecart');
+  if (v==='') { el.textContent = ''; return; }
+  const ecart = (parseFloat(v)||0) - avant;
+  el.style.color = Math.abs(ecart)<0.0001 ? 'var(--text3)' : (ecart<0 ? 'var(--red)' : 'var(--green)');
+  el.textContent = Math.abs(ecart)<0.0001 ? 'Aucun écart' : 'Écart : '+(ecart>0?'+':'')+fmtQte(ecart)+' '+(_ctx.unite||'');
+}
+function saveCorrection() {
+  const a = state.articles.find(x=>x.id===_ctx.articleId); if (!a) return;
+  const empId = document.getElementById('mco-emplacement').value;
+  const vApres = document.getElementById('mco-apres').value;
+  const commentaire = document.getElementById('mco-commentaire').value.trim();
+  if (vApres==='' || isNaN(parseFloat(vApres)) || parseFloat(vApres)<0) { alert('Indiquez la quantité réelle constatée (0 ou plus).'); return; }
+  if (!commentaire) { document.getElementById('mco-commentaire').style.borderColor='var(--red)'; alert('Le commentaire est obligatoire.'); return; }
+  document.getElementById('mco-commentaire').style.borderColor='';
+  const apres = parseFloat(vApres);
+  const avant = stockActuelArticle(a.designation).parEmplacement[empId]||0;
+  const ecart = apres - avant;
+  if (Math.abs(ecart)<0.0001) { alert('La quantité constatée est identique au stock actuel : rien à corriger.'); return; }
+  const jour = isoLocal(new Date());
+  if (ecart>0) crediterStock(a, 'standard', ecart, empId, { date: jour });
+  else {
+    let reste = -ecart;
+    lotsEnStockArticle(a.designation).filter(l=>(l.emplacementId||'')===empId).forEach(l=>{
+      if (reste<=0.0001) return; const pris = Math.min(reste, Number(l.quantite)||0); l.quantite = (Number(l.quantite)||0) - pris; reste -= pris; });
+    state.stock_mp = state.stock_mp.filter(x=>!(x.statut==='en_stock' && x.type!=='temporaire' && normaliserDesignation(x.designation)===normaliserDesignation(a.designation) && (x.emplacementId||'')===empId && (Number(x.quantite)||0)<=0.0001));
+  }
+  state.corrections_stock.unshift({ id: uid(), date: jour, designation: a.designation, articleId: a.id, emplacementId: empId, avant, apres, ecart, unite: a.unite||'',
+    commentaire, par: (_user && (_user.nom||_user.login)) || '', created_at: new Date().toISOString() });
+  closeModal('modal-correction');
+  saveData(); renderArticles(); renderStock(); renderReappro();
+  toast('Stock corrigé : '+fmtQte(avant)+' → '+fmtQte(apres));
+}
+function historiqueCorrectionsArticle(a) {
+  return state.corrections_stock.filter(c=>c.articleId===a.id || normaliserDesignation(c.designation)===normaliserDesignation(a.designation));
 }
 // ═══ MISE AU REBUT ══════════════════════════════════════════════════════════
 // Sort de stock une quantité endommagée/HS, sans passer par un transfert
