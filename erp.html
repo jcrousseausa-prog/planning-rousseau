@@ -89,6 +89,10 @@ main{padding:16px 12px;max-width:none;margin:0 auto}
 .sub-tabs .app-tab{font-size:12.5px;padding:8px 14px;border-radius:7px 7px 0 0}
 .sub-tabs a.app-tab{text-decoration:none;display:inline-flex;align-items:center;gap:5px}
 .fam-masque{display:none!important}
+.tab-badge{display:inline-block;min-width:18px;padding:0 6px;margin-left:6px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}
+.tab-badge.orange{background:var(--orange)}
+#screen-achats{margin:-16px -12px -16px}
+#achats-frame{display:block;width:100%;border:0;background:var(--bg);height:calc(100vh - 150px)}
 .hdr-btn.active{background:var(--blue);color:#fff;border-color:var(--blue)}
 /* Interrupteur « Suivi des tranches | Planning global » (même écran, deux vues) */
 .seg-suivi{display:inline-flex;margin:12px 20px 0;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface)}
@@ -376,9 +380,13 @@ table.bl-lignes td.r{text-align:right}
     <button class="app-tab" id="tab-dashboard" data-fam="pilotage" onclick="showScreen('dashboard')">Tableau de bord</button>
     <button class="app-tab" id="tab-suivi-prod" data-fam="production" onclick="showScreen('suivi-prod')">Suivi production</button>
     <button class="app-tab" id="tab-qualite" data-fam="production" onclick="showScreen('qualite')">Qualité</button>
-    <button class="app-tab" id="tab-stock" data-fam="achats_logistique" onclick="showScreen('stock')">Stock</button>
+    <button class="app-tab" id="tab-ach-stock" data-fam="achats_logistique" onclick="showScreen('ach-stock')">Stock</button>
     <button class="app-tab" id="tab-bl" data-fam="achats_logistique" onclick="showScreen('bl')">Bons de livraison</button>
-    <a class="app-tab" id="tab-achats" data-fam="achats_logistique" href="achats.html" title="Ouvrir la page Achats : commandes fournisseur, fournisseurs, réceptions, stock, base articles">Achats <span aria-hidden="true">↗</span></a>
+    <button class="app-tab" id="tab-ach-cdes" data-fam="achats_logistique" onclick="showScreen('ach-cdes')">Commandes fournisseur</button>
+    <button class="app-tab" id="tab-ach-fourns" data-fam="achats_logistique" onclick="showScreen('ach-fourns')">Fournisseurs</button>
+    <button class="app-tab" id="tab-ach-receptions" data-fam="achats_logistique" onclick="showScreen('ach-receptions')">Réceptions</button>
+    <button class="app-tab" id="tab-ach-articles" data-fam="achats_logistique" onclick="showScreen('ach-articles')">Base articles</button>
+    <button class="app-tab" id="tab-ach-reappro" data-fam="achats_logistique" onclick="showScreen('ach-reappro')">Réappro<span class="tab-badge" id="ach-reap-badge" style="display:none"></span></button>
     <button class="app-tab" id="tab-heures" data-fam="equipes" onclick="showScreen('heures')">Heures</button>
     <button class="app-tab" id="tab-renseignement" data-fam="pilotage" onclick="showScreen('renseignement')" style="display:none">Renseignement</button>
   </div>
@@ -477,7 +485,7 @@ table.bl-lignes td.r{text-align:right}
 </div>
 
 <!-- ══ ACHATS ══ -->
-<div class="screen" id="screen-achats">
+<div class="screen" id="screen-achats-ancien">
   <div class="metrics" id="achats-metrics"></div>
   <div class="toolbar">
     <select class="btn" id="fil-cde-statut" onchange="renderCdes()"><option value="">Tous statuts</option><option>Brouillon</option><option>Validée</option><option>Envoyée</option><option>Réception partielle</option><option>Reçue</option><option>Litige</option></select>
@@ -486,12 +494,22 @@ table.bl-lignes td.r{text-align:right}
   <div class="cde-list" id="cde-list"></div>
 </div>
 
-<!-- ══ STOCK ══ -->
+<!-- ══ ACHATS (page achats.html intégrée : Stock, Commandes fournisseur, Fournisseurs, Réceptions, Base articles, Réappro) ══ -->
+<div class="screen" id="screen-achats">
+  <iframe id="achats-frame" title="Achats" allow="clipboard-write"></iframe>
+</div>
+
+<!-- ══ STOCK DES PRODUITS FINIS (alimente la génération des BL ; le stock matières = onglet Stock) ══ -->
 <div class="screen" id="screen-stock">
+  <div class="toolbar">
+    <button class="btn" onclick="showScreen('bl')">← Bons de livraison</button>
+    <strong style="font-size:14px">Produits finis en stock</strong>
+    <span style="font-size:12px;color:var(--text3)">prêts à expédier — le stock des matières premières est dans l'onglet « Stock »</span>
+  </div>
   <div class="metrics" id="stock-metrics"></div>
   <div class="toolbar">
     <select class="btn" id="stock-fil-statut" onchange="renderStock()"><option value="">Tous statuts</option><option value="en_stock">En stock</option><option value="sorti">Sorti</option><option value="reserve">Réservé</option></select>
-    <select class="btn" id="stock-fil-type" onchange="renderStock()"><option value="">MP + PF</option><option value="PF">Produits finis</option><option value="MP">Matières premières</option></select>
+    <select class="btn" id="stock-fil-type" onchange="renderStock()"><option value="">MP + PF</option><option value="PF" selected>Produits finis</option><option value="MP">Matières premières</option></select>
     <button class="btn btn-primary" style="margin-left:auto" onclick="openModal('add-stock')">+ Entrée stock</button>
   </div>
   <div class="table-wrap">
@@ -510,7 +528,8 @@ table.bl-lignes td.r{text-align:right}
   <div class="metrics" id="bl-metrics"></div>
   <div class="toolbar">
     <select class="btn"><option>Tous statuts</option><option>Brouillon</option><option>Validé</option></select>
-    <button class="btn btn-primary" style="margin-left:auto" onclick="openGenBL()">+ Générer un BL</button>
+    <button class="btn" style="margin-left:auto" onclick="showScreen('stock')" title="Produits finis prêts à expédier">📦 Produits finis en stock</button>
+    <button class="btn btn-primary" onclick="openGenBL()">+ Générer un BL</button>
   </div>
   <div id="bl-list"></div>
 </div>
@@ -1879,7 +1898,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='18/11/2026-k';
+const ERP_BUILD='18/11/2026-m';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -2772,6 +2791,39 @@ async function syncOFTermines(){
 }
 
 // ═══ INIT ═════════════════════════════════════════════════════════════════
+// ═══ PAGE ACHATS INTÉGRÉE (iframe sur achats.html) ═══════════════════════════
+// La page Achats est chargée une seule fois (au 1er affichage) ; ensuite on ne fait que changer d'écran par message, sans rechargement.
+// La session (jeton) est partagée : même onglet, même origine.
+let _achPret = false, _achEcran = 'cdes';
+function showAchatsEcran(e){
+  _achEcran = e;
+  const f = document.getElementById('achats-frame'); if(!f) return;
+  if(!f.getAttribute('src')){
+    f.addEventListener('load', ()=>{ _achPret = true; try{ f.contentWindow.postMessage({type:'achats-ecran', ecran:_achEcran}, location.origin); }catch(x){} });
+    f.src = 'achats.html?embed=1&ecran='+encodeURIComponent(e)+'&b='+encodeURIComponent(ERP_BUILD);
+  } else if(_achPret && f.contentWindow){
+    f.contentWindow.postMessage({type:'achats-ecran', ecran:e}, location.origin);
+  }
+  ajusterHauteurAchats();
+  setTimeout(ajusterHauteurAchats, 60);
+}
+function ajusterHauteurAchats(){
+  const w = document.getElementById('screen-achats'), f = document.getElementById('achats-frame');
+  if(!w || !f || !w.classList.contains('active')) return;
+  const top = f.getBoundingClientRect().top;
+  f.style.height = Math.max(320, window.innerHeight - top) + 'px';
+}
+window.addEventListener('resize', ajusterHauteurAchats);
+window.addEventListener('message', function(ev){
+  if(ev.origin !== location.origin) return;
+  const d = ev.data || {};
+  if(d.type === 'achats-session-expiree'){ if(typeof window.onSessionExpiree==='function') window.onSessionExpiree(d.msg); }
+  else if(d.type === 'achats-badge'){
+    const b = document.getElementById('ach-reap-badge'); if(!b) return;
+    b.style.display = d.reappro ? '' : 'none'; b.textContent = d.reappro||''; b.className = 'tab-badge' + (d.rupture ? '' : ' orange');
+  }
+});
+
 // ═══ SYSTÈME AUTH ════════════════════════════════════════════════════════
 
 // Droits par défaut (fallback si ERP_Droits non configuré dans Sheets)
@@ -2786,11 +2838,11 @@ const DEFAULT_DROITS = {
 const FAMILLES_NAV = {
   pilotage:          ['planning','dashboard'],
   production:        ['suivi-prod','qualite'],
-  achats_logistique: ['stock','bl','achats'],
+  achats_logistique: ['ach-stock','bl','ach-cdes','ach-fourns','ach-receptions','ach-articles','ach-reappro'],   // ach-* = écrans de la page Achats ; leur accès suit le droit « achats »
   equipes:           ['heures']
 };
 // Écran → famille de menu (le planning global est une vue du Suivi production ; « retours » est dans l'en-tête, hors famille)
-const FAMILLE_DE = {dashboard:'pilotage',planning:'pilotage',renseignement:'pilotage','suivi-prod':'production','planning-global':'production',qualite:'production',aleas:'production',stock:'achats_logistique',bl:'achats_logistique',achats:'achats_logistique',heures:'equipes'};
+const FAMILLE_DE = {dashboard:'pilotage',planning:'pilotage',renseignement:'pilotage','suivi-prod':'production','planning-global':'production',qualite:'production',aleas:'production',stock:'achats_logistique',bl:'achats_logistique',achats:'achats_logistique','ach-stock':'achats_logistique','ach-cdes':'achats_logistique','ach-fourns':'achats_logistique','ach-receptions':'achats_logistique','ach-articles':'achats_logistique','ach-reappro':'achats_logistique',heures:'equipes'};
 const _derniereDeFamille = {};
 
 let _currentUser = null;   // { login, nom, profil, droits:{} }
@@ -2874,9 +2926,10 @@ function applyDroits(){
   // Niveau d'accès de chaque onglet : calculé par le serveur (famille + exceptions) ; à défaut, valeurs par défaut du profil
   const droitsUser = _currentUser.droits || {};
   const droitsDefaut = DEFAULT_DROITS[_currentUser.profil] || DEFAULT_DROITS.lecture;
-  const onglets = ['planning','dashboard','achats','stock','bl','qualite','heures','retours','suivi-prod'];   // 'achats' = lien vers achats.html ; 'retours' = bouton de l'en-tête
-  const droitPour = id => (droitsUser[id] !== undefined ? droitsUser[id] : (droitsDefaut[id] || 'none'));
+  const onglets = ['planning','dashboard','achats','stock','bl','qualite','heures','retours','suivi-prod'];   // 'achats' = page Achats intégrée (écrans ach-…) ; 'stock' = produits finis (depuis les BL) ; 'retours' = bouton de l'en-tête
+  const droitPour = id0 => { const id = /^ach-/.test(id0) ? 'achats' : id0; return droitsUser[id] !== undefined ? droitsUser[id] : (droitsDefaut[id] || 'none'); };   // les écrans « ach-… » suivent le droit « achats »
   window.__droitsItems = {}; onglets.forEach(id=>{ window.__droitsItems[id]=droitPour(id); });
+  ACH_ECRANS.forEach(e=>{ const d=droitPour('ach-'+e); window.__droitsItems['ach-'+e]=d; const t=document.getElementById('tab-ach-'+e); if(t) t.style.display=(d==='none')?'none':''; });
   onglets.forEach(id=>{
     const d = droitPour(id);
     const tabEl = document.getElementById('tab-'+id);
@@ -2899,7 +2952,7 @@ function applyDroits(){
     const el=document.getElementById('fam-'+f);
     if(el) el.style.display = FAMILLES_NAV[f].some(id=>droitPour(id)!=='none') ? '' : 'none';
   });
-  // Premier affichage : premier onglet accessible (hors lien Achats)
+  // Premier affichage : premier onglet accessible
   let premier=null;
   for(const f of Object.keys(FAMILLES_NAV)){ premier = FAMILLES_NAV[f].find(id=>id!=='achats' && droitPour(id)!=='none'); if(premier) break; }
   const dejaActif = !!document.querySelector('#sub-tabs .app-tab.active') && document.querySelector('#sub-tabs .app-tab.active').style.display!=='none';
@@ -2981,8 +3034,8 @@ async function init(){
   // Rechargement du navigateur (onglet remis en mémoire, F5…) : on revient sur la page où l'on travaillait
   try{
     const sc=sessionStorage.getItem('erp_screen');
-    if(sc && sc!==_currentScreen && document.getElementById('screen-'+sc)){
-      const tabEl=document.getElementById('tab-'+(sc==='planning-global'?'suivi-prod':sc));
+    if(sc && sc!==_currentScreen && document.getElementById('screen-'+(/^ach-/.test(sc)?'achats':sc))){
+      const tabEl=document.getElementById('tab-'+(sc==='planning-global'?'suivi-prod':(sc==='stock'?'bl':sc)));
       if(sc==='renseignement' || (tabEl && tabEl.style.display!=='none')) showScreen(sc);
     }
   }catch(e){}
@@ -4542,7 +4595,9 @@ function closeModal(id){document.getElementById(id).classList.remove('show');}
 // Dernière action de l'utilisateur (clic / clavier) : sert à distinguer un vrai changement de page d'un saut automatique
 let _derniereAction = 0, _navLock = null, _navLog = [];
 ['pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ _derniereAction=Date.now(); },true));
+const ACH_ECRANS = ['stock','cdes','fourns','receptions','articles','reappro'];   // écrans de achats.html affichés dans l'ERP
 function showScreen(id){
+  if(id==='achats') id='ach-cdes';
   // Pendant un rechargement automatique des données, aucun saut de page non voulu par l'utilisateur
   if(_navLock && id!==_navLock && Date.now()-_derniereAction>1500){
     try{ _navLog.push(new Date().toLocaleTimeString('fr-FR')+' BLOQUÉ → '+id+' | '+((new Error().stack||'').split('\n').slice(2,5).join(' <- '))); _navLog=_navLog.slice(-20); }catch(e){}
@@ -4554,10 +4609,12 @@ function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.app-tab').forEach(t=>t.classList.remove('active'));
   // 'aleas' est maintenant un alias vers 'qualite' pour compatibilité ; le planning global est une vue du Suivi production
-  const screenId = id==='aleas' ? 'qualite' : id;
-  const tabId    = id==='aleas' ? 'qualite' : (id==='planning-global' ? 'suivi-prod' : id);
+  const isAch = /^ach-/.test(id);
+  const screenId = id==='aleas' ? 'qualite' : (isAch ? 'achats' : id);
+  const tabId    = id==='aleas' ? 'qualite' : (id==='planning-global' ? 'suivi-prod' : (id==='stock' ? 'bl' : id));
   document.getElementById('screen-'+screenId)?.classList.add('active');
   const tab=document.getElementById('tab-'+tabId);if(tab)tab.classList.add('active');
+  if(isAch) showAchatsEcran(id.slice(4));
   if(id==='heures'){showHTab('employes');}
   if(id==='planning-global'){initPlanningGlobal();renderPlanningGlobal();}
   if(id==='dashboard'){ _prodB2Data = null; renderDashboard(); } // données Usinage laissées en cache (chargement à la demande)
