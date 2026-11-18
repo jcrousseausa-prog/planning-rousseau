@@ -287,6 +287,15 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
 .tab-badge{display:inline-block;min-width:18px;padding:0 6px;margin-left:6px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}
 .tab-badge.orange{background:var(--orange)}
 .reap-note{font-size:11px;color:var(--text3);margin:-4px 0 12px}
+.pv-spark{display:block}
+.pv-chart{width:100%;height:auto;display:block;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+.pv-detail{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;padding:8px}
+.pv-detail>div{min-width:0}
+#screen-previsionnel .stock-table td.r{text-align:right;font-family:'DM Mono',monospace;white-space:nowrap}
+.pv-detail .stock-table th,.pv-detail .stock-table td{padding:6px 8px}
+.pv-detail .tw{max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px}
+@media(max-width:900px){.pv-detail{grid-template-columns:1fr}}
+.pv-h{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin:2px 0 6px}
 .reap-prev{border:1px solid var(--border);border-radius:10px;background:var(--surface);margin-top:18px}
 .reap-prev>summary{cursor:pointer;padding:12px 16px;font-weight:700;font-size:13px}
 .reap-prev-body{padding:0 16px 16px}
@@ -329,6 +338,7 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
   <button class="app-tab" id="tab-receptions" onclick="showTab('receptions')">🚚 Réceptions</button>
   <button class="app-tab" id="tab-stock" onclick="showTab('stock')">📦 Stock</button>
   <button class="app-tab" id="tab-articles" onclick="showTab('articles')">🗂️ Base articles</button>
+  <button class="app-tab" id="tab-previsionnel" onclick="showTab('previsionnel')">📈 Prévisionnel</button>
   <button class="app-tab" id="tab-reappro" onclick="showTab('reappro')">🔔 Réappro<span class="tab-badge" id="reap-badge" style="display:none"></span></button>
 </div>
 <main>
@@ -500,6 +510,7 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
     <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);white-space:nowrap;cursor:pointer">
       <input type="checkbox" id="article-fil-rupture" onchange="renderArticles()"/> Stock à 0 / sous le seuil
     </label>
+    <button class="btn rw" onclick="genererCodesArticles()" title="Attribue un code ART-0001, ART-0002… aux articles qui n'en ont pas encore (les codes existants ne changent pas)">Générer les codes manquants</button>
     <button class="btn rw" onclick="openImportArticles()" title="Créer les fiches articles (et le stock de départ) en collant une liste depuis Excel">⬇ Importer des articles (Excel)</button>
     <button class="btn btn-primary" onclick="openNewArticle()">+ Nouvel article</button>
   </div>
@@ -507,6 +518,26 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
   <p id="art-note-std" style="font-size:11px;color:var(--text3);margin:-4px 0 12px">Fiches de référence pour les articles suivis en stock : seuil de réappro, fournisseur habituel, historique. Un article hors gestion de stock n'a pas besoin de fiche ici.</p>
   <div class="metrics" id="article-metrics" style="margin-bottom:12px"></div>
   <div id="article-list"></div>
+</div>
+<div class="screen" id="screen-previsionnel">
+  <div class="toolbar no-print">
+    <input type="text" id="pv-search" placeholder="🔍 Rechercher un article…" oninput="renderPrevEcran()" style="min-width:210px"/>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);white-space:nowrap">Horizon
+      <select class="btn" id="pv-horizon" onchange="renderPrevEcran()">
+        <option value="30">30 jours</option><option value="60">60 jours</option><option value="90" selected>90 jours</option><option value="180">180 jours</option><option value="365">1 an</option>
+      </select>
+    </label>
+    <select class="btn" id="pv-filtre" onchange="renderPrevEcran()">
+      <option value="prev" selected>Articles avec prévisionnel</option><option value="alerte">Articles en alerte</option><option value="tous">Tous les articles</option>
+    </select>
+    <span style="flex:1"></span>
+    <button class="btn btn-primary rw" onclick="ouvrirBesoin('')">+ Ajouter un besoin</button>
+    <button class="btn rw" onclick="openImportPrev()">📥 Importer (Excel)</button>
+    <button class="btn btn-red rw" onclick="supprimerToutPrev()">Tout supprimer</button>
+  </div>
+  <p class="reap-note">Le prévisionnel liste ce que vous <b>comptez consommer</b> (par chantier, ou en consommation régulière pour les consommables). Pour chaque article, le stock est projeté jour par jour avec les commandes déjà passées : la <b>rupture prévue</b> et la <b>date limite de commande</b> ressortent ici et alimentent l'onglet Réappro.</p>
+  <div class="metrics" id="pv-metrics" style="margin-bottom:12px"></div>
+  <div id="pv-list"></div>
 </div>
 <div class="screen" id="screen-reappro">
   <div class="toolbar no-print">
@@ -524,23 +555,7 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
   <p class="reap-note">Le système propose une commande dès qu'un article atteint son <b>stock mini</b> (stock + quantités déjà commandées). Avec un prévisionnel de consommation, il projette le stock jour par jour, signale la <b>rupture prévue</b> et la <b>date limite de commande</b> (date de rupture − délai d'appro). Les paramètres (mini, maxi, quantité de réappro, délai) se règlent sur la fiche de chaque article.</p>
   <div class="metrics" id="reap-metrics" style="margin-bottom:12px"></div>
   <div id="reap-list"></div>
-  <details class="reap-prev" id="reap-prev-box">
-    <summary>📈 Prévisionnel de consommation <span id="reap-prev-resume" style="font-weight:400;color:var(--text3);font-size:12px"></span></summary>
-    <div class="reap-prev-body">
-      <div class="toolbar rw" style="margin:8px 0 12px">
-        <button class="btn btn-primary rw" onclick="openImportPrev()">📥 Importer (copier-coller depuis Excel)</button>
-        <button class="btn btn-red rw" onclick="supprimerToutPrev()">Tout supprimer</button>
-      </div>
-      <div class="rw" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
-        <div class="field" style="margin:0;flex:2;min-width:200px"><label>Article</label><input type="text" id="pv-art" list="pv-art-list" placeholder="Désignation de l'article"/><datalist id="pv-art-list"></datalist></div>
-        <div class="field" style="margin:0"><label>Date</label><input type="date" id="pv-date"/></div>
-        <div class="field" style="margin:0;width:110px"><label>Quantité</label><input type="number" step="0.01" min="0" id="pv-qte"/></div>
-        <div class="field" style="margin:0;flex:1;min-width:140px"><label>Projet</label><input type="text" id="pv-projet"/></div>
-        <button class="btn btn-primary rw" onclick="ajouterPrevManuel()">+ Ajouter</button>
-      </div>
-      <div id="reap-prev-list"></div>
-    </div>
-  </details>
+  <p class="reap-note" style="margin-top:14px">📈 Les besoins futurs (chantiers, consommation régulière) se saisissent dans l'onglet <a href="#" onclick="allerEcran('previsionnel');return false" style="color:var(--blue);font-weight:600">Prévisionnel</a> : ils sont pris en compte ici pour annoncer les ruptures et proposer les commandes.</p>
 </div>
 </main>
 <div id="toast"></div>
@@ -703,7 +718,10 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
 <div class="modal-bg" id="modal-article">
   <div class="modal" style="width:560px">
     <h2 id="ma-title">Nouvel article</h2>
-    <div class="field"><label>Désignation *</label><input type="text" id="ma-designation" placeholder="Doit correspondre à la désignation utilisée sur les commandes"/></div>
+    <div style="display:grid;grid-template-columns:170px 1fr;gap:12px">
+      <div class="field"><label>Code article</label><input type="text" id="ma-code" placeholder="ex. ART-0001" style="font-family:'DM Mono',monospace"/></div>
+      <div class="field"><label>Désignation *</label><input type="text" id="ma-designation" placeholder="Doit correspondre à la désignation utilisée sur les commandes"/></div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="field"><label>Unité</label><input type="text" id="ma-unite" placeholder="ml, kg, u…"/></div>
       <div class="field"><label>Fournisseur habituel</label>
@@ -748,13 +766,40 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
 <div class="modal-bg" id="modal-impart">
   <div class="modal" style="width:780px;max-width:98vw">
     <h2>Importer des articles depuis Excel</h2>
-    <p style="font-size:12px;color:var(--text2);margin:0 0 8px">Sélectionnez vos lignes dans Excel (avec la ligne d'en-têtes), copiez, puis collez ci-dessous. Colonnes reconnues par leur titre, dans n'importe quel ordre : <b>Désignation</b> (obligatoire), <b>Unité</b>, <b>Stock</b> (quantité actuelle), <b>Emplacement</b>, <b>Fournisseur</b>, <b>Mini</b>, <b>Maxi</b>, <b>Délai</b> (jours), <b>Qté réappro</b>. Sans en-têtes, l'ordre est celui de cette liste.</p>
+    <p style="font-size:12px;color:var(--text2);margin:0 0 8px">Sélectionnez vos lignes dans Excel (avec la ligne d'en-têtes), copiez, puis collez ci-dessous. Colonnes reconnues par leur titre, dans n'importe quel ordre : <b>Désignation</b> (obligatoire), <b>Code</b> (facultatif), <b>Unité</b>, <b>Stock</b> (quantité actuelle), <b>Emplacement</b>, <b>Fournisseur</b>, <b>Mini</b>, <b>Maxi</b>, <b>Délai</b> (jours), <b>Qté réappro</b>. Sans en-têtes, l'ordre est celui de cette liste.</p>
     <textarea id="ia-texte" oninput="apercuImportArticles()" style="width:100%;min-height:190px;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;resize:vertical" placeholder="Désignation&#9;Unité&#9;Stock&#9;Emplacement&#9;Fournisseur&#9;Mini&#9;Maxi&#9;Délai&#9;Qté réappro"></textarea>
     <div id="ia-apercu" style="font-size:12px;color:var(--text2);margin:8px 0"></div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Un article déjà présent dans la base (même désignation) est complété : les cellules vides ne remplacent rien. Le stock indiqué n'est ajouté que si l'article n'a pas encore de stock (ensuite, utilisez « Corriger le stock »).</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Un article déjà présent dans la base (même désignation) est complété : les cellules vides ne remplacent rien. Le code d'un article qui en a déjà un n'est jamais modifié par l'import. Le stock indiqué n'est ajouté que si l'article n'a pas encore de stock (ensuite, utilisez « Corriger le stock »).</div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-impart')">Annuler</button>
       <button class="btn btn-primary" id="ia-valider" onclick="validerImportArticles()">Importer</button>
+    </div>
+  </div>
+</div>
+<!-- ══ MODAL AJOUTER UN BESOIN (prévisionnel) ══ -->
+<div class="modal-bg" id="modal-besoin">
+  <div class="modal" style="width:560px;max-width:98vw">
+    <h2>Ajouter un besoin</h2>
+    <div class="field"><label>Article *</label><input type="text" id="bs-art" list="bs-art-list" placeholder="Désignation (fiche de la Base articles)" oninput="apercuBesoin()"/><datalist id="bs-art-list"></datalist></div>
+    <div class="field"><label>Type de besoin</label>
+      <select id="bs-mode" onchange="apercuBesoin()">
+        <option value="ponctuel">Ponctuel — une quantité à une date (ex. besoin d'un chantier)</option>
+        <option value="recurrent">Régulier — une quantité chaque semaine / chaque mois (consommables)</option>
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label id="bs-lbl-date">Date du besoin *</label><input type="date" id="bs-date" oninput="apercuBesoin()"/></div>
+      <div class="field"><label id="bs-lbl-qte">Quantité *</label><input type="number" step="0.01" min="0" id="bs-qte" oninput="apercuBesoin()"/></div>
+    </div>
+    <div id="bs-rec" style="display:none;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label>Fréquence</label><select id="bs-freq" onchange="apercuBesoin()"><option value="semaine">Chaque semaine</option><option value="mois">Chaque mois</option></select></div>
+      <div class="field"><label>Jusqu'au *</label><input type="date" id="bs-fin" oninput="apercuBesoin()"/></div>
+    </div>
+    <div class="field"><label>Projet / chantier (facultatif)</label><input type="text" id="bs-projet" placeholder="ex. HYROME"/></div>
+    <div id="bs-apercu" style="font-size:12px;color:var(--text2);margin:2px 0 8px"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-besoin')">Annuler</button>
+      <button class="btn btn-primary" onclick="validerBesoin()">Ajouter</button>
     </div>
   </div>
 </div>
@@ -1138,7 +1183,10 @@ function showTab(id) {
   document.getElementById('screen-'+id).classList.add('active');
   document.getElementById('tab-'+id).classList.add('active');
   if (id==='reappro') { try { renderReappro(); } catch(e) { console.warn(e); } }
+  if (id==='previsionnel') { try { renderPrevEcran(); } catch(e) { console.warn(e); } }
 }
+// Aller sur un autre écran : en mode intégré, c'est l'ERP qui change d'onglet (la barre d'onglets est la sienne)
+function allerEcran(id) { if (EMBED) { try { window.parent.postMessage({type:'achats-aller', ecran:id}, location.origin); } catch(e) {} } else showTab(id); }
 // ── Mode intégré : l'ERP pilote l'écran affiché (message) ; l'écran demandé dans l'adresse (?ecran=…) s'ouvre au chargement ──
 window.addEventListener('message', function(e){
   if (e.origin !== location.origin) return;
@@ -2824,7 +2872,7 @@ function historiqueReceptionsArticle(designation) {
 function openNewArticle() {
   _ctx = {type:'new-article'};
   document.getElementById('ma-title').textContent = 'Nouvel article';
-  ['ma-designation','ma-unite','ma-seuil','ma-seuil-maxi','ma-delai','ma-qte-reappro'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['ma-code','ma-designation','ma-unite','ma-seuil','ma-seuil-maxi','ma-delai','ma-qte-reappro'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('ma-fourn').value = '';
   populateEmplacementSelects(['ma-emplacement']);
   document.getElementById('ma-emplacement').value = '';
@@ -2835,6 +2883,7 @@ function openEditArticle(id) {
   if (!a) return;
   _ctx = {type:'edit-article', id};
   document.getElementById('ma-title').textContent = 'Modifier — '+a.designation;
+  document.getElementById('ma-code').value = a.code||'';
   document.getElementById('ma-designation').value = a.designation||'';
   document.getElementById('ma-unite').value = a.unite||'';
   document.getElementById('ma-fourn').value = a.fournisseur_id||'';
@@ -2850,6 +2899,12 @@ function saveArticle() {
   const designation = document.getElementById('ma-designation').value.trim();
   if (!designation) { document.getElementById('ma-designation').style.borderColor='var(--red)'; return; }
   document.getElementById('ma-designation').style.borderColor='';
+  const code = document.getElementById('ma-code').value.trim();
+  if (code) {
+    const dup = state.articles.find(x=>x.code && normaliserDesignation(x.code)===normaliserDesignation(code) && !(_ctx.type==='edit-article' && x.id===_ctx.id));
+    if (dup) { alert('Le code « '+code+' » est déjà utilisé par l\'article « '+dup.designation+' ».'); document.getElementById('ma-code').style.borderColor='var(--red)'; return; }
+  }
+  document.getElementById('ma-code').style.borderColor='';
   const fournId = document.getElementById('ma-fourn').value;
   const fourn = state.fournisseurs.find(f=>f.id===fournId);
   { const mi=parseFloat(document.getElementById('ma-seuil').value)||0, ma=parseFloat(document.getElementById('ma-seuil-maxi').value)||0;
@@ -2857,7 +2912,7 @@ function saveArticle() {
   const ancien = _ctx.type==='edit-article' ? state.articles.find(x=>x.id===_ctx.id) : null;
   const article = {
     id: _ctx.type==='edit-article' ? _ctx.id : uid(),
-    designation, type: 'standard', unite: document.getElementById('ma-unite').value.trim(),
+    code, designation, type: 'standard', unite: document.getElementById('ma-unite').value.trim(),
     fournisseur_id: fournId, fournisseur_nom: fourn?.nom||'',
     seuil_mini: parseFloat(document.getElementById('ma-seuil').value)||0,
     seuil_maxi: parseFloat(document.getElementById('ma-seuil-maxi').value)||0,
@@ -2876,6 +2931,15 @@ function saveArticle() {
   if (emplId) setEmplacementDefaut(designation, emplId);
   closeModal('modal-article');
   saveData(); renderArticles(); toast('Fiche article enregistrée');
+}
+function genererCodesArticles() {
+  const sans = articlesStandards().filter(a=>!a.code).sort((a,b)=>a.designation.localeCompare(b.designation));
+  if (!sans.length) { toast('Tous les articles ont déjà un code'); return; }
+  if (!confirm(sans.length+' article(s) sans code vont recevoir un code ART-0001, ART-0002… (ordre alphabétique des désignations). Les codes déjà saisis ne changent pas. Continuer ?')) return;
+  const pris = new Set(state.articles.map(a=>normaliserDesignation(a.code||'')).filter(Boolean));
+  let n = 0; state.articles.forEach(a=>{ const m=/^ART-(\d+)$/i.exec(String(a.code||'').trim()); if (m) n=Math.max(n,parseInt(m[1],10)); });
+  sans.forEach(a=>{ let c; do { n++; c='ART-'+String(n).padStart(4,'0'); } while (pris.has(normaliserDesignation(c))); pris.add(normaliserDesignation(c)); a.code=c; });
+  saveData(); renderArticles(); toast(sans.length+' code(s) attribué(s)');
 }
 function deleteArticle(id) {
   if (!confirm('Supprimer cette fiche article ? Le stock et l\'historique existants ne sont pas supprimés, seule la fiche de référence disparaît.')) return;
@@ -2954,7 +3018,7 @@ function renderArticles() {
   if (artVue==='tmp') { renderArticlesTemporaires(); return; }
   const q=(document.getElementById('article-search')?.value||'').toLowerCase();
   const filRupture = document.getElementById('article-fil-rupture')?.checked;
-  const articles = articlesStandards().filter(a=>!q||a.designation.toLowerCase().includes(q));
+  const articles = articlesStandards().filter(a=>!q||a.designation.toLowerCase().includes(q)||String(a.code||'').toLowerCase().includes(q));
   if (!articles.length) {
     document.getElementById('article-list').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune fiche article. Cliquez sur "+ Nouvel article".</div>';
     return;
@@ -2992,6 +3056,7 @@ function renderArticles() {
   }
 
   const comparateurs = {
+    code: (x,y)=>String(x.a.code||'').localeCompare(String(y.a.code||''),'fr',{numeric:true}) || x.a.designation.localeCompare(y.a.designation),
     designation: (x,y)=>x.a.designation.localeCompare(y.a.designation),
     stock: (x,y)=>x.stock.total-y.stock.total,
     emplacement: (x,y)=>x.emplacementLabel.localeCompare(y.emplacementLabel),
@@ -3004,7 +3069,7 @@ function renderArticles() {
   lignes.sort((x,y)=>(comparateurs[triArticles.col]||comparateurs.designation)(x,y)*sens);
 
   const colonnes = [
-    ['designation','Désignation'], ['stock','Stock'], ['emplacement','Emplacement'],
+    ['code','Code'], ['designation','Désignation'], ['stock','Stock'], ['emplacement','Emplacement'],
     ['fournisseur','Fournisseur'], ['pmp','PMP'], ['seuil','Mini'], ['maxi','Maxi'],
   ];
   const theadHtml = `<tr>
@@ -3021,6 +3086,7 @@ function renderArticles() {
     const recs = historiqueReceptionsArticle(a.designation);
     const ligneResume = `<tr class="clickable" onclick="toggleArticle('${a.id}')">
       <td><span class="chevron${a.open?' open':''}">▶</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;white-space:nowrap;color:var(--text2)">${a.code?esc(a.code):'<span style="color:var(--text3)">—</span>'}</td>
       <td style="font-weight:700">${esc(a.designation)}${a.unite?` <span class="badge badge-gray">${esc(a.unite)}</span>`:''}</td>
       <td><span class="badge ${sousSeuil?'badge-red':'badge-green'}">${fmtQte(stock.total)}</span>${sousSeuil?` <span class="badge badge-red">⚠ mini ${fmtQte(a.seuil_mini)}</span>`:''}${a.seuil_maxi>0&&stock.total>a.seuil_maxi+0.001?' <span class="badge badge-blue">&gt; maxi</span>':''}</td>
       <td>${emplacementLabel==='Non localisé'?'<span style="color:var(--text3)">Non localisé</span>':(parDefaut?`<span style="color:var(--orange);font-style:italic">${esc(emplacementLabel)}</span>`:esc(emplacementLabel))}</td>
@@ -3034,7 +3100,7 @@ function renderArticles() {
       </td>
     </tr>`;
     if (!a.open) return ligneResume;
-    const detail = `<tr><td colspan="9" style="padding:0">
+    const detail = `<tr><td colspan="10" style="padding:0">
       <div class="fourn-body">
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;font-size:12px">
           <div><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:3px">Fournisseur habituel</div>${esc(a.fournisseur_nom||'—')}</div>
@@ -3177,7 +3243,7 @@ function projeterArticle(a, today, horizon, idxCde, idxPrev) {
   const declenche = d => mini>0 ? ps[d] <= mini + REAP_EPS : ps[d] < -REAP_EPS;
   let tMini = null, tRup = null;
   for (let d=0; d<=horizon; d++) { if (tMini===null && declenche(d)) tMini = d; if (tRup===null && ph[d] < -REAP_EPS) tRup = d; if (tMini!==null && tRup!==null) break; }
-  const fiche = { a, stock: stock0, mini, maxi, delai, qr, enCommande, arrivees: arr.slice().sort((x,y)=>x.date-y.date), hasPrev: conso.length>0,
+  const fiche = { serie: ph.slice(0, horizon+1), a, stock: stock0, mini, maxi, delai, qr, enCommande, arrivees: arr.slice().sort((x,y)=>x.date-y.date), hasPrev: conso.length>0,
     tMini, tRup, statut: null, orderByJ: null, orderBy: null, enRetard: false, qte: 0, arriveeEst: null, declencheur: '', conso };
   const prochaine = fiche.arrivees[0] || null;
   if (tMini===null && tRup===null) {
@@ -3297,7 +3363,7 @@ function renderReappro() {
     }).join('');
     elList.innerHTML = `<div class="table-wrap"><table class="stock-table"><thead><tr><th>Statut</th><th>Article</th><th style="text-align:right">Stock</th><th style="text-align:right">Mini / Maxi</th><th style="text-align:right">En commande</th><th style="text-align:right">Délai</th><th>Commander avant le</th><th style="text-align:right">Qté proposée</th><th>Fournisseur</th><th></th></tr></thead><tbody>${corps}</tbody></table></div>`;
   }
-  renderPrevisionnelConso();
+  try { renderPrevEcran(); } catch(e) { console.warn(e); }
 }
 // ── Export des propositions ──
 function reapLignesExport() {
@@ -3378,36 +3444,155 @@ function validerImportPrev() {
   state.previsions_conso = base;
   closeModal('modal-prev'); saveData(); renderReappro();
   toast(ajoutees+' ligne(s) importée(s)'+(r.erreurs.length?' · '+r.erreurs.length+' rejetée(s)':''));
-  document.getElementById('reap-prev-box').open = true;
 }
-function ajouterPrevManuel() {
-  const des = document.getElementById('pv-art').value.trim(), date = document.getElementById('pv-date').value, q = parseFloat(document.getElementById('pv-qte').value);
-  if (!des || !date || !(q>0)) { toast('Article, date et quantité sont obligatoires'); return; }
-  state.previsions_conso.push(rattacherPrev({ id: uid(), articleId:'', designation:des, date, quantite:q, projet:document.getElementById('pv-projet').value.trim() }));
-  ['pv-art','pv-date','pv-qte','pv-projet'].forEach(id=>document.getElementById(id).value='');
-  saveData(); renderReappro(); toast('Ligne ajoutée');
-}
-function supprimerLignePrev(id) { state.previsions_conso = state.previsions_conso.filter(p=>p.id!==id); saveData(); renderReappro(); }
+function supprimerLignePrev(id) { state.previsions_conso = state.previsions_conso.filter(p=>p.id!==id); saveData(); renderReappro(); renderPrevEcran(); }
 function supprimerToutPrev() {
   if (!state.previsions_conso.length) return;
   if (!confirm('Supprimer les '+state.previsions_conso.length+' lignes du prévisionnel de consommation ? (action définitive)')) return;
   state.previsions_conso = []; saveData(); renderReappro();
 }
-function renderPrevisionnelConso() {
-  const el = document.getElementById('reap-prev-list'); if (!el) return;
+// ── Écran Prévisionnel : projection du stock par article, besoins ponctuels / réguliers ──
+let _pvOuverts = {};
+function togglePrevArt(id) { _pvOuverts[id] = !_pvOuverts[id]; renderPrevEcran(); }
+function articlePourPrev(p) { return (p.articleId && state.articles.find(a=>a.id===p.articleId)) || trouverStandard(p.designation) || null; }
+// Courbe de stock projeté (stock physique + commandes qui arrivent − besoins) ; petite = vignette sans axes
+function graphiqueStock(f, horizon, today, petit) {
+  const S = f.serie || []; if (S.length < 2) return '';
+  const W = petit ? 120 : 640, H = petit ? 30 : 190, pl = petit ? 2 : 44, pr = petit ? 2 : 10, pt = petit ? 3 : 10, pb = petit ? 3 : 24;
+  const vals = S.concat([0, f.mini||0, f.maxi||0]);
+  let lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals); if (hi - lo < 1e-6) hi = lo + 1;
+  const X = d => pl + (W-pl-pr) * d / (S.length-1), Y = v => pt + (H-pt-pb) * (1 - (v-lo)/(hi-lo));
+  let o = `<svg class="${petit?'pv-spark':'pv-chart'}" viewBox="0 0 ${W} ${H}" ${petit?`width="${W}" height="${H}"`:'preserveAspectRatio="xMidYMid meet"'} role="img" aria-label="Projection du stock">`;
+  if (lo < 0) o += `<rect x="${pl}" y="${Y(0)}" width="${W-pl-pr}" height="${H-pb-Y(0)}" fill="#9B1C1C" opacity=".08"/>`;
+  o += `<line x1="${pl}" x2="${W-pr}" y1="${Y(0)}" y2="${Y(0)}" stroke="#A8A59E" stroke-width="1"/>`;
+  if (f.mini > 0) o += `<line x1="${pl}" x2="${W-pr}" y1="${Y(f.mini)}" y2="${Y(f.mini)}" stroke="#B85C0A" stroke-width="1" stroke-dasharray="4 3"/>`;
+  if (!petit && f.maxi > 0) o += `<line x1="${pl}" x2="${W-pr}" y1="${Y(f.maxi)}" y2="${Y(f.maxi)}" stroke="#1A6640" stroke-width="1" stroke-dasharray="2 3"/>`;
+  o += `<polyline fill="none" stroke="${f.tRup!==null?'#9B1C1C':'#1A4F8A'}" stroke-width="${petit?1.5:2}" stroke-linejoin="round" points="${S.map((v,d)=>X(d).toFixed(1)+','+Y(v).toFixed(1)).join(' ')}"/>`;
+  if (f.tRup !== null && f.tRup < S.length) o += `<circle cx="${X(f.tRup)}" cy="${Y(S[f.tRup])}" r="${petit?2.5:4}" fill="#9B1C1C"/>`;
+  if (!petit) {
+    (f.arrivees||[]).forEach(x=>{ const d = Math.max(0, ecartJours(x.date, today)); if (d < S.length) o += `<path d="M${X(d)-5},${H-pb+9} L${X(d)+5},${H-pb+9} L${X(d)},${H-pb+1} Z" fill="#1A4F8A"><title>Commande ${esc(x.ref||'')} — ${fmtQte(x.qte)}</title></path>`; });
+    for (let k = 0; k <= 4; k++) { const v = lo + (hi-lo)*k/4; o += `<text x="${pl-5}" y="${Y(v)+3}" font-size="10" text-anchor="end" fill="#6B6860">${fmtQte(Math.round(v))}</text>`; }
+    const nT = Math.min(6, S.length-1);
+    for (let k = 0; k <= nT; k++) { const d = Math.round((S.length-1)*k/nT); o += `<text x="${X(d)}" y="${H-6}" font-size="10" text-anchor="${k===0?'start':(k===nT?'end':'middle')}" fill="#6B6860">${fmtDateObj(addJours(today,d)).slice(0,5)}</text>`; }
+  }
+  return o + '</svg>';
+}
+function renderPrevEcran() {
+  const el = document.getElementById('pv-list'); if (!el) return;
+  const dl = document.getElementById('bs-art-list'); if (dl) dl.innerHTML = articlesStandards().map(a=>`<option value="${esc(a.designation)}">`).join('');
+  const horizon = parseInt(document.getElementById('pv-horizon')?.value) || 90;
+  const q = (document.getElementById('pv-search')?.value||'').toLowerCase();
+  const filtre = document.getElementById('pv-filtre')?.value || 'prev';
+  const { today, fiches } = reapCalculer(horizon);
   const L = state.previsions_conso;
-  const dl = document.getElementById('pv-art-list'); if (dl) dl.innerHTML = articlesStandards().map(a=>`<option value="${esc(a.designation)}">`).join('');
-  const dates = L.map(p=>p.date).filter(Boolean).sort();
-  document.getElementById('reap-prev-resume').textContent = L.length ? '— '+L.length+' ligne(s), du '+fmtDate(dates[0])+' au '+fmtDate(dates[dates.length-1]) : '— aucun prévisionnel importé';
-  if (!L.length) { el.innerHTML = '<div style="color:var(--text3);font-size:12px">Aucun prévisionnel. Collez-le depuis Excel (Importer) ou ajoutez des lignes une à une : les ruptures seront alors projetées jour par jour.</div>'; return; }
-  const inconnus = L.filter(p=>!((p.articleId && state.articles.find(a=>a.id===p.articleId)) || trouverStandard(p.designation)));
-  const tri = L.slice().sort((x,y)=>(x.date||'').localeCompare(y.date||'') || String(x.designation).localeCompare(String(y.designation),'fr'));
-  const today = isoLocal(new Date());
-  el.innerHTML = (inconnus.length ? `<div class="warn-box">⚠ ${inconnus.length} ligne(s) portent sur une désignation sans fiche article standard (ex. ${esc(inconnus[0].designation)}) : elles ne sont pas prises en compte. Créez l'article ou corrigez la désignation.</div>` : '') +
-    `<div class="table-wrap"><table class="stock-table"><thead><tr><th>Date</th><th>Article</th><th style="text-align:right">Quantité</th><th>Projet</th><th></th></tr></thead><tbody>${tri.slice(0,300).map(p=>{
-      const ok = !inconnus.includes(p);
-      return `<tr style="${p.date<today?'opacity:.5':''}"><td>${fmtDate(p.date)}${p.date<today?' <span class="badge badge-gray">passé</span>':''}</td><td>${esc(p.designation)}${ok?'':' <span class="badge badge-red">article inconnu</span>'}</td><td class="r">${fmtQte(p.quantite)}</td><td>${esc(p.projet||'—')}</td><td class="rw"><button class="btn btn-sm btn-red" onclick="supprimerLignePrev('${p.id}')">✕</button></td></tr>`;
-    }).join('')}</tbody></table></div>${tri.length>300?'<div style="font-size:11px;color:var(--text3);margin-top:6px">… '+(tri.length-300)+' autres lignes non affichées (toutes sont prises en compte dans les calculs).</div>':''}`;
+  const alerte = f => f.statut && f.statut!=='couvert';
+  const nbRupt = fiches.filter(f=>f.statut==='rupture').length;
+  const nbMini = fiches.filter(f=>f.statut==='urgent'||f.statut==='prevu').length;
+  const prochaine = fiches.filter(f=>f.tRup!==null).sort((x,y)=>x.tRup-y.tRup)[0];
+  const avecPrev = fiches.filter(f=>f.hasPrev).length;
+  document.getElementById('pv-metrics').innerHTML = `
+    <div class="metric"><div class="metric-k">Articles avec prévisionnel</div><div class="metric-v">${avecPrev}</div></div>
+    <div class="metric"><div class="metric-k">Lignes de besoin</div><div class="metric-v">${L.length}</div></div>
+    <div class="metric"><div class="metric-k">Ruptures prévues (${horizon} j)</div><div class="metric-v${nbRupt?' alert':' ok'}">${nbRupt}</div></div>
+    <div class="metric"><div class="metric-k">Sous le mini prévu</div><div class="metric-v${nbMini?' warn':' ok'}">${nbMini}</div></div>
+    <div class="metric"><div class="metric-k">Prochaine rupture</div><div class="metric-v${prochaine?' alert':' ok'}" style="font-size:15px">${prochaine?fmtDateObj(addJours(today,prochaine.tRup)):'—'}</div><div class="metric-sub">${prochaine?esc(prochaine.a.designation):'aucune sur '+horizon+' jours'}</div></div>`;
+  const inconnus = L.filter(p=>!articlePourPrev(p));
+  const avert = inconnus.length ? `<div class="warn-box">⚠ ${inconnus.length} ligne(s) de besoin portent sur une désignation sans fiche article standard (ex. ${esc(inconnus[0].designation)}) : elles ne sont pas prises en compte. Créez l'article dans « Base articles » ou supprimez la ligne.</div>` : '';
+  if (!articlesStandards().length) { el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune fiche article. Créez vos articles dans « Base articles », puis saisissez ici leurs besoins.</div>'; return; }
+  let lignes = fiches.filter(f=>!q || f.a.designation.toLowerCase().includes(q) || String(f.a.code||'').toLowerCase().includes(q));
+  if (filtre==='prev') lignes = lignes.filter(f=>f.hasPrev); else if (filtre==='alerte') lignes = lignes.filter(alerte);
+  if (!lignes.length) {
+    el.innerHTML = avert + (L.length || filtre!=='prev'
+      ? '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucun article ne correspond à ce filtre.</div>'
+      : `<div style="padding:2rem;text-align:center;color:var(--text3);line-height:1.8">Aucun besoin saisi pour l'instant.<br>Trois façons de commencer : <b>+ Ajouter un besoin</b> (ponctuel, ou régulier pour les consommables), <b>Importer</b> un tableau Excel, ou ouvrir un article ci-dessous avec le filtre « Tous les articles ».</div>`);
+    return;
+  }
+  lignes.sort((x,y)=>(REAP_RANG[x.statut||'couvert']??4)-(REAP_RANG[y.statut||'couvert']??4) || ((x.tRup??x.tMini??9999)-(y.tRup??y.tMini??9999)) || x.a.designation.localeCompare(y.a.designation,'fr'));
+  const badge = f => f.statut==='rupture' ? '<span class="badge badge-red">Rupture prévue</span>' : f.statut==='urgent' ? '<span class="badge badge-orange">Au mini</span>' : f.statut==='prevu' ? '<span class="badge badge-blue">Sous le mini</span>' : f.statut==='couvert' ? '<span class="badge badge-blue">Déjà commandé</span>' : (f.hasPrev || f.mini>0 ? '<span class="badge badge-green">OK</span>' : '<span class="badge badge-gray">Pas de mini</span>');
+  const corps = lignes.map(f=>{
+    const a = f.a, u = esc(a.unite||''), ouvert = !!_pvOuverts[a.id];
+    const besoin = f.conso.filter(c=>ecartJours(c.date,today)<=horizon).reduce((t,c)=>t+c.qte,0);
+    let couv;
+    if (f.tRup!==null) couv = `<span style="color:var(--red);font-weight:700">Rupture le ${fmtDateObj(addJours(today,f.tRup))}</span><div style="font-size:10px;color:var(--text3)">dans ${f.tRup} j${f.statut!=='couvert'&&f.orderByJ!==null?' · commander '+(f.orderByJ<=0?'maintenant':'avant le '+fmtDateObj(f.orderBy)):''}</div>`;
+    else if (f.tMini!==null) couv = `<span style="color:var(--orange);font-weight:600">Sous le mini le ${fmtDateObj(addJours(today,f.tMini))}</span><div style="font-size:10px;color:var(--text3)">dans ${f.tMini} j</div>`;
+    else couv = `<span style="color:var(--green)">Couvert sur ${horizon} j</span>`;
+    let detail = '';
+    if (ouvert) {
+      const mes = L.filter(p=>{ const x = articlePourPrev(p); return x && x.id===a.id; }).sort((x,y)=>(x.date||'').localeCompare(y.date||''));
+      const auj = isoLocal(today);
+      const lignesBesoin = mes.length ? `<div class="tw"><table class="stock-table"><thead><tr><th>Date</th><th style="text-align:right">Quantité</th><th>Projet</th><th></th></tr></thead><tbody>${mes.slice(0,120).map(p=>`<tr style="${p.date<auj?'opacity:.5':''}"><td>${fmtDate(p.date)}${p.groupe?' <span class="badge badge-gray" title="Ligne d\'un besoin régulier">'+(p.serie==='mensuel'?'mensuel':'hebdo')+'</span>':''}${p.date<auj?' <span class="badge badge-gray">passé</span>':''}</td><td class="r">${fmtQte(p.quantite)} ${u}</td><td>${esc(p.projet||'—')}</td><td class="r rw"><button class="btn btn-sm btn-red" title="Supprimer cette ligne" onclick="supprimerLignePrev('${p.id}')">✕</button>${p.groupe?` <button class="btn btn-sm btn-red" title="Supprimer toutes les lignes de ce besoin régulier" onclick="supprimerSeriePrev('${p.groupe}')">Série ✕</button>`:''}</td></tr>`).join('')}</tbody></table></div>${mes.length>120?`<div style="font-size:11px;color:var(--text3);margin-top:4px">… ${mes.length-120} autres lignes (toutes prises en compte).</div>`:''}` : `<div style="color:var(--text3);font-size:12px">Aucun besoin saisi pour cet article.</div>`;
+      const arr = f.arrivees.length ? `<div class="tw"><table class="stock-table"><thead><tr><th>Commande</th><th>Arrivée</th><th style="text-align:right">Quantité</th></tr></thead><tbody>${f.arrivees.map(x=>`<tr><td>${esc(x.ref||'—')}${x.retard?' <span class="badge badge-red">en retard</span>':''}</td><td>${fmtDateObj(x.date)}${x.estime?' (est.)':''}</td><td class="r">${fmtQte(x.qte)} ${u}</td></tr>`).join('')}</tbody></table></div>` : '<div style="color:var(--text3);font-size:12px">Aucune commande en cours.</div>';
+      detail = `<tr class="reap-detail"><td colspan="9"><div class="pv-detail">
+        <div><div class="pv-h">Stock projeté — ${horizon} jours <span style="font-weight:400;text-transform:none;letter-spacing:0">(ligne pointillée orange = mini${f.maxi>0?', verte = maxi':''} ; ▲ = commande attendue)</span></div>${graphiqueStock(f, horizon, today, false)}
+          <div style="font-size:12px;color:var(--text2);margin-top:6px">Stock actuel <b>${fmtQte(f.stock)} ${u}</b> · mini ${f.mini?fmtQte(f.mini):'—'} · délai d'appro ${f.delai?f.delai+' j':'—'}${f.statut&&f.statut!=='couvert'&&f.qte>0?` · proposition : <b>${fmtQte(f.qte)} ${u}</b> à commander`:''}</div></div>
+        <div><div style="display:flex;justify-content:space-between;align-items:center"><div class="pv-h">Besoins saisis</div><button class="btn btn-sm btn-primary rw" onclick="ouvrirBesoin('${esc(a.designation).replace(/'/g,"\\'")}')">+ Ajouter</button></div>${lignesBesoin}
+          <div class="pv-h" style="margin-top:12px">Commandes en cours</div>${arr}</div>
+      </div></td></tr>`;
+    }
+    return `<tr class="clickable" onclick="togglePrevArt('${a.id}')">
+      <td><span class="chevron${ouvert?' open':''}">▶</span></td>
+      <td style="font-weight:700">${a.code?`<span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:400;color:var(--text2)">${esc(a.code)}</span> `:''}${esc(a.designation)}${a.unite?` <span class="badge badge-gray">${u}</span>`:''}</td>
+      <td class="r"><b>${fmtQte(f.stock)}</b></td>
+      <td class="r">${f.enCommande>REAP_EPS?fmtQte(f.enCommande):'—'}</td>
+      <td class="r">${besoin>0?'<b>'+fmtQte(besoin)+'</b> '+u:'—'}</td>
+      <td>${couv}</td>
+      <td>${graphiqueStock(f, horizon, today, true)}</td>
+      <td>${badge(f)}</td>
+      <td></td>
+    </tr>${detail}`;
+  }).join('');
+  el.innerHTML = avert + `<div class="table-wrap"><table class="stock-table"><thead><tr><th></th><th>Article</th><th style="text-align:right">Stock</th><th style="text-align:right">En commande</th><th style="text-align:right">Besoin (${horizon} j)</th><th>Couverture</th><th>Évolution du stock</th><th>Statut</th><th></th></tr></thead><tbody>${corps}</tbody></table></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px">Projection = stock actuel + commandes en cours à leur date d'arrivée − besoins saisis. Les commandes sans date prévue arrivent après le délai d'approvisionnement de la fiche article.</div>`;
+}
+// ── Saisie d'un besoin : ponctuel ou régulier ──
+function ouvrirBesoin(designation) {
+  document.getElementById('bs-art').value = designation || '';
+  document.getElementById('bs-mode').value = 'ponctuel';
+  ['bs-date','bs-qte','bs-fin','bs-projet'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('bs-freq').value = 'semaine';
+  apercuBesoin();
+  document.getElementById('modal-besoin').classList.add('show');
+}
+function lignesBesoinDepuisForm() {
+  const mode = document.getElementById('bs-mode').value, debut = document.getElementById('bs-date').value, fin = document.getElementById('bs-fin').value;
+  const qte = parseFloat(document.getElementById('bs-qte').value), freq = document.getElementById('bs-freq').value;
+  if (!debut || !(qte>0)) return [];
+  if (mode==='ponctuel') return [debut];
+  const d0 = parseISO(debut), d1 = parseISO(fin); if (!d0 || !d1 || d1 < d0) return [];
+  const out = [];
+  for (let k=0; k<260; k++) {
+    const d = freq==='semaine' ? addJours(d0, 7*k) : (function(){ const t = new Date(d0.getFullYear(), d0.getMonth()+k, 1); const dernier = new Date(t.getFullYear(), t.getMonth()+1, 0).getDate(); t.setDate(Math.min(d0.getDate(), dernier)); return t; })();
+    if (d > d1) break; out.push(isoLocal(d));
+  }
+  return out;
+}
+function apercuBesoin() {
+  const rec = document.getElementById('bs-mode').value==='recurrent';
+  document.getElementById('bs-rec').style.display = rec ? 'grid' : 'none';
+  document.getElementById('bs-lbl-date').textContent = rec ? 'À partir du *' : 'Date du besoin *';
+  document.getElementById('bs-lbl-qte').textContent = rec ? 'Quantité par ' + (document.getElementById('bs-freq').value==='semaine'?'semaine':'mois') + ' *' : 'Quantité *';
+  const dates = lignesBesoinDepuisForm(), q = parseFloat(document.getElementById('bs-qte').value)||0, des = document.getElementById('bs-art').value.trim();
+  let h = '';
+  if (des && !trouverStandard(des)) h = '<span style="color:var(--orange)">⚠ Aucune fiche article standard à ce nom : créez-la d\'abord dans « Base articles ».</span><br>';
+  if (rec && dates.length) h += `→ <b>${dates.length}</b> ligne(s) de besoin, du ${fmtDate(dates[0])} au ${fmtDate(dates[dates.length-1])} · total <b>${fmtQte(q*dates.length)}</b>${dates.length>=260?' (limité à 260 lignes)':''}`;
+  else if (!rec && dates.length) h += `→ 1 besoin de <b>${fmtQte(q)}</b> le ${fmtDate(dates[0])}`;
+  document.getElementById('bs-apercu').innerHTML = h;
+}
+function validerBesoin() {
+  const des = document.getElementById('bs-art').value.trim(), art = trouverStandard(des);
+  if (!art) { toast('Choisissez un article existant de la Base articles'); return; }
+  const dates = lignesBesoinDepuisForm(); if (!dates.length) { toast('Renseignez la date' + (document.getElementById('bs-mode').value==='recurrent' ? ' de début, la date de fin' : '') + ' et la quantité'); return; }
+  const q = parseFloat(document.getElementById('bs-qte').value), projet = document.getElementById('bs-projet').value.trim();
+  const rec = document.getElementById('bs-mode').value==='recurrent', groupe = rec ? uid() : '', serie = rec ? (document.getElementById('bs-freq').value==='semaine'?'hebdo':'mensuel') : '';
+  dates.forEach(d=>{ const p = { id: uid(), articleId: art.id, designation: art.designation, date: d, quantite: q, projet }; if (rec) { p.groupe = groupe; p.serie = serie; } state.previsions_conso.push(p); });
+  _pvOuverts[art.id] = true;
+  closeModal('modal-besoin'); saveData(); renderReappro(); renderPrevEcran();
+  toast(dates.length + ' ligne(s) de besoin ajoutée(s)');
+}
+function supprimerSeriePrev(groupe) {
+  const n = state.previsions_conso.filter(p=>p.groupe===groupe).length;
+  if (!n || !confirm('Supprimer les ' + n + ' lignes de ce besoin régulier ?')) return;
+  state.previsions_conso = state.previsions_conso.filter(p=>p.groupe!==groupe); saveData(); renderReappro(); renderPrevEcran();
 }
 // ── Historique des achats d'un article : commandes ERP + lignes du tableau ACHATS (sans doublon) ──
 function historiqueAchatsArticle(designation) {
@@ -3574,7 +3759,8 @@ function historiqueCorrectionsArticle(a) {
 const IA_ORDRE = ['des','unite','stock','emp','fourn','mini','maxi','delai','qr'];
 function iaChampDepuisTitre(t) {
   const n = cfNorm(t);
-  if (/^(designation|article|libelle|reference|ref)/.test(n)) return 'des';
+  if (/^(code|ref|reference)/.test(n)) return 'code';   // « Référence » devient code si une colonne Désignation existe (voir parseImportArticles)
+  if (/^(designation|article|libelle)/.test(n)) return 'des';
   if (/^unite|^u$/.test(n)) return 'unite';
   if (/^(stock|quantite|qte$|qte stock|en stock)/.test(n)) return 'stock';
   if (/^emplacement|^empl|^lieu|^zone/.test(n)) return 'emp';
@@ -3592,6 +3778,7 @@ function parseImportArticles(texte) {
   const decoupe = l => { const sep = l.indexOf('\t')>=0 ? '\t' : (l.indexOf(';')>=0 ? ';' : ','); return l.split(sep).map(x=>x.trim().replace(/^"|"$/g,'')); };
   const premiere = decoupe(brut[0]);
   const map = premiere.map(iaChampDepuisTitre);
+  if (!map.includes('des')) { const i = map.indexOf('code'); if (i>=0 && /^(ref|reference)/.test(cfNorm(premiere[i]))) map[i]='des'; }   // ancien comportement : « Référence » seule = désignation
   const aEntetes = map.includes('des');
   const cols = aEntetes ? map : IA_ORDRE.slice(0, premiere.length);
   (aEntetes ? brut.slice(1) : brut).forEach((l, i)=>{
@@ -3602,7 +3789,7 @@ function parseImportArticles(texte) {
     const num = v => { const q = parseQtePrev(v); return isNaN(q) ? null : q; };
     let stock = num(o.stock), unite = String(o.unite||'').trim();
     if (stock===null && String(o.stock||'').trim()) { const q = nombreDepuisTexte(o.stock); if (q>=0 && /\d/.test(o.stock)) { stock = q; if (!unite) unite = uniteDepuisTexte(o.stock); } }
-    out.lignes.push({ n, designation: String(o.des).trim(), unite, stock, emp: String(o.emp||'').trim(), fourn: String(o.fourn||'').trim(),
+    out.lignes.push({ n, code: String(o.code||'').trim(), designation: String(o.des).trim(), unite, stock, emp: String(o.emp||'').trim(), fourn: String(o.fourn||'').trim(),
       mini: num(o.mini), maxi: num(o.maxi), delai: num(o.delai), qr: num(o.qr) });
   });
   // doublons dans le collage : la dernière ligne l'emporte
@@ -3644,6 +3831,7 @@ function validerImportArticles() {
     let art = trouverStandard(l.designation); const nouveau = !art;
     if (nouveau) { art = { id: uid(), designation: l.designation, type:'standard', unite:'', fournisseur_id:'', fournisseur_nom:'', seuil_mini:0, seuil_maxi:0, delai_appro_jours:0, qte_reappro:0, open:false, created_at:new Date().toISOString() }; state.articles.push(art); nNew++; } else nMaj++;
     if (l.unite) art.unite = l.unite;
+    if (l.code && !art.code) { const dup = state.articles.find(x=>x!==art && x.code && normaliserDesignation(x.code)===normaliserDesignation(l.code)); if (!dup) art.code = l.code; }
     if (l.mini!==null) art.seuil_mini = l.mini;
     if (l.maxi!==null) art.seuil_maxi = l.maxi;
     if (l.delai!==null) art.delai_appro_jours = Math.round(l.delai);
