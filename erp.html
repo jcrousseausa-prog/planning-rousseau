@@ -1899,7 +1899,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='18/11/2026-o';
+const ERP_BUILD='18/11/2026-p';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -9103,7 +9103,8 @@ async function renderCoherenceTranches(){
       html += '<button class="btn btn-sm" onclick="state._coherenceShowAbs='+(!showAbs)+';renderCoherenceTranches()" style="margin-bottom:10px">'+
         (showAbs?'▲ Masquer le détail':'▼ Voir le détail — '+nbEcarts+' écarts')+
         '</button>' +
-        ' <button class="btn btn-sm" onclick="renderCoherenceTranches()" title="Relire DATES, ERP et Planning prod (utile si le planning prod a changé depuis l\'ouverture de cette page)" style="margin-bottom:10px">↻ Actualiser</button>';
+        ' <button class="btn btn-sm" onclick="renderCoherenceTranches()" title="Relire DATES, ERP et Planning prod (utile si le planning prod a changé depuis l\'ouverture de cette page)" style="margin-bottom:10px">↻ Actualiser</button>'+
+        ((absERP.length && canEdit('planning')) ? ' <button class="btn btn-sm btn-primary" onclick="chargerDATESMaintenant(this)" title="Crée tout de suite dans l\'ERP les tranches « besoin atelier » de DATES qui manquent" style="margin-bottom:10px">⬇ Charger maintenant dans l\'ERP</button>' : '');
       if(nbFauxPositifs>0){
         html += '<div style="font-size:10px;color:var(--text3);margin:-6px 0 10px 2px">'+nbFauxPositifs+' tranche(s) déjà produites/livrées ou sans assemblage/équipement — exclues automatiquement</div>';
       }
@@ -9112,16 +9113,23 @@ async function renderCoherenceTranches(){
     }
 
     if(showAbs){
-      const renderList = (title, items, bgColor, borderColor) => {
+      // Pour chaque tranche absente de l'ERP : POURQUOI le chargement automatique ne l'a pas créée
+      const _ncMotifs = new Map((state._datesNonChargees||[]).map(x=>[_cleNomTranche(x.tranche), x.motif]));
+      const _erpParCle = new Map(); (state.tranches||[]).forEach(t=>{ const k=_cleNomTranche(t.nom); if(k && !_erpParCle.has(k)) _erpParCle.set(k, t.nom); });
+      const motifAbs = n => { const k=_cleNomTranche(n);
+        if(_ncMotifs.has(k)) return '⛔ '+_ncMotifs.get(k);
+        if(_erpParCle.has(k)) return '≈ le chargement auto la croit déjà présente (nom très proche : « '+_erpParCle.get(k)+' »)';
+        return '⏳ pas encore créée — chargement auto à la prochaine actualisation de DATES (≤ 10 min)'; };
+      const renderList = (title, items, bgColor, borderColor, noteFn) => {
         if(!items || !items.length) return '';
         return '<div style="margin-bottom:10px">' +
           '<div style="font-size:11px;font-weight:700;margin-bottom:5px;color:'+borderColor+'">'+title+' ('+items.length+')</div>' +
           '<div style="background:'+bgColor+';border:1px solid '+borderColor+';border-radius:6px;padding:7px 10px;max-height:160px;overflow-y:auto">' +
-          items.map(n=>'<div style="font-size:11px;padding:2px 0;border-bottom:1px solid '+borderColor+'">'+esc(n)+'</div>').join('') +
+          items.map(n=>'<div style="font-size:11px;padding:2px 0;border-bottom:1px solid '+borderColor+'">'+esc(n)+(noteFn?' <span style="color:var(--text3);font-size:10px">— '+esc(noteFn(n))+'</span>':'')+'</div>').join('') +
           '</div></div>';
       };
 
-      html += renderList('⚠ Dans DATES, absentes de l\'ERP', absERP, 'var(--orange-bg)', 'var(--orange)');
+      html += renderList('⚠ Dans DATES, absentes de l\'ERP', absERP, 'var(--orange-bg)', 'var(--orange)', motifAbs);
       html += renderList('📅 Dans DATES, non planifiées en prod', absProd, 'var(--blue-bg)', 'var(--blue)');
       html += renderList('ℹ Dans ERP+DATES, pas encore en prod', erpPasProd, 'var(--bg)', 'var(--border)');
       html += renderList('🔑 Lignes DATES sans code TR (liaison par nom seulement)', datesSansId, 'var(--bg)', 'var(--border2)');
@@ -9300,7 +9308,9 @@ async function _creerTranchesDepuisDATES_(opts){
   }
   console.log('DATES → ERP :', crees, dossiersErr?('(DOSSIERS : '+dossiersErr+')'):'');
   if(crees.sansDossier.length||crees.chantierInconnu.length) console.warn('DATES → ERP : non créées', {sansDossier:crees.sansDossier, chantierInconnu:crees.chantierInconnu});
-  try{ renderCoherenceTranches(); }catch(e){}
+  // Relance du widget seulement si quelque chose a changé (tranches créées, ou liste des non-chargées différente de celle déjà affichée) : une seule fois, jamais en boucle
+  const _sig = nonCharg.map(x=>x.tranche+'|'+x.motif).sort().join('\n');
+  if(crees.tranches || _sig !== state._ncSigAffichee){ state._ncSigAffichee = _sig; try{ renderCoherenceTranches(); }catch(e){} }
 }
 window.creerTranchesDepuisDATES = creerTranchesDepuisDATES;
 function renderDatesNonChargees(){
@@ -9317,6 +9327,13 @@ function renderDatesNonChargees(){
     '</div></div>';
 }
 window.renderDatesNonChargees = renderDatesNonChargees;
+async function chargerDATESMaintenant(btn){
+  if(btn){ btn.disabled = true; btn.textContent = '⟳ Chargement…'; }
+  try{ await creerTranchesDepuisDATES({force:true}); }catch(e){ console.warn(e); }
+  state._coherenceShowAbs = true;
+  renderCoherenceTranches();
+}
+window.chargerDATESMaintenant = chargerDATESMaintenant;
 
 async function loadDATESSource() {
   try {
