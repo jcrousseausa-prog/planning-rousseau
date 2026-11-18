@@ -429,6 +429,7 @@ table.bl-lignes td.r{text-align:right}
     <button class="btn" onclick="openRecapChantiers()" title="Récapitulatif des heures saisies par chantier" style="background:var(--teal-bg);color:var(--teal);border-color:var(--teal-border)">📊 Récap chantiers</button>
   </div>
   <div id="doublons-tranches"></div>
+  <div id="dates-non-chargees"></div>
   <div class="table-wrap" id="planning-view-chantier" style="max-height:calc(100vh - 196px);overflow-y:auto">
     <table>
       <thead style="position:sticky;top:0;z-index:10"><tr>
@@ -1898,7 +1899,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='18/11/2026-m';
+const ERP_BUILD='18/11/2026-o';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -3239,6 +3240,7 @@ function setPlanningVue(v){
 function renderPlanning(opts){
   const doScroll = !!(opts && opts.scroll === true);
   try{ renderDoublonsTranches(); }catch(e){ console.warn("doublons:",e.message); }
+  try{ renderDatesNonChargees(); }catch(e){ console.warn("dates non chargées:",e.message); }
   // Deux modes d'affichage du Tableau de pilotage : l'arbre chantier → tranche → phase (par
   // défaut, pour raisonner par chantier), ou une liste à plat de toutes les phases triée par
   // numéro croissant avec rappel de la tranche/chantier (pour retrouver vite une phase précise).
@@ -3451,7 +3453,7 @@ function renderPlanningParPhase(){
     const ctvxHtml = ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)
       ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(ctvx)}</span>`
       : `<span style="color:var(--text3);font-size:11px">—</span>`;
-    const reprojHtml = reprojCelluleHtml(tr, ctvx, planR);
+    const reprojHtml = reprojCelluleHtml(tr, ctvx, planR, ph);
     const phFini = ['termine','livre'].includes(ph.statut||'') || tr.statut_erp==='livre';
     const finUsinagePhaseHtml = finUsinageBadge(tr.date_fin_usinage, ctvx, true, phFini);
     const _sp = sortieProdDetail(tr, ph), finProd = _sp.date;
@@ -3473,7 +3475,7 @@ function renderPlanningParPhase(){
       <td style="font-weight:500">${esc(ph.nom||'—')}</td>
       <td style="color:var(--text2)">${esc(tr.nom||'')}</td>
       <td>${ctvxHtml}</td>
-      <td onclick="event.stopPropagation()" data-copy="${esc(reprojTexteCopie(tr, planR))}">${reprojHtml}</td>
+      <td onclick="event.stopPropagation()" data-copy="${esc(reprojTexteCopie(tr, planR, ph))}">${reprojHtml}</td>
       <td>${finUsinagePhaseHtml}</td>
       <td>${finProdHtml}</td>
       <td>${atelierFinHtml(tr, ph)}</td>
@@ -9198,7 +9200,7 @@ async function syncFinUsinageManuel() {
 // rattachée à son chantier. Si le chantier n'existe pas, il est créé avec les informations du fichier DOSSIERS.
 // Une seule fois par ouverture de l'ERP (au chargement), jamais en lecture seule, et jamais si l'ERP n'est pas
 // complètement chargé (sinon on recréerait tout). Les tranches « LIVRÉ » dans DATES sont créées au statut Livré.
-let _creationDATESFaite = false, _creationDATESTentatives = 0;
+let _creationDATESFaite = false, _creationDATESTentatives = 0, _creationDATESEnCours = false, _creationDATESRefus = false;
 const _cleCh = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
 const _MAP_MARCHE = {prive:'Marché privé', public:'Marché public', 'gre a gre':'Gré à gré', ao:"Appel d'offres"};
 const _MAP_BATIMENT = {mi:'Maison individuelle', collectif:'Logements collectifs', tertiaire:'Tertiaire', erp:'ERP', industriel:'Industriel', agricole:'Agricole'};
@@ -9206,9 +9208,16 @@ function _mapListe(map, v){
   const k = String(v||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
   return map[k] || '';
 }
+// Chaque tranche « besoin atelier » cochée dans DATES doit exister dans l'ERP : la vérification est refaite à CHAQUE actualisation de DATES
+// (à l'ouverture, puis toutes les 10 min), sans attendre un rechargement de la page. Ce qui ne peut pas être créé est listé (avec le motif)
+// dans l'encart orange du Tableau de pilotage, au lieu d'être ignoré en silence.
 async function creerTranchesDepuisDATES(opts){
-  opts = opts || {};
-  if(_creationDATESFaite && !opts.force) return;
+  if(_creationDATESEnCours) return;
+  _creationDATESEnCours = true;
+  try{ await _creerTranchesDepuisDATES_(opts || {}); }
+  finally{ _creationDATESEnCours = false; try{ renderDatesNonChargees(); }catch(e){} }
+}
+async function _creerTranchesDepuisDATES_(opts){
   // L'ERP doit être entièrement chargé depuis le serveur ; sinon on attend un peu (max ~30 s) puis on abandonne
   if(!_sheetsLoaded || !state.chantiers.length){
     if(++_creationDATESTentatives <= 15) setTimeout(()=>creerTranchesDepuisDATES(opts), 2000);
@@ -9228,7 +9237,7 @@ async function creerTranchesDepuisDATES(opts){
     if(d.id_unique && idsLies.has(String(d.id_unique).trim())) return false;   // déjà liée sous un autre nom
     vues.add(k); return true;
   });
-  if(!manquantes.length){ console.log('DATES → ERP : aucune tranche manquante'); return; }
+  if(!manquantes.length){ state._datesNonChargees = []; console.log('DATES → ERP : aucune tranche manquante'); return; }
 
   // Fiche chantiers (fichier DOSSIERS) : seulement si au moins un chantier est à créer
   const cleChantierErp = new Map(); state.chantiers.forEach(c=>{ const k=_cleCh(c.nom); if(k && !cleChantierErp.has(k)) cleChantierErp.set(k,c); });
@@ -9245,20 +9254,24 @@ async function creerTranchesDepuisDATES(opts){
   const dosParCle = new Map(); (dossiers||[]).forEach(x=>{ const k=_cleCh(x.nom); if(k && !dosParCle.has(k)) dosParCle.set(k,x); });
 
   // Garde-fou : un volume anormal vient presque toujours d'une lecture incomplète → confirmation
-  if(manquantes.length > 150 && !confirm('DATES contient '+manquantes.length+' tranches absentes de l\'ERP. Les créer toutes maintenant ?')){ return; }
+  if(manquantes.length > 150){
+    if(_creationDATESRefus && !opts.force) return;     // déjà refusé pendant cette session : on ne redemande pas toutes les 10 min
+    if(!confirm('DATES contient '+manquantes.length+' tranches absentes de l\'ERP. Les créer toutes maintenant ?')){ _creationDATESRefus = true; return; }
+  }
 
   const today = new Date().toISOString().slice(0,10);
   const crees = {tranches:0, chantiers:[], livrees:0, sansDossier:[], chantierInconnu:[]};
+  const nonCharg = [];
   let n = 0;
   manquantes.forEach(d=>{
     const nomDos = String(d.dossier||'').trim();
-    if(!nomDos){ crees.sansDossier.push(d.tranche); return; }
+    if(!nomDos){ crees.sansDossier.push(d.tranche); nonCharg.push({tranche:d.tranche, motif:'colonne « Chantier » vide dans DATES (renseignez-la)'}); return; }
     const kC = _cleCh(nomDos);
     let ch = cleChantierErp.get(kC);
     const dos = dosParCle.get(kC) || null;
     if(!ch && dos && dos.code) ch = codeChantierErp.get(String(dos.code).trim()) || null;
     if(!ch){
-      if(dossiers===null){ crees.chantierInconnu.push(d.tranche); return; }     // fichier DOSSIERS illisible : on ne crée pas un chantier à moitié renseigné
+      if(dossiers===null && !opts.nomSeul){ crees.chantierInconnu.push(d.tranche); nonCharg.push({tranche:d.tranche, dossier:nomDos, motif:'chantier « '+nomDos+' » à créer mais fichier DOSSIERS illisible'+(dossiersErr?' ('+dossiersErr+')':''), dossiers:true}); return; }     // fichier DOSSIERS illisible : pas de chantier à moitié renseigné, sauf demande explicite (nomSeul)
       const m3 = dos ? String(dos.m3||'').replace(/\s/g,'').replace(',','.') : '';
       ch = {
         id: uid()+'-'+(n++).toString(36), open:false, actif:true,
@@ -9280,6 +9293,7 @@ async function creerTranchesDepuisDATES(opts){
   });
   state.chantiers.sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
   state._creationDATES = crees;
+  state._datesNonChargees = nonCharg;
   if(crees.tranches){
     scheduleSave(); try{ renderAll(); }catch(e){}
     toast('✅ DATES → ERP : '+crees.tranches+' tranche(s) créée(s)'+(crees.chantiers.length?' · '+crees.chantiers.length+' chantier(s) créé(s)':''));
@@ -9289,6 +9303,20 @@ async function creerTranchesDepuisDATES(opts){
   try{ renderCoherenceTranches(); }catch(e){}
 }
 window.creerTranchesDepuisDATES = creerTranchesDepuisDATES;
+function renderDatesNonChargees(){
+  const el = document.getElementById('dates-non-chargees'); if(!el) return;
+  const l = state._datesNonChargees || [];
+  if(!l.length || !canEdit('planning')){ el.innerHTML = ''; return; }
+  const parMotif = new Map(); l.forEach(x=>{ if(!parMotif.has(x.motif)) parMotif.set(x.motif, []); parMotif.get(x.motif).push(x.tranche); });
+  const aDossiers = l.some(x=>x.dossiers);
+  el.innerHTML = '<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--orange)">'+
+    '<b>⚠ '+l.length+' tranche'+(l.length>1?'s':'')+' « besoin atelier » de DATES non chargée'+(l.length>1?'s':'')+' dans l\'ERP</b> <span style="color:var(--text3)">— nouvelle tentative automatique toutes les 10 min</span>'+
+    [...parMotif].map(([m,noms])=>'<div style="margin-top:5px;color:var(--text)"><b>'+esc(m)+'</b> ('+noms.length+') : <span style="color:var(--text2)">'+noms.slice(0,12).map(esc).join(' ; ')+(noms.length>12?' … +'+(noms.length-12):'')+'</span></div>').join('')+
+    '<div style="margin-top:7px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-sm" onclick="creerTranchesDepuisDATES({force:true})">↻ Réessayer maintenant</button>'+
+    (aDossiers?'<button class="btn btn-sm" onclick="creerTranchesDepuisDATES({force:true,nomSeul:true})" title="Crée les chantiers manquants avec leur nom seul (sans les infos du fichier DOSSIERS)">Créer quand même (chantiers avec nom seul)</button>':'')+
+    '</div></div>';
+}
+window.renderDatesNonChargees = renderDatesNonChargees;
 
 async function loadDATESSource() {
   try {
@@ -9312,7 +9340,8 @@ async function loadDATESSource() {
     }));
     state.dates_atelier = r.tranches_atelier || [];
     autoTerminerTranchesUsinageSeul();
-    setTimeout(()=>{ try{ creerTranchesDepuisDATES(); }catch(e){ console.warn('creerTranchesDepuisDATES:', e.message); } }, 0);   // une seule fois par ouverture
+    _creationDATESTentatives = 0;
+    setTimeout(()=>{ try{ creerTranchesDepuisDATES(); }catch(e){ console.warn('creerTranchesDepuisDATES:', e.message); } }, 0);   // à chaque actualisation de DATES
     // Re-render le planning avec les nouvelles données CTVX
     if(state.currentTab === 'pilotage') renderPlanning();
 
@@ -10627,7 +10656,8 @@ async function chargerDatesPlanning(maxAge){
           // Lignes du planning de cette tranche (une par atelier) : sert à modifier la date reprojetée depuis l'ERP
           const lid = String(t.id||'').trim();
           if(lid){
-            const lg = {id:lid, atelier:String(t.atelier_id||''), ctvx:besoin, reproj:(reproj && reproj!==besoin)?reproj:'', d};
+            const tagsPh = (Array.isArray(t.phases) ? t.phases : String(t.phases||'').split(',')).map(x=>String(x||'').trim()).filter(Boolean);
+            const lg = {id:lid, atelier:String(t.atelier_id||''), ctvx:besoin, reproj:(reproj && reproj!==besoin)?reproj:'', d, ph:tagsPh.map(clePhaseNum), phTxt:tagsPh};
             const kl = _clePlan(t.nom); if(kl){ if(!lnNom.has(kl)) lnNom.set(kl,[]); lnNom.get(kl).push(lg); }
             const el = String(t.erp_tranche_id||'').trim(); if(el){ if(!lnId.has(el)) lnId.set(el,[]); lnId.get(el).push(lg); }
           }
@@ -10710,13 +10740,28 @@ function _reprojInfoTranche(tr, plan){
   const divergent = new Set(lignes.map(l=>l.d||'')).size > 1;
   return {lignes, d, active, divergent, ctvxPlan: lignes.map(l=>l.ctvx).filter(Boolean).sort()[0]||''};
 }
-function reprojTexteCopie(tr, plan){
-  const i = _reprojInfoTranche(tr, plan);
+// Une phase prend la date de la (des) ligne(s) du planning qui la portent (étiquette de phase de la ligne : PH203, PH207…).
+// Phase portée par aucune ligne (étiquette absente) : repli sur la date de la tranche (toutes ses lignes).
+function _reprojInfoPhase(tr, ph, plan){
+  const lignes = lignesPlanDeTranche(tr, plan);
+  if(!lignes || !lignes.length) return null;
+  const k = ph ? clePhaseNum(ph.num) : '';
+  const propres = k ? lignes.filter(l=>l.ph && l.ph.indexOf(k)>=0) : [];
+  const util = propres.length ? propres : lignes;
+  const ds = util.map(l=>l.d).filter(Boolean).sort();
+  const autresPh = [];
+  if(propres.length) propres.forEach(l=>(l.phTxt||[]).forEach(x=>{ if(clePhaseNum(x)!==k && autresPh.indexOf(x)<0) autresPh.push(x); }));
+  return {lignes:util, d:ds[0]||'', active:util.some(l=>l.reproj), divergent:new Set(util.map(l=>l.d||'')).size>1,
+          ctvxPlan:util.map(l=>l.ctvx).filter(Boolean).sort()[0]||'', propre:propres.length>0, autresPh};
+}
+function reprojTexteCopie(tr, plan, ph){
+  const i = ph ? _reprojInfoPhase(tr, ph, plan) : _reprojInfoTranche(tr, plan);
   return (i && i.active && i.d) ? fmtDate(i.d) : '';
 }
-function reprojCelluleHtml(tr, ctvx, plan){
+function reprojCelluleHtml(tr, ctvx, plan, ph){
   if(!plan) return `<span style="color:var(--text3);font-size:11px" title="Chargement des dates du Planning Production…">…</span>`;
-  const i = _reprojInfoTranche(tr, plan);
+  const i = ph ? _reprojInfoPhase(tr, ph, plan) : _reprojInfoTranche(tr, plan);
+  const phArg = ph ? ph.id : '';
   if(!i) return `<span style="color:var(--text3);font-size:11px" title="Tranche absente du Planning Production (ou déjà terminée) : pas de date reprojetée">—</span>`;
   const ro = canEdit('planning') ? '' : 'disabled';
   const base = "width:112px;font-size:11px;font-family:'DM Mono',monospace;";
@@ -10726,15 +10771,19 @@ function reprojCelluleHtml(tr, ctvx, plan){
   const titre = i.active
     ? `Date reprojetée = date de besoin (CTVX d'origine : ${i.ctvxPlan?fmtDate(i.ctvxPlan):'—'})`+(i.divergent?' — attention : les lignes de cette tranche n\'ont pas toutes la même date dans le planning':'')
     : 'Identique à la CTVX — saisir une date pour la remplacer (même date que dans le Planning Production)';
-  const raz = (i.active && !ro) ? `<button class="ph-act" onclick="changerReprojTranche('${tr.id}','',event)" title="Revenir à la date CTVX" style="margin-left:2px;visibility:visible;opacity:1;cursor:pointer;border:none;background:none;color:var(--orange);font-size:12px">↺</button>` : '';
-  return `<span style="white-space:nowrap"><input type="date" value="${esc(i.d)}" ${ro} onchange="changerReprojTranche('${tr.id}',this.value,event)" onclick="event.stopPropagation()" style="${sty}" title="${esc(titre)}"/>${raz}</span>`;
+  const notePh = !ph ? '' : (i.propre
+    ? (i.autresPh.length ? ' — ligne du planning partagée avec '+i.autresPh.join(', ')+' : ces phases ont la même date' : ' — date de la ligne du planning qui porte cette phase')
+    : ' — cette phase n\'est étiquetée sur aucune ligne du planning : date de toute la tranche (la modifier change toutes ses lignes)');
+  const raz = (i.active && !ro) ? `<button class="ph-act" onclick="changerReprojTranche('${tr.id}','',event,'${phArg}')" title="Revenir à la date CTVX" style="margin-left:2px;visibility:visible;opacity:1;cursor:pointer;border:none;background:none;color:var(--orange);font-size:12px">↺</button>` : '';
+  return `<span style="white-space:nowrap"><input type="date" value="${esc(i.d)}" ${ro} onchange="changerReprojTranche('${tr.id}',this.value,event,'${phArg}')" onclick="event.stopPropagation()" style="${sty}" title="${esc(titre+notePh)}"/>${raz}</span>`;
 }
-async function changerReprojTranche(trId, val, e){
+async function changerReprojTranche(trId, val, e, phId){
   if(e) e.stopPropagation();
   if(!canEdit('planning')) return;   // profil en lecture seule
   const tr = state.tranches.find(t=>t.id===trId); if(!tr) return;
   const plan = state._datesPlan;
-  const info = _reprojInfoTranche(tr, plan);
+  const ph = phId ? state.phases.find(p=>p.id===phId) : null;
+  const info = ph ? _reprojInfoPhase(tr, ph, plan) : _reprojInfoTranche(tr, plan);
   if(!info){ toast('⚠ Tranche absente du Planning Production — date non enregistrée'); renderPlanningParPhase(); return; }
   val = String(val||'').trim();
   if(val && !/^\d{4}-\d{2}-\d{2}$/.test(val)){ toast('⚠ Date invalide'); renderPlanningParPhase(); return; }
