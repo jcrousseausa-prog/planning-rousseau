@@ -5,6 +5,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rousseau — Achats & Fournisseurs</title>
+<script>try{ if(/[?&]embed=1/.test(location.search)) document.documentElement.classList.add("embed"); }catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -40,6 +41,10 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:.
 .notif-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red);margin-left:4px;vertical-align:middle}
 .new-badge{display:inline-block;background:var(--green);color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle;text-transform:uppercase;letter-spacing:.04em}
 main{padding:16px 20px;max-width:1600px;margin:0 auto}
+/* Mode intégré dans l'ERP (iframe) : pas d'en-tête ni de barre d'onglets propres (navigation = sous-onglets de l'ERP), pleine largeur comme l'ERP */
+html.embed header,html.embed .app-tabs,html.embed #gate-erp{display:none!important}
+html.embed main{max-width:none;padding:16px 12px}
+html.embed #sync-pill{position:fixed;right:14px;bottom:10px;z-index:60;box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px}
 .metric{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
 .metric-k{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
@@ -495,6 +500,7 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
     <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);white-space:nowrap;cursor:pointer">
       <input type="checkbox" id="article-fil-rupture" onchange="renderArticles()"/> Stock à 0 / sous le seuil
     </label>
+    <button class="btn rw" onclick="openImportArticles()" title="Créer les fiches articles (et le stock de départ) en collant une liste depuis Excel">⬇ Importer des articles (Excel)</button>
     <button class="btn btn-primary" onclick="openNewArticle()">+ Nouvel article</button>
   </div>
   <p id="art-note-tmp" style="display:none;font-size:11px;color:var(--text3);margin:-4px 0 12px">Articles temporaires : créés à la réception d'un produit non standard, toujours rattachés à un projet. Ils ont leur propre stock (par projet) et n'alimentent pas le stock des articles standards.</p>
@@ -738,6 +744,20 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
     </div>
   </div>
 </div>
+<!-- ══ MODAL IMPORT ARTICLES (copier-coller Excel) ══ -->
+<div class="modal-bg" id="modal-impart">
+  <div class="modal" style="width:780px;max-width:98vw">
+    <h2>Importer des articles depuis Excel</h2>
+    <p style="font-size:12px;color:var(--text2);margin:0 0 8px">Sélectionnez vos lignes dans Excel (avec la ligne d'en-têtes), copiez, puis collez ci-dessous. Colonnes reconnues par leur titre, dans n'importe quel ordre : <b>Désignation</b> (obligatoire), <b>Unité</b>, <b>Stock</b> (quantité actuelle), <b>Emplacement</b>, <b>Fournisseur</b>, <b>Mini</b>, <b>Maxi</b>, <b>Délai</b> (jours), <b>Qté réappro</b>. Sans en-têtes, l'ordre est celui de cette liste.</p>
+    <textarea id="ia-texte" oninput="apercuImportArticles()" style="width:100%;min-height:190px;padding:8px;border:1px solid var(--border);border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;resize:vertical" placeholder="Désignation&#9;Unité&#9;Stock&#9;Emplacement&#9;Fournisseur&#9;Mini&#9;Maxi&#9;Délai&#9;Qté réappro"></textarea>
+    <div id="ia-apercu" style="font-size:12px;color:var(--text2);margin:8px 0"></div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Un article déjà présent dans la base (même désignation) est complété : les cellules vides ne remplacent rien. Le stock indiqué n'est ajouté que si l'article n'a pas encore de stock (ensuite, utilisez « Corriger le stock »).</div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-impart')">Annuler</button>
+      <button class="btn btn-primary" id="ia-valider" onclick="validerImportArticles()">Importer</button>
+    </div>
+  </div>
+</div>
 <!-- ══ MODAL IMPORT PRÉVISIONNEL DE CONSOMMATION ══ -->
 <div class="modal-bg" id="modal-prev">
   <div class="modal" style="width:720px;max-width:98vw">
@@ -945,8 +965,10 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzIgJe_jVVYrwN
 // Mode test : seuls ces identifiants voient « + Nouvelle commande » et les commandes saisies dans cette page.
 // Pour terminer la phase de test : mettre la liste à [].
 const TEST_USERS = ['jcharles'];
+const EMBED = document.documentElement.classList.contains('embed');   // affichée dans la page ERP (iframe)
 let _user = null;
 window.onSessionExpiree = function(msg){
+  if (EMBED) { try{ window.parent.postMessage({type:'achats-session-expiree', msg:msg||''}, location.origin); }catch(e){} return; }
   try{ sessionStorage.removeItem('erp_user'); }catch(e){}
   afficherGate('Session expirée', (msg||'Votre session a expiré.')+' Reconnectez-vous ci-dessous.', true);
 };
@@ -1117,6 +1139,16 @@ function showTab(id) {
   document.getElementById('tab-'+id).classList.add('active');
   if (id==='reappro') { try { renderReappro(); } catch(e) { console.warn(e); } }
 }
+// ── Mode intégré : l'ERP pilote l'écran affiché (message) ; l'écran demandé dans l'adresse (?ecran=…) s'ouvre au chargement ──
+window.addEventListener('message', function(e){
+  if (e.origin !== location.origin) return;
+  const d = e.data || {};
+  if (d.type === 'achats-ecran' && document.getElementById('screen-'+d.ecran)) showTab(d.ecran);
+});
+(function(){
+  try{ const m = /[?&]ecran=(\w+)/.exec(location.search); if (m && document.getElementById('screen-'+m[1])) showTab(m[1]); }catch(e){}
+  if (EMBED) { const p = document.getElementById('sync-pill'); if (p) { document.body.appendChild(p); } }
+})();
 // ═══ COMMANDES FOURNISSEUR — tableau ACHATS (Google Sheet), lecture seule ════
 // Colonnes et lignes viennent du serveur (action getCommandesFournisseur) ; la colonne « % pose » n'est jamais envoyée.
 let cfTri = { col: '', sens: 1 };
@@ -3219,6 +3251,7 @@ function renderReappro() {
     badge.style.display = props.length ? '' : 'none'; badge.textContent = props.length;
     badge.className = 'tab-badge' + (nbRupt ? '' : ' orange');
   }
+  if (EMBED) { try{ window.parent.postMessage({type:'achats-badge', reappro: props.length, rupture: nbRupt>0}, location.origin); }catch(e){} }
   document.getElementById('reap-metrics').innerHTML = `
     <div class="metric"><div class="metric-k">Propositions de commande</div><div class="metric-v${props.length?' warn':' ok'}">${props.length}</div></div>
     <div class="metric"><div class="metric-k">À commander maintenant</div><div class="metric-v${nbMaint?' alert':' ok'}">${nbMaint}</div></div>
@@ -3421,19 +3454,45 @@ function planImportStockERP() {
   const desSansFiche = [...new Set(lignes.map(l=>l.designation).filter(d=>!trouverStandard(d)))];
   return { lignes, ignorees, deja, nouveauxEmpl:[...nouveauxEmpl], desSansFiche, totalSource: src.length };
 }
-function openImportStockERP() {
+// Lecture du stock de l'ERP (onglet ERP_Stock) : action dédiée, avec diagnostic ; à défaut (ancien serveur), repli sur getERP
+state.erpStock = { lignes: [], nb: null, onglets: [], erreur: '', ancienServeur: false };
+async function chargerStockERP() {
+  const e = { lignes: [], nb: null, onglets: [], erreur: '', ancienServeur: false };
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getStockERP'})});
+    const r = await res.json();
+    if (r.ok) { e.lignes = r.lignes||[]; e.nb = r.nb==null ? e.lignes.length : r.nb; e.onglets = r.onglets||[]; }
+    else if (/inconnue/i.test(String(r.error||''))) {            // serveur pas encore mis à jour : ancienne méthode
+      e.ancienServeur = true;
+      const r2 = await (await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getERP'})})).json();
+      if (r2.ok && r2.data) { e.lignes = r2.data.stock||[]; e.nb = e.lignes.length; } else e.erreur = r2.error || r2.reason || 'getERP : lecture impossible';
+    } else { e.erreur = r.error || 'Lecture impossible'; e.onglets = r.onglets||[]; }
+  } catch(err) { e.erreur = 'Serveur inaccessible ('+(err&&err.message||err)+')'; }
+  state.erpStock = e;
+  if (!e.erreur) state.articles_stock = e.lignes;
+  return e;
+}
+async function openImportStockERP() {
   document.getElementById('modal-erpstock').classList.add('show');
+  document.getElementById('ie-apercu').textContent = 'Lecture du stock de l\'ERP…';
+  document.getElementById('ie-valider').disabled = true;
+  await chargerStockERP();
   apercuImportStockERP();
 }
 function apercuImportStockERP() {
   const el = document.getElementById('ie-apercu'), btn = document.getElementById('ie-valider');
-  if (!(state.articles_stock||[]).length) { el.innerHTML = '<span style="color:var(--orange)">Le stock de l\'ERP n\'a pas pu être lu (ou il est vide). Rechargez la page et réessayez.</span>'; btn.disabled = true; return; }
+  const e = state.erpStock, src = state.articles_stock||[];
+  if (e.erreur) { el.innerHTML = `<span style="color:var(--red)">Lecture du stock de l'ERP impossible : ${esc(e.erreur)}</span>${e.onglets&&e.onglets.length?`<br>Onglets du classeur contenant « stock » : ${e.onglets.map(esc).join(', ')}`:''}`; btn.disabled = true; return; }
+  if (!src.length) {
+    el.innerHTML = `<span style="color:var(--orange)">L'onglet <b>ERP_Stock</b> du classeur ne contient aucune ligne : il n'y a rien à reprendre.</span><br>Onglets du classeur contenant « stock » : ${(e.onglets&&e.onglets.length?e.onglets.map(esc).join(', '):'aucun autre')}.<br>Si votre stock est dans un autre onglet, indiquez-moi son nom (et ses colonnes).`; btn.disabled = true; return; }
   const pl = planImportStockERP();
-  let h = `<b>${pl.lignes.length}</b> ligne(s) à reprendre sur ${pl.totalSource} ligne(s) en stock dans l'ERP`;
+  let h = `<b>${pl.lignes.length}</b> ligne(s) à reprendre sur ${pl.totalSource} ligne(s) en stock dans l'ERP${e.nb!=null?` (${e.nb} lignes lues au total)`:''}`;
+  if (!pl.totalSource) { const c = {}; src.forEach(x=>{ const k=(x.type||'?')+' / '+(x.statut||'?'); c[k]=(c[k]||0)+1; }); h += `<br><span style="color:var(--orange)">Aucune ligne « en stock » du type coché. Contenu lu (type / statut) : ${Object.entries(c).map(([k,v])=>esc(k)+' : '+v).join(' ; ')}. Cochez l'autre type si besoin.</span>`; }
   if (pl.deja) h += ` · ${pl.deja} déjà reprise(s)`;
   if (pl.nouveauxEmpl.length) h += `<br>📍 ${pl.nouveauxEmpl.length} emplacement(s) inconnu(s) seront créés : ${pl.nouveauxEmpl.slice(0,6).map(esc).join(', ')}${pl.nouveauxEmpl.length>6?'…':''}`;
   if (document.getElementById('ie-creer-art').checked && pl.desSansFiche.length) h += `<br>🗂️ ${pl.desSansFiche.length} fiche(s) article standard seront créées`;
   if (pl.ignorees.length) h += `<br><span style="color:var(--orange)">⚠ ${pl.ignorees.length} ligne(s) ignorée(s) (quantité illisible) : ${pl.ignorees.slice(0,4).map(esc).join(' ; ')}${pl.ignorees.length>4?'…':''}</span>`;
+  if (e.ancienServeur) h += `<br><span style="color:var(--text3)">Serveur non mis à jour (lecture par l'ancienne méthode).</span>`;
   el.innerHTML = h; btn.disabled = !pl.lignes.length;
 }
 function validerImportStockERP() {
@@ -3510,6 +3569,97 @@ function saveCorrection() {
 }
 function historiqueCorrectionsArticle(a) {
   return state.corrections_stock.filter(c=>c.articleId===a.id || normaliserDesignation(c.designation)===normaliserDesignation(a.designation));
+}
+// ═══ IMPORT D'ARTICLES PAR COPIER-COLLER (fiches + stock de départ) ═══
+const IA_ORDRE = ['des','unite','stock','emp','fourn','mini','maxi','delai','qr'];
+function iaChampDepuisTitre(t) {
+  const n = cfNorm(t);
+  if (/^(designation|article|libelle|reference|ref)/.test(n)) return 'des';
+  if (/^unite|^u$/.test(n)) return 'unite';
+  if (/^(stock|quantite|qte$|qte stock|en stock)/.test(n)) return 'stock';
+  if (/^emplacement|^empl|^lieu|^zone/.test(n)) return 'emp';
+  if (/^fourn/.test(n)) return 'fourn';
+  if (/^(mini|stock mini|seuil|min)/.test(n)) return 'mini';
+  if (/^(maxi|stock maxi|max)/.test(n)) return 'maxi';
+  if (/^(delai|delais|delai d)/.test(n)) return 'delai';
+  if (/(reappro|lot|conditionnement)/.test(n)) return 'qr';
+  return '';
+}
+function parseImportArticles(texte) {
+  const brut = String(texte||'').split(/\r?\n/).filter(l=>l.trim());
+  const out = { lignes: [], erreurs: [] };
+  if (!brut.length) return out;
+  const decoupe = l => { const sep = l.indexOf('\t')>=0 ? '\t' : (l.indexOf(';')>=0 ? ';' : ','); return l.split(sep).map(x=>x.trim().replace(/^"|"$/g,'')); };
+  const premiere = decoupe(brut[0]);
+  const map = premiere.map(iaChampDepuisTitre);
+  const aEntetes = map.includes('des');
+  const cols = aEntetes ? map : IA_ORDRE.slice(0, premiere.length);
+  (aEntetes ? brut.slice(1) : brut).forEach((l, i)=>{
+    const c = decoupe(l), o = {};
+    cols.forEach((k, j)=>{ if (k && o[k]===undefined) o[k] = c[j]===undefined ? '' : c[j]; });
+    const n = i + (aEntetes ? 2 : 1);
+    if (!String(o.des||'').trim()) { out.erreurs.push({ n, msg:'désignation vide' }); return; }
+    const num = v => { const q = parseQtePrev(v); return isNaN(q) ? null : q; };
+    let stock = num(o.stock), unite = String(o.unite||'').trim();
+    if (stock===null && String(o.stock||'').trim()) { const q = nombreDepuisTexte(o.stock); if (q>=0 && /\d/.test(o.stock)) { stock = q; if (!unite) unite = uniteDepuisTexte(o.stock); } }
+    out.lignes.push({ n, designation: String(o.des).trim(), unite, stock, emp: String(o.emp||'').trim(), fourn: String(o.fourn||'').trim(),
+      mini: num(o.mini), maxi: num(o.maxi), delai: num(o.delai), qr: num(o.qr) });
+  });
+  // doublons dans le collage : la dernière ligne l'emporte
+  const vus = new Map(); out.lignes.forEach(l=>vus.set(normaliserDesignation(l.designation), l));
+  if (vus.size < out.lignes.length) { out.erreurs.push({ n:0, msg:(out.lignes.length-vus.size)+' doublon(s) de désignation dans le collage (dernière ligne retenue)' }); out.lignes = [...vus.values()]; }
+  return out;
+}
+function planImportArticles(r) {
+  const nouveaux = [], maj = []; const empl = new Set(); let stocks = 0, stocksIgnores = 0;
+  r.lignes.forEach(l=>{
+    const ex = trouverStandard(l.designation);
+    (ex ? maj : nouveaux).push(l);
+    if (l.stock!==null && l.stock>0) {
+      if (ex && stockActuelArticle(ex.designation).total > 0.001) stocksIgnores++;
+      else { stocks++; if (l.emp && !emplacementDepuisTexteERP(l.emp)) empl.add(l.emp); }
+    }
+  });
+  return { nouveaux, maj, stocks, stocksIgnores, nouveauxEmpl:[...empl] };
+}
+function openImportArticles() {
+  document.getElementById('ia-texte').value = ''; document.getElementById('ia-apercu').textContent = ''; document.getElementById('ia-valider').disabled = true;
+  document.getElementById('modal-impart').classList.add('show');
+}
+function apercuImportArticles() {
+  const r = parseImportArticles(document.getElementById('ia-texte').value), btn = document.getElementById('ia-valider');
+  const pl = planImportArticles(r);
+  let h = r.lignes.length ? `<b>${pl.nouveaux.length}</b> nouvelle(s) fiche(s) · <b>${pl.maj.length}</b> fiche(s) complétée(s) · <b>${pl.stocks}</b> stock(s) de départ` : '';
+  if (pl.stocksIgnores) h += ` · <span style="color:var(--orange)">${pl.stocksIgnores} stock(s) ignoré(s) (l'article a déjà du stock)</span>`;
+  if (pl.nouveauxEmpl.length) h += `<br>📍 ${pl.nouveauxEmpl.length} emplacement(s) seront créés : ${pl.nouveauxEmpl.slice(0,6).map(esc).join(', ')}${pl.nouveauxEmpl.length>6?'…':''}`;
+  if (r.erreurs.length) h += `<br><span style="color:var(--orange)">⚠ ${r.erreurs.slice(0,3).map(e=>(e.n?'ligne '+e.n+' : ':'')+esc(e.msg)).join(' ; ')}${r.erreurs.length>3?'…':''}</span>`;
+  document.getElementById('ia-apercu').innerHTML = h; btn.disabled = !r.lignes.length;
+}
+function validerImportArticles() {
+  if (!state._chargeOk) { toast('Données non chargées : rechargez la page'); return; }
+  const r = parseImportArticles(document.getElementById('ia-texte').value);
+  if (!r.lignes.length) { toast('Aucune ligne à importer'); return; }
+  const jour = isoLocal(new Date()); let nNew = 0, nMaj = 0, nStock = 0;
+  r.lignes.forEach(l=>{
+    let art = trouverStandard(l.designation); const nouveau = !art;
+    if (nouveau) { art = { id: uid(), designation: l.designation, type:'standard', unite:'', fournisseur_id:'', fournisseur_nom:'', seuil_mini:0, seuil_maxi:0, delai_appro_jours:0, qte_reappro:0, open:false, created_at:new Date().toISOString() }; state.articles.push(art); nNew++; } else nMaj++;
+    if (l.unite) art.unite = l.unite;
+    if (l.mini!==null) art.seuil_mini = l.mini;
+    if (l.maxi!==null) art.seuil_maxi = l.maxi;
+    if (l.delai!==null) art.delai_appro_jours = Math.round(l.delai);
+    if (l.qr!==null) art.qte_reappro = l.qr;
+    if (l.fourn) { const nf = normaliserDesignation(l.fourn); const f = state.fournisseurs.find(x=>normaliserDesignation(x.nom)===nf); art.fournisseur_id = f ? f.id : ''; art.fournisseur_nom = f ? f.nom : l.fourn; }
+    if (l.stock!==null && l.stock>0 && stockActuelArticle(art.designation).total <= 0.001) {
+      let emp = l.emp ? emplacementDepuisTexteERP(l.emp) : null;
+      if (l.emp && !emp) { emp = { id: uid(), code: l.emp, libelle: l.emp, parentId:'' }; state.emplacements.push(emp); }
+      const e = crediterStock(art, 'standard', l.stock, emp ? emp.id : '', { date: jour, fourn_nom: art.fournisseur_nom||'' });
+      e.source = 'import'; nStock++;
+      if (emp) setEmplacementDefaut(art.designation, emp.id);
+    }
+  });
+  closeModal('modal-impart');
+  saveData(); renderArticles(); renderStock(); renderReappro();
+  toast(nNew+' fiche(s) créée(s), '+nMaj+' complétée(s), '+nStock+' stock(s) de départ');
 }
 // ═══ MISE AU REBUT ══════════════════════════════════════════════════════════
 // Sort de stock une quantité endommagée/HS, sans passer par un transfert
