@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261118-1100">
+<meta name="version" content="20261118-1500">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -343,10 +343,6 @@ transition:all .3s;
 <button class="vbtn active" id="vbtn-table" onclick="setView('table')">Tableau</button>
 <button class="vbtn" id="vbtn-gantt"  onclick="setView('gantt')">Gantt</button>
 </div>
-<button class="btn btn-purple" onclick="openSyncModal()">⇅ Tableau pilotage</button>
-<button class="btn btn-sim" data-edit-only id="btn-envoyer-erp" onclick="envoyerVersERP()">📤 Envoyer vers l'ERP</button>
-<button class="btn" data-edit-only onclick="exportJSON()">💾 Sauvegarder</button>
-<button class="btn" onclick="exportCSV()">Exporter CSV</button>
 <button class="btn" onclick="openChargeModal()" style="background:#EAFAF1;color:#1E8449;border-color:#A9DFBF;font-weight:600">📋 Charge équipes</button>
 <button class="btn btn-primary" data-edit-only onclick="openAddModal()">+ OF</button>
 </div>
@@ -485,46 +481,6 @@ transition:all .3s;
 <div class="modal-footer">
 <button class="btn" onclick="closeModal()">Annuler</button>
 <button class="btn btn-primary" onclick="saveModal()">Enregistrer</button>
-</div>
-</div>
-</div>
-
-<div class="modal-bg" id="sync-modal" style="display:none">
-<div class="modal" style="width:640px">
-<h2>⇅ Synchronisation Tableau de Pilotage</h2>
-
-<div class="modal-section">
-<h3>📥 Importer planning complet (CSV)</h3>
-<div class="form-group" style="margin-bottom:.5rem">
-<label>Fichier CSV du Tableau de Pilotage</label>
-<input type="file" id="full-csv-file" accept=".csv,.txt" style="font-size:13px;"/>
-</div>
-<button class="btn btn-primary" onclick="importFullPlanning()">Importer le planning complet</button>
-<div id="full-import-result" style="margin-top:.75rem;font-size:13px"></div>
-</div>
-<div class="modal-section">
-<h3>② Mettre à jour les dates CTVX</h3>
-<div class="form-group" style="margin-bottom:.5rem">
-<label>Fichier CSV</label>
-<input type="file" id="sync-csv-file" accept=".csv,.txt" style="font-size:13px;"/>
-</div>
-<div style="display:flex;gap:1rem;flex-wrap:wrap">
-<div class="form-group" style="margin-bottom:0"><label>Col. Tranche</label><input type="text" id="col-tranche" value="E" style="width:70px;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-size:13px"/></div>
-<div class="form-group" style="margin-bottom:0"><label>Col. Date</label><input type="text" id="col-besoin" value="J" style="width:70px;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-size:13px"/></div>
-</div>
-<div style="margin-top:.75rem"><button class="btn btn-primary" onclick="syncImport()">Mettre à jour les dates CTVX</button></div>
-<div id="sync-import-result" style="margin-top:.75rem;font-size:13px"></div>
-</div>
-<div class="modal-section" style="background:var(--bg)">
-<h3>💾 Sauvegarde / Restauration</h3>
-<div style="display:flex;gap:8px;flex-wrap:wrap">
-<button class="btn btn-primary" onclick="exportJSON()">💾 Télécharger sauvegarde JSON</button>
-<button class="btn" onclick="document.getElementById('restore-file').click()">↩ Restaurer une sauvegarde</button>
-<input type="file" id="restore-file" accept=".json" style="display:none" onchange="importJSON(this)"/>
-</div>
-</div>
-<div class="modal-footer">
-<button class="btn" onclick="document.getElementById('sync-modal').style.display='none'">Fermer</button>
 </div>
 </div>
 </div>
@@ -2340,28 +2296,6 @@ function calcDateFin(debut, duree, atId) {
   } catch(e) { return ''; }
 }
 
-async function syncAllOFToERP() {
-  try {
-    const allOF = [];
-    for (const atId in state.tranches) {
-      (state.tranches[atId]||[]).forEach(t => {
-        allOF.push({
-          of_id: String(t._dbId||t.id||''),
-          tranche: t.tranche||'',
-          atelier: atId.toUpperCase(),
-          commentaire: t.comment||'',
-          date_fin_prod: dateFin(t, atId),
-          termine: t.termine ? 'TRUE' : 'FALSE',
-          _termineLe: t._termineLe||''
-        });
-      });
-    }
-    await fetch(APPS_SCRIPT_URL, {
-      method:'POST', headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify({action:'syncAllOF', clientVersion: CLIENT_VERSION, ofs: allOF})
-    });
-  } catch(e) { console.warn('syncAllOFToERP:', e.message); }
-}
 
 async function creerArticleProdAsync(payload) {
   try {
@@ -2805,115 +2739,6 @@ creerArticleProdAsync({
 });
 }
 closeModal();keepGanttPos();scheduleSave(newAtId);render();
-}
-
-function exportCSV(){
-const atId=state.atelier;const tr=[...state.tranches[atId]].sort((a,b)=>a.ordre-b.ordre);
-let csv='ordre;tranche;commentaire;date_debut;date_fin;duree;date_besoin_ctvx\n';
-tr.forEach((t,i)=>{csv+=`${i+1};"${t.tranche}";"${t.comment||''}";${t.debut};${dateFin(t,atId)};${t.duree};${t.besoin||''}\n`;});
-dlBlob(csv,`planning_${atId}_${today()}.csv`,'text/csv');
-}
-
-function exportJSON(){
-const data={version:2,exportedAt:new Date().toISOString(),tranches:state.tranches,joursOff:state.joursOff,fermetures:state.fermetures,nextId:state.nextId};
-dlBlob(JSON.stringify(data,null,2),`planning_sauvegarde_${today()}.json`,'application/json');
-}
-
-function importJSON(input){
-const file=input.files[0];if(!file)return;
-const reader=new FileReader();
-reader.onload=e=>{
-try{
-const data=JSON.parse(e.target.result);
-if(!data.tranches)throw new Error('Format non reconnu');
-if(!confirm('Restaurer la sauvegarde ? Cela remplacera les données actuelles.'))return;
-for(const atId in data.tranches)(data.tranches[atId]||[]).forEach(normalizeTranche);
-state.tranches=data.tranches;state.joursOff=data.joursOff||state.joursOff;
-state.fermetures=(data.fermetures||[]).map(f=>typeof f==='string'?{date:f,atelier:'all'}:f);
-state.nextId=data.nextId||state.nextId;
-for(const atId in state.tranches)scheduleSave(atId);
-render();alert('✓ Sauvegarde restaurée et envoyée vers Supabase.');
-}catch(err){alert('Erreur : '+err.message);}
-input.value='';
-};
-reader.readAsText(file,'UTF-8');
-}
-
-function dlBlob(data,filename,mime){
-const blob=new Blob(['\uFEFF'+data],{type:mime+';charset=utf-8'});
-const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
-}
-
-function openSyncModal(){
-document.getElementById('sync-modal').style.display='flex';
-}
-
-function colLetterToIdx(s){s=s.trim().toUpperCase();if(/^\d+$/.test(s))return+s-1;let n=0;for(const c of s)n=n*26+(c.charCodeAt(0)-64);return n-1;}
-function parseAnyDate(s){if(!s)return null;s=s.trim().replace(/[""]/g,'');if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const fr=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(fr)return`${fr[3]}-${fr[2].padStart(2,'0')}-${fr[1].padStart(2,'0')}`;return null;}
-function splitCSVLine(line,sep){const result=[];let cur='',inQ=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){inQ=!inQ;}else if(c===sep&&!inQ){result.push(cur);cur='';}else cur+=c;}result.push(cur);return result;}
-
-function syncImport(){
-const resultEl=document.getElementById('sync-import-result');
-const file=document.getElementById('sync-csv-file').files[0];
-if(!file){resultEl.innerHTML='<div class="warn-box">Sélectionnez un fichier CSV.</div>';return;}
-const reader=new FileReader();
-reader.onload=e=>{
-try{
-const iT=colLetterToIdx(document.getElementById('col-tranche').value||'E');
-const iB=colLetterToIdx(document.getElementById('col-besoin').value||'J');
-const lines=e.target.result.split('\n').filter(l=>l.trim());
-const sep=lines[0].includes(';')?';':',';
-let updated=0;
-for(let i=1;i<lines.length;i++){
-const cols=splitCSVLine(lines[i],sep);
-const tranche=cols[iT]?.trim().replace(/^"|"$/g,'');
-const besoin=parseAnyDate(cols[iB]?.trim().replace(/^"|"$/g,''));
-if(tranche&&besoin){
-for(const atId in state.tranches){
-state.tranches[atId].forEach(t=>{
-if(t.tranche.toLowerCase().trim()===tranche.toLowerCase().trim()){t.besoin=besoin;updated++;scheduleSave(atId);}
-});
-}
-}
-}
-if(updated){resultEl.innerHTML=`<div class="info-box" style="background:var(--green-bg);border-color:var(--green-border);color:var(--green)">✓ ${updated} date(s) CTVX mises à jour.</div>`;render();}
-else{resultEl.innerHTML=`<div class="warn-box">Aucune correspondance trouvée.</div>`;}
-}catch(err){resultEl.innerHTML=`<div class="warn-box">Erreur : ${esc(err.message)}</div>`;}
-};
-reader.readAsText(file,'UTF-8');
-}
-
-function importFullPlanning(){
-const file=document.getElementById('full-csv-file').files[0];
-const resultEl=document.getElementById('full-import-result');
-if(!file){resultEl.innerHTML='<div class="warn-box">Sélectionnez un fichier CSV.</div>';return;}
-resultEl.innerHTML='<div class="info-box">⟳ Import en cours…</div>';
-const reader=new FileReader();
-reader.onload=e=>{
-try{
-const lines=e.target.result.split('\n').filter(l=>l.trim());
-const sep=lines[0].includes(';')?';':',';
-const headers=lines[0].split(sep).map(h=>h.trim().toLowerCase());
-const ci=h=>headers.findIndex(x=>x.includes(h));
-const iDate=ci('date'),iNom=ci('tranche'),iCom=ci('comment'),iDur=ci('dur'),iCtvx=ci('ctvx')||ci('besoin');
-if(iNom<0){resultEl.innerHTML='<div class="warn-box">Colonne "Tranche" non trouvée.</div>';return;}
-let count=0;
-const atId=state.atelier;state.tranches[atId]=[];
-for(let i=1;i<lines.length;i++){
-const cols=splitCSVLine(lines[i],sep);
-const nom=cols[iNom]?.trim().replace(/^"|"$/g,'');if(!nom)continue;
-const debut=iDate>=0?parseAnyDate(cols[iDate]?.trim()):today();
-const dur=Math.max(1,parseInt(cols[iDur]?.trim())||5);
-const besoin=iCtvx>=0?parseAnyDate(cols[iCtvx]?.trim()):null;
-const comment=iCom>=0?cols[iCom]?.trim().replace(/^"|"$/g,''):'';
-state.tranches[atId].push({id:Date.now()+i,ordre:i,tranche:nom,comment,debut:debut||today(),duree:dur,besoin,lockDebut:false,lockFin:false,parallel:false});
-count++;
-}
-rechainAtelier(atId);scheduleSave(atId);render();
-resultEl.innerHTML=`<div class="info-box" style="background:var(--green-bg);border-color:var(--green-border);color:var(--green)">✓ ${count} tranches importées dans l'atelier ${atId}.</div>`;
-}catch(err){resultEl.innerHTML=`<div class="warn-box">Erreur : ${esc(err.message)}</div>`;}
-};
-reader.readAsText(file,'UTF-8');
 }
 
 function openChargeModal(){
