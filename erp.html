@@ -380,12 +380,12 @@ table.bl-lignes td.r{text-align:right}
     <button class="app-tab" id="tab-dashboard" data-fam="pilotage" onclick="showScreen('dashboard')">Tableau de bord</button>
     <button class="app-tab" id="tab-suivi-prod" data-fam="production" onclick="showScreen('suivi-prod')">Suivi production</button>
     <button class="app-tab" id="tab-qualite" data-fam="production" onclick="showScreen('qualite')">Qualité</button>
-    <button class="app-tab" id="tab-ach-stock" data-fam="achats_logistique" onclick="showScreen('ach-stock')">Stock</button>
-    <button class="app-tab" id="tab-bl" data-fam="achats_logistique" onclick="showScreen('bl')">Bons de livraison</button>
-    <button class="app-tab" id="tab-ach-cdes" data-fam="achats_logistique" onclick="showScreen('ach-cdes')">Commandes fournisseur</button>
     <button class="app-tab" id="tab-ach-fourns" data-fam="achats_logistique" onclick="showScreen('ach-fourns')">Fournisseurs</button>
+    <button class="app-tab" id="tab-ach-cdes" data-fam="achats_logistique" onclick="showScreen('ach-cdes')">Commandes fournisseur</button>
     <button class="app-tab" id="tab-ach-receptions" data-fam="achats_logistique" onclick="showScreen('ach-receptions')">Réceptions</button>
+    <button class="app-tab" id="tab-ach-stock" data-fam="achats_logistique" onclick="showScreen('ach-stock')">Stock</button>
     <button class="app-tab" id="tab-ach-articles" data-fam="achats_logistique" onclick="showScreen('ach-articles')">Base articles</button>
+    <button class="app-tab" id="tab-bl" data-fam="achats_logistique" onclick="showScreen('bl')">Bons de livraison</button>
     <button class="app-tab" id="tab-ach-reappro" data-fam="achats_logistique" onclick="showScreen('ach-reappro')">Réappro<span class="tab-badge" id="ach-reap-badge" style="display:none"></span></button>
     <button class="app-tab" id="tab-heures" data-fam="equipes" onclick="showScreen('heures')">Heures</button>
     <button class="app-tab" id="tab-renseignement" data-fam="pilotage" onclick="showScreen('renseignement')" style="display:none">Renseignement</button>
@@ -1899,7 +1899,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='18/11/2026-p';
+const ERP_BUILD='18/11/2026-q';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -2839,7 +2839,7 @@ const DEFAULT_DROITS = {
 const FAMILLES_NAV = {
   pilotage:          ['planning','dashboard'],
   production:        ['suivi-prod','qualite'],
-  achats_logistique: ['ach-stock','bl','ach-cdes','ach-fourns','ach-receptions','ach-articles','ach-reappro'],   // ach-* = écrans de la page Achats ; leur accès suit le droit « achats »
+  achats_logistique: ['ach-fourns','ach-cdes','ach-receptions','ach-stock','ach-articles','bl','ach-reappro'],   // ach-* = écrans de la page Achats ; leur accès suit le droit « achats »
   equipes:           ['heures']
 };
 // Écran → famille de menu (le planning global est une vue du Suivi production ; « retours » est dans l'en-tête, hors famille)
