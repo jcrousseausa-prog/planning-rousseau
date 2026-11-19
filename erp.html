@@ -1900,7 +1900,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='18/11/2026-r';
+const ERP_BUILD='19/11/2026-s';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -3410,15 +3410,25 @@ function renderPlanningParPhase(){
     return {ph, tr, ch};
   }).filter(Boolean);
 
+  // Chantiers et tranches SANS phase renseignée : affichés quand même (une ligne « aucune phase ») pour voir qu'ils sont bien chargés dans l'ERP
+  const trAvecPhase = new Set(state.phases.map(p=>p.tid));
+  state.tranches.forEach(tr=>{
+    if(trAvecPhase.has(tr.id)) return;
+    const ch = state.chantiers.find(c=>c.id===tr.cid); if(!ch) return;
+    rows.push({ph:null, tr, ch});
+  });
+  const chAvecTranche = new Set(state.tranches.map(t=>t.cid));
+  state.chantiers.forEach(ch=>{ if(!chAvecTranche.has(ch.id)) rows.push({ph:null, tr:null, ch}); });
+
   if(_lireFiltreLivres()!=='tout'){
-    rows = rows.filter(r=>!_statutMasque(r.ph.statut||'planifie') && r.tr.statut_erp!=='livre');
+    rows = rows.filter(r=> r.ph ? (!_statutMasque(r.ph.statut||'planifie') && r.tr.statut_erp!=='livre') : (!r.tr || (r.tr.statut_erp!=='livre' && !_statutMasque(r.tr.statut_erp||'planifie'))));
   }
   if(q){
     rows = rows.filter(r=>{
-      const numNorm = (r.ph.num||'').toLowerCase().replace(/\s+/g,'');
-      return (r.ph.nom||'').toLowerCase().includes(q)
+      const numNorm = r.ph ? (r.ph.num||'').toLowerCase().replace(/\s+/g,'') : '';
+      return (r.ph && (r.ph.nom||'').toLowerCase().includes(q))
         || (numNorm && qNoSpace && numNorm.includes(qNoSpace))
-        || (r.tr.nom||'').toLowerCase().includes(q)
+        || (r.tr && (r.tr.nom||'').toLowerCase().includes(q))
         || (r.ch.nom||'').toLowerCase().includes(q);
     });
   }
@@ -3428,9 +3438,9 @@ function renderPlanningParPhase(){
   rows.sort((a,b)=>{
     const c1 = String(a.ch.nom||'').localeCompare(String(b.ch.nom||''),'fr',{sensitivity:'base'});
     if(c1) return c1;
-    const na = numPhaseTri(a.ph), nb = numPhaseTri(b.ph);
+    const na = a.ph ? numPhaseTri(a.ph) : 99999, nb = b.ph ? numPhaseTri(b.ph) : 99999;   // lignes sans phase : en fin de chantier
     if(na!==nb) return na-nb;
-    return String(a.tr.nom||'').localeCompare(String(b.tr.nom||''),'fr',{sensitivity:'base'});
+    return String(a.tr?a.tr.nom:'').localeCompare(String(b.tr?b.tr.nom:''),'fr',{sensitivity:'base'});
   });
 
   if(!rows.length){
@@ -3447,6 +3457,34 @@ function renderPlanningParPhase(){
     if(ch.id !== chantierCourant){
       chantierCourant = ch.id;
       html += `<tr><td colspan="11" style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:8px 10px;border-top:2px solid var(--blue-border);border-bottom:1px solid var(--blue-border)">🏗 ${esc(ch.nom)}</td></tr>`;
+    }
+    const vide = 'padding-left:20px;color:var(--text3);font-style:italic;font-size:12px';
+    if(!tr){   // chantier sans aucune tranche
+      html += `<tr class="ph-vide" style="border-bottom:1px solid var(--border)"><td style="${vide}">—</td><td colspan="10" style="${vide}">Aucune tranche renseignée pour ce chantier</td></tr>`;
+      return;
+    }
+    if(!ph){   // tranche sans phase
+      const ctvx0 = ctvxDeTranche(tr);
+      const ctvxH = ctvx0 && /^\d{4}-\d{2}-\d{2}$/.test(ctvx0) ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(ctvx0)}</span>` : `<span style="color:var(--text3);font-size:11px">—</span>`;
+      const fini0 = tr.statut_erp==='livre' || tr.statut_erp==='termine';
+      const _sp0 = sortieProdDetail(tr, null), fp0 = _sp0.date;
+      const fpH = fp0 ? `<span title="${esc(_sp0.titre)}" style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;cursor:help">${fmtDate(fp0)}</span>` : `<span style="color:var(--text3);font-size:11px">—</span>`;
+      const sl0 = statutLabels[tr.statut_erp||''];
+      const stH = sl0 ? `<span style="font-size:10px;color:${sl0[1]};background:${sl0[2]};border:1px solid ${sl0[3]};border-radius:4px;padding:1px 6px;white-space:nowrap" title="Statut de la tranche">${sl0[0]}</span>` : `<span style="color:var(--text3);font-size:11px">—</span>`;
+      html += `<tr class="ph-vide" data-tr="${tr.id}" style="border-bottom:1px solid var(--border)">
+        <td style="${vide}">—</td>
+        <td style="${vide}">Aucune phase renseignée</td>
+        <td style="color:var(--text2)">${esc(tr.nom||'')}</td>
+        <td>${ctvxH}</td>
+        <td onclick="event.stopPropagation()">${reprojCelluleHtml(tr, ctvx0, planR, null)}</td>
+        <td>${finUsinageBadge(tr.date_fin_usinage, ctvx0, true, fini0)}</td>
+        <td>${fpH}</td>
+        <td>${atelierFinHtml(tr, null)}</td>
+        <td>${stH}</td>
+        <td><span style="color:var(--text3);font-size:11px">—</span></td>
+        <td></td>
+      </tr>`;
+      return;
     }
     const sl = statutLabels[ph.statut||'planifie']||statutLabels['planifie'];
     const nbArt = state.articles.filter(a=>a.pid===ph.id).length;
