@@ -1900,7 +1900,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='19/11/2026-t';
+const ERP_BUILD = '19/11/2026-y';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -2364,8 +2364,9 @@ async function _saveToSheetsImpl() {
     if (!garderEnAttente && _editSeq===seq) _pendingSave = false;
   }
 }
+window.__achatsNonSauve = false;   // la page Achats (iframe) signale un enregistrement en cours ou en échec
 window.addEventListener('beforeunload', function(e){
-  if(_pendingSave){
+  if(_pendingSave || window.__achatsNonSauve){
     e.preventDefault();
     e.returnValue = 'Une sauvegarde est en cours — attendez quelques secondes avant de fermer.';
     return e.returnValue;
@@ -2423,7 +2424,7 @@ async function loadFromSheets(opts) {
       state.heures    = r.data.heures||[];
       state.employes  = r.data.employes||[];
       state.aleas     = r.data.aleas||[];
-      if(rSuivi.ok){ state.suivi_prod = rSuivi.articles||[]; _retirerOrphelinsSuivi(); }
+      if(rSuivi.ok){ state.suivi_prod = rSuivi.articles||[]; state._suiviChargeLe = Date.now(); _retirerOrphelinsSuivi(); }
       _uiOpenRestore(_ui);
       // DATES et fermetures en arrière-plan (non bloquants)
       loadDATESSource();
@@ -2820,6 +2821,7 @@ window.addEventListener('message', function(ev){
   if(ev.origin !== location.origin) return;
   const d = ev.data || {};
   if(d.type === 'achats-session-expiree'){ if(typeof window.onSessionExpiree==='function') window.onSessionExpiree(d.msg); }
+  else if(d.type === 'achats-sauvegarde'){ window.__achatsNonSauve = !!d.enCours; }
   else if(d.type === 'achats-aller'){ if(/^[a-z]+$/.test(d.ecran||'') && ACH_ECRANS.indexOf(d.ecran)>=0){ _derniereAction = Date.now(); showScreen('ach-'+d.ecran); } }
   else if(d.type === 'achats-badge'){
     const b = document.getElementById('ach-reap-badge'); if(!b) return;
@@ -3083,7 +3085,7 @@ async function loadFromSheetsfast(){
       state.tranches  = _fusionnerPartiel(state.tranches,  r.data.tranches||[]);
       state.phases    = _fusionnerPartiel(state.phases,    r.data.phases||[]);
       state.articles  = _fusionnerPartiel(state.articles,  r.data.articles||[]);
-      if(r.data.suivi_prod){ state.suivi_prod = r.data.suivi_prod; _retirerOrphelinsSuivi(); }
+      if(r.data.suivi_prod){ state.suivi_prod = r.data.suivi_prod; state._suiviChargeLe = Date.now(); _retirerOrphelinsSuivi(); }
       _uiOpenRestore(_ui);
       // Rattrapage silencieux : une tranche peut arriver du serveur déjà statut_erp=termine/livre
       // (ex : auto-complétion "fin usinage" côté Apps Script) sans jamais passer par la cascade
@@ -3279,10 +3281,7 @@ function renderPlanning(opts){
   const phasesOfTranche = trId => state.phases.filter(p=>p.tid===trId);
   let _firstMatchId = null; // pour scroller automatiquement sur le 1er résultat de recherche par phase
   const triMode = document.getElementById('tri-tranches')?.value || 'ordre';
-  const getCtvx = tr => {
-    const src = (state.dates_erp||[]).filter(d=>(d.tranche||'').trim().toLowerCase()===(tr.nom||'').trim().toLowerCase());
-    return src.length ? src.reduce((min,d)=>(!min||d.date_ctvx<min)?d.date_ctvx:min,'') : (tr.ctvx||'');
-  };
+  const getCtvx = tr => ctvxDeTranche(tr);
   let chantiersTries = [...state.chantiers].sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
 
   // Si un tri par CTVX est actif, réordonner aussi les chantiers (pas seulement les tranches à l'intérieur)
@@ -3472,10 +3471,11 @@ function renderPlanningParPhase(){
     }
     if(!ph){   // tranche sans phase
       const ctvx0 = ctvxDeTranche(tr);
-      const ctvxH = ctvx0 && /^\d{4}-\d{2}-\d{2}$/.test(ctvx0) ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(ctvx0)}</span>` : `<span style="color:var(--text3);font-size:11px">—</span>`;
+      const _cd0 = ctvxDetail(tr);
+      const ctvxH = ctvx0 && /^\d{4}-\d{2}-\d{2}$/.test(ctvx0) ? `<span title="${esc(_cd0.titre)}" style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;cursor:help">${fmtDate(ctvx0)}</span>` : `<span title="${esc(_cd0.titre)}" style="color:var(--text3);font-size:11px;cursor:help">—</span>`;
       const fini0 = tr.statut_erp==='livre' || tr.statut_erp==='termine';
       const _sp0 = sortieProdDetail(tr, null), fp0 = _sp0.date;
-      const fpH = fp0 ? `<span title="${esc(_sp0.titre)}" style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;cursor:help">${fmtDate(fp0)}</span>` : `<span style="color:var(--text3);font-size:11px">—</span>`;
+      const fpH = fp0 ? `<span title="${esc(_sp0.titre)}" style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;cursor:help">${fmtDate(fp0)}</span>` : `<span title="${esc(sortieProdPourquoi(tr))}" style="color:var(--text3);font-size:11px;cursor:help">—</span>`;
       const sl0 = statutLabels[tr.statut_erp||''];
       const stH = sl0 ? `<span style="font-size:10px;color:${sl0[1]};background:${sl0[2]};border:1px solid ${sl0[3]};border-radius:4px;padding:1px 6px;white-space:nowrap" title="Statut de la tranche">${sl0[0]}</span>` : `<span style="color:var(--text3);font-size:11px">—</span>`;
       html += `<tr class="ph-vide" data-tr="${tr.id}" style="border-bottom:1px solid var(--border)">
@@ -3497,8 +3497,9 @@ function renderPlanningParPhase(){
     const nbArt = state.articles.filter(a=>a.pid===ph.id).length;
     const tailleBadge = `<button class="statut-btn" onclick="openTailleMenu('phase','${ph.id}',event)" title="Fichier de taille : Manquant → Dispo BE → En cours (usinage) → Terminé" style="cursor:pointer">${tailleBadgeHtml(tailleEtatPhase(ph,tr),{fleche:true})}</button>`;
     const ctvx = ctvxDeTranche(tr);
+    const _cd = ctvxDetail(tr);
     const ctvxHtml = ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)
-      ? `<span style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${fmtDate(ctvx)}</span>`
+      ? `<span title="${esc(_cd.titre)}" style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;cursor:help">${fmtDate(ctvx)}</span>`
       : `<span style="color:var(--text3);font-size:11px">—</span>`;
     const reprojHtml = reprojCelluleHtml(tr, ctvx, planR, ph);
     const phFini = ['termine','livre'].includes(ph.statut||'') || tr.statut_erp==='livre';
@@ -3506,7 +3507,7 @@ function renderPlanningParPhase(){
     const _sp = sortieProdDetail(tr, ph), finProd = _sp.date;
     let finProdHtml;
     if(!finProd){
-      finProdHtml = `<span style="color:var(--text3);font-size:11px">—</span>`;
+      finProdHtml = `<span title="${esc(sortieProdPourquoi(tr))}" style="color:var(--text3);font-size:11px;cursor:help">—</span>`;
     } else if(phFini){
       finProdHtml = dateFiniHtml(finProd, ctvx, true).replace('<span ','<span data-tip="1" title="'+esc(_sp.titre)+'" ').replace(/ title="Terminée[^"]*"/,'');
     } else {
@@ -3606,7 +3607,7 @@ function ofsProdDeTranche(tr){
   const ofsSeen = new Set();
   return (state.suivi_prod||[]).filter(o=>{
     const matchById = o.erp_tranche_id && o.erp_tranche_id === tr.id;
-    const matchByName = !o.erp_tranche_id && (o.tranche||'').trim().toLowerCase() === (tr.nom||'').trim().toLowerCase();
+    const matchByName = String(o.tranche||'').trim() === String(tr.nom||'').trim();   // nom strictement identique, même si l'id pointe vers un doublon de la tranche
     if(!matchById && !matchByName) return false;
     const key = o.of_id || o.id || (o.tranche+o.date_fin_prod);
     if(ofsSeen.has(key)) return false;
@@ -3616,6 +3617,16 @@ function ofsProdDeTranche(tr){
 }
 
 
+function sortieProdPourquoi(tr){
+  const nom=String(tr.nom||'').trim(), rows=state.suivi_prod||[];
+  const heure = state._suiviChargeLe ? new Date(state._suiviChargeLe).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '?';
+  const k=_cleNomTranche(nom);
+  const exact=rows.filter(o=>String(o.tranche||'').trim()===nom || (o.erp_tranche_id && o.erp_tranche_id===tr.id));
+  if(exact.length) return 'Le Planning Production a '+exact.length+' ligne(s) pour cette tranche mais aucune n\u2019a de date de fin de production.';
+  const proche=rows.filter(o=>_cleNomTranche(o.tranche)===k);
+  if(proche.length) return 'Le planning contient une tranche « '+String(proche[0].tranche||'').trim()+' » dont le nom n\u2019est PAS strictement identique à « '+nom+' » : aucune date ne remonte. Corriger le nom pour qu\u2019il soit identique.';
+  return 'Aucune ligne du Planning Production rattachée à « '+nom+' » ('+rows.length+' lignes lues à '+heure+'). La ligne n\u2019est peut-être pas encore enregistrée côté planning (voyant « Enregistré »), ou son nom diffère : cliquer sur ↻ pour relire.';
+}
 // Date « Sortie prod » d'une phase : fin des OF (lignes du Planning Production) qui contiennent cette phase ; à défaut, de la tranche entière.
 // Retourne {date, titre} : le titre (survol) dit d'où vient la date : n° de ligne du planning, atelier, statut, autres OF de la tranche.
 function sortieProdDetail(tr, ph){
@@ -3753,9 +3764,7 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
   const today = new Date().toISOString().slice(0,10);
 
   // Date CTVX — depuis state.dates_erp (date la plus tôt) ou tr.ctvx
-  const datesSrc = (state.dates_erp||[]).filter(d=>(d.tranche||'').trim().toLowerCase()===(tr.nom||'').trim().toLowerCase());
-  const ctvxSrc = datesSrc.length ? datesSrc.reduce((min,d)=>(!min||d.date_ctvx<min)?d.date_ctvx:min, '') : '';
-  const ctvx = ctvxSrc || tr.ctvx || '';
+  const ctvx = ctvxDeTranche(tr);
 
   // Date fin prod — la plus tardive parmi les OF actifs (non expirés)
   const datesSortie = ofs_prod
@@ -4070,10 +4079,23 @@ function openEditChantier(id){
 }
 // Date CTVX au plus tôt pour une tranche (source DATES prioritaire, sinon tr.ctvx) — même logique
 // que le Tableau de pilotage / fiche projet.
-function ctvxDeTranche(tr){
-  const src = (state.dates_erp||[]).filter(d=>String(d.tranche||'').trim().toLowerCase()===String(tr.nom||'').trim().toLowerCase());
-  return src.length ? src.reduce((min,d)=>(!min||d.date_ctvx<min)?d.date_ctvx:min,'') : (tr.ctvx||'');
+function ctvxDetail(tr){
+  if(!tr) return {date:'',titre:''};
+  const nom=String(tr.nom||'').trim();
+  const rows=state.dates_erp||[];
+  const src=rows.filter(d=>String(d.tranche||'').trim()===nom);
+  const dates=src.map(d=>d.date_ctvx).filter(Boolean);
+  if(dates.length){
+    const date=dates.reduce((min,x)=>(!min||x<min)?x:min,'');
+    return {date, titre:'Source : fichier DATES, ligne « besoin atelier » au nom identique ('+src.length+' ligne'+(src.length>1?'s':'')+', la plus proche est retenue) — même source que le Planning Production.'};
+  }
+  if(state._datesErpOk && rows.length){
+    // DATES est chargé et ne contient AUCUNE ligne « besoin atelier » portant exactement ce nom → pas de date (jamais une ancienne valeur figée)
+    return {date:'', titre:'Aucune ligne « besoin atelier » dans DATES au nom exactement identique à « '+nom+' ». Si le nom a été modifié (côté DATES ou ERP), la date ne remonte plus : remettre le même nom des deux côtés.'};
+  }
+  return {date:tr.ctvx||tr.date_ctvx||'', titre:'DATES pas encore chargé : valeur enregistrée provisoire.'};
 }
+function ctvxDeTranche(tr){ return ctvxDetail(tr).date; }
 
 // Date de besoin Usinage retenue pour un chantier : la CTVX la plus proche parmi ses tranches
 // remplace automatiquement la date prévisionnelle saisie manuellement dès qu'elle est connue.
@@ -4147,8 +4169,7 @@ function openFicheProjet(cid){
     html += `<div style="margin-top:12px;background:var(--bg2);border-radius:8px;padding:10px 14px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">Tranches</div>
       ${trs.map(t=>{
-        const datesSrc=(state.dates_erp||[]).filter(d=>(d.tranche||'').trim().toLowerCase()===(t.nom||'').trim().toLowerCase());
-        const ctvx=datesSrc.length?datesSrc.reduce((m,d)=>(!m||d.date_ctvx<m)?d.date_ctvx:m,''):t.ctvx||'';
+        const ctvx=ctvxDeTranche(t);
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px">
           <span style="font-weight:500">${esc(t.nom)}</span>
           ${ctvx?`<span style="color:var(--orange);font-weight:600">CTVX ${ctvx}</span>`:'<span style="color:var(--text3)">—</span>'}
@@ -9217,7 +9238,7 @@ async function loadSuiviProd() {
     });
     const r = await res.json();
     if(r.ok) {
-      state.suivi_prod = r.articles||[]; _retirerOrphelinsSuivi();
+      state.suivi_prod = r.articles||[]; state._suiviChargeLe = Date.now(); _retirerOrphelinsSuivi();
       autoTerminerTranchesUsinageSeul();
     }
   } catch(e) { console.warn('loadSuiviProd:', e.message); }
@@ -9427,11 +9448,11 @@ async function loadDATESSource() {
     let updated = 0;
     let needSave = false;
     state.dates_erp.forEach(d => {
-      const nom = (d.tranche||'').trim().toLowerCase();
+      const nom = String(d.tranche||'').trim().toLowerCase();
       const idDates = (d.id_dates||'').trim();
 
       let t = idDates ? state.tranches.find(x => (x.id_dates||'').trim() === idDates) : null;
-      if(!t) t = state.tranches.find(x => (x.nom||'').trim().toLowerCase() === nom);
+      if(!t && nom) t = state.tranches.find(x => String(x.nom||'').trim().toLowerCase() === nom);
       if(!t) return;
 
       // Mémoriser l'ID stable dès qu'on l'a (première liaison)
@@ -9445,9 +9466,11 @@ async function loadDATESSource() {
         needSave = true;
       }
 
-      if(d.date_ctvx && d.date_ctvx !== t.date_ctvx) {
+      if(d.date_ctvx && (d.date_ctvx !== t.date_ctvx || d.date_ctvx !== t.ctvx)) {
         t.date_ctvx = d.date_ctvx;
+        t.ctvx = d.date_ctvx;      // champ lu en repli par l'affichage : on évite qu'une vieille date reste figée
         updated++;
+        needSave = true;
       }
       // Vérifier chantier associé
       if(d.dossier) {
@@ -10755,6 +10778,21 @@ async function chargerDatesPlanning(maxAge){
             if(pl.deb && o.date_debut!==pl.deb){ o.date_debut=pl.deb; nb++; }
           });
           state._datesPlan.ofIds = new Set(parOf.keys());
+          // OF ajoutés dans le Planning Production APRÈS l'ouverture de l'ERP : ils ne sont pas encore dans le suivi chargé → « Sortie prod » et « Dernière op. » restaient vides jusqu'à F5.
+          // On recharge alors le suivi (une seule fois par nouvel ensemble d'OF manquants, pas en boucle).
+          try{
+            // Sobre (beaucoup d'utilisateurs simultanés) : jamais avant le 1er chargement du suivi, jamais pour des OF terminés (absents du suivi par nature),
+            // au plus 1 relecture toutes les 3 min et par poste, aucune relecture si l'onglet est masqué ; le ↻ manuel passe outre (force).
+            const termines = new Set(r.tranches.filter(t=>String(t.termine).toUpperCase()==='TRUE').map(t=>String(t.id||'').trim()));
+            const connus = new Set((state.suivi_prod||[]).map(o=>String(o.of_id||'').trim()));
+            const manq = [...parOf.keys()].filter(id=>!connus.has(id) && !termines.has(id)).sort().join(',');
+            const force = !!state._suiviForcer; state._suiviForcer = false;
+            const delaiOk = force || !state._suiviRelu || Date.now()-state._suiviRelu > 180000;
+            if(manq && state._suiviChargeLe && (force || manq!==state._suiviManqSig) && delaiOk && !document.hidden && !state._suiviRechargeEnCours){
+              state._suiviManqSig = manq; state._suiviRelu = Date.now(); state._suiviRechargeEnCours = true;
+              loadSuiviProd().then(()=>{ state._suiviRechargeEnCours=false; _redessinerApresPlanning(); }).catch(()=>{ state._suiviRechargeEnCours=false; });
+            }
+          }catch(e){ console.warn('suivi : OF nouveaux :', e.message); }
           const nOrph = _retirerOrphelinsSuivi();
           if(nb || nOrph){ _evt('dates OF alignées sur le Planning Production ('+nb+' valeur(s))'+(nOrph?' ; '+nOrph+' ligne(s) de suivi sans ligne de planning ignorée(s)':'')); _redessinerApresPlanning(); }
         }catch(e){ console.warn('alignement dates OF :', e.message); }
@@ -10768,7 +10806,7 @@ async function chargerDatesPlanning(maxAge){
 
 async function actualiserDatesPlanning(e){
   if(e) e.stopPropagation();
-  state._datesPlan=null; state._datesPlanProm=null;
+  state._datesPlan=null; state._datesPlanProm=null; state._suiviManqSig=''; state._suiviForcer=true;   // le ↻ force aussi la relecture du suivi (OF récents)
   const p=await chargerDatesPlanning();
   if(document.getElementById('planning-phase-tbody')) renderPlanningParPhase();
   toast(p ? '↻ Dates actualisées depuis le Planning Production' : '⚠ Planning Production injoignable');
