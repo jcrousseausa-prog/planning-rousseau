@@ -1145,10 +1145,36 @@ async function loadData() {
     }
   } catch(e) { console.warn('loadData:', e); }
 }
+// Un seul enregistrement à la fois : si l'utilisateur enchaîne les saisies, un seul envoi (le plus récent) part ensuite — plus léger, et jamais dans le désordre.
+// _saveEchec reste vrai tant que le dernier envoi a échoué (fermer la page perdrait alors des saisies) : réessai automatique + confirmation avant fermeture.
+let _saveEnCours = false, _saveEnFile = false, _saveEchec = false, _saveRetryTimer = null;
+function _etatSauvegardeMaj() {
+  const non = _saveEnCours || _saveEnFile || _saveEchec;
+  if (EMBED) { try { window.parent.postMessage({type:'achats-sauvegarde', enCours: non}, location.origin); } catch(e) {} }
+}
+window.addEventListener('beforeunload', function(e) {
+  if (!document.body.classList.contains('ro') && (_saveEnCours || _saveEnFile || _saveEchec)) {
+    e.preventDefault(); e.returnValue = 'Un enregistrement est en cours ou a échoué — attendez avant de fermer.'; return e.returnValue;
+  }
+});
 async function saveData() {
   // Garde-fou : si la lecture a échoué, enregistrer une liste vide effacerait les données du serveur
   if (!state._chargeOk) { setSyncPill('error','Non chargé'); toast('⚠ Données non chargées : enregistrement bloqué. Rechargez la page.'); return; }
+  if (_saveEnCours) { _saveEnFile = true; _etatSauvegardeMaj(); return; }
+  _saveEnCours = true; _etatSauvegardeMaj();
+  if (_saveRetryTimer) { clearTimeout(_saveRetryTimer); _saveRetryTimer = null; }
   setSyncPill('saving','Enregistrement...');
+  try {
+    await _saveDataUneFois();
+  } finally {
+    _saveEnCours = false;
+    if (_saveEnFile) { _saveEnFile = false; _etatSauvegardeMaj(); return saveData(); }
+    if (_saveEchec) _saveRetryTimer = setTimeout(function(){ _saveRetryTimer = null; saveData(); }, 15000);
+    _etatSauvegardeMaj();
+  }
+  try { renderReappro(); } catch(e) { console.warn('renderReappro:', e); }
+}
+async function _saveDataUneFois() {
   try {
     const res = await fetch(APPS_SCRIPT_URL, {method:'POST',headers:{'Content-Type':'text/plain'},
       body:JSON.stringify({action:'saveAchats',data:{
@@ -1159,10 +1185,9 @@ async function saveData() {
       }})
     });
     const r = await res.json();
-    if (r.ok) setSyncPill('ok','Enregistré '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+    if (r.ok) { _saveEchec = false; setSyncPill('ok','Enregistré '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})); }
     else throw new Error(r.error);
-  } catch(e) { setSyncPill('error','Erreur'); console.warn(e); }
-  try { renderReappro(); } catch(e) { console.warn('renderReappro:', e); }
+  } catch(e) { _saveEchec = true; setSyncPill('error','Non enregistré — nouvelle tentative…'); console.warn(e); }
 }
 // ═══ HELPERS ══════════════════════════════════════════════════════════════
 function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
