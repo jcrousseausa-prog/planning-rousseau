@@ -1900,7 +1900,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD='19/11/2026-s';
+const ERP_BUILD='19/11/2026-t';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -3438,6 +3438,7 @@ function renderPlanningParPhase(){
   rows.sort((a,b)=>{
     const c1 = String(a.ch.nom||'').localeCompare(String(b.ch.nom||''),'fr',{sensitivity:'base'});
     if(c1) return c1;
+    if(a.ch.id!==b.ch.id){ const ta=chAvecTranche.has(a.ch.id), tb=chAvecTranche.has(b.ch.id); if(ta!==tb) return ta?-1:1; return String(a.ch.id).localeCompare(String(b.ch.id)); }
     const na = a.ph ? numPhaseTri(a.ph) : 99999, nb = b.ph ? numPhaseTri(b.ph) : 99999;   // lignes sans phase : en fin de chantier
     if(na!==nb) return na-nb;
     return String(a.tr?a.tr.nom:'').localeCompare(String(b.tr?b.tr.nom:''),'fr',{sensitivity:'base'});
@@ -3460,7 +3461,13 @@ function renderPlanningParPhase(){
     }
     const vide = 'padding-left:20px;color:var(--text3);font-style:italic;font-size:12px';
     if(!tr){   // chantier sans aucune tranche
-      html += `<tr class="ph-vide" style="border-bottom:1px solid var(--border)"><td style="${vide}">—</td><td colspan="10" style="${vide}">Aucune tranche renseignée pour ce chantier</td></tr>`;
+      const kNom = String(ch.nom||'').trim().toLowerCase().replace(/\s+/g,' ');
+      const jumeau = state.chantiers.find(c=>c.id!==ch.id && String(c.nom||'').trim().toLowerCase().replace(/\s+/g,' ')===kNom && chAvecTranche.has(c.id));
+      const msg = jumeau
+        ? `<span style="color:var(--red);font-style:normal;font-weight:600">⚠ Doublon vide :</span> un autre chantier « ${esc(jumeau.nom)} » existe et porte déjà les tranches ; celui-ci n'en a aucune.`
+        : 'Aucune tranche renseignée pour ce chantier';
+      const btn = (jumeau && canEdit('planning')) ? ` <button class="btn btn-sm btn-red" style="font-style:normal" onclick="supprimerChantierDoublonVide('${ch.id}')">Supprimer ce doublon</button>` : '';
+      html += `<tr class="ph-vide" style="border-bottom:1px solid var(--border)"><td style="${vide}">—</td><td colspan="10" style="${vide}">${msg}${btn}</td></tr>`;
       return;
     }
     if(!ph){   // tranche sans phase
@@ -3555,6 +3562,17 @@ function jumperVersPhase(phId){
   _highlightPhId = phId;
   renderPlanning({scroll:true});
   _highlightPhId = null;
+}
+// Supprime un chantier VIDE (aucune tranche) qui a un homonyme portant les tranches : doublon créé par erreur
+function supprimerChantierDoublonVide(chId){
+  const ch = state.chantiers.find(c=>c.id===chId); if(!ch) return;
+  if(state.tranches.some(t=>t.cid===chId)){ toast('Ce chantier a des tranches : suppression refusée'); return; }
+  const k = String(ch.nom||'').trim().toLowerCase().replace(/\s+/g,' ');
+  const jumeau = state.chantiers.find(c=>c.id!==chId && String(c.nom||'').trim().toLowerCase().replace(/\s+/g,' ')===k && state.tranches.some(t=>t.cid===c.id));
+  if(!jumeau){ toast('Aucun chantier homonyme avec des tranches : suppression refusée'); return; }
+  if(!confirm('Supprimer le chantier vide « '+ch.nom+' » (doublon) ?\nLe chantier « '+jumeau.nom+' » et ses tranches sont conservés. Cette suppression est définitive.')) return;
+  state.chantiers = state.chantiers.filter(c=>c.id!==chId);
+  scheduleSave(); renderAll(); toast('Doublon supprimé');
 }
 function toggleChantierActif(chId){
   const ch = state.chantiers.find(c=>c.id===chId);
