@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261118-1500">
+<meta name="version" content="20261119-0900">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -450,6 +450,7 @@ transition:all .3s;
 <input type="number" id="f-duree" min="0.1" step="0.1" value="5"/>
 </div>
 </div>
+<div id="f-dates-besoin">
 <div class="form-group">
 <label>Date besoin CTVX</label>
 <input type="date" id="f-besoin"/>
@@ -457,6 +458,7 @@ transition:all .3s;
 <div class="form-group">
 <label>Date reprojetée <span style="font-weight:400;color:var(--text3)">(remplace la CTVX comme date de besoin — vide = identique à la CTVX)</span></label>
 <input type="date" id="f-reproj"/>
+</div>
 </div>
 <div style="border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:.5rem">
 <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px">⚙ Options de planification</div>
@@ -2428,6 +2430,7 @@ document.getElementById('f-comment').value='';
 document.getElementById('f-debut').value=lastFin;document.getElementById('f-duree').value=5;
 document.getElementById('f-besoin').value='';
 document.getElementById('f-reproj').value='';
+document.getElementById('f-dates-besoin').style.display='none';   // création d'un OF : pas de dates de besoin à saisir (lecture plus claire)
 document.getElementById('f-lockDebut').checked=false;document.getElementById('f-lockFin').checked=false;
 document.getElementById('f-lockFinDate').value='';document.getElementById('f-lockFinDate-group').style.display='none';
 document.getElementById('f-parallel').checked=false;
@@ -2448,6 +2451,7 @@ initPhaseTags(t.phases||t.phase||[]);
 document.getElementById('f-debut').value=t.debut;document.getElementById('f-duree').value=t.duree;
 document.getElementById('f-besoin').value=t.besoin||'';
 document.getElementById('f-reproj').value=t.reproj||'';
+document.getElementById('f-dates-besoin').style.display='';
 document.getElementById('f-lockDebut').checked=!!t.lockDebut;document.getElementById('f-lockFin').checked=!!t.lockFin;
 document.getElementById('f-lockFinDate').value=t.lockFinDate||dateFin(t,atId);
 document.getElementById('f-lockFinDate-group').style.display=t.lockFin?'block':'none';
