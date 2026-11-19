@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261119-0900">
+<meta name="version" content="20261119-1300">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -635,6 +635,17 @@ function _battementPresence(etat){
 }
 setInterval(function(){ _battementPresence(); },45000);
 window.addEventListener('pagehide',function(){ try{ if(_authUser&&_authUser.token&&navigator.sendBeacon) navigator.sendBeacon(APPS_SCRIPT_URL,new Blob([JSON.stringify({action:'presence',token:_authUser.token,tab:window.__ERP_TAB,page:'planning',etat:'ferme'})],{type:'text/plain'})); }catch(e){} });
+// ── Fermeture / changement d'onglet avant la fin de l'enregistrement ──
+// Une modification part 2 s après la dernière saisie, puis l'envoi prend quelques secondes : fermer l'onglet entre-temps la perdrait.
+//  • on demande confirmation tant qu'un enregistrement est en attente, en cours ou en file ;
+//  • quand l'onglet passe en arrière-plan (changement d'onglet, fenêtre réduite, début de fermeture), l'enregistrement part tout de suite.
+function _enregistrementEnSuspens(){ return !IS_READONLY && !!(_saveTimeout || _saveInFlight || _saveQueued); }
+window.addEventListener('beforeunload', function(e){
+  if(_enregistrementEnSuspens()){ e.preventDefault(); e.returnValue = 'Un enregistrement est en cours — attendez quelques secondes avant de fermer.'; return e.returnValue; }
+});
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState==='hidden' && !IS_READONLY && _saveTimeout){ clearTimeout(_saveTimeout); _saveTimeout=null; try{ saveToSheets(_saveAtIdEnAttente); }catch(e){ console.warn('enregistrement immédiat :', e.message); } }
+});
 function demarrerApp(){
   if(_appDemarree) return;
   _appDemarree = true;
@@ -1044,7 +1055,7 @@ if (!_sbConnected) return;
 // verrouillé : deux écritures simultanées pouvaient s'écraser dans le mauvais ordre et
 // effacer un ✅ terminé / un lien). Une demande reçue pendant une sauvegarde en cours
 // est rejouée juste après, avec l'état le plus récent.
-let _saveInFlight = false, _saveQueued = false, _localRev = 0, _lastSavedRev = 0;
+let _saveInFlight = false, _saveQueued = false, _localRev = 0, _lastSavedRev = 0, _saveAtIdEnAttente = null;
 // Modification locale pas encore enregistrée (échec, report de 15 s, hors ligne…) : tant que c'est le cas,
 // syncDistant ne doit RIEN réécrire depuis le serveur, sinon il annule la modification (ex. ✅ qui « revient »).
 function _modifsEnAttente(){ return !state._csvFallback && !IS_READONLY && _localRev !== _lastSavedRev; }
@@ -1313,6 +1324,7 @@ function scheduleSave(atId) {
   // _saveTimeout doit repasser à null dès que le minuteur a tiré : sinon syncDistant()
   // se croit « sauvegarde en attente » pour toujours et l'onglet ne se resynchronise plus
   // (→ onglet périmé, qui efface ensuite ✅ / liens / phases d'un autre onglet à sa prochaine sauvegarde).
+  _saveAtIdEnAttente = atId;
   _saveTimeout = setTimeout(() => { _saveTimeout = null; saveToSheets(atId); }, 2000);
 }
 
@@ -3120,8 +3132,13 @@ function synchroniserLiens(){
           // qui peut être une autre tâche de la même tranche avec une autre date (ex: POUSS'COOP -
           // A - CHARPENTE : 10/11 au lieu de 24/11). On ne retombe sur getDATES que si la tranche
           // n'a aucune ligne "besoin atelier".
-          const dateRef = (state._ctvxAtelier && state._ctvxAtelier.get(_normLien(d.nom))) || d.date_ctvx;
-          if(dateRef && t.besoin !== dateRef){ t.besoin = dateRef; touched = true; }
+          // RÈGLE UNIQUE (identique à l'ERP) : date CTVX = ligne « besoin atelier » de DATES dont le nom est
+          // STRICTEMENT identique au nom de la tranche. Nom modifié / introuvable → pas de date (jamais de valeur figée).
+          // Tant que la liste DATES n'est pas chargée, on ne touche à rien.
+          if(state._ctvxAtelier && state._ctvxAtelier.size){
+            const dateRef = state._ctvxAtelier.get(String(t.tranche||'').trim()) || '';
+            if(t.besoin !== dateRef){ t.besoin = dateRef; touched = true; }
+          }
           const dTr = String(d.tr_id||'').trim();
           if(dTr && _dTrOk && t.tr_id !== dTr){ t.tr_id = dTr; touched = true; }
         }
@@ -3174,8 +3191,8 @@ function refreshCtvxDepuisDATES(){
       if(rl && rl.ok && Array.isArray(rl.tranches_erp)){
         const m = new Map();
         rl.tranches_erp.forEach(x=>{
-          const k = _normLien(x.tranche), dt = normalizeDate(x.date_ctvx);
-          if(k && dt && !m.has(k)) m.set(k, dt);
+          const k = String(x.tranche||'').trim(), dt = normalizeDate(x.date_ctvx);
+          if(k && dt && (!m.has(k) || dt < m.get(k))) m.set(k, dt);   // la plus proche (comme l'ERP)
         });
         state._ctvxAtelier = m;
       }
