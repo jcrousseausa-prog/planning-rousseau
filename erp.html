@@ -1900,7 +1900,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD = '19/11/2026-y';
+const ERP_BUILD = '19/11/2026-z';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -3605,7 +3605,9 @@ function renderChRow(ch,nbTr){
 // OF (Planning Production) rattachés à une tranche ERP, dédoublonnés par of_id.
 function ofsProdDeTranche(tr){
   const ofsSeen = new Set();
-  return (state.suivi_prod||[]).filter(o=>{
+  const dansSuivi = new Set((state.suivi_prod||[]).map(o=>String(o.of_id||'').trim()).filter(Boolean));
+  const repli = (state._planOfs||[]).filter(o=>!dansSuivi.has(o.of_id));   // ligne du planning absente de la copie ERP
+  return [...(state.suivi_prod||[]), ...repli].filter(o=>{
     const matchById = o.erp_tranche_id && o.erp_tranche_id === tr.id;
     const matchByName = String(o.tranche||'').trim() === String(tr.nom||'').trim();   // nom strictement identique, même si l'id pointe vers un doublon de la tranche
     if(!matchById && !matchByName) return false;
@@ -3643,7 +3645,7 @@ function sortieProdDetail(tr, ph){
   const datees = cand.filter(o=>iso(o.date_fin_prod)).sort((a,b)=>iso(a.date_fin_prod)<iso(b.date_fin_prod)?1:-1);
   if(!datees.length) return {date:'', titre:''};
   const date = iso(datees[0].date_fin_prod);
-  const fmtOf = o => 'ligne '+(o.of_id||'?')+' · atelier '+(o.atelier||'?')+' · '+(o.statut==='termine'?'terminé':'en cours')+' · fin '+fmtDate(iso(o.date_fin_prod))+(o.phases?' · phases '+o.phases:'');
+  const fmtOf = o => (o._depuisPlanning?'[lu directement dans le planning] ':'')+'ligne '+(o.of_id||'?')+' · atelier '+(o.atelier||'?')+' · '+(o.statut==='termine'?'terminé':'en cours')+' · fin '+fmtDate(iso(o.date_fin_prod))+(o.phases?' · phases '+o.phases:'');
   const gagnants = datees.filter(o=>iso(o.date_fin_prod)===date);
   let t = 'Date de fin de production lue dans le Planning Production (colonne date_fin_prod = fin de la barre de la ligne, pas le CTVX ni la date reprojetée).\n'
         + (parPhase ? 'Ligne(s) contenant cette phase :\n' : 'Aucune ligne ne cite cette phase → fin la plus tardive de la tranche :\n')
@@ -10778,6 +10780,18 @@ async function chargerDatesPlanning(maxAge){
             if(pl.deb && o.date_debut!==pl.deb){ o.date_debut=pl.deb; nb++; }
           });
           state._datesPlan.ofIds = new Set(parOf.keys());
+          // Lignes du planning (non terminées, avec date de fin) lues à la source : servent de repli pour « Sortie prod » / « Dernière op. »
+          // quand la copie ERP_Suivi_Production n'a pas (encore) la ligne (synchro serveur en échec ou en retard).
+          try{
+            const avantSig = (state._planOfs||[]).map(o=>o.of_id+o.date_fin_prod).join('|');
+            state._planOfs = r.tranches.filter(t=>String(t.termine).toUpperCase()!=='TRUE' && String(t.id||'').trim() && iso(t.date_fin_prod)).map(t=>({
+              of_id:String(t.id).trim(), tranche:String(t.nom||'').trim(), atelier:String(t.atelier_id||'').trim().toUpperCase(),
+              date_fin_prod:iso(t.date_fin_prod), date_debut:iso(t.date_debut), statut:'en_cours',
+              phases:(Array.isArray(t.phases)?t.phases:String(t.phases||'').split(',')).map(x=>String(x||'').trim()).filter(Boolean).join(','),
+              erp_tranche_id:String(t.erp_tranche_id||'').trim(), _depuisPlanning:true
+            }));
+            if(avantSig !== state._planOfs.map(o=>o.of_id+o.date_fin_prod).join('|')) _redessinerApresPlanning();
+          }catch(e){ console.warn('OF planning (repli) :', e.message); }
           // OF ajoutés dans le Planning Production APRÈS l'ouverture de l'ERP : ils ne sont pas encore dans le suivi chargé → « Sortie prod » et « Dernière op. » restaient vides jusqu'à F5.
           // On recharge alors le suivi (une seule fois par nouvel ensemble d'OF manquants, pas en boucle).
           try{
