@@ -463,7 +463,21 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
     </table>
   </div>
 
-  <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px">Historique des réceptions</div>
+  <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px">Bons de réception réalisés</div>
+  <div class="toolbar no-print" style="margin-bottom:10px">
+    <select class="btn" id="recep-periode" onchange="onRecepPeriodeChange()">
+      <option value="tout">Toute la période</option>
+      <option value="mois">Ce mois-ci</option>
+      <option value="mois_prec">Mois dernier</option>
+      <option value="30j">30 derniers jours</option>
+      <option value="annee">Cette année</option>
+      <option value="personnalise">Période personnalisée…</option>
+    </select>
+    <input type="date" id="recep-debut" class="btn" style="display:none" onchange="renderReceptions()"/>
+    <input type="date" id="recep-fin" class="btn" style="display:none" onchange="renderReceptions()"/>
+    <select class="btn" id="recep-fil-fourn" onchange="renderReceptions()"><option value="">Tous fournisseurs</option></select>
+    <button class="btn" onclick="exporterReceptions()" title="Télécharge la liste affichée (une ligne par article reçu) au format Excel / CSV">⬇ Export Excel (CSV)</button>
+  </div>
   <div id="recep-list"></div>
 </div>
 <!-- ══ STOCK ══ -->
@@ -2429,42 +2443,110 @@ function renderMetricsReceptions() {
     <div class="metric"><div class="metric-k">Réceptions</div><div class="metric-v">${nb}</div></div>
     <div class="metric"><div class="metric-k">Commandes en attente</div><div class="metric-v${enAttente>0?' warn':' ok'}">${enAttente}</div></div>`;
 }
+function onRecepPeriodeChange(){
+  const p = document.getElementById('recep-periode').value, perso = p==='personnalise';
+  document.getElementById('recep-debut').style.display = perso?'':'none';
+  document.getElementById('recep-fin').style.display = perso?'':'none';
+  renderReceptions();
+}
+// Bornes ISO [debut, fin] de la période choisie ('' = pas de borne)
+function recepBornes(){
+  const p = document.getElementById('recep-periode')?.value || 'tout';
+  const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  if (p==='mois') return [iso(new Date(y,m,1)), iso(new Date(y,m+1,0))];
+  if (p==='mois_prec') return [iso(new Date(y,m-1,1)), iso(new Date(y,m,0))];
+  if (p==='30j') { const d=new Date(now); d.setDate(d.getDate()-30); return [iso(d), iso(now)]; }
+  if (p==='annee') return [y+'-01-01', y+'-12-31'];
+  if (p==='personnalise') return [document.getElementById('recep-debut').value||'', document.getElementById('recep-fin').value||''];
+  return ['',''];
+}
+function recepMontant(r){ return (r.lignes||[]).reduce((s,l)=>s+(Number(l.quantite)||0)*(Number(l.prixUnitaire)||0),0); }
+function recepNumero(r){ return r.brNumero || r.blNumero || '—'; }
+// Réceptions réalisées après filtres (recherche, période, fournisseur), de la plus récente à la plus ancienne
+function receptionsFiltrees(){
+  const q = (document.getElementById('recep-search')?.value||'').toLowerCase();
+  const [d0,d1] = recepBornes();
+  const fo = document.getElementById('recep-fil-fourn')?.value || '';
+  return state.receptions.filter(r=>{
+    const dt = String(r.blDate||r.date||'').slice(0,10);
+    if (d0 && (!dt || dt<d0)) return false;
+    if (d1 && (!dt || dt>d1)) return false;
+    if (fo && (r.fournNom||'')!==fo) return false;
+    if (!q) return true;
+    return [r.blNumero, r.brNumero, r.cdeNum, r.fournNom].some(v=>String(v||'').toLowerCase().includes(q))
+      || (r.lignes||[]).some(l=>String(l.desc||'').toLowerCase().includes(q));
+  }).slice().sort((a,b)=>String(b.blDate||b.date||'').localeCompare(String(a.blDate||a.date||'')) || String(b.created_at||'').localeCompare(String(a.created_at||'')));
+}
 function renderReceptions() {
   renderMetricsReceptions();
-  const q = (document.getElementById('recep-search')?.value||'').toLowerCase();
-  let recs = state.receptions.filter(r=>!q || r.blNumero?.toLowerCase().includes(q) || r.cdeNum?.toLowerCase().includes(q) || r.fournNom?.toLowerCase().includes(q));
+  // liste des fournisseurs ayant au moins un bon (sélection conservée)
+  const sel = document.getElementById('recep-fil-fourn');
+  if (sel) {
+    const cur = sel.value;
+    const noms = [...new Set(state.receptions.map(r=>r.fournNom).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr',{sensitivity:'base'}));
+    const sig = noms.join('|');
+    if (sel.dataset.sig !== sig) {
+      sel.innerHTML = '<option value="">Tous fournisseurs</option>' + noms.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+      sel.dataset.sig = sig; sel.value = noms.includes(cur) ? cur : '';
+    }
+  }
+  const recs = receptionsFiltrees();
+  const el = document.getElementById('recep-list');
   if (!recs.length) {
-    document.getElementById('recep-list').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">Aucune réception enregistrée.</div>';
+    el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text3)">'+(state.receptions.length?'Aucun bon de réception pour ces filtres.':'Aucun bon de réception enregistré.')+'</div>';
     return;
   }
-  document.getElementById('recep-list').innerHTML = recs.map(r=>{
-    const montant = r.lignes.reduce((s,l)=>s+l.quantite*l.prixUnitaire,0);
-    return `<div class="bl-card">
-      <div class="bl-header" onclick="toggleReception('${r.id}')">
-        <span class="chevron${r.open?' open':''}">▶</span>
-        <span class="num-cde">${esc(r.blNumero)}</span>
-        <span class="dp dp-blue">${fmtDate(r.blDate)}</span>
-        <span style="font-weight:600;font-size:13px;flex:1">${esc(r.fournNom||'—')}</span>
-        <span style="font-size:11px;color:var(--text3)">cmd ${esc(r.cdeNum||'—')}</span>
-        <span style="font-size:13px;font-family:'DM Mono',monospace;font-weight:600;color:var(--blue)">${fmtEuro(montant)}</span>
-        <div class="no-print" style="display:flex;gap:5px;margin-left:8px" onclick="event.stopPropagation()">
-          <button class="btn btn-sm" onclick="openPrintBL('${r.id}')">🖨 Bon de réception</button>
-        </div>
-      </div>
-      ${r.open?`<div class="bl-body">
-        <table class="lignes-table">
+  const total = recs.reduce((s,r)=>s+recepMontant(r),0);
+  el.innerHTML = `<div style="font-size:12px;color:var(--text2);margin-bottom:6px"><b>${recs.length}</b> bon${recs.length>1?'s':''} de réception · montant total <b>${fmtEuro(total)}</b></div>
+  <div class="table-wrap" style="margin-bottom:24px"><table class="stock-table">
+    <thead><tr><th style="width:26px"></th><th>N° bon de réception</th><th>Date</th><th>Fournisseur</th><th>Commande</th><th style="text-align:right">Lignes</th><th style="text-align:right">Montant</th><th class="no-print"></th></tr></thead>
+    <tbody>${recs.map(r=>{
+      const nl = (r.lignes||[]).length;
+      let h = `<tr style="cursor:pointer" onclick="toggleReception('${r.id}')">
+        <td><span class="chevron${r.open?' open':''}">▶</span></td>
+        <td class="num-cde">${esc(recepNumero(r))}</td>
+        <td><span class="dp dp-blue">${fmtDate(r.blDate||r.date)}</span></td>
+        <td style="font-weight:600">${esc(r.fournNom||'—')}</td>
+        <td style="color:var(--text2)">${esc(r.cdeNum||'—')}</td>
+        <td style="text-align:right">${nl}</td>
+        <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:600;color:var(--blue)">${fmtEuro(recepMontant(r))}</td>
+        <td class="no-print" style="text-align:right" onclick="event.stopPropagation()"><button class="btn btn-sm" onclick="openPrintBL('${r.id}')">🖨 Bon de réception</button></td>
+      </tr>`;
+      if (r.open) h += `<tr><td></td><td colspan="7" style="background:var(--bg2,#faf9f6);padding:8px 12px">
+        <table class="lignes-table" style="width:100%">
           <thead><tr><th>Désignation</th><th style="text-align:right">Qté reçue</th><th>Emplacement(s)</th><th style="text-align:right">PU</th><th style="text-align:right">Montant</th></tr></thead>
-          <tbody>${r.lignes.map(l=>`<tr>
+          <tbody>${(r.lignes||[]).map(l=>`<tr>
             <td style="font-weight:500">${esc(l.desc)}</td>
             <td class="r">${fmtQte(l.quantite)} ${esc(l.unite||'')}</td>
             <td>${(l.repartition||[]).map(rp=>`<span class="emp">${esc(libelleEmplacement(rp.emplacementId))} (${fmtQte(rp.quantite)})</span>`).join(' ')}</td>
             <td class="r">${fmtEuro(l.prixUnitaire)}</td>
-            <td class="r" style="font-weight:600">${fmtEuro(l.quantite*l.prixUnitaire)}</td>
+            <td class="r" style="font-weight:600">${fmtEuro((Number(l.quantite)||0)*(Number(l.prixUnitaire)||0))}</td>
           </tr>`).join('')}</tbody>
-        </table>
-      </div>`:''}
-    </div>`;
-  }).join('');
+        </table></td></tr>`;
+      return h;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+// Export Excel (CSV ; UTF-8) de la liste affichée : une ligne par article reçu
+function exporterReceptions(){
+  const recs = receptionsFiltrees();
+  if (!recs.length) { toast('Aucun bon de réception à exporter'); return; }
+  const cel = v => { const t = String(v==null?'':(typeof v==='number'?String(v).replace('.',','):v)); return /[;"\n]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t; };
+  const cols = ['N° bon de réception','Date','Fournisseur','Commande','Désignation','Qté reçue','Unité','Emplacement(s)','PU','Montant ligne','Montant du bon'];
+  const L = [cols.join(';')];
+  recs.forEach(r=>{
+    const lg = (r.lignes && r.lignes.length) ? r.lignes : [{}];
+    lg.forEach(l=>{
+      const q = Number(l.quantite)||0, pu = Number(l.prixUnitaire)||0;
+      L.push([recepNumero(r), fmtDate(r.blDate||r.date), r.fournNom||'', r.cdeNum||'', l.desc||'', q, l.unite||'',
+        (l.repartition||[]).map(rp=>libelleEmplacement(rp.emplacementId)+' ('+fmtQte(rp.quantite)+')').join(' + '), pu, +(q*pu).toFixed(2), +recepMontant(r).toFixed(2)].map(cel).join(';'));
+    });
+  });
+  const blob = new Blob(['\ufeff'+L.join('\n')], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = 'bons_de_reception_'+isoLocal(new Date())+'.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  toast('Export : '+recs.length+' bon(s) de réception');
 }
 function toggleReception(id){ const r=state.receptions.find(x=>x.id===id); if(r){r.open=!r.open;renderReceptions();} }
 function onPrevPeriodeChange() {
