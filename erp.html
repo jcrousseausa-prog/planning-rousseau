@@ -1900,7 +1900,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD = '19/11/2026-z';
+const ERP_BUILD = '23/11/2026-a';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -3766,6 +3766,7 @@ function renderTrRow(tr,nbPh,arts,ofs_prod){
   const today = new Date().toISOString().slice(0,10);
 
   // Date CTVX — depuis state.dates_erp (date la plus tôt) ou tr.ctvx
+  const datesSrc = (state.dates_erp||[]).filter(d=>String(d.tranche||'').trim()===String(tr.nom||'').trim());   // même règle stricte que ctvxDetail
   const ctvx = ctvxDeTranche(tr);
 
   // Date fin prod — la plus tardive parmi les OF actifs (non expirés)
