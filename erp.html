@@ -1900,7 +1900,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD = '23/11/2026-a';
+const ERP_BUILD = '23/11/2026-b';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -9313,10 +9313,18 @@ async function _creerTranchesDepuisDATES_(opts){
     if(++_creationDATESTentatives <= 15) setTimeout(()=>creerTranchesDepuisDATES(opts), 2000);
     return;
   }
-  if(!state._datesErpOk || !(state.dates_erp||[]).length) return;      // besoin atelier illisible : on ne crée rien
+  if(!state._datesErpOk || !(state.dates_erp||[]).length){      // besoin atelier illisible : on ne crée rien (mais on le dit)
+    state._datesAvert = 'Le fichier DATES n\u2019a pas pu être lu (ou ne contient aucune ligne « besoin atelier ») : aucune tranche n\u2019est créée. Nouvelle tentative automatique toutes les 10 min.'; try{ renderDatesNonChargees(); }catch(e){}
+    return;
+  }
   if(!canEdit('planning')) return;                                       // profil en lecture seule
-  if(_saveTimeout || _savePromise) { if(++_creationDATESTentatives <= 15) setTimeout(()=>creerTranchesDepuisDATES(opts), 2000); return; }
+  if(_saveTimeout || _savePromise) {
+    if(++_creationDATESTentatives <= 15) setTimeout(()=>creerTranchesDepuisDATES(opts), 2000);
+    else { state._datesAvert = 'Création des tranches DATES reportée : une sauvegarde de l\u2019ERP est restée en attente. Cliquer sur « Réessayer maintenant ».'; try{ renderDatesNonChargees(); }catch(e){} }
+    return;
+  }
   _creationDATESFaite = true;
+  state._datesAvert = '';
 
   const existantes = new Set(state.tranches.map(t=>_cleNomTranche(t.nom)));
   const idsLies = new Set(state.tranches.map(t=>String(t.id_dates||'').trim()).filter(Boolean));
@@ -9345,8 +9353,11 @@ async function _creerTranchesDepuisDATES_(opts){
 
   // Garde-fou : un volume anormal vient presque toujours d'une lecture incomplète → confirmation
   if(manquantes.length > 150){
-    if(_creationDATESRefus && !opts.force) return;     // déjà refusé pendant cette session : on ne redemande pas toutes les 10 min
-    if(!confirm('DATES contient '+manquantes.length+' tranches absentes de l\'ERP. Les créer toutes maintenant ?')){ _creationDATESRefus = true; return; }
+    if(!opts.force){     // volume anormal : jamais de fenêtre surprise ; l'avertissement reste affiché jusqu'au clic sur « Réessayer maintenant »
+      state._datesAvert = 'DATES contient '+manquantes.length+' tranches absentes de l\u2019ERP (volume élevé) : création en attente de ta confirmation. Cliquer sur « Réessayer maintenant ».'; try{ renderDatesNonChargees(); }catch(e){}
+      return;
+    }
+    if(!confirm('DATES contient '+manquantes.length+' tranches absentes de l\'ERP. Les créer toutes maintenant ?')){ return; }
   }
 
   const today = new Date().toISOString().slice(0,10);
@@ -9398,7 +9409,13 @@ window.creerTranchesDepuisDATES = creerTranchesDepuisDATES;
 function renderDatesNonChargees(){
   const el = document.getElementById('dates-non-chargees'); if(!el) return;
   const l = state._datesNonChargees || [];
-  if(!l.length || !canEdit('planning')){ el.innerHTML = ''; return; }
+  if(!canEdit('planning')){ el.innerHTML = ''; return; }
+  if(!l.length && state._datesAvert){
+    el.innerHTML = '<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--orange)"><b>⚠ '+esc(state._datesAvert)+'</b> '+
+      '<button class="btn btn-sm" style="margin-left:8px" onclick="creerTranchesDepuisDATES({force:true})">↻ Réessayer maintenant</button></div>';
+    return;
+  }
+  if(!l.length){ el.innerHTML = ''; return; }
   const parMotif = new Map(); l.forEach(x=>{ if(!parMotif.has(x.motif)) parMotif.set(x.motif, []); parMotif.get(x.motif).push(x.tranche); });
   const aDossiers = l.some(x=>x.dossiers);
   el.innerHTML = '<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--orange)">'+
