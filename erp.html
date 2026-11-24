@@ -1910,7 +1910,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD = '24/11/2026-f';
+const ERP_BUILD = '24/11/2026-g';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -9364,8 +9364,8 @@ function _mapListe(map, v){
 // (à l'ouverture, puis toutes les 10 min), sans attendre un rechargement de la page. Ce qui ne peut pas être créé est listé (avec le motif)
 // dans l'encart orange du Tableau de pilotage, au lieu d'être ignoré en silence.
 async function creerTranchesDepuisDATES(opts){
-  if(_creationDATESEnCours) return;
-  _creationDATESEnCours = true;
+  if(_creationDATESEnCours && Date.now()-(window.__creationDebut||0) < 45000) return;   // un passage resté bloqué > 45 s est abandonné
+  _creationDATESEnCours = true; window.__creationDebut = Date.now(); state._creationEtat = 'en cours…';
   try{ await _creerTranchesDepuisDATES_(opts || {}); }
   catch(e){ console.error('DATES → ERP :', e); state._creationEtat = 'erreur : '+(e&&e.message||e); state._datesAvert = 'La création automatique des tranches a échoué ('+(e&&e.message||e)+'). Nouvelle tentative automatique dans 1 min.'; }
   finally{ _creationDATESEnCours = false; try{ renderDatesNonChargees(); }catch(e){} }
@@ -9416,8 +9416,14 @@ async function _creerTranchesDepuisDATES_(opts){
     else if(window.__dossiersCache && Date.now()-window.__dossiersCache.t < 120000 && !opts.force){ dossiersErr = window.__dossiersCache.err; }
     else{
       try{
-        const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getDossiers'})});
-        const r = await res.json();
+        state._creationEtat = 'lecture du fichier DOSSIERS…';
+        const _ctl = new AbortController(); const _tm = setTimeout(()=>_ctl.abort(), 20000);
+        let r; try{
+          r = await Promise.race([
+            fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getDossiers'}),signal:_ctl.signal}).then(res=>res.json()),
+            new Promise((_,ko)=>setTimeout(()=>{ _ctl.abort(); ko(new Error('délai dépassé (20 s)')); },20000))]);
+        }catch(e){ throw new Error(_ctl.signal.aborted ? 'délai dépassé (20 s)' : e.message); }
+        finally{ clearTimeout(_tm); }
         if(r.ok){ dossiers = r.dossiers||[]; window.__dossiersCache = {ok:true, t:Date.now(), liste:dossiers}; }
         else{ dossiersErr = r.error||'fichier DOSSIERS illisible'; window.__dossiersCache = {ok:false, t:Date.now(), err:dossiersErr}; }
       }catch(e){ dossiersErr = e.message; window.__dossiersCache = {ok:false, t:Date.now(), err:dossiersErr}; }
