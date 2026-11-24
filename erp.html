@@ -1910,7 +1910,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD = '24/11/2026-e';
+const ERP_BUILD = '24/11/2026-f';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -2439,6 +2439,7 @@ async function loadFromSheets(opts) {
       // DATES et fermetures en arrière-plan (non bloquants)
       loadDATESSource();
       loadFermetures();
+      setTimeout(()=>{ try{ if(state._datesErpOk){ _creationDATESTentatives = 0; creerTranchesDepuisDATES(); } }catch(e){} }, 1500);
       if(!_finUsinageLance){ _finUsinageLance=true; syncFinUsinageAuto(); }   // une seule fois au démarrage (ensuite : toutes les 15 min), pas à chaque rechargement
       saveLS();
       _sheetsLoaded = true;
@@ -2482,6 +2483,8 @@ function startPolling() {
   if (_pollInterval) clearInterval(_pollInterval);
   // Recharger les CTVX depuis fichier DATES toutes les 10 minutes
   setInterval(() => { loadDATESSource(); }, 10 * 60 * 1000);
+  // Contrôle local toutes les minutes : si une tranche « besoin atelier » manque dans l'ERP (création perdue lors d'un rechargement, d'un conflit de sauvegarde, etc.), elle est recréée sans attendre
+  setInterval(() => { try{ if(!document.hidden && _sheetsLoaded && state._datesErpOk && (state.dates_erp||[]).length){ _creationDATESTentatives = 0; creerTranchesDepuisDATES(); } }catch(e){ console.warn(e); } }, 60 * 1000);
   // Recharger la fin d'usinage toutes les 15 minutes
   setInterval(() => { syncFinUsinageAuto(); }, 15 * 60 * 1000);
   _pollInterval = setInterval(() => {
@@ -3402,7 +3405,7 @@ function diagDATESChantierHtml(ch){
   if(absentes.length) morceaux.push(absentes.length+' absente(s) de l\u2019ERP');
   const exemples = (absentes.length?absentes:nomDiff.length?nomDiff:orphelines).slice(0,3).map(esc).join(' ; ');
   const btn = (absentes.length && canEdit('planning')) ? ` <button class="btn btn-sm" onclick="creerTranchesDepuisDATES({force:true})">↻ Créer les manquantes</button>` : '';
-  return `<tr class="ph-diag"><td colspan="14" style="padding:5px 12px 5px 20px;font-size:11px;color:var(--orange);background:var(--orange-bg);border-bottom:1px solid var(--orange-border)">⚠ DATES : ${noms.length} tranche(s) « besoin atelier » pour ce dossier → ${morceaux.join(' · ')}${exemples?' <span style="color:var(--text3)">(ex. '+exemples+')</span>':''}${btn}</td></tr>`;
+  return `<tr class="ph-diag"><td colspan="14" style="padding:5px 12px 5px 20px;font-size:11px;color:var(--orange);background:var(--orange-bg);border-bottom:1px solid var(--orange-border)">⚠ DATES : ${noms.length} tranche(s) « besoin atelier » pour ce dossier → ${morceaux.join(' · ')}${exemples?' <span style="color:var(--text3)">(ex. '+exemples+')</span>':''}${absentes.length?' <span style="color:var(--text3)" title="État de la création automatique des tranches depuis DATES">· création auto : '+esc(state._creationEtat||'pas encore exécutée')+'</span>':''}${btn}</td></tr>`;
 }
 function renderPlanningParPhase(){
   const tbody = document.getElementById('planning-phase-tbody');
@@ -9364,22 +9367,26 @@ async function creerTranchesDepuisDATES(opts){
   if(_creationDATESEnCours) return;
   _creationDATESEnCours = true;
   try{ await _creerTranchesDepuisDATES_(opts || {}); }
+  catch(e){ console.error('DATES → ERP :', e); state._creationEtat = 'erreur : '+(e&&e.message||e); state._datesAvert = 'La création automatique des tranches a échoué ('+(e&&e.message||e)+'). Nouvelle tentative automatique dans 1 min.'; }
   finally{ _creationDATESEnCours = false; try{ renderDatesNonChargees(); }catch(e){} }
 }
 async function _creerTranchesDepuisDATES_(opts){
   // L'ERP doit être entièrement chargé depuis le serveur ; sinon on attend un peu (max ~30 s) puis on abandonne
   if(!_sheetsLoaded || !state.chantiers.length){
+    state._creationEtat = 'en attente du chargement complet de l\u2019ERP';
     if(++_creationDATESTentatives <= 15) setTimeout(()=>creerTranchesDepuisDATES(opts), 2000);
     return;
   }
   if(!state._datesErpOk || !(state.dates_erp||[]).length){      // besoin atelier illisible : on ne crée rien (mais on le dit)
+    state._creationEtat = 'fichier DATES non lu';
     state._datesAvert = 'Le fichier DATES n\u2019a pas pu être lu (ou ne contient aucune ligne « besoin atelier ») : aucune tranche n\u2019est créée. Nouvelle tentative automatique toutes les 10 min.'; try{ renderDatesNonChargees(); }catch(e){}
     return;
   }
-  if(!canEdit('planning')) return;                                       // profil en lecture seule
+  if(!canEdit('planning')){ state._creationEtat = 'profil en lecture seule'; return; }                                       // profil en lecture seule
   // Sauvegarde en attente ou en cours seulement. NE PAS tester _saveTimeout : il garde l'identifiant du dernier minuteur et n'est jamais remis à null,
   // donc après la PREMIÈRE sauvegarde de la session (n'importe laquelle) la création des tranches DATES était bloquée jusqu'au rechargement.
   if(_pendingSave || _savePromise) {
+    state._creationEtat = 'en attente de la fin d\u2019une sauvegarde';
     if(++_creationDATESTentatives <= 15) setTimeout(()=>creerTranchesDepuisDATES(opts), 2000);
     else { state._datesAvert = 'Création des tranches DATES reportée : une sauvegarde de l\u2019ERP est restée en attente. Cliquer sur « Réessayer maintenant ».'; try{ renderDatesNonChargees(); }catch(e){} }
     return;
@@ -9397,7 +9404,7 @@ async function _creerTranchesDepuisDATES_(opts){
     vues.add(k); return true;
   });
   const _nbDates = new Set((state.dates_erp||[]).map(d=>_cleNomTranche(d.tranche)).filter(Boolean)).size;
-  if(!manquantes.length){ state._datesNonChargees = []; state._datesSync = {t:Date.now(), nbDates:_nbDates, crees:0, manquantes:0}; console.log('DATES → ERP : aucune tranche manquante'); return; }
+  if(!manquantes.length){ state._creationEtat = 'rien à créer'; state._datesNonChargees = []; state._datesSync = {t:Date.now(), nbDates:_nbDates, crees:0, manquantes:0}; console.log('DATES → ERP : aucune tranche manquante'); return; }
 
   // Fiche chantiers (fichier DOSSIERS) : seulement si au moins un chantier est à créer
   const cleChantierErp = new Map(); state.chantiers.forEach(c=>{ const k=_cleCh(c.nom); if(k && !cleChantierErp.has(k)) cleChantierErp.set(k,c); });
@@ -9405,16 +9412,22 @@ async function _creerTranchesDepuisDATES_(opts){
   let dossiers = null, dossiersErr = '';
   const besoinDossiers = manquantes.some(d=>d.dossier && !cleChantierErp.has(_cleCh(d.dossier)));
   if(besoinDossiers){
-    try{
-      const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getDossiers'})});
-      const r = await res.json();
-      if(r.ok) dossiers = r.dossiers||[]; else dossiersErr = r.error||'fichier DOSSIERS illisible';
-    }catch(e){ dossiersErr = e.message; }
+    if(window.__dossiersCache && window.__dossiersCache.ok){ dossiers = window.__dossiersCache.liste; }
+    else if(window.__dossiersCache && Date.now()-window.__dossiersCache.t < 120000 && !opts.force){ dossiersErr = window.__dossiersCache.err; }
+    else{
+      try{
+        const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'getDossiers'})});
+        const r = await res.json();
+        if(r.ok){ dossiers = r.dossiers||[]; window.__dossiersCache = {ok:true, t:Date.now(), liste:dossiers}; }
+        else{ dossiersErr = r.error||'fichier DOSSIERS illisible'; window.__dossiersCache = {ok:false, t:Date.now(), err:dossiersErr}; }
+      }catch(e){ dossiersErr = e.message; window.__dossiersCache = {ok:false, t:Date.now(), err:dossiersErr}; }
+    }
   }
   const dosParCle = new Map(); (dossiers||[]).forEach(x=>{ const k=_cleCh(x.nom); if(k && !dosParCle.has(k)) dosParCle.set(k,x); });
 
   // Garde-fou : un volume anormal vient presque toujours d'une lecture incomplète → confirmation
   if(manquantes.length > 150){
+    state._creationEtat = 'en attente de confirmation (volume élevé)';
     if(!opts.force){     // volume anormal : jamais de fenêtre surprise ; l'avertissement reste affiché jusqu'au clic sur « Réessayer maintenant »
       state._datesAvert = 'DATES contient '+manquantes.length+' tranches absentes de l\u2019ERP (volume élevé) : création en attente de ta confirmation. Cliquer sur « Réessayer maintenant ».'; try{ renderDatesNonChargees(); }catch(e){}
       return;
@@ -9456,6 +9469,7 @@ async function _creerTranchesDepuisDATES_(opts){
   });
   state.chantiers.sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
   state._creationDATES = crees;
+  state._creationEtat = crees.tranches ? ('terminée : '+crees.tranches+' créée(s) à '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})) : 'rien pu créer (voir encart orange)';
   state._datesNonChargees = nonCharg;
   state._datesSync = {t:Date.now(), nbDates:_nbDates, crees:crees.tranches, manquantes:nonCharg.length};
   if(crees.tranches){
