@@ -466,6 +466,9 @@ tr:hover .pc-add, .pc-wrap:focus-within .pc-add{opacity:.8}
         <th data-c="num" style="width:80px">N° phase</th>
         <th data-c="nom">Phase</th>
         <th data-c="tr">Tranche</th>
+        <th data-c="ass" style="width:38px;text-align:center" title="Assemblage — case cochée dans DATES (colonne K)">Ass.</th>
+        <th data-c="equ" style="width:38px;text-align:center" title="Équipement — case cochée dans DATES (colonne L)">Éq.</th>
+        <th data-c="tai" style="width:42px;text-align:center" title="Taillage — case cochée dans DATES (colonne M)">Tail.</th>
         <th data-c="statut" style="width:110px">Statut</th>
         <th data-c="reproj" style="width:122px" title="Date reprojetée : remplace la CTVX comme date de besoin. Modifiable ici — elle est identique à celle du Planning Production. Vide / égale à la CTVX = non reprojetée">Date reprojetée</th>
         <th data-c="ctvx" style="width:100px">CTVX</th>
@@ -1907,7 +1910,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD = '23/11/2026-d';
+const ERP_BUILD = '24/11/2026-e';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -3373,6 +3376,34 @@ function numPhaseTri(ph){
 // croissant (puis chantier, puis tranche pour un classement stable), avec la tranche et le
 // chantier rappelés sur chaque ligne — pour retrouver en un coup d'œil "la Ph04" quel que
 // soit le chantier dont on parle, sans avoir à déplier tout l'arbre chantier → tranche.
+// Écart DATES ↔ ERP pour UN chantier : les tranches « besoin atelier » de son dossier DATES qui ne sont pas sous ce chantier,
+// avec l'endroit où elles se trouvent (autre chantier, orpheline, nom différent) ou « absente de l'ERP ». Rien n'est affiché quand tout est présent.
+function diagDATESChantierHtml(ch){
+  if(!state._datesErpOk || !(state.dates_erp||[]).length) return '';
+  const kC = String(ch.nom||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+  const noms = [...new Set((state.dates_erp||[]).filter(d=>String(d.dossier||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'')===kC).map(d=>String(d.tranche||'').trim()).filter(Boolean))];
+  if(!noms.length) return '';
+  const ici=[], nomDiff=[], ailleurs=new Map(), orphelines=[], absentes=[];
+  noms.forEach(n=>{
+    if(state.tranches.some(t=>t.cid===ch.id && String(t.nom||'').trim()===n)){ ici.push(n); return; }
+    const k = _cleNomTranche(n);
+    const t = state.tranches.find(x=>_cleNomTranche(x.nom)===k);
+    if(!t){ absentes.push(n); return; }
+    if(t.cid===ch.id){ nomDiff.push(n); return; }
+    const c = state.chantiers.find(c=>c.id===t.cid);
+    if(!c){ orphelines.push(n); return; }
+    ailleurs.set(c.nom,(ailleurs.get(c.nom)||0)+1);
+  });
+  if(ici.length===noms.length) return '';
+  const morceaux = [ici.length+' ici'];
+  if(nomDiff.length) morceaux.push(nomDiff.length+' ici avec un nom légèrement différent');
+  ailleurs.forEach((n,c)=>morceaux.push(n+' sous le chantier « '+esc(c)+' »'));
+  if(orphelines.length) morceaux.push(orphelines.length+' rattachée(s) à un chantier introuvable');
+  if(absentes.length) morceaux.push(absentes.length+' absente(s) de l\u2019ERP');
+  const exemples = (absentes.length?absentes:nomDiff.length?nomDiff:orphelines).slice(0,3).map(esc).join(' ; ');
+  const btn = (absentes.length && canEdit('planning')) ? ` <button class="btn btn-sm" onclick="creerTranchesDepuisDATES({force:true})">↻ Créer les manquantes</button>` : '';
+  return `<tr class="ph-diag"><td colspan="14" style="padding:5px 12px 5px 20px;font-size:11px;color:var(--orange);background:var(--orange-bg);border-bottom:1px solid var(--orange-border)">⚠ DATES : ${noms.length} tranche(s) « besoin atelier » pour ce dossier → ${morceaux.join(' · ')}${exemples?' <span style="color:var(--text3)">(ex. '+exemples+')</span>':''}${btn}</td></tr>`;
+}
 function renderPlanningParPhase(){
   const tbody = document.getElementById('planning-phase-tbody');
   if(!tbody) return;
@@ -3451,7 +3482,7 @@ function renderPlanningParPhase(){
   });
 
   if(!rows.length){
-    tbody.innerHTML = `<tr><td colspan="11" style="padding:2rem;text-align:center;color:var(--text3)">Aucune phase${q?' pour cette recherche':''}.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" style="padding:2rem;text-align:center;color:var(--text3)">Aucune phase${q?' pour cette recherche':''}.</td></tr>`;
     return;
   }
 
@@ -3463,7 +3494,8 @@ function renderPlanningParPhase(){
     const ph=r.ph, tr=r.tr, ch=r.ch;
     if(ch.id !== chantierCourant){
       chantierCourant = ch.id;
-      html += `<tr><td colspan="11" style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:8px 10px;border-top:2px solid var(--blue-border);border-bottom:1px solid var(--blue-border)">🏗 ${esc(ch.nom)}</td></tr>`;
+      html += `<tr><td colspan="14" style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:8px 10px;border-top:2px solid var(--blue-border);border-bottom:1px solid var(--blue-border)">🏗 ${esc(ch.nom)}</td></tr>`;
+      html += diagDATESChantierHtml(ch);
     }
     const vide = 'padding-left:20px;color:var(--text3);font-style:italic;font-size:12px';
     if(!tr){   // chantier sans aucune tranche
@@ -3473,7 +3505,7 @@ function renderPlanningParPhase(){
         ? `<span style="color:var(--red);font-style:normal;font-weight:600">⚠ Doublon vide :</span> un autre chantier « ${esc(jumeau.nom)} » existe et porte déjà les tranches ; celui-ci n'en a aucune.`
         : 'Aucune tranche renseignée pour ce chantier';
       const btn = (jumeau && canEdit('planning')) ? ` <button class="btn btn-sm btn-red" style="font-style:normal" onclick="supprimerChantierDoublonVide('${ch.id}')">Supprimer ce doublon</button>` : '';
-      html += `<tr class="ph-vide" style="border-bottom:1px solid var(--border)"><td style="${vide}">—</td><td colspan="10" style="${vide}">${msg}${btn}</td></tr>`;
+      html += `<tr class="ph-vide" style="border-bottom:1px solid var(--border)"><td style="${vide}">—</td><td colspan="13" style="${vide}">${msg}${btn}</td></tr>`;
       return;
     }
     if(!ph){   // tranche sans phase
@@ -3489,6 +3521,7 @@ function renderPlanningParPhase(){
         <td data-c="num" style="${vide}">—</td>
         <td data-c="nom" style="${vide}">Aucune phase renseignée${commentaireCelluleHtml('tr',tr.id,tr.commentaire_usinage)}</td>
         <td data-c="tr" style="color:var(--text2)">${esc(tr.nom||'')}</td>
+        <td data-c="ass" style="text-align:center">${flagCelluleHtml(tr,'a')}</td><td data-c="equ" style="text-align:center">${flagCelluleHtml(tr,'e')}</td><td data-c="tai" style="text-align:center">${flagCelluleHtml(tr,'t')}</td>
         <td data-c="statut">${stH}</td>
         <td data-c="reproj" onclick="event.stopPropagation()">${reprojCelluleHtml(tr, ctvx0, planR, null)}</td>
         <td data-c="ctvx">${ctvxH}</td>
@@ -3529,6 +3562,7 @@ function renderPlanningParPhase(){
       <td data-c="num" style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue);white-space:nowrap;padding-left:20px"><span class="ph-num">${esc(ph.num||'—')}</span> <button class="ph-act" onclick="copierLignePhase('${ph.id}',event)" title="Copier cette phase (colonnes séparées par des tabulations, prêt à coller dans Planning Production ou un tableur)" style="border:1px solid var(--border);background:var(--surface);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer;margin-left:4px;user-select:none">📋</button><button class="ph-act" onclick="jumperVersPhase('${ph.id}')" title="Voir cette phase dans la vue par tranches" style="border:1px solid var(--border);background:var(--surface);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer;margin-left:3px;user-select:none">↗</button></td>
       <td data-c="nom" style="font-weight:500">${esc(ph.nom||'—')}${commentaireCelluleHtml('ph',ph.id,ph.commentaire)}</td>
       <td data-c="tr" style="color:var(--text2)">${esc(tr.nom||'')}</td>
+      <td data-c="ass" style="text-align:center">${flagCelluleHtml(tr,'a')}</td><td data-c="equ" style="text-align:center">${flagCelluleHtml(tr,'e')}</td><td data-c="tai" style="text-align:center">${flagCelluleHtml(tr,'t')}</td>
       <td data-c="statut" onclick="event.stopPropagation()"><button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut de la phase"><span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;white-space:nowrap">${sl[0]} ▾</span></button>${tailleRestanteHtml(ph,tr)}</td>
       <td data-c="reproj" onclick="event.stopPropagation()" data-copy="${esc(reprojTexteCopie(tr, planR, ph))}">${reprojHtml}</td>
       <td data-c="ctvx">${ctvxHtml}</td>
@@ -4091,6 +4125,22 @@ function openEditChantier(id){
 }
 // Date CTVX au plus tôt pour une tranche (source DATES prioritaire, sinon tr.ctvx) — même logique
 // que le Tableau de pilotage / fiche projet.
+// Cases DATES de la tranche (nom strictement identique) : {connu, a, e, t}
+function flagsDATES(tr){
+  const nom = String(tr&&tr.nom||'').trim();
+  if(!state._datesErpOk) return {connu:false,a:false,e:false,t:false};
+  if(state._datesFlags){ const f = state._datesFlags.get(nom); return {connu:true, a:!!(f&&f.assemblage), e:!!(f&&f.equipement), t:!!(f&&f.taillage)}; }
+  const rows = (state.dates_erp||[]).filter(d=>String(d.tranche||'').trim()===nom);
+  return {connu:true, a:rows.some(d=>d.assemblage), e:rows.some(d=>d.equipement), t:rows.some(d=>d.taillage)};
+}
+const _FLAG_STYLE = {a:['Ass.','Assemblage','var(--green)','var(--green-bg)','var(--green-border)'], e:['Éq.','Équipement','var(--orange)','var(--orange-bg)','var(--orange-border)'], t:['Tail.','Taillage','var(--purple)','var(--purple-bg)','var(--purple-border)']};
+function flagCelluleHtml(tr, k){
+  const f = flagsDATES(tr), st = _FLAG_STYLE[k];
+  if(!f.connu) return `<span style="color:var(--text3);font-size:11px" title="DATES pas encore chargé">·</span>`;
+  return f[k]
+    ? `<span title="${st[1]} : coché dans DATES" style="font-size:10px;font-weight:700;color:${st[2]};background:${st[3]};border:1px solid ${st[4]};border-radius:4px;padding:0 5px">✓</span>`
+    : `<span style="color:var(--text3);font-size:11px;opacity:.5" title="${st[1]} : non coché dans DATES">—</span>`;
+}
 function ctvxDetail(tr){
   if(!tr) return {date:'',titre:''};
   const nom=String(tr.nom||'').trim();
@@ -9327,7 +9377,9 @@ async function _creerTranchesDepuisDATES_(opts){
     return;
   }
   if(!canEdit('planning')) return;                                       // profil en lecture seule
-  if(_saveTimeout || _savePromise) {
+  // Sauvegarde en attente ou en cours seulement. NE PAS tester _saveTimeout : il garde l'identifiant du dernier minuteur et n'est jamais remis à null,
+  // donc après la PREMIÈRE sauvegarde de la session (n'importe laquelle) la création des tranches DATES était bloquée jusqu'au rechargement.
+  if(_pendingSave || _savePromise) {
     if(++_creationDATESTentatives <= 15) setTimeout(()=>creerTranchesDepuisDATES(opts), 2000);
     else { state._datesAvert = 'Création des tranches DATES reportée : une sauvegarde de l\u2019ERP est restée en attente. Cliquer sur « Réessayer maintenant ».'; try{ renderDatesNonChargees(); }catch(e){} }
     return;
@@ -9344,7 +9396,8 @@ async function _creerTranchesDepuisDATES_(opts){
     if(d.id_unique && idsLies.has(String(d.id_unique).trim())) return false;   // déjà liée sous un autre nom
     vues.add(k); return true;
   });
-  if(!manquantes.length){ state._datesNonChargees = []; console.log('DATES → ERP : aucune tranche manquante'); return; }
+  const _nbDates = new Set((state.dates_erp||[]).map(d=>_cleNomTranche(d.tranche)).filter(Boolean)).size;
+  if(!manquantes.length){ state._datesNonChargees = []; state._datesSync = {t:Date.now(), nbDates:_nbDates, crees:0, manquantes:0}; console.log('DATES → ERP : aucune tranche manquante'); return; }
 
   // Fiche chantiers (fichier DOSSIERS) : seulement si au moins un chantier est à créer
   const cleChantierErp = new Map(); state.chantiers.forEach(c=>{ const k=_cleCh(c.nom); if(k && !cleChantierErp.has(k)) cleChantierErp.set(k,c); });
@@ -9404,6 +9457,7 @@ async function _creerTranchesDepuisDATES_(opts){
   state.chantiers.sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
   state._creationDATES = crees;
   state._datesNonChargees = nonCharg;
+  state._datesSync = {t:Date.now(), nbDates:_nbDates, crees:crees.tranches, manquantes:nonCharg.length};
   if(crees.tranches){
     scheduleSave(); try{ renderAll(); }catch(e){}
     toast('✅ DATES → ERP : '+crees.tranches+' tranche(s) créée(s)'+(crees.chantiers.length?' · '+crees.chantiers.length+' chantier(s) créé(s)':''));
@@ -9419,6 +9473,11 @@ function renderDatesNonChargees(){
   const el = document.getElementById('dates-non-chargees'); if(!el) return;
   const l = state._datesNonChargees || [];
   if(!canEdit('planning')){ el.innerHTML = ''; return; }
+  if(!l.length && !state._datesAvert && state._datesSync){
+    const sy = state._datesSync, h = new Date(sy.t).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    el.innerHTML = '<div style="font-size:10px;color:var(--text3);margin:0 2px 6px" title="Chaque tranche « besoin atelier » de DATES doit exister dans l\'ERP ; vérifié à chaque lecture de DATES (toutes les 10 min)">DATES → ERP : ✓ à jour à '+h+' · '+sy.nbDates+' tranches « besoin atelier » dans DATES'+(sy.crees?' · '+sy.crees+' créée(s) à l\u2019instant':' · aucune manquante')+'</div>';
+    return;
+  }
   if(!l.length && state._datesAvert){
     el.innerHTML = '<div style="background:var(--orange-bg);border:1px solid var(--orange-border);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--orange)"><b>⚠ '+esc(state._datesAvert)+'</b> '+
       '<button class="btn btn-sm" style="margin-left:8px" onclick="creerTranchesDepuisDATES({force:true})">↻ Réessayer maintenant</button></div>';
@@ -9450,9 +9509,10 @@ async function loadDATESSource() {
       body: JSON.stringify({action:'loadDATES'})
     });
     const r = await res.json();
-    if (!r.ok) { console.warn('loadDATES:', r.error); state._datesErpOk = false; return; }
+    if (!r.ok) { console.warn('loadDATES:', r.error); _datesEchec('Le serveur n\u2019a pas pu lire le fichier DATES : '+(r.error||'erreur inconnue')); return; }
 
     // Normaliser les champs booléens des tranches ERP
+    _datesRetryN = 0; state._datesAvert = '';
     state._datesErpOk = true;   // loadDATES a répondu : tranches_erp = UNIQUEMENT les tranches « besoin atelier » cochées
     state.dates_erp = (r.tranches_erp||[]).map(d=>({
       ...d,
@@ -9463,7 +9523,10 @@ async function loadDATESSource() {
       livre:          d.livre===true||String(d.livre||'').toUpperCase()==='TRUE',
       _livreConnu:    d.livre!==undefined,   // false si Code.gs n'a pas encore été republié (pas de colonne STATUT lue)
     }));
+    if(!state.dates_erp.length){ state._datesAvert = 'DATES a été lu mais aucune ligne « besoin atelier » n\u2019a été reçue (case J cochée ?) : aucune tranche créée.'; try{ renderDatesNonChargees(); }catch(e){} }
     state.dates_atelier = r.tranches_atelier || [];
+    // Cases Assemblage / Équipement / Taillage de DATES (clé fournie par la nouvelle version de Code.gs ; sinon repli sur les lignes « besoin atelier »)
+    state._datesFlags = Array.isArray(r.tranches_flags) ? new Map(r.tranches_flags.map(f=>[String(f.tranche||'').trim(), f])) : null;
     autoTerminerTranchesUsinageSeul();
     _creationDATESTentatives = 0;
     setTimeout(()=>{ try{ creerTranchesDepuisDATES(); }catch(e){ console.warn('creerTranchesDepuisDATES:', e.message); } }, 0);   // à chaque actualisation de DATES
@@ -9523,7 +9586,19 @@ async function loadDATESSource() {
 
   } catch(e) {
     console.warn('loadDATESSource:', e.message);
+    if(!state._datesErpOk) _datesEchec('Lecture de DATES impossible : '+e.message);
   }
+}
+// Lecture de DATES en échec : message visible dans le Tableau de pilotage + 3 nouvelles tentatives (20 s, 1 min, 3 min) avant la reprise normale (10 min)
+let _datesRetryN = 0, _datesRetryT = null;
+function _datesEchec(msg){
+  state._datesErpOk = false;
+  state._datesAvert = msg+' — aucune tranche ne peut être créée tant que DATES n\u2019est pas lu.';
+  state._datesSync = null;
+  try{ renderDatesNonChargees(); }catch(e){}
+  if(_datesRetryT || _datesRetryN >= 3) return;
+  const delai = [20000,60000,180000][_datesRetryN++];
+  _datesRetryT = setTimeout(()=>{ _datesRetryT = null; loadDATESSource(); }, delai);
 }
 
 function renderAbsencesDashboard(){
