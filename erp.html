@@ -302,6 +302,8 @@ table.bl-lignes td.r{text-align:right}
 tr:hover .pc-add, .pc-wrap:focus-within .pc-add{opacity:.8}
 .pc-wrap:hover .pc-txt{color:var(--blue)}
 .pc-input{width:100%;box-sizing:border-box;font:inherit;font-size:11px;padding:2px 6px;border:1px solid var(--blue);border-radius:5px;background:var(--bg);color:var(--text)}
+th[data-c="ass"],th[data-c="equ"],th[data-c="tai"]{font-size:9px;padding-left:2px!important;padding-right:2px!important}
+td[data-c="ass"],td[data-c="equ"],td[data-c="tai"]{padding-left:2px!important;padding-right:2px!important}
 </style>
 </head>
 <body>
@@ -466,9 +468,11 @@ tr:hover .pc-add, .pc-wrap:focus-within .pc-add{opacity:.8}
         <th data-c="num" style="width:80px">N° phase</th>
         <th data-c="nom">Phase</th>
         <th data-c="tr">Tranche</th>
-        <th data-c="ass" style="width:38px;text-align:center" title="Assemblage — case cochée dans DATES (colonne K)">Ass.</th>
-        <th data-c="equ" style="width:38px;text-align:center" title="Équipement — case cochée dans DATES (colonne L)">Éq.</th>
-        <th data-c="tai" style="width:42px;text-align:center" title="Taillage — case cochée dans DATES (colonne M)">Tail.</th>
+        <th data-c="m2" style="width:54px;text-align:right" title="Surface de la tranche : somme des articles de l'ERP ; à défaut, valeur du fichier DATES (comme dans « Par tranches »)">M²</th>
+        <th data-c="m3" style="width:54px;text-align:right" title="Volume de la tranche : somme des articles de l'ERP ; à défaut, valeur du fichier DATES (comme dans « Par tranches »)">M³</th>
+        <th data-c="ass" style="width:30px;text-align:center" title="Assemblage — case cochée dans DATES (colonne K)">Ass.</th>
+        <th data-c="equ" style="width:30px;text-align:center" title="Équipement — case cochée dans DATES (colonne L)">Éq.</th>
+        <th data-c="tai" style="width:30px;text-align:center" title="Taillage — case cochée dans DATES (colonne M)">Tail.</th>
         <th data-c="statut" style="width:110px">Statut</th>
         <th data-c="reproj" style="width:122px" title="Date reprojetée : remplace la CTVX comme date de besoin. Modifiable ici — elle est identique à celle du Planning Production. Vide / égale à la CTVX = non reprojetée">Date reprojetée</th>
         <th data-c="ctvx" style="width:100px">CTVX</th>
@@ -1911,7 +1915,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD = '24/11/2026-i';
+const ERP_BUILD = '24/11/2026-j';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -3412,7 +3416,7 @@ function diagDATESChantierHtml(ch){
   if(absentes.length) morceaux.push(absentes.length+' absente(s) de l\u2019ERP');
   const exemples = (absentes.length?absentes:nomDiff.length?nomDiff:orphelines).slice(0,3).map(esc).join(' ; ');
   const btn = (absentes.length && canEdit('planning')) ? ` <button class="btn btn-sm" onclick="creerTranchesDepuisDATES({force:true})">↻ Créer les manquantes</button>` : '';
-  return `<tr class="ph-diag"><td colspan="14" style="padding:5px 12px 5px 20px;font-size:11px;color:var(--orange);background:var(--orange-bg);border-bottom:1px solid var(--orange-border)">⚠ DATES : ${noms.length} tranche(s) « besoin atelier » pour ce dossier → ${morceaux.join(' · ')}${exemples?' <span style="color:var(--text3)">(ex. '+exemples+')</span>':''}${absentes.length?' <span style="color:var(--text3)" title="État de la création automatique des tranches depuis DATES">· création auto : '+esc(state._creationEtat||'pas encore exécutée')+'</span>':''}${btn}</td></tr>`;
+  return `<tr class="ph-diag"><td colspan="16" style="padding:5px 12px 5px 20px;font-size:11px;color:var(--orange);background:var(--orange-bg);border-bottom:1px solid var(--orange-border)">⚠ DATES : ${noms.length} tranche(s) « besoin atelier » pour ce dossier → ${morceaux.join(' · ')}${exemples?' <span style="color:var(--text3)">(ex. '+exemples+')</span>':''}${absentes.length?' <span style="color:var(--text3)" title="État de la création automatique des tranches depuis DATES">· création auto : '+esc(state._creationEtat||'pas encore exécutée')+'</span>':''}${btn}</td></tr>`;
 }
 function renderPlanningParPhase(){
   const tbody = document.getElementById('planning-phase-tbody');
@@ -3492,7 +3496,7 @@ function renderPlanningParPhase(){
   });
 
   if(!rows.length){
-    tbody.innerHTML = `<tr><td colspan="14" style="padding:2rem;text-align:center;color:var(--text3)">Aucune phase${q?' pour cette recherche':''}.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="16" style="padding:2rem;text-align:center;color:var(--text3)">Aucune phase${q?' pour cette recherche':''}.</td></tr>`;
     return;
   }
 
@@ -3504,7 +3508,7 @@ function renderPlanningParPhase(){
     const ph=r.ph, tr=r.tr, ch=r.ch;
     if(ch.id !== chantierCourant){
       chantierCourant = ch.id;
-      html += `<tr><td colspan="14" style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:8px 10px;border-top:2px solid var(--blue-border);border-bottom:1px solid var(--blue-border)">🏗 ${esc(ch.nom)}</td></tr>`;
+      html += `<tr><td colspan="16" style="background:var(--blue-bg);color:var(--blue);font-weight:700;padding:8px 10px;border-top:2px solid var(--blue-border);border-bottom:1px solid var(--blue-border)">🏗 ${esc(ch.nom)}</td></tr>`;
       html += diagDATESChantierHtml(ch);
     }
     const vide = 'padding-left:20px;color:var(--text3);font-style:italic;font-size:12px';
@@ -3515,7 +3519,7 @@ function renderPlanningParPhase(){
         ? `<span style="color:var(--red);font-style:normal;font-weight:600">⚠ Doublon vide :</span> un autre chantier « ${esc(jumeau.nom)} » existe et porte déjà les tranches ; celui-ci n'en a aucune.`
         : 'Aucune tranche renseignée pour ce chantier';
       const btn = (jumeau && canEdit('planning')) ? ` <button class="btn btn-sm btn-red" style="font-style:normal" onclick="supprimerChantierDoublonVide('${ch.id}')">Supprimer ce doublon</button>` : '';
-      html += `<tr class="ph-vide" style="border-bottom:1px solid var(--border)"><td style="${vide}">—</td><td colspan="13" style="${vide}">${msg}${btn}</td></tr>`;
+      html += `<tr class="ph-vide" style="border-bottom:1px solid var(--border)"><td style="${vide}">—</td><td colspan="15" style="${vide}">${msg}${btn}</td></tr>`;
       return;
     }
     if(!ph){   // tranche sans phase
@@ -3531,6 +3535,7 @@ function renderPlanningParPhase(){
         <td data-c="num" style="${vide}">—</td>
         <td data-c="nom" style="${vide}">Aucune phase renseignée${commentaireCelluleHtml('tr',tr.id,tr.commentaire_usinage)}</td>
         <td data-c="tr" style="color:var(--text2)">${esc(tr.nom||'')}</td>
+        <td data-c="m2" style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${m2m3Tranche(tr).m2}</td><td data-c="m3" style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${m2m3Tranche(tr).m3}</td>
         <td data-c="ass" style="text-align:center">${flagCelluleHtml(tr,'a')}</td><td data-c="equ" style="text-align:center">${flagCelluleHtml(tr,'e')}</td><td data-c="tai" style="text-align:center">${flagCelluleHtml(tr,'t')}</td>
         <td data-c="statut">${stH}</td>
         <td data-c="reproj" onclick="event.stopPropagation()">${reprojCelluleHtml(tr, ctvx0, planR, null)}</td>
@@ -3572,6 +3577,7 @@ function renderPlanningParPhase(){
       <td data-c="num" style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue);white-space:nowrap;padding-left:20px"><span class="ph-num">${esc(ph.num||'—')}</span> <button class="ph-act" onclick="copierLignePhase('${ph.id}',event)" title="Copier cette phase (colonnes séparées par des tabulations, prêt à coller dans Planning Production ou un tableur)" style="border:1px solid var(--border);background:var(--surface);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer;margin-left:4px;user-select:none">📋</button><button class="ph-act" onclick="jumperVersPhase('${ph.id}')" title="Voir cette phase dans la vue par tranches" style="border:1px solid var(--border);background:var(--surface);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer;margin-left:3px;user-select:none">↗</button></td>
       <td data-c="nom" style="font-weight:500">${esc(ph.nom||'—')}${commentaireCelluleHtml('ph',ph.id,ph.commentaire)}</td>
       <td data-c="tr" style="color:var(--text2)">${esc(tr.nom||'')}</td>
+        <td data-c="m2" style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${m2m3Tranche(tr).m2}</td><td data-c="m3" style="text-align:right;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)">${m2m3Tranche(tr).m3}</td>
       <td data-c="ass" style="text-align:center">${flagCelluleHtml(tr,'a')}</td><td data-c="equ" style="text-align:center">${flagCelluleHtml(tr,'e')}</td><td data-c="tai" style="text-align:center">${flagCelluleHtml(tr,'t')}</td>
       <td data-c="statut" onclick="event.stopPropagation()"><button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut de la phase"><span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;white-space:nowrap">${sl[0]} ▾</span></button>${tailleRestanteHtml(ph,tr)}</td>
       <td data-c="reproj" onclick="event.stopPropagation()" data-copy="${esc(reprojTexteCopie(tr, planR, ph))}">${reprojHtml}</td>
@@ -4144,12 +4150,28 @@ function flagsDATES(tr){
   return {connu:true, a:rows.some(d=>d.assemblage), e:rows.some(d=>d.equipement), t:rows.some(d=>d.taillage)};
 }
 const _FLAG_STYLE = {a:['Ass.','Assemblage','var(--green)','var(--green-bg)','var(--green-border)'], e:['Éq.','Équipement','var(--orange)','var(--orange-bg)','var(--orange-border)'], t:['Tail.','Taillage','var(--purple)','var(--purple-bg)','var(--purple-border)']};
+function m2m3Tranche(tr){
+  let T = window.__m2m3;
+  if(!T){
+    T = window.__m2m3 = new Map();
+    const tidDePh = new Map(); (state.phases||[]).forEach(p=>tidDePh.set(p.id, p.tid));
+    (state.articles||[]).forEach(a=>{
+      const tid = tidDePh.get(a.pid); if(tid===undefined) return;
+      const o = T.get(tid) || {m2:0,m3:0}; o.m2 += parseFloat(a.qte_m2)||0; o.m3 += parseFloat(a.qte_m3)||0; T.set(tid,o);
+    });
+    setTimeout(()=>{ window.__m2m3 = null; }, 0);   // recalculé à chaque affichage
+  }
+  const o = T.get(tr.id) || {m2:0,m3:0};
+  const src = (state.dates_erp||[]).find(d=>String(d.tranche||'').trim()===String(tr.nom||'').trim()) || {};
+  const m2 = o.m2>0 ? o.m2 : (parseFloat(src.m2)||0), m3 = o.m3>0 ? o.m3 : (parseFloat(src.m3)||0);
+  return {m2: m2>0 ? m2.toFixed(2) : '', m3: m3>0 ? m3.toFixed(3) : ''};
+}
 function flagCelluleHtml(tr, k){
   const f = flagsDATES(tr), st = _FLAG_STYLE[k];
   if(!f.connu) return `<span style="color:var(--text3);font-size:11px" title="DATES pas encore chargé">·</span>`;
   return f[k]
-    ? `<span title="${st[1]} : coché dans DATES" style="font-size:10px;font-weight:700;color:${st[2]};background:${st[3]};border:1px solid ${st[4]};border-radius:4px;padding:0 5px">✓</span>`
-    : `<span style="color:var(--text3);font-size:11px;opacity:.5" title="${st[1]} : non coché dans DATES">—</span>`;
+    ? `<span title="${st[1]} : coché dans DATES" style="display:inline-block;font-size:8px;line-height:11px;font-weight:700;color:${st[2]};background:${st[3]};border:1px solid ${st[4]};border-radius:3px;padding:0 3px">✓</span>`
+    : `<span style="color:var(--text3);font-size:9px;opacity:.5" title="${st[1]} : non coché dans DATES">—</span>`;
 }
 function ctvxDetail(tr){
   if(!tr) return {date:'',titre:''};
