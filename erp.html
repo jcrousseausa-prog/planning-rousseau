@@ -1816,8 +1816,9 @@ function fmt(n){return Number(n).toLocaleString('fr-FR',{maximumFractionDigits:0
 function empHtml(e){return e&&e!=='—'?`<span class="emp">${e}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>';}
 
 // ═══ PERSISTENCE ══════════════════════════════════════════════════════════
-function saveLS(){try{localStorage.setItem('erp_v3',JSON.stringify(state));}catch(e){}}
-function loadLS(){try{const s=localStorage.getItem('erp_v3');if(s){const d=JSON.parse(s);if(d&&d.chantiers&&d.chantiers.length>=5){state=d;return true;}else{localStorage.removeItem('erp_v3');return false;}}}catch(e){}return false;}
+const _LS_EXCLUS = /^_(dates|plan(Ofs|Lignes)|creation|nc[A-Z]|suivi(Charge|Relu|Manq|Forcer|Recharge)|orphelins|coherence)/;   // données recalculées à chaque ouverture : jamais dans le cache local
+function saveLS(){try{localStorage.setItem('erp_v3',JSON.stringify(state,function(k,v){ if(this===state && _LS_EXCLUS.test(k)) return undefined; if(v instanceof Map || v instanceof Set) return undefined; return v; }));}catch(e){}}
+function loadLS(){try{const s=localStorage.getItem('erp_v3');if(s){const d=JSON.parse(s);if(d&&d.chantiers&&d.chantiers.length>=5){ Object.keys(d).forEach(k=>{ if(_LS_EXCLUS.test(k)) delete d[k]; }); state=d;return true;}else{localStorage.removeItem('erp_v3');return false;}}}catch(e){}return false;}
 
 // ─── SAUVEGARDE LIGNE PAR LIGNE + POLLING ────────────────────────────────
 
@@ -1910,7 +1911,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD = '24/11/2026-h';
+const ERP_BUILD = '24/11/2026-i';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -3050,8 +3051,8 @@ async function init(){
       else if(item.type==='tranche') state.tranches.push({id:item.id,cid:item.cid,nom:item.nom,conduc:'',open:false,ctvx:''});
     });
   }
-  // Afficher tout de suite avec les données en cache
-  renderPlanning();
+  // Afficher tout de suite avec les données en cache (une erreur d'affichage ne doit JAMAIS empêcher la suite : chargement serveur, synchronisation)
+  try{ renderPlanning(); }catch(e){ console.error('init : affichage du cache', e); }
   setSyncPill('saving','Chargement…');
   // Rechargement du navigateur (onglet remis en mémoire, F5…) : on revient sur la page où l'on travaillait
   try{
@@ -3065,7 +3066,7 @@ async function init(){
   // 2. Charger uniquement chantiers/tranches/phases/articles en priorité (rapide)
   const okFast = await loadFromSheetsfast();
   if(okFast){
-    renderPlanning();
+    try{ renderPlanning(); }catch(e){ console.error('init : affichage', e); }
     setSyncPill('ok','Tableau de pilotage ✓');
   }
 
@@ -3073,11 +3074,13 @@ async function init(){
   setTimeout(async ()=>{
     const ok = await loadFromSheets();
     if(ok){
-      renderAll();
-      // Forcer le tableau de bord même si _prodB2Data était déjà chargé vide
-      // (les données Usinage restent en cache : chargées à la demande, voir ensureUsinageDataLoaded)
-      _prodB2Data = null;
-      if(_currentScreen === 'dashboard') renderDashboard();
+      try{
+        renderAll();
+        // Forcer le tableau de bord même si _prodB2Data était déjà chargé vide
+        // (les données Usinage restent en cache : chargées à la demande, voir ensureUsinageDataLoaded)
+        _prodB2Data = null;
+        if(_currentScreen === 'dashboard') renderDashboard();
+      }catch(e){ console.error('init : affichage après chargement', e); }
       setSyncPill('ok','Synchronisé');
       document.getElementById('rt-label').textContent='Connecté';
     }
@@ -4136,7 +4139,7 @@ function openEditChantier(id){
 function flagsDATES(tr){
   const nom = String(tr&&tr.nom||'').trim();
   if(!state._datesErpOk) return {connu:false,a:false,e:false,t:false};
-  if(state._datesFlags){ const f = state._datesFlags.get(nom); return {connu:true, a:!!(f&&f.assemblage), e:!!(f&&f.equipement), t:!!(f&&f.taillage)}; }
+  if(state._datesFlags instanceof Map){ const f = state._datesFlags.get(nom); return {connu:true, a:!!(f&&f.assemblage), e:!!(f&&f.equipement), t:!!(f&&f.taillage)}; }
   const rows = (state.dates_erp||[]).filter(d=>String(d.tranche||'').trim()===nom);
   return {connu:true, a:rows.some(d=>d.assemblage), e:rows.some(d=>d.equipement), t:rows.some(d=>d.taillage)};
 }
@@ -10990,7 +10993,8 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
 function lignesPlanDeTranche(tr, plan){
   plan = plan || state._datesPlan;
   if(!plan) return null;
-  return (plan.lnId && plan.lnId.get(String(tr.id))) || (plan.lnNom && plan.lnNom.get(_clePlan(tr.nom))) || [];
+  if(!(plan.lnId instanceof Map) || !(plan.lnNom instanceof Map)) return null;     // cache local ancien (Map devenue objet) : ignoré
+  return plan.lnId.get(String(tr.id)) || plan.lnNom.get(_clePlan(tr.nom)) || [];
 }
 // Date retenue pour la tranche = la plus proche des lignes (même règle que le Suivi production)
 function _reprojInfoTranche(tr, plan){
