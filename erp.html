@@ -1913,7 +1913,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD = '25/11/2026-m';
+const ERP_BUILD = '25/11/2026-n';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -3421,6 +3421,7 @@ function diagDATESChantierHtml(ch){
 function renderPlanningParPhase(){
   const tbody = document.getElementById('planning-phase-tbody');
   if(!tbody) return;
+  try{ autoTerminerPhasesParOF(); }catch(e){ console.warn('autoTerminerPhasesParOF:', e); }   // le tableau n'affiche jamais « Planifié » pour une phase dont toutes les lignes du planning sont terminées
   const q = _search;
   const qNoSpace = q.replace(/\s+/g,'');
   const today = new Date().toISOString().slice(0,10);
@@ -3576,7 +3577,7 @@ function renderPlanningParPhase(){
       <td data-c="num" style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue);white-space:nowrap;padding-left:20px"><span class="ph-num">${esc(ph.num||'—')}</span> <button class="ph-act" onclick="copierLignePhase('${ph.id}',event)" title="Copier cette phase (colonnes séparées par des tabulations, prêt à coller dans Planning Production ou un tableur)" style="border:1px solid var(--border);background:var(--surface);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer;margin-left:4px;user-select:none">📋</button><button class="ph-act" onclick="jumperVersPhase('${ph.id}')" title="Voir cette phase dans la vue par tranches" style="border:1px solid var(--border);background:var(--surface);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer;margin-left:3px;user-select:none">↗</button></td>
       <td data-c="nom" style="font-weight:500">${esc(ph.nom||'—')}${commentaireCelluleHtml('ph',ph.id,ph.commentaire)}</td>
       <td data-c="tr" style="color:var(--text2)">${esc(tr.nom||'')}</td>
-              <td data-c="statut" onclick="event.stopPropagation()"><button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut de la phase"><span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;white-space:nowrap">${sl[0]} ▾</span></button>${tailleRestanteHtml(ph,tr)}</td>
+              <td data-c="statut" onclick="event.stopPropagation()"><button class="statut-btn" onclick="openStatutMenu('phase','${ph.id}','${ph.statut||'planifie'}',event)" title="Changer le statut de la phase"><span style="font-size:10px;color:${sl[1]};background:${sl[2]};border:1px solid ${sl[3]};border-radius:4px;padding:1px 6px;white-space:nowrap">${sl[0]} ▾</span></button>${tailleRestanteHtml(ph,tr)}${phFini ? '' : phaseNonValideHtml(tr, ph, finProd)}</td>
       <td data-c="reproj" onclick="event.stopPropagation()" data-copy="${esc(reprojTexteCopie(tr, planR, ph))}">${reprojHtml}</td>
       <td data-c="ctvx">${ctvxHtml}</td>
       <td data-c="dop">${atelierFinHtml(tr, ph)}</td>
@@ -3833,7 +3834,45 @@ function atelierFinHtml(tr, ph){
 // plus d'étape derrière pour la garder « en cours ». On la déclare alors Terminé automatiquement
 // (statut_erp) et on aligne ses phases (même cascade que le clic manuel). Silencieux, idempotent.
 // Ne touche jamais une tranche déjà Terminé/Livré, ni une tranche avec assemblage.
+// ── Validation « Terminé » d'une PHASE : la phase est terminée quand TOUTES les lignes du Planning Production qui portent son étiquette (PH109…)
+//    sont cochées « terminé » (au moins une ligne). Jamais l'inverse : une phase déjà Terminé/Livré n'est jamais rouverte automatiquement.
+function lignesPlanDePhase(tr, ph){
+  const P = state._datesPlan; if(!P || !Array.isArray(P.tous)) return null;
+  const k = clePhaseNum(ph && ph.num); if(!k) return [];
+  const nom = String(tr.nom||'').trim(), vus = new Set();
+  return P.tous.filter(l=>{
+    if(!((l.eid && l.eid===tr.id) || (l.nom && l.nom===nom))) return false;     // nom STRICTEMENT identique (ou lien par id)
+    if(!l.ph.includes(k) || vus.has(l.id)) return false; vus.add(l.id); return true;
+  });
+}
+function autoTerminerPhasesParOF(){
+  if(!state._datesPlan || !Array.isArray(state._datesPlan.tous) || !state._datesPlan.tous.length) return 0;
+  const today = new Date().toISOString().slice(0,10), trParId = new Map(state.tranches.map(t=>[t.id,t]));
+  let n = 0;
+  (state.phases||[]).forEach(ph=>{
+    if(ph.statut==='termine' || ph.statut==='livre') return;
+    const tr = trParId.get(ph.tid); if(!tr || tr.statut_erp==='livre') return;
+    const l = lignesPlanDePhase(tr, ph);
+    if(!l || !l.length || !l.every(x=>x.termine)) return;
+    ph.statut = 'termine'; ph.date_termine = ph.date_termine || today; n++;
+  });
+  if(n>0){ console.log('Phases validées « Terminé » (toutes leurs lignes du planning sont terminées) :', n); if(canEdit('planning')) scheduleSave(); }
+  return n;
+}
+window.autoTerminerPhasesParOF = autoTerminerPhasesParOF;
+// Pourquoi une phase dont la date de sortie est dépassée n'est pas « Terminé » : état de ses lignes dans le planning
+function phaseNonValideHtml(tr, ph, finProd){
+  const today = new Date().toISOString().slice(0,10);
+  if(!finProd || finProd>=today) return '';
+  const l = lignesPlanDePhase(tr, ph);
+  let titre;
+  if(l===null) return '';
+  if(!l.length) titre = 'Date de sortie dépassée, mais aucune ligne du Planning Production ne porte l\u2019étiquette '+(ph.num||'?')+' pour cette tranche : le statut ne peut pas être validé automatiquement (étiqueter la ligne dans le planning, ou passer la phase en Terminé ici).';
+  else titre = 'Date de sortie dépassée mais non validée : '+l.map(x=>'ligne '+x.id+(x.atelier?' ('+x.atelier+')':'')+' — '+(x.termine?'terminée':'PAS cochée « terminé » dans le Planning Production')).join(' · ')+'. La phase passe en Terminé dès que toutes ses lignes sont cochées.';
+  return ' <span title="'+esc(titre)+'" style="color:var(--orange);font-size:12px;cursor:help">⚠</span>';
+}
 function autoTerminerTranchesUsinageSeul(){
+  try{ autoTerminerPhasesParOF(); }catch(e){ console.warn('autoTerminerPhasesParOF:', e); }   // validation « Terminé » phase par phase (lignes du planning)
   if(!(state.dates_erp||[]).length || !(state.suivi_prod||[]).length) return 0;
   const today = new Date().toISOString().slice(0,10);
   const dMap = new Map();
@@ -10942,7 +10981,11 @@ async function chargerDatesPlanning(maxAge){
       if(r.ok && Array.isArray(r.tranches)){
         const parNom = new Map(), parId = new Map(), lnNom = new Map(), lnId = new Map();
         const iso = v => { const x=String(v||'').trim().slice(0,10); return /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : ''; };
+        const tous = [];   // toutes les lignes du planning, terminées comprises : sert à valider « Terminé » phase par phase
         r.tranches.forEach(t=>{
+          { const lid0 = String(t.id||'').trim();
+            if(lid0){ const tg = (Array.isArray(t.phases) ? t.phases : String(t.phases||'').split(',')).map(x=>String(x||'').trim()).filter(Boolean);
+              tous.push({id:lid0, nom:String(t.nom||'').trim(), eid:String(t.erp_tranche_id||'').trim(), termine:String(t.termine).toUpperCase()==='TRUE', ph:tg.map(clePhaseNum), atelier:String(t.atelier_id||'').toUpperCase(), fin:iso(t.date_fin_prod)}); } }
           if(String(t.termine).toUpperCase()==='TRUE') return;
           const reproj = iso(t.date_reprojetee), besoin = iso(t.date_besoin), d = reproj || besoin;
           // Lignes du planning de cette tranche (une par atelier) : sert à modifier la date reprojetée depuis l'ERP
@@ -10959,7 +11002,8 @@ async function chargerDatesPlanning(maxAge){
           const kn = _clePlan(t.nom); if(kn) maj(parNom, kn);
           const eid = String(t.erp_tranche_id||'').trim(); if(eid) maj(parId, eid);
         });
-        state._datesPlan = {t:Date.now(), parNom, parId, lnNom, lnId};
+        state._datesPlan = {t:Date.now(), parNom, parId, lnNom, lnId, tous};
+        try{ if(autoTerminerPhasesParOF()>0) _redessinerApresPlanning(); }catch(e){ console.warn('autoTerminerPhasesParOF:', e); }
         // Dates de DÉBUT / FIN de chaque OF reprises directement du Planning Production (la source) : l'ERP les lit dans ERP_Suivi_Production,
         // qu'il ne charge qu'à l'ouverture — une modification faite ensuite dans le planning n'y arrivait qu'au prochain rechargement complet.
         try{
