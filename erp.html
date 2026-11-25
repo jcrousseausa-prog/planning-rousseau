@@ -1913,7 +1913,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD = '25/11/2026-n';
+const ERP_BUILD = '25/11/2026-q';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -2354,12 +2354,20 @@ async function _saveToSheetsImpl() {
     // sinon elle serait prise pour « déjà enregistrée » et écrasée par la version du serveur à la fusion suivante.
     let snapEnvoi = null;
     try { snapEnvoi = _snapTables(payload); } catch(e) { snapEnvoi = null; }
-    const res = await fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'text/plain'},
-      body: JSON.stringify({action: 'saveERP', data: payload})
-    });
-    const r = await res.json();
+    const _ctlS = new AbortController(); const _tmS = setTimeout(()=>_ctlS.abort(), 90000);
+    let r;
+    try{
+      const res = await Promise.race([
+        fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'text/plain'},
+          body: JSON.stringify({action: 'saveERP', data: payload}),
+          signal: _ctlS.signal
+        }),
+        new Promise((_,ko)=>setTimeout(()=>{ _ctlS.abort(); ko(new Error('le serveur n\u2019a pas répondu en 90 s')); }, 90000))
+      ]);
+      r = await res.json();
+    } finally { clearTimeout(_tmS); }
     _evt('SAVE ok='+r.ok+' hash='+r.hash+(r.error?' err='+r.error:''));
     if (r.ok) {
       setOnline();
@@ -3529,7 +3537,7 @@ function renderPlanningParPhase(){
       const ctvxH = ctvx0 && /^\d{4}-\d{2}-\d{2}$/.test(ctvx0) ? `<span title="${esc(_cd0.titre)}" style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;cursor:help">${fmtDate(ctvx0)}</span>` : `<span title="${esc(_cd0.titre)}" style="color:var(--text3);font-size:11px;cursor:help">—</span>`;
       const fini0 = tr.statut_erp==='livre' || tr.statut_erp==='termine';
       const _sp0 = sortieProdDetail(tr, null), fp0 = _sp0.date;
-      const fpH = fp0 ? `<span title="${esc(_sp0.titre)}" style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;cursor:help">${fmtDate(fp0)}</span>` : `<span title="${esc(sortieProdPourquoi(tr))}" style="color:var(--text3);font-size:11px;cursor:help">—</span>`;
+      const fpH = sortieProdBadge(fp0, ctvx0, fini0, _sp0.titre, sortieProdPourquoi(tr));
       const sl0 = statutLabels[tr.statut_erp||''];
       const stH = sl0 ? `<span style="font-size:10px;color:${sl0[1]};background:${sl0[2]};border:1px solid ${sl0[3]};border-radius:4px;padding:1px 6px;white-space:nowrap" title="Statut de la tranche">${sl0[0]}</span>` : `<span style="color:var(--text3);font-size:11px">—</span>`;
       html += `<tr class="ph-vide" data-tr="${tr.id}" style="border-bottom:1px solid var(--border)">
@@ -3560,19 +3568,7 @@ function renderPlanningParPhase(){
     const phFini = ['termine','livre'].includes(ph.statut||'') || tr.statut_erp==='livre';
     const finUsinagePhaseHtml = finUsinageBadge(tr.date_fin_usinage, ctvx, true, phFini);
     const _sp = sortieProdDetail(tr, ph), finProd = _sp.date;
-    let finProdHtml;
-    if(!finProd){
-      finProdHtml = `<span title="${esc(sortieProdPourquoi(tr))}" style="color:var(--text3);font-size:11px;cursor:help">—</span>`;
-    } else if(phFini){
-      finProdHtml = dateFiniHtml(finProd, ctvx, true).replace('<span ','<span data-tip="1" title="'+esc(_sp.titre)+'" ').replace(/ title="Terminée[^"]*"/,'');
-    } else {
-      let color='var(--text2)', bg='transparent', border='var(--border)';
-      if(ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)){
-        if(finProd > ctvx){ color='var(--red)'; bg='var(--red-bg)'; border='var(--red-border)'; }
-        else { color='var(--green)'; bg='var(--green-bg)'; border='var(--green-border)'; }
-      }
-      finProdHtml = `<span title="${esc(_sp.titre)}" style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;background:${bg};color:${color};border:1px solid ${border};border-radius:4px;padding:1px 5px;cursor:help">${fmtDate(finProd)}</span>`;
-    }
+    const finProdHtml = sortieProdBadge(finProd, ctvx, phFini, _sp.titre, sortieProdPourquoi(tr));
     html += `<tr class="ph-ligne" data-ph="${ph.id}" style="border-bottom:1px solid var(--border);user-select:text;-webkit-user-select:text;cursor:text">
       <td data-c="num" style="font-family:'DM Mono',monospace;font-weight:700;color:var(--blue);white-space:nowrap;padding-left:20px"><span class="ph-num">${esc(ph.num||'—')}</span> <button class="ph-act" onclick="copierLignePhase('${ph.id}',event)" title="Copier cette phase (colonnes séparées par des tabulations, prêt à coller dans Planning Production ou un tableur)" style="border:1px solid var(--border);background:var(--surface);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer;margin-left:4px;user-select:none">📋</button><button class="ph-act" onclick="jumperVersPhase('${ph.id}')" title="Voir cette phase dans la vue par tranches" style="border:1px solid var(--border);background:var(--surface);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer;margin-left:3px;user-select:none">↗</button></td>
       <td data-c="nom" style="font-weight:500">${esc(ph.nom||'—')}${commentaireCelluleHtml('ph',ph.id,ph.commentaire)}</td>
@@ -3801,6 +3797,17 @@ function atelierDerniereOp(tr, ph){
 // Badge « Fin usinage » : rouge si la fin d'usinage dépasse la date CTVX, vert sinon (turquoise si pas de CTVX)
 // Phase/tranche terminée ou livrée : date estompée en gris avec ✓ (plus de rouge/vert → on ne voit que les retards à traiter).
 // Le survol rappelle le retard éventuel par rapport au CTVX.
+// Pastille « Sortie prod » (Par phase) : verte si la date est ≤ CTVX, rouge si elle le dépasse ; style « ✓ date » si terminé/livré. Partagée par les lignes de phase ET les tranches sans phase.
+function sortieProdBadge(finProd, ctvx, fini, titre, pourquoi){
+  if(!finProd) return `<span title="${esc(pourquoi||'')}" style="color:var(--text3);font-size:11px;cursor:help">—</span>`;
+  if(fini) return dateFiniHtml(finProd, ctvx, true).replace('<span ','<span data-tip="1" title="'+esc(titre)+'" ').replace(/ title="Terminée[^"]*"/,'');
+  let color='var(--text2)', bg='transparent', border='var(--border)';
+  if(ctvx && /^\d{4}-\d{2}-\d{2}$/.test(ctvx)){
+    if(finProd > ctvx){ color='var(--red)'; bg='var(--red-bg)'; border='var(--red-border)'; }
+    else { color='var(--green)'; bg='var(--green-bg)'; border='var(--green-border)'; }
+  }
+  return `<span title="${esc(titre)}" style="font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap;background:${bg};color:${color};border:1px solid ${border};border-radius:4px;padding:1px 5px;cursor:help">${fmtDate(finProd)}</span>`;
+}
 function dateFiniHtml(date, ctvx, petit){
   if(!date) return '<span style="color:var(--text3);font-size:11px">—</span>';
   const d = String(date).slice(0,10);
@@ -9486,14 +9493,7 @@ async function _creerTranchesDepuisDATES_(opts){
     return;
   }
   if(!canEdit('planning')){ _creationEtatSet('profil en lecture seule'); return; }                                       // profil en lecture seule
-  // Sauvegarde en attente ou en cours seulement. NE PAS tester _saveTimeout : il garde l'identifiant du dernier minuteur et n'est jamais remis à null,
-  // donc après la PREMIÈRE sauvegarde de la session (n'importe laquelle) la création des tranches DATES était bloquée jusqu'au rechargement.
-  if(_pendingSave || _savePromise) {
-    _creationEtatSet('en attente de la fin d\u2019une sauvegarde');
-    if(++_creationDATESTentatives <= 15) setTimeout(()=>creerTranchesDepuisDATES(opts), 2000);
-    else { state._datesAvert = 'Création des tranches DATES reportée : une sauvegarde de l\u2019ERP est restée en attente. Cliquer sur « Réessayer maintenant ».'; try{ renderDatesNonChargees(); }catch(e){} }
-    return;
-  }
+  // (plus d'attente d'une sauvegarde : les enregistrements sont sérialisés et une modification faite pendant l'un d'eux est reprise au suivant)
   _creationDATESFaite = true;
   state._datesAvert = '';
 
@@ -9678,8 +9678,7 @@ async function loadDATESSource() {
 
       // Mémoriser l'ID stable dès qu'on l'a (première liaison)
       if(idDates && t.id_dates !== idDates) {
-        t.id_dates = idDates;
-        needSave = true;
+        t.id_dates = idDates;      // lien tenu en mémoire (non enregistré côté serveur) : ne déclenche PAS d'enregistrement
       }
       // Si le nom a changé côté DATES (tranche retrouvée via son ID), le nom ERP suit
       if(d.tranche && (t.nom||'').trim() !== d.tranche.trim()) {
@@ -9688,21 +9687,10 @@ async function loadDATESSource() {
       }
 
       if(d.date_ctvx && (d.date_ctvx !== t.date_ctvx || d.date_ctvx !== t.ctvx)) {
+        const change = d.date_ctvx !== t.ctvx;     // seul `ctvx` est enregistré côté serveur : on ne sauvegarde que si SA valeur change
         t.date_ctvx = d.date_ctvx;
         t.ctvx = d.date_ctvx;      // champ lu en repli par l'affichage : on évite qu'une vieille date reste figée
-        updated++;
-        needSave = true;
-      }
-      // Vérifier chantier associé
-      if(d.dossier) {
-        const ch = state.chantiers.find(c =>
-          c.nom.trim().toLowerCase() === d.dossier.trim().toLowerCase()
-        );
-        if(!ch) {
-          if(!state.dates_chantiers_manquants) state.dates_chantiers_manquants = [];
-          const _entry = d.dossier + ' → ' + d.tranche;
-          if(!state.dates_chantiers_manquants.includes(_entry)) state.dates_chantiers_manquants.push(_entry);
-        }
+        if(change){ updated++; needSave = true; }
       }
     });
     if(needSave) scheduleSave();
@@ -9949,13 +9937,25 @@ async function renderDashboard(){
   </div>`;
 
   // ══ ALERTE CHANTIERS MANQUANTS ══
-  if(state.dates_chantiers_manquants?.length) {
-    html += `<div style="background:#fdecea;border:1px solid #f5b7b1;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#922b21">
-      ⚠ <strong>${state.dates_chantiers_manquants.length} tranche(s) du fichier DATES rattachées à des chantiers introuvables dans l'ERP :</strong>
+  {
+    const _chExistants = new Set(state.chantiers.map(c=>_cleCh(c.nom)));
+    const _trExistantes = new Set(state.tranches.map(t=>_cleNomTranche(t.nom)));
+    const _manq = new Map();
+    (state.dates_erp||[]).forEach(d=>{
+      const dos = String(d.dossier||'').trim(); if(!dos || !d.tranche) return;
+      if(_chExistants.has(_cleCh(dos)) || _trExistantes.has(_cleNomTranche(d.tranche))) return;
+      if(!_manq.has(dos)) _manq.set(dos, []); _manq.get(dos).push(d.tranche);
+    });
+    if(_manq.size){
+      const _nbTr = [..._manq.values()].reduce((s,l)=>s+l.length,0);
+      html += `<div style="background:#fdecea;border:1px solid #f5b7b1;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#922b21">
+      ⚠ <strong>${_nbTr} tranche(s) de DATES pas encore dans l'ERP, dont le chantier n'existe pas (${_manq.size} chantier(s)) :</strong>
+      <div style="margin-top:2px;color:#b03a2e">Ils sont créés automatiquement avec les tranches (voir « création auto » dans le Tableau de pilotage) ; ce message disparaît une fois créés.</div>
       <div style="margin-top:6px;max-height:100px;overflow-y:auto">
-        ${state.dates_chantiers_manquants.map(s=>`<div style="padding:2px 0;border-bottom:1px solid #f5b7b1">${esc(s)}</div>`).join('')}
+        ${[..._manq.entries()].map(([dos,l])=>`<div style="padding:2px 0;border-bottom:1px solid #f5b7b1" title="${esc(l.join('\n'))}">${esc(dos)} — ${l.length} tranche(s)</div>`).join('')}
       </div>
     </div>`;
+    }
   }
 
   // ══ INDICATEUR TRANCHES À PLANIFIER (col K) ══
