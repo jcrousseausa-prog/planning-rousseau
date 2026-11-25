@@ -1913,7 +1913,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD = '25/11/2026-q';
+const ERP_BUILD = '25/11/2026-r';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -9125,6 +9125,44 @@ async function loadHeuresMachineParChantier(nbSemaines) {
 }
 
 // ══ INDICATEUR COHÉRENCE TRANCHES ════════════════════════════════════════
+// KPI « À programmer en production » : tranches non livrées / non terminées (avec assemblage et/ou équipement dans DATES) sans aucune ligne au Planning Production.
+function renderKpiNonProg(noms, dispo){
+  const el = document.getElementById('kpi-non-prog');
+  const box = 'background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px';
+  let h;
+  if(!dispo){
+    h = `<div style="${box}"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:600">🏭 À programmer en production</span><span style="font-size:12px;color:var(--text3)">Planning Production illisible — <a href="#" onclick="renderCoherenceTranches();return false">↻ réessayer</a></span></div></div>`;
+  } else {
+    const today = new Date().toISOString().slice(0,10);
+    const parCle = new Map(); (state.tranches||[]).forEach(t=>{ const k=_cleNomTranche(t.nom); if(k && !parCle.has(k)) parCle.set(k,t); });
+    const dateParCle = new Map(); (state.dates_erp||[]).forEach(d=>{ const k=_cleNomTranche(d.tranche); if(k && !dateParCle.has(k)) dateParCle.set(k,d); });
+    const items = noms.map(nom=>{
+      const k=_cleNomTranche(nom), tr=parCle.get(k), d=dateParCle.get(k);
+      const ch = tr ? (state.chantiers.find(c=>c.id===tr.cid)||{}).nom : '';
+      let ctvx = ''; try{ ctvx = tr ? (ctvxDeTranche(tr)||'') : ''; }catch(e){}
+      if(!ctvx && d && d.date_ctvx) ctvx = d.date_ctvx;
+      return {nom, chantier: ch || (d&&d.dossier) || '(chantier ?)', ctvx: /^\d{4}-\d{2}-\d{2}$/.test(ctvx)?ctvx:''};
+    });
+    const nbRetard = items.filter(i=>i.ctvx && i.ctvx < today).length;
+    const grp = new Map(); items.forEach(i=>{ if(!grp.has(i.chantier)) grp.set(i.chantier,[]); grp.get(i.chantier).push(i); });
+    const chantiers = [...grp.entries()].map(([c,l])=>{ l.sort((a,b)=>(a.ctvx||'9999')<(b.ctvx||'9999')?-1:1); return {c,l}; })
+      .sort((a,b)=>(a.l[0].ctvx||'9999')<(b.l[0].ctvx||'9999')?-1:1);
+    const col = items.length===0 ? 'var(--green)' : (nbRetard? 'var(--red)' : 'var(--orange)');
+    const badge = i => i.ctvx ? `<span style="font-family:'DM Mono',monospace;font-size:10px;padding:1px 5px;border-radius:4px;border:1px solid ${i.ctvx<today?'var(--red-border)':'var(--border)'};color:${i.ctvx<today?'var(--red)':'var(--text2)'};background:${i.ctvx<today?'var(--red-bg)':'transparent'}" title="Date CTVX${i.ctvx<today?' dépassée':''}">${fmtDate(i.ctvx)}</span>` : '<span style="font-size:10px;color:var(--text3)">sans CTVX</span>';
+    h = `<div style="${box}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:600">🏭 À programmer en production <span style="font-weight:400;font-size:11px;color:var(--text3)">— tranches non livrées / non terminées, avec assemblage ou équipement, sans ligne au Planning Production</span></span>
+        <span style="font-size:18px;font-weight:700;font-family:monospace;color:${col}">${items.length}${nbRetard?` <span style="font-size:11px;font-weight:600">dont ${nbRetard} CTVX dépassée(s)</span>`:''}</span>
+      </div>
+      ${items.length ? `<div style="margin-top:8px;max-height:230px;overflow-y:auto">`+chantiers.map(({c,l})=>`<details style="border-top:1px solid var(--border);padding:4px 0">
+        <summary style="cursor:pointer;font-size:12px;display:flex;gap:8px;align-items:center;list-style:none"><span style="font-weight:600">${esc(c)}</span><span style="color:var(--text3);font-size:11px">${l.length} tranche${l.length>1?'s':''}</span>${badge(l[0])}</summary>
+        ${l.map(i=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:2px 0 2px 14px"><span>${esc(i.nom)}</span>${badge(i)}</div>`).join('')}
+      </details>`).join('')+`</div>` : `<div style="margin-top:6px;font-size:11px;color:var(--green)">✅ Toutes les tranches concernées sont programmées</div>`}
+    </div>`;
+  }
+  state._kpiNonProgHtml = h;
+  if(el) el.innerHTML = h;
+}
 async function renderCoherenceTranches(){
   const el = document.getElementById('coherence-tranches-content');
   if(!el) return;
@@ -9288,6 +9326,7 @@ async function renderCoherenceTranches(){
     // "Non planifiées en prod" : assemblage/équipement coché, absentes du planning prod, non terminées
     const absProd   = prodDispo ? datesAtelier.filter(n=>!inProd(n) && !fauxPositifProd(n)).map(k=>datesMap.get(k)) : null;
     const erpPasProd= prodDispo ? dansERP.filter(n=>!inProd(n) && !fauxPositifProd(n)).map(k=>datesMap.get(k)) : [];
+    try{ renderKpiNonProg(absProd||[], !!prodDispo); }catch(eK){ console.warn('kpi non programmées:', eK); }
     // Nombre de tranches masquées par ces filtres (déjà produites/livrées, sans besoin atelier,
     // ou sans assemblage/équipement pour la partie planning prod).
     const nbFauxPositifs = datesAtelier.filter(n=>
@@ -9390,6 +9429,7 @@ async function renderCoherenceTranches(){
 
   } catch(e){
     el.innerHTML = '<div style="color:var(--red);font-size:12px;padding:8px">Erreur : '+e.message+'</div>';
+    try{ const k=document.getElementById('kpi-non-prog'); if(k) k.innerHTML='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:12px;color:var(--red)">🏭 À programmer en production : calcul impossible ('+esc(e.message)+') — <a href="#" onclick="renderCoherenceTranches();return false">↻ réessayer</a></div>'; }catch(_e){}
   }
 }
 
@@ -9957,6 +9997,9 @@ async function renderDashboard(){
     </div>`;
     }
   }
+
+  // ══ INDICATEUR : tranches non livrées / non terminées pas programmées en production (rempli par renderCoherenceTranches) ══
+  html += '<div id="kpi-non-prog">'+(state._kpiNonProgHtml||'<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:12px;color:var(--text3)">🏭 À programmer en production : ⟳ calcul…</div>')+'</div>';
 
   // ══ INDICATEUR TRANCHES À PLANIFIER (col K) ══
   if(state.dates_atelier?.length) {
