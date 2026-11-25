@@ -1913,7 +1913,7 @@ let _derniereSaisie = 0;
 let _dernierCheck = 0;
 let _checkEnCours = false;
 
-const ERP_BUILD = '25/11/2026-l';
+const ERP_BUILD = '25/11/2026-m';
 window.__ERP_BUILD=ERP_BUILD; window.__ERP_TAB=Math.random().toString(36).slice(2,8);   // identifie cet onglet dans la liste des sessions connectées
 let _evtLog=[];
 function _evt(m){ try{ _evtLog.push(new Date().toLocaleTimeString('fr-FR')+' '+m); if(_evtLog.length>40) _evtLog=_evtLog.slice(-40); }catch(e){} }
@@ -2030,6 +2030,7 @@ function _appliquerFusion(remote, mode, hash){
   state.chantiers.sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr',{sensitivity:'base'}));
   if(hash) _lastSaveHash=hash;
   try{ saveLS(); renderAll(); }catch(e){ console.warn('renderAll après fusion:',e); }
+  try{ _alerteDoublonRevenu(); }catch(e){}
   return f;
 }
 
@@ -2447,6 +2448,7 @@ async function loadFromSheets(opts) {
       saveLS();
       _sheetsLoaded = true;
       _majBase();   // photo de base prise tout de suite, avant tout await
+      try{ _alerteDoublonRevenu(); }catch(e){}
       setOnline();
       // Hash de référence (lu avant les données) + photo de base pour la fusion multi-sessions
       if (hashAvant) _lastSaveHash = hashAvant;
@@ -3514,7 +3516,7 @@ function renderPlanningParPhase(){
       const kNom = String(ch.nom||'').trim().toLowerCase().replace(/\s+/g,' ');
       const jumeau = state.chantiers.find(c=>c.id!==ch.id && String(c.nom||'').trim().toLowerCase().replace(/\s+/g,' ')===kNom && chAvecTranche.has(c.id));
       const msg = jumeau
-        ? `<span style="color:var(--red);font-style:normal;font-weight:600">⚠ Doublon vide :</span> un autre chantier « ${esc(jumeau.nom)} » existe et porte déjà les tranches ; celui-ci n'en a aucune.`
+        ? `<span style="color:var(--red);font-style:normal;font-weight:600">⚠ Doublon vide :</span> un autre chantier « ${esc(jumeau.nom)} » existe et porte déjà les tranches ; celui-ci n'en a aucune.${infoDoublonRevenu(ch)}`
         : 'Aucune tranche renseignée pour ce chantier';
       const btn = (jumeau && canEdit('planning')) ? ` <button class="btn btn-sm btn-red" style="font-style:normal" onclick="supprimerChantierDoublonVide('${ch.id}')">Supprimer ce doublon</button>` : '';
       html += `<tr class="ph-vide" style="border-bottom:1px solid var(--border)"><td style="${vide}">—</td><td colspan="13" style="${vide}">${msg}${btn}</td></tr>`;
@@ -3620,7 +3622,31 @@ function jumperVersPhase(phId){
   _highlightPhId = null;
 }
 // Supprime un chantier VIDE (aucune tranche) qui a un homonyme portant les tranches : doublon créé par erreur
-function supprimerChantierDoublonVide(chId){
+// ── Doublons vides supprimés : mémoire locale (30 jours) pour reconnaître un doublon qui « revient » et dire QUI l'a réécrit ──
+function _tombChantiers(){ try{ const o=JSON.parse(localStorage.getItem('erp_ch_supprimes')||'{}'); const lim=Date.now()-30*864e5; Object.keys(o).forEach(k=>{ if(!o[k]||o[k].t<lim) delete o[k]; }); return o; }catch(e){ return {}; } }
+function _tombAjouter(ch){ try{ const o=_tombChantiers(); o[ch.id]={nom:ch.nom,t:Date.now()}; localStorage.setItem('erp_ch_supprimes',JSON.stringify(o)); }catch(e){} }
+function _cleNomCh(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function _tombDe(ch){   // ce chantier vide a-t-il déjà été supprimé ici (même id, ou même nom) ?
+  const o=_tombChantiers(); if(o[ch.id]) return o[ch.id];
+  const k=_cleNomCh(ch.nom); return Object.values(o).find(x=>_cleNomCh(x.nom)===k) || null;
+}
+function infoDoublonRevenu(ch){
+  const t=_tombDe(ch); if(!t) return '';
+  const q=(typeof _phraseEcrivain==='function') ? _phraseEcrivain() : '';
+  return ' <span style="color:var(--red);font-style:normal;font-weight:600">· déjà supprimé le '+new Date(t.t).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+' puis revenu'+(q?' — dernière écriture de la base : '+esc(q):'')+'</span>';
+}
+function _alerteDoublonRevenu(){
+  const vus=(window.__doublonAlerte=window.__doublonAlerte||new Set());
+  state.chantiers.forEach(ch=>{
+    if(state.tranches.some(t=>t.cid===ch.id)) return;
+    const t=_tombDe(ch); if(!t || vus.has(ch.id)) return;
+    vus.add(ch.id);
+    const q=(typeof _phraseEcrivain==='function') ? _phraseEcrivain() : '';
+    console.warn('Doublon de chantier revenu :', ch, 'supprimé le', new Date(t.t).toLocaleString('fr-FR'), '| dernière écriture :', q);
+    toast('⚠ Le doublon « '+ch.nom+' » supprimé précédemment est revenu'+(q?' — dernière écriture de la base : '+q:''));
+  });
+}
+async function supprimerChantierDoublonVide(chId){
   const ch = state.chantiers.find(c=>c.id===chId); if(!ch) return;
   if(state.tranches.some(t=>t.cid===chId)){ toast('Ce chantier a des tranches : suppression refusée'); return; }
   const k = String(ch.nom||'').trim().toLowerCase().replace(/\s+/g,' ');
@@ -3628,8 +3654,34 @@ function supprimerChantierDoublonVide(chId){
   if(!jumeau){ toast('Aucun chantier homonyme avec des tranches : suppression refusée'); return; }
   if(!confirm('Supprimer le chantier vide « '+ch.nom+' » (doublon) ?\nLe chantier « '+jumeau.nom+' » et ses tranches sont conservés. Cette suppression est définitive.')) return;
   state.chantiers = state.chantiers.filter(c=>c.id!==chId);
-  scheduleSave(); renderAll(); toast('Doublon supprimé');
+  _tombAjouter(ch);
+  renderAll(); toast('Suppression en cours…');
+  try{
+    scheduleSave(); if(_saveTimeout) clearTimeout(_saveTimeout);
+    const ok = await saveToSheets();                       // enregistrement immédiat (et non dans 2 s)
+    let remote = await _getRemoteERP();
+    let encore = (remote.chantiers||[]).some(c=>String(c.id)===String(chId));
+    let detail = '';
+    if(encore){                                            // le serveur a gardé la ligne : suppression directe dans l'onglet ERP_Chantiers
+      try{ await _getHash(); }catch(e){}
+      const qui = (typeof _phraseEcrivain==='function') ? _phraseEcrivain() : '';
+      const res = await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'supprimerChantierVide', id:chId})});
+      const r = await res.json();
+      if(!r.ok) throw new Error(r.error||'refusé par le serveur');
+      remote = await _getRemoteERP();
+      encore = (remote.chantiers||[]).some(c=>String(c.id)===String(chId));
+      detail = ' (l’enregistrement normal ne l’avait pas retiré'+(qui?' — dernière écriture : '+qui:'')+')';
+      console.warn('Doublon vide supprimé directement sur le serveur', r, detail);
+    }
+    if(encore) toast('⚠ Le chantier « '+ch.nom+' » est toujours présent sur le serveur : suppression non retenue. Voir Journal_ERP.');
+    else if(!ok && _conflitDiffere) toast('Suppression faite ici mais non enregistrée (conflit avec une autre session)');
+    else toast('✅ Doublon « '+ch.nom+' » supprimé — vérifié sur le serveur'+detail);
+  }catch(e){
+    console.warn('suppression doublon :', e);
+    toast('Doublon retiré ici, mais la vérification serveur a échoué : '+(e.message||e));
+  }
 }
+window.supprimerChantierDoublonVide = supprimerChantierDoublonVide;
 function toggleChantierActif(chId){
   const ch = state.chantiers.find(c=>c.id===chId);
   if(!ch) return;
