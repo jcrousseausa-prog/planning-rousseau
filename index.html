@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="version" content="20261119-1300">
+<meta name="version" content="20261125-1500">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planning Production — Ateliers</title>
 <style>
@@ -1708,7 +1708,7 @@ ondrop="dropRow(event,'${atId}',${realIdx});this.classList.remove('drag-over')">
   </span>${finFracLabel}
 </td>
 <td><input type="number" value="${t.duree}" min="0.1" step="0.1" onchange="updT('${atId}',${realIdx},'duree',roundTenth(+this.value||0.1))" ${IS_READONLY?'readonly':''} style="width:52px;font-size:11px;color:var(--text3)"/></td>
-<td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${realIdx},'besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:110px;font-size:11px;${reprojActive(t)?'opacity:.5;text-decoration:line-through':''}" title="${reprojActive(t)?'CTVX remplacée par la date reprojetée':'Date CTVX'}"/></td>
+<td><input type="date" value="${t.besoin||''}" onchange="updT('${atId}',${realIdx},'besoin',this.value)" ${IS_READONLY?'readonly':''} style="width:110px;font-size:11px;${reprojActive(t)?'opacity:.5;text-decoration:line-through':''}${(!t.besoin && !t.termine)?';border-color:var(--orange)':''}" title="${esc(reprojActive(t)?'CTVX remplacée par la date reprojetée':(t.besoin?'Date CTVX':ctvxPourquoi(t)))}"/></td>
 <td style="white-space:nowrap"><input type="date" value="${esc(t.reproj||t.besoin||'')}" onchange="onReprojChange('${atId}',${realIdx},this.value)" ${IS_READONLY?'readonly':''} style="width:110px;font-size:11px;${reprojActive(t)?'font-weight:700;border-color:var(--orange);background:var(--orange-bg);color:var(--orange)':'color:var(--text3);font-style:italic'}" title="${reprojActive(t)?'Date reprojetée = date de besoin (CTVX d\'origine : '+fmtDate(t.besoin||'')+')':'Identique à la CTVX — saisir une date pour la remplacer'}"/>${(reprojActive(t)&&!IS_READONLY)?`<button onclick="onReprojChange('${atId}',${realIdx},'')" class="btn btn-xs" style="margin-left:3px" title="Revenir à la date CTVX">↺</button>`:''}</td>
 <td>${statusBadge(t,atId,{})}</td>
 <td style="text-align:center"><span style="font-size:16px;opacity:${t.termine?1:.15}" title="${t.termine?'OF terminé':'Non terminé'}">✅</span></td>
@@ -2991,6 +2991,16 @@ function _normLien(s){
   return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'')
     .toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 }
+// Pourquoi la date CTVX d'une tranche est vide (info-bulle) : compare le nom au fichier DATES, ligne « besoin atelier ».
+function ctvxPourquoi(t){
+  if(!state._ctvxLignes) return 'Date CTVX : liste DATES pas encore chargée.';
+  const nom = String(t.tranche||'').trim(), k = _normLien(nom);
+  const exact = state._ctvxLignes.filter(x=>x.nom===nom);
+  if(exact.length) return exact.some(x=>x.date) ? 'Date CTVX' : 'DATES : la ligne « besoin atelier » de cette tranche n\'a pas de date CTVX (colonne G).';
+  const proche = state._ctvxLignes.filter(x=>_normLien(x.nom)===k);
+  if(proche.length) return 'Aucune date : le nom diffère de DATES (règle : nom strictement identique).\nDans DATES : « '+proche[0].nom+' »\nDans le planning : « '+nom+' »';
+  return 'Aucune date : aucune ligne « besoin atelier » cochée pour cette tranche dans DATES (nom exact : « '+nom+' »).';
+}
 function _normNomSimple(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
 
 // {erp:'t1349'|null, dates:'TR-0419'|null}. Tant qu'une source n'est pas encore
@@ -3195,6 +3205,7 @@ function refreshCtvxDepuisDATES(){
           if(k && dt && (!m.has(k) || dt < m.get(k))) m.set(k, dt);   // la plus proche (comme l'ERP)
         });
         state._ctvxAtelier = m;
+        state._ctvxLignes = rl.tranches_erp.map(x=>({nom:String(x.tranche||'').trim(), date:normalizeDate(x.date_ctvx)||''}));   // diagnostic « pourquoi pas de CTVX »
       }
     }catch(e){ /* silencieux */ }
     return synchroniserLiens();
