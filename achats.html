@@ -189,6 +189,14 @@ table.bl-lignes td.r{text-align:right}
   header,.app-tabs,.toolbar,#bl-actions{display:none!important}
   body{background:#fff}
 }
+/* Impression d'un document (bon de réception, commande) : on n'imprime QUE la zone dédiée — sinon tous les onglets de l'application sortent (7 pages) */
+#zone-impression{display:none}
+@media print{
+  body.imprime-doc > *:not(#zone-impression){display:none!important}
+  body.imprime-doc #zone-impression{display:block!important;padding:0;margin:0}
+  body.imprime-doc .bl-print-wrap{border:none!important;border-radius:0!important;padding:0!important}
+  @page{size:A4 portrait;margin:12mm}
+}
 /* ── HEURES MODULE ── */
 .htab { padding:9px 16px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s; }
 .htab:hover { color:var(--text); }
@@ -871,7 +879,7 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
     <div id="mpc-body"></div>
     <div class="modal-footer no-print">
       <button class="btn" onclick="closeModal('modal-print-cde')">Fermer</button>
-      <button class="btn btn-primary" onclick="window.print()">🖨 Imprimer / PDF</button>
+      <button class="btn btn-primary" onclick="imprimerDocument(document.getElementById('mpc-body').innerHTML, document.getElementById('mpc-title').textContent)">🖨 Imprimer / PDF</button>
     </div>
   </div>
 </div>
@@ -894,10 +902,14 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
       </div>
     </div>
     <div id="mr-cde-choix" style="display:none;margin-bottom:12px"></div>
-    <div class="field-2" style="margin-bottom:12px">
+    <div class="field-2" style="margin-bottom:12px;grid-template-columns:1fr 1fr 1fr">
       <div class="field">
         <label>N° BR (bon de réception) *</label>
         <input type="text" id="mr-bl-numero" placeholder="BR-2026-001"/>
+      </div>
+      <div class="field">
+        <label>N° BL fournisseur <span style="text-transform:none;font-weight:400;color:var(--text3)">(si le fournisseur en a fourni un)</span></label>
+        <input type="text" id="mr-bl-fourn" autocomplete="off" placeholder="N° du bon de livraison fournisseur"/>
       </div>
       <div class="field">
         <label>Date de réception *</label>
@@ -919,7 +931,7 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
     <div id="mpb-body"></div>
     <div class="modal-footer no-print" id="bl-actions">
       <button class="btn" onclick="closeModal('modal-print-bl')">Fermer</button>
-      <button class="btn btn-primary" onclick="window.print()">🖨 Imprimer / PDF</button>
+      <button class="btn btn-primary" onclick="imprimerDocument(document.getElementById('mpb-body').innerHTML, document.getElementById('mpb-title').textContent)">🖨 Imprimer / PDF</button>
     </div>
   </div>
 </div>
@@ -1405,6 +1417,41 @@ function optionsEmplacement(selectedId) {
   return ['<option value="">— emplacement —</option>',
     ...state.emplacements.map(e=>`<option value="${e.id}" ${e.id===selectedId?'selected':''}>${esc(cheminEmplacement(e.id))}</option>`)
   ].join('');
+}
+// Emplacement : menu déroulant ET saisie. Le <select> d'origine (qui porte l'id d'emplacement) reste la référence, masqué ;
+// un champ texte + liste de suggestions le pilote : on tape quelques lettres de n'importe quelle partie du chemin, on choisit dans la liste.
+function emplacementRecherchable(sel) {
+  if (!sel || sel.dataset.rech) return;
+  sel.dataset.rech = '1';
+  let dl = document.getElementById('dl-emplacements');
+  if (!dl) { dl = document.createElement('datalist'); dl.id = 'dl-emplacements'; document.body.appendChild(dl); }
+  dl.innerHTML = state.emplacements.map(e=>`<option value="${esc(cheminEmplacement(e.id))}">`).join('');
+  const norm = t => String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const opts = () => [...sel.options].filter(o=>o.value).map(o=>({id:o.value, label:o.textContent, n:norm(o.textContent)}));
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.setAttribute('list','dl-emplacements'); inp.autocomplete = 'off';
+  inp.placeholder = '— emplacement —'; inp.title = 'Tapez quelques lettres pour chercher, ou ouvrez la liste (▾)';
+  inp.style.cssText = 'padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:11px;flex:1;min-width:190px';
+  const depuisSelect = () => { const o = sel.options[sel.selectedIndex]; inp.value = (sel.value && o) ? o.textContent : ''; };
+  const poser = id => { if (sel.value !== id) { sel.value = id; sel.dispatchEvent(new Event('change',{bubbles:true})); } };
+  const resoudre = (final) => {
+    const t = norm(inp.value);
+    if (!t) { poser(''); return; }
+    const o = opts(), exact = o.find(x=>x.n===t);
+    if (exact) { poser(exact.id); inp.style.borderColor = ''; return; }
+    if (final) {              // à la sortie du champ : un seul emplacement contient tous les mots tapés → on le prend ; sinon on annule la saisie
+      const mots = t.split(' '), cand = o.filter(x=>mots.every(m=>x.n.includes(m)));
+      if (cand.length === 1) { poser(cand[0].id); inp.value = cand[0].label; inp.style.borderColor = ''; }
+      else { poser(''); inp.value = ''; inp.style.borderColor = 'var(--orange)'; inp.placeholder = cand.length>1 ? 'Précisez ('+cand.length+' possibles)' : 'Introuvable — voir la liste'; }
+    } else poser('');
+  };
+  inp.addEventListener('input', ()=>resoudre(false));
+  inp.addEventListener('change', ()=>resoudre(true));
+  inp.addEventListener('blur', ()=>resoudre(true));
+  sel.style.display = 'none';
+  sel.insertAdjacentElement('afterend', inp);
+  sel._sync = depuisSelect;       // à appeler après un « sel.value = … » fait par le code
+  depuisSelect();
 }
 function normaliserDesignation(s) { return String(s||'').trim().toLowerCase(); }
 function getEmplacementDefaut(desc) {
@@ -2194,6 +2241,7 @@ function openNewReception() {
   document.getElementById('mr-fourn-list').innerHTML = fournisseursAvecCommandesOuvertes().map(n=>`<option value="${esc(n)}">`).join('');
   { const n = genNumeroBL(); const e = document.getElementById('mr-bl-numero'); e.value = n; e.dataset.auto = n; }
   document.getElementById('mr-bl-date').value = new Date().toISOString().slice(0,10);
+  { const bf = document.getElementById('mr-bl-fourn'); if (bf) bf.value = ''; }
   document.getElementById('mr-lignes-wrap').innerHTML = '';
   document.getElementById('mr-info').style.display = 'block';
   document.getElementById('mr-info').textContent = 'Saisissez le n° de commande (BC-…) ou, sans bon de livraison, le fournisseur pour afficher ses lignes.';
@@ -2280,6 +2328,7 @@ function onReceptionCdeChange() {
       <td id="mrl${idx}-art-wrap" style="min-width:260px">${l.stock_mp_id ? '<span class="badge badge-blue">📦 Stock pré-enregistré</span>' : celluleArticleReception(idx, l, cde)}</td>
       <td id="mrl${idx}-empl-wrap">${celluleEmplacement}</td>`;
     tbody.appendChild(tr);
+    emplacementRecherchable(document.getElementById('mrl'+idx+'-empl-0'));
     if (!l.stock_mp_id) onReceptionTypeChange(idx);
   });
   if (manquants.length) ouvrirPopupEmplacementManquant(manquants);
@@ -2342,6 +2391,7 @@ function ajouterEmplacementReception(idx) {
     <button type="button" onclick="this.parentElement.remove()" style="border:none;background:none;color:var(--red);cursor:pointer">✕</button>`;
   const boutonDiviser = wrap.nextElementSibling; // le bouton "+ diviser"
   wrap.appendChild(div);
+  emplacementRecherchable(document.getElementById(`mrl${idx}-empl-${n}`));
 }
 let _lignesEmplacementManquant = [];
 function ouvrirPopupEmplacementManquant(manquants) {
@@ -2354,6 +2404,7 @@ function ouvrirPopupEmplacementManquant(manquants) {
         <input type="checkbox" id="mdm-${i}-memoriser" checked style="width:auto"/> Mémoriser comme emplacement par défaut pour cet article
       </label>
     </div>`).join('');
+  manquants.forEach((m,i)=>emplacementRecherchable(document.getElementById(`mdm-${i}-empl`)));
   document.getElementById('modal-emplacement-manquant').classList.add('show');
 }
 function validerEmplacementsManquants() {
@@ -2364,7 +2415,7 @@ function validerEmplacementsManquants() {
     const emplacementId = sel?.value||'';
     if (!emplacementId) { manque = true; return; }
     const selLigne = document.getElementById(`mrl${m.idx}-empl-0`);
-    if (selLigne) selLigne.value = emplacementId;
+    if (selLigne) { selLigne.value = emplacementId; if (selLigne._sync) selLigne._sync(); }
     if (chk?.checked) setEmplacementDefaut(m.desc, emplacementId);
   });
   if (manque) { alert('Choisissez un emplacement pour chaque article listé (ou fermez avec "Plus tard").'); return; }
@@ -2435,6 +2486,8 @@ function saveReception() {
   const reception = {
     id: uid(), cdeId: cde.id, cdeNum: cde.num, fournId: cde.fourn_id, fournNom: cde.fourn_nom,
     blNumero, brNumero: brAuto || blNumero, blDate, date: blDate,
+    blFourn: (document.getElementById('mr-bl-fourn')?.value || '').trim(),
+    creePar: (_user && (_user.nom || _user.login)) || '',
     lignes: lignes.map(l=>({
       cdeLigneId: l.cdeLigneId, desc: l.desc, unite: l.unite, prixUnitaire: l.prixUnitaire,
       quantite: l.quantite, repartition: l.repartition,
@@ -2540,7 +2593,7 @@ function receptionsFiltrees(){
     if (d1 && (!dt || dt>d1)) return false;
     if (fo && (r.fournNom||'')!==fo) return false;
     if (!q) return true;
-    return [r.blNumero, r.brNumero, r.cdeNum, r.fournNom].some(v=>String(v||'').toLowerCase().includes(q))
+    return [r.blNumero, r.brNumero, r.blFourn, r.cdeNum, r.fournNom].some(v=>String(v||'').toLowerCase().includes(q))
       || (r.lignes||[]).some(l=>String(l.desc||'').toLowerCase().includes(q));
   }).slice().sort((a,b)=>String(b.blDate||b.date||'').localeCompare(String(a.blDate||a.date||'')) || String(b.created_at||'').localeCompare(String(a.created_at||'')));
 }
@@ -2566,7 +2619,7 @@ function renderReceptions() {
   const total = recs.reduce((s,r)=>s+recepMontant(r),0);
   el.innerHTML = `<div style="font-size:12px;color:var(--text2);margin-bottom:6px"><b>${recs.length}</b> bon${recs.length>1?'s':''} de réception · montant total <b>${fmtEuro(total)}</b></div>
   <div class="table-wrap" style="margin-bottom:24px"><table class="stock-table">
-    <thead><tr><th style="width:26px"></th><th>N° bon de réception</th><th>Date</th><th>Fournisseur</th><th>Commande</th><th style="text-align:right">Lignes</th><th style="text-align:right">Montant</th><th class="no-print"></th></tr></thead>
+    <thead><tr><th style="width:26px"></th><th>N° bon de réception</th><th>Date</th><th>Fournisseur</th><th>Commande</th><th>BL fournisseur</th><th style="text-align:right">Lignes</th><th style="text-align:right">Montant</th><th class="no-print"></th></tr></thead>
     <tbody>${recs.map(r=>{
       const nl = (r.lignes||[]).length;
       let h = `<tr style="cursor:pointer" onclick="toggleReception('${r.id}')">
@@ -2575,11 +2628,12 @@ function renderReceptions() {
         <td><span class="dp dp-blue">${fmtDate(r.blDate||r.date)}</span></td>
         <td style="font-weight:600">${esc(r.fournNom||'—')}</td>
         <td style="color:var(--text2)">${esc(r.cdeNum||'—')}</td>
+        <td style="color:var(--text2)">${esc(r.blFourn||'—')}</td>
         <td style="text-align:right">${nl}</td>
         <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:600;color:var(--blue)">${fmtEuro(recepMontant(r))}</td>
         <td class="no-print" style="text-align:right" onclick="event.stopPropagation()"><button class="btn btn-sm" onclick="openPrintBL('${r.id}')">🖨 Bon de réception</button></td>
       </tr>`;
-      if (r.open) h += `<tr><td></td><td colspan="7" style="background:var(--bg2,#faf9f6);padding:8px 12px">
+      if (r.open) h += `<tr><td></td><td colspan="8" style="background:var(--bg2,#faf9f6);padding:8px 12px">
         <table class="lignes-table" style="width:100%">
           <thead><tr><th>Désignation</th><th style="text-align:right">Qté reçue</th><th>Emplacement(s)</th><th style="text-align:right">PU</th><th style="text-align:right">Montant</th></tr></thead>
           <tbody>${(r.lignes||[]).map(l=>`<tr>
@@ -2599,13 +2653,13 @@ function exporterReceptions(){
   const recs = receptionsFiltrees();
   if (!recs.length) { toast('Aucun bon de réception à exporter'); return; }
   const cel = v => { const t = String(v==null?'':(typeof v==='number'?String(v).replace('.',','):v)); return /[;"\n]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t; };
-  const cols = ['N° bon de réception','Date','Fournisseur','Commande','Désignation','Qté reçue','Unité','Emplacement(s)','PU','Montant ligne','Montant du bon'];
+  const cols = ['N° bon de réception','Date','Fournisseur','Commande','N° BL fournisseur','Désignation','Qté reçue','Unité','Emplacement(s)','PU','Montant ligne','Montant du bon'];
   const L = [cols.join(';')];
   recs.forEach(r=>{
     const lg = (r.lignes && r.lignes.length) ? r.lignes : [{}];
     lg.forEach(l=>{
       const q = Number(l.quantite)||0, pu = Number(l.prixUnitaire)||0;
-      L.push([recepNumero(r), fmtDate(r.blDate||r.date), r.fournNom||'', r.cdeNum||'', l.desc||'', q, l.unite||'',
+      L.push([recepNumero(r), fmtDate(r.blDate||r.date), r.fournNom||'', r.cdeNum||'', r.blFourn||'', l.desc||'', q, l.unite||'',
         (l.repartition||[]).map(rp=>libelleEmplacement(rp.emplacementId)+' ('+fmtQte(rp.quantite)+')').join(' + '), pu, +(q*pu).toFixed(2), +recepMontant(r).toFixed(2)].map(cel).join(';'));
     });
   });
@@ -2746,26 +2800,43 @@ function openPrintBL(id) {
   document.getElementById('mpb-body').innerHTML = buildPrintBL(r, fourn);
   document.getElementById('modal-print-bl').classList.add('show');
 }
+// Logo de l'entreprise : repris de l'en-tête de la page (même image que sur la commande imprimée)
+function logoEntreprise() {
+  const im = [...document.images].find(i=>/^data:image/.test(i.src||''));
+  return im ? im.src : '';
+}
+function fmtHeureFR(iso) {
+  const d = new Date(iso); if (!iso || isNaN(d)) return '';
+  return d.toLocaleDateString('fr-FR') + ' à ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
 function buildPrintBL(r, fourn) {
-  const montant = r.lignes.reduce((s,l)=>s+l.quantite*l.prixUnitaire,0);
-  return `<div class="bl-print-wrap">
-    <div class="bl-print-title">BON DE RÉCEPTION</div>
-    <div class="bl-print-grid">
-      <div class="bl-print-box"><strong>Réceptionné par</strong>ROUSSEAU CONSTRUCTION BOIS SAS<br>9 Chemin du Tour du Bois, 49770 Longuenée-en-Anjou</div>
-      <div class="bl-print-box"><strong>Fournisseur</strong>${esc(fourn?.nom||r.fournNom||'—')}${fourn?.adresse?`<br>${esc(fourn.adresse).replace(/\n/g,'<br>')}`:''}</div>
+  const montant = (r.lignes||[]).reduce((s,l)=>s+(Number(l.quantite)||0)*(Number(l.prixUnitaire)||0),0);
+  const logo = logoEntreprise();
+  const cree = fmtHeureFR(r.created_at);
+  return `<div class="bl-print-wrap" style="font-family:Arial,sans-serif">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1A4F8A;padding-bottom:12px;margin-bottom:14px">
+      <div>
+        ${logo?`<img src="${logo}" alt="Rousseau" style="height:56px;display:block;margin-bottom:6px"/>`:'<div style="font-size:16px;font-weight:800;color:#1A4F8A;margin-bottom:6px">ROUSSEAU</div>'}
+        <div style="font-size:10px;color:#555">ROUSSEAU CONSTRUCTION BOIS SAS<br>9 Chemin du Tour du Bois<br>49770 Longuenée-en-Anjou<br>Tél : 02 41 31 12 20</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:22px;font-weight:800;color:#1A4F8A;letter-spacing:.04em">BON DE RÉCEPTION</div>
+        <div style="font-size:14px;font-weight:700;font-family:monospace">${esc(recepNumero(r))}</div>
+        <div style="font-size:11px;color:#555">Date de réception : ${fmtDate(r.blDate||r.date)}</div>
+      </div>
     </div>
     <div class="bl-print-grid">
-      <div class="bl-print-box"><strong>Bon de livraison</strong>${esc(r.blNumero)} — ${fmtDate(r.blDate)}</div>
-      <div class="bl-print-box"><strong>Commande liée</strong>${esc(r.cdeNum||'—')}</div>
+      <div class="bl-print-box"><strong>Fournisseur</strong>${esc(fourn?.nom||r.fournNom||'—')}${fourn?.adresse?`<br>${esc(fourn.adresse).replace(/\n/g,'<br>')}`:''}</div>
+      <div class="bl-print-box"><strong>Références</strong>Commande liée : <b>${esc(r.cdeNum||'—')}</b><br>N° BL fournisseur : <b>${esc(r.blFourn||'—')}</b></div>
     </div>
     <table class="bl-lignes" style="margin-top:10px">
       <thead><tr><th>Désignation</th><th>Qté reçue</th><th>Emplacement(s)</th><th class="r">PU HT</th><th class="r">Montant HT</th></tr></thead>
-      <tbody>${r.lignes.map(l=>`<tr>
+      <tbody>${(r.lignes||[]).map(l=>`<tr>
         <td>${esc(l.desc)}</td>
         <td>${fmtQte(l.quantite)} ${esc(l.unite||'')}</td>
         <td>${(l.repartition||[]).map(rp=>esc(libelleEmplacement(rp.emplacementId))+' ('+fmtQte(rp.quantite)+')').join(', ')||'—'}</td>
         <td class="r">${fmtEuro(l.prixUnitaire)}</td>
-        <td class="r">${fmtEuro(l.quantite*l.prixUnitaire)}</td>
+        <td class="r">${fmtEuro((Number(l.quantite)||0)*(Number(l.prixUnitaire)||0))}</td>
       </tr>`).join('')}</tbody>
       <tfoot><tr><td colspan="4" style="text-align:right;font-weight:700;padding:5px 7px">TOTAL HT</td><td class="r" style="font-weight:700">${fmtEuro(montant)}</td></tr></tfoot>
     </table>
@@ -2773,8 +2844,19 @@ function buildPrintBL(r, fourn) {
       <div class="bl-sig-box">Contrôlé par</div>
       <div class="bl-sig-box">Mis en stock par</div>
     </div>
-    <div style="font-size:9px;color:#888;margin-top:8px">Bon de réception généré le ${fmtDate(new Date().toISOString().slice(0,10))}. Marchandise contrôlée et mise en stock aux emplacements indiqués.</div>
+    <div style="font-size:10px;color:#555;margin-top:10px;border-top:1px solid #ccc;padding-top:6px">Bon de réception créé${r.creePar?' par <b>'+esc(r.creePar)+'</b>':''}${cree?' le <b>'+cree+'</b>':''}. Marchandise contrôlée et mise en stock aux emplacements indiqués.</div>
   </div>`;
+}
+// Impression d'un document seul : copié dans une zone dédiée, tout le reste de la page est masqué à l'impression
+function imprimerDocument(html, titre) {
+  let z = document.getElementById('zone-impression');
+  if (!z) { z = document.createElement('div'); z.id = 'zone-impression'; document.body.appendChild(z); }
+  z.innerHTML = html;
+  const ancienTitre = document.title; document.title = String(titre||'Document').replace(/[\\/:*?"<>|]+/g,'-');   // devient le nom du fichier PDF
+  document.body.classList.add('imprime-doc');
+  const fin = () => { document.body.classList.remove('imprime-doc'); document.title = ancienTitre; z.innerHTML = ''; window.removeEventListener('afterprint', fin); };
+  window.addEventListener('afterprint', fin);
+  setTimeout(()=>window.print(), 60);
 }
 // ═══ STOCK ════════════════════════════════════════════════════════════════
 // Raccourci depuis la fiche article (bouton "+ Entrée stock") : on passe
