@@ -888,10 +888,12 @@ body.ro .toolbar .btn-primary,body.ro .btn-red,body.ro button[onclick^="openEdit
         <div id="mr-cde-info"></div>
       </div>
       <div class="field">
-        <label>Fournisseur</label>
-        <input type="text" id="mr-fourn" readonly style="background:var(--bg)"/>
+        <label>Fournisseur <span style="text-transform:none;font-weight:400;color:var(--text3)">(sans n° de commande : tapez le fournisseur)</span></label>
+        <input type="text" id="mr-fourn" list="mr-fourn-list" autocomplete="off" placeholder="Rechercher un fournisseur…" oninput="onReceptionFournInput()"/>
+        <datalist id="mr-fourn-list"></datalist>
       </div>
     </div>
+    <div id="mr-cde-choix" style="display:none;margin-bottom:12px"></div>
     <div class="field-2" style="margin-bottom:12px">
       <div class="field">
         <label>N° BR (bon de réception) *</label>
@@ -2117,6 +2119,66 @@ function trouverCdeReception(texte) {
     })
   };
 }
+// ── Recherche d'une commande PAR FOURNISSEUR (quand le bon de livraison / le n° BC manque) ──
+function fournNormRec(s) { return cfNorm(s).replace(/[^a-z0-9]+/g,' ').trim(); }
+function cfLigneClose(statut) { return /recu|livre|annul|solde|termin|refus|litige/.test(cfNorm(statut)); }
+// Commandes encore à réceptionner (ERP + tableau ACHATS) : [{num, fourn, chantier, date, nb, statut}]
+function toutesCommandesOuvertes() {
+  const out = new Map();
+  state.commandes.forEach(c=>{
+    if (!c.num || !(c.lignes||[]).length || !['Validée','Envoyée','Réception partielle'].includes(c.statut)) return;
+    out.set(String(c.num).trim().toUpperCase(), { num:c.num, fourn:c.fourn_nom||'', chantier:c.chantier_nom||'', date:c.dliv||'', nb:c.lignes.length, statut:c.statut, source:'ERP' });
+  });
+  const cf = state.cf;
+  if (cf && cf.lignes.length) {
+    const C = colonnesAchats();
+    if (C.id && C.fo) cf.lignes.forEach(l=>{
+      const num = String(l[C.id]||'').trim().toUpperCase(); if (!num || !/^BC/.test(num)) return;
+      if (C.st && cfLigneClose(l[C.st])) return;
+      const ex = out.get(num);
+      if (ex) { if (ex.source==='ACHATS') ex.nb++; return; }
+      const d = C.date ? String(l[C.date]||'').trim() : '';
+      out.set(num, { num, fourn:String(l[C.fo]||'').trim(), chantier:C.ch?String(l[C.ch]||'').trim():'', date:d, nb:1, statut:C.st?String(l[C.st]||'').trim():'', source:'ACHATS' });
+    });
+  }
+  return [...out.values()];
+}
+function fournisseursAvecCommandesOuvertes() {
+  const vus = new Map(); toutesCommandesOuvertes().forEach(c=>{ const k=fournNormRec(c.fourn); if(k && !vus.has(k)) vus.set(k, c.fourn); });   // « Bois du Nord » et « BOIS DU NORD » = un seul fournisseur
+  return [...vus.values()].sort((a,b)=>a.localeCompare(b,'fr',{sensitivity:'base'}));
+}
+function commandesOuvertesFournisseur(texte) {
+  const q = fournNormRec(texte); if (q.length < 2) return [];
+  return toutesCommandesOuvertes().filter(c=>fournNormRec(c.fourn).includes(q))
+    .sort((a,b)=>(cfEstDate(b.date)?b.date:'') < (cfEstDate(a.date)?a.date:'') ? -1 : 1);
+}
+function renderChoixCdeFournisseur() {
+  const box = document.getElementById('mr-cde-choix'); if (!box) return;
+  const f = document.getElementById('mr-fourn');
+  if (_recCde || f.dataset.auto==='1' || fournNormRec(f.value).length < 2) { box.style.display='none'; box.innerHTML=''; return; }
+  const l = commandesOuvertesFournisseur(f.value), MAX = 40;
+  box.style.display = 'block';
+  if (!l.length) { box.innerHTML = '<div class="info-box" style="margin:0;color:var(--text3)">Aucune commande à réceptionner pour « '+esc(f.value.trim())+' » (tableau ACHATS + commandes ERP). Vérifiez l\'orthographe ou saisissez le n° de commande.</div>'; return; }
+  box.innerHTML = '<div style="font-size:11px;font-weight:700;margin-bottom:4px;color:var(--text2)">Commandes à réceptionner — cliquez la bonne ('+l.length+')</div>'
+    + '<div style="border:1px solid var(--border);border-radius:8px;max-height:190px;overflow-y:auto">'
+    + l.slice(0,MAX).map(c=>`<div onclick="choisirCdeReception(this.dataset.num)" data-num="${esc(c.num)}" style="display:flex;gap:10px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+        <span style="font-family:'DM Mono',monospace;font-weight:600;min-width:104px">${esc(c.num)}</span>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.fourn)}${c.chantier?' · '+esc(c.chantier):''}</span>
+        <span style="color:var(--text3);font-size:11px;white-space:nowrap">${c.date?(cfEstDate(c.date)?fmtDate(c.date):esc(c.date)):''} · ${c.nb} ligne${c.nb>1?'s':''}${c.statut?' · '+esc(c.statut):''}</span>
+      </div>`).join('')
+    + '</div>' + (l.length>MAX ? '<div style="font-size:10px;color:var(--text3);margin-top:3px">'+(l.length-MAX)+' autres — précisez le fournisseur.</div>' : '');
+}
+function onReceptionFournInput() {
+  const f = document.getElementById('mr-fourn'); f.dataset.auto = '';
+  if (_recCde) {            // on change de fournisseur : on repart d'une réception vide
+    _recCde = null; document.getElementById('mr-cde').value = ''; document.getElementById('mr-cde-info').textContent = ''; onReceptionCdeChange();
+  }
+  renderChoixCdeFournisseur();
+}
+function choisirCdeReception(num) {
+  document.getElementById('mr-cde').value = num;
+  onReceptionNumInput(true);
+}
 function openNewReception() {
   _ctx = {type:'new-reception'};
   _recCde = null;
@@ -2127,12 +2189,14 @@ function openNewReception() {
   document.getElementById('mr-cde-list').innerHTML = [...new Set(nums)].sort().map(n=>`<option value="${esc(n)}">`).join('');
   document.getElementById('mr-cde').value = '';
   document.getElementById('mr-cde-info').textContent = '';
-  document.getElementById('mr-fourn').value = '';
+  { const f = document.getElementById('mr-fourn'); f.value = ''; f.dataset.auto = ''; }
+  document.getElementById('mr-cde-choix').style.display = 'none'; document.getElementById('mr-cde-choix').innerHTML = '';
+  document.getElementById('mr-fourn-list').innerHTML = fournisseursAvecCommandesOuvertes().map(n=>`<option value="${esc(n)}">`).join('');
   { const n = genNumeroBL(); const e = document.getElementById('mr-bl-numero'); e.value = n; e.dataset.auto = n; }
   document.getElementById('mr-bl-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('mr-lignes-wrap').innerHTML = '';
   document.getElementById('mr-info').style.display = 'block';
-  document.getElementById('mr-info').textContent = 'Saisissez le n° de commande (BC-…) pour afficher ses lignes.';
+  document.getElementById('mr-info').textContent = 'Saisissez le n° de commande (BC-…) ou, sans bon de livraison, le fournisseur pour afficher ses lignes.';
   document.getElementById('modal-reception').classList.add('show');
   setTimeout(()=>document.getElementById('mr-cde').focus(),50);
 }
@@ -2158,8 +2222,10 @@ function onReceptionCdeChange() {
   const cde = _recCde;
   const wrap = document.getElementById('mr-lignes-wrap');
   const info = document.getElementById('mr-info');
-  if (!cde) { wrap.innerHTML=''; info.style.display='block'; info.textContent='Saisissez le n° de commande (BC-…) pour afficher ses lignes.'; document.getElementById('mr-fourn').value=''; return; }
-  document.getElementById('mr-fourn').value = cde.fourn_nom||'';
+  const fEl = document.getElementById('mr-fourn');
+  if (!cde) { wrap.innerHTML=''; info.style.display='block'; info.textContent='Saisissez le n° de commande (BC-…) ou, sans bon de livraison, le fournisseur pour afficher ses lignes.'; if (fEl.dataset.auto==='1') { fEl.value=''; fEl.dataset.auto=''; } renderChoixCdeFournisseur(); return; }
+  fEl.value = cde.fourn_nom||''; fEl.dataset.auto = '1';
+  { const ch = document.getElementById('mr-cde-choix'); if (ch) { ch.style.display='none'; ch.innerHTML=''; } }
   info.style.display = 'none';
   _nbLignesRecep = 0;
   wrap.innerHTML = `<table class="lignes-table" style="margin-bottom:10px">
